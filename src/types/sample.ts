@@ -1,7 +1,7 @@
 export interface ProcessLog {
   id: string;
   timestamp: string;
-  state: 'received' | 'prepared' | 'testing' | 'analyzed' | 'completed';
+  state: 'received' | 'prepared' | 'determination' | 'completed';
   test_id?: string;
   notes?: string;
   conducted_by: string;

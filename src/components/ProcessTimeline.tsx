@@ -8,9 +8,9 @@ interface ProcessTimelineProps {
 }
 
 const stateConfig = {
-  received: { icon: Package, label: 'Received', color: 'text-muted-foreground bg-muted' },
-  prepared: { icon: FlaskConical, label: 'Prepared', color: 'text-primary bg-primary/10' },
-  testing: { icon: Microscope, label: 'Testing', color: 'text-warning bg-warning/10' },
+  received: { icon: Package, label: 'Data uploaded', color: 'text-muted-foreground bg-muted' },
+  // prepared: { icon: FlaskConical, label: 'Prepared', color: 'text-primary bg-primary/10' },
+  prepared: { icon: Microscope, label: 'Preparing', color: 'text-warning bg-warning/10' },
   analyzed: { icon: FileCheck, label: 'Analyzed', color: 'text-accent-foreground bg-accent' },
   completed: { icon: CheckCircle, label: 'Completed', color: 'text-success bg-success/10' },
 };
