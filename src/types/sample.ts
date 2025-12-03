@@ -4,6 +4,7 @@ export interface ProcessLog {
   state: 'received' | 'prepared' | 'testing' | 'analyzed' | 'completed';
   test_id?: string;
   notes?: string;
+  conducted_by: string;
 }
 
 export interface MycotoxinResult {

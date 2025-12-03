@@ -34,7 +34,7 @@ const SampleTable = ({ samples, onSelectSample }: SampleTableProps) => {
             <TableHead className="font-semibold">Region</TableHead>
             <TableHead className="font-semibold">Province</TableHead>
             <TableHead className="font-semibold">District</TableHead>
-            <TableHead className="font-semibold">Vegetation</TableHead>
+            <TableHead className="font-semibold">Variety</TableHead>
             <TableHead className="font-semibold">Date</TableHead>
             <TableHead className="font-semibold">Status</TableHead>
             <TableHead className="font-semibold">Risk</TableHead>
