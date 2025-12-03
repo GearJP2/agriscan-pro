@@ -1,0 +1,152 @@
+import { Sample } from '@/types/sample';
+
+export const mockSamples: Sample[] = [
+  {
+    sample_id: 'SAM-2024-001',
+    region: 'Central',
+    province: 'Bangkok',
+    district: 'Pathum Wan',
+    vegetation_variety: 'Rice',
+    collection_date: '2024-01-15',
+    status: 'completed',
+    process_logs: [
+      { id: 'LOG-001', timestamp: '2024-01-15T09:00:00Z', state: 'received', notes: 'Sample received in good condition' },
+      { id: 'LOG-002', timestamp: '2024-01-15T10:30:00Z', state: 'prepared', test_id: 'TEST-001' },
+      { id: 'LOG-003', timestamp: '2024-01-15T14:00:00Z', state: 'testing', test_id: 'TEST-001' },
+      { id: 'LOG-004', timestamp: '2024-01-16T09:00:00Z', state: 'analyzed', test_id: 'TEST-001' },
+      { id: 'LOG-005', timestamp: '2024-01-16T11:00:00Z', state: 'completed', test_id: 'TEST-001' },
+    ],
+    mycotoxin_results: [
+      { name: 'Aflatoxin B1', intensity: 2, dangerous: false, threshold: 5, unit: 'µg/kg' },
+      { name: 'Ochratoxin A', intensity: 1, dangerous: false, threshold: 10, unit: 'µg/kg' },
+    ],
+  },
+  {
+    sample_id: 'SAM-2024-002',
+    region: 'Northern',
+    province: 'Chiang Mai',
+    district: 'Mae Rim',
+    vegetation_variety: 'Corn',
+    collection_date: '2024-01-18',
+    status: 'flagged',
+    process_logs: [
+      { id: 'LOG-006', timestamp: '2024-01-18T08:00:00Z', state: 'received' },
+      { id: 'LOG-007', timestamp: '2024-01-18T11:00:00Z', state: 'prepared', test_id: 'TEST-002' },
+      { id: 'LOG-008', timestamp: '2024-01-18T15:00:00Z', state: 'testing', test_id: 'TEST-002' },
+      { id: 'LOG-009', timestamp: '2024-01-19T10:00:00Z', state: 'analyzed', test_id: 'TEST-002' },
+      { id: 'LOG-010', timestamp: '2024-01-19T12:00:00Z', state: 'completed', test_id: 'TEST-002', notes: 'High mycotoxin levels detected' },
+    ],
+    mycotoxin_results: [
+      { name: 'Aflatoxin B1', intensity: 8, dangerous: true, threshold: 5, unit: 'µg/kg' },
+      { name: 'Fumonisin B1', intensity: 7, dangerous: true, threshold: 4, unit: 'mg/kg' },
+      { name: 'Deoxynivalenol', intensity: 3, dangerous: false, threshold: 6, unit: 'mg/kg' },
+    ],
+  },
+  {
+    sample_id: 'SAM-2024-003',
+    region: 'Northeastern',
+    province: 'Khon Kaen',
+    district: 'Mueang',
+    vegetation_variety: 'Wheat',
+    collection_date: '2024-01-20',
+    status: 'in_progress',
+    process_logs: [
+      { id: 'LOG-011', timestamp: '2024-01-20T09:30:00Z', state: 'received' },
+      { id: 'LOG-012', timestamp: '2024-01-20T13:00:00Z', state: 'prepared', test_id: 'TEST-003' },
+      { id: 'LOG-013', timestamp: '2024-01-21T08:00:00Z', state: 'testing', test_id: 'TEST-003' },
+    ],
+    mycotoxin_results: [],
+  },
+  {
+    sample_id: 'SAM-2024-004',
+    region: 'Southern',
+    province: 'Phuket',
+    district: 'Thalang',
+    vegetation_variety: 'Cassava',
+    collection_date: '2024-01-22',
+    status: 'pending',
+    process_logs: [
+      { id: 'LOG-014', timestamp: '2024-01-22T10:00:00Z', state: 'received', notes: 'Awaiting processing' },
+    ],
+    mycotoxin_results: [],
+  },
+  {
+    sample_id: 'SAM-2024-005',
+    region: 'Eastern',
+    province: 'Chonburi',
+    district: 'Si Racha',
+    vegetation_variety: 'Peanut',
+    collection_date: '2024-01-25',
+    status: 'completed',
+    process_logs: [
+      { id: 'LOG-015', timestamp: '2024-01-25T08:00:00Z', state: 'received' },
+      { id: 'LOG-016', timestamp: '2024-01-25T10:00:00Z', state: 'prepared', test_id: 'TEST-004' },
+      { id: 'LOG-017', timestamp: '2024-01-25T14:00:00Z', state: 'testing', test_id: 'TEST-004' },
+      { id: 'LOG-018', timestamp: '2024-01-26T09:00:00Z', state: 'analyzed', test_id: 'TEST-004' },
+      { id: 'LOG-019', timestamp: '2024-01-26T11:30:00Z', state: 'completed', test_id: 'TEST-004' },
+    ],
+    mycotoxin_results: [
+      { name: 'Aflatoxin B1', intensity: 4, dangerous: false, threshold: 5, unit: 'µg/kg' },
+      { name: 'Aflatoxin B2', intensity: 2, dangerous: false, threshold: 5, unit: 'µg/kg' },
+    ],
+  },
+  {
+    sample_id: 'SAM-2024-006',
+    region: 'Western',
+    province: 'Kanchanaburi',
+    district: 'Tha Muang',
+    vegetation_variety: 'Soybean',
+    collection_date: '2024-01-28',
+    status: 'completed',
+    process_logs: [
+      { id: 'LOG-020', timestamp: '2024-01-28T09:00:00Z', state: 'received' },
+      { id: 'LOG-021', timestamp: '2024-01-28T11:00:00Z', state: 'prepared', test_id: 'TEST-005' },
+      { id: 'LOG-022', timestamp: '2024-01-28T15:00:00Z', state: 'testing', test_id: 'TEST-005' },
+      { id: 'LOG-023', timestamp: '2024-01-29T10:00:00Z', state: 'analyzed', test_id: 'TEST-005' },
+      { id: 'LOG-024', timestamp: '2024-01-29T14:00:00Z', state: 'completed', test_id: 'TEST-005' },
+    ],
+    mycotoxin_results: [
+      { name: 'Zearalenone', intensity: 3, dangerous: false, threshold: 8, unit: 'µg/kg' },
+      { name: 'Ochratoxin A', intensity: 2, dangerous: false, threshold: 10, unit: 'µg/kg' },
+    ],
+  },
+  {
+    sample_id: 'SAM-2024-007',
+    region: 'Central',
+    province: 'Ayutthaya',
+    district: 'Phra Nakhon Si Ayutthaya',
+    vegetation_variety: 'Rice',
+    collection_date: '2024-02-01',
+    status: 'flagged',
+    process_logs: [
+      { id: 'LOG-025', timestamp: '2024-02-01T08:30:00Z', state: 'received' },
+      { id: 'LOG-026', timestamp: '2024-02-01T10:00:00Z', state: 'prepared', test_id: 'TEST-006' },
+      { id: 'LOG-027', timestamp: '2024-02-01T14:30:00Z', state: 'testing', test_id: 'TEST-006' },
+      { id: 'LOG-028', timestamp: '2024-02-02T09:00:00Z', state: 'analyzed', test_id: 'TEST-006' },
+      { id: 'LOG-029', timestamp: '2024-02-02T11:00:00Z', state: 'completed', test_id: 'TEST-006', notes: 'Critical contamination detected' },
+    ],
+    mycotoxin_results: [
+      { name: 'Aflatoxin B1', intensity: 9, dangerous: true, threshold: 5, unit: 'µg/kg' },
+      { name: 'Aflatoxin G1', intensity: 6, dangerous: true, threshold: 5, unit: 'µg/kg' },
+      { name: 'Ochratoxin A', intensity: 4, dangerous: false, threshold: 10, unit: 'µg/kg' },
+    ],
+  },
+  {
+    sample_id: 'SAM-2024-008',
+    region: 'Northern',
+    province: 'Lampang',
+    district: 'Ko Kha',
+    vegetation_variety: 'Corn',
+    collection_date: '2024-02-03',
+    status: 'in_progress',
+    process_logs: [
+      { id: 'LOG-030', timestamp: '2024-02-03T09:00:00Z', state: 'received' },
+      { id: 'LOG-031', timestamp: '2024-02-03T12:00:00Z', state: 'prepared', test_id: 'TEST-007' },
+    ],
+    mycotoxin_results: [],
+  },
+];
+
+export const regions = ['Central', 'Northern', 'Northeastern', 'Southern', 'Eastern', 'Western'];
+export const vegetationTypes = ['Rice', 'Corn', 'Wheat', 'Cassava', 'Peanut', 'Soybean'];
+export const statuses = ['pending', 'in_progress', 'completed', 'flagged'];

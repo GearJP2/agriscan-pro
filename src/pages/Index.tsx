@@ -1,12 +1,118 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+import { useState, useMemo } from 'react';
+import { FlaskConical, AlertTriangle, CheckCircle2, Clock } from 'lucide-react';
+import Header from '@/components/Header';
+import StatsCard from '@/components/StatsCard';
+import FilterBar from '@/components/FilterBar';
+import SampleTable from '@/components/SampleTable';
+import SampleDetailModal from '@/components/SampleDetailModal';
+import { mockSamples } from '@/data/mockSamples';
+import { Sample, FilterState } from '@/types/sample';
 
 const Index = () => {
+  const [filters, setFilters] = useState<FilterState>({
+    region: '',
+    province: '',
+    district: '',
+    vegetation: '',
+    status: '',
+    search: '',
+  });
+  
+  const [selectedSample, setSelectedSample] = useState<Sample | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+
+  const filteredSamples = useMemo(() => {
+    return mockSamples.filter((sample) => {
+      if (filters.search && !sample.sample_id.toLowerCase().includes(filters.search.toLowerCase())) {
+        return false;
+      }
+      if (filters.region && sample.region !== filters.region) return false;
+      if (filters.vegetation && sample.vegetation_variety !== filters.vegetation) return false;
+      if (filters.status && sample.status !== filters.status) return false;
+      return true;
+    });
+  }, [filters]);
+
+  const stats = useMemo(() => {
+    const total = mockSamples.length;
+    const flagged = mockSamples.filter(s => s.status === 'flagged').length;
+    const completed = mockSamples.filter(s => s.status === 'completed').length;
+    const inProgress = mockSamples.filter(s => s.status === 'in_progress' || s.status === 'pending').length;
+    return { total, flagged, completed, inProgress };
+  }, []);
+
+  const handleSelectSample = (sample: Sample) => {
+    setSelectedSample(sample);
+    setModalOpen(true);
+  };
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
-      <div className="text-center">
-        <h1 className="mb-4 text-4xl font-bold">Welcome to Your Blank App</h1>
-        <p className="text-xl text-muted-foreground">Start building your amazing project here!</p>
-      </div>
+    <div className="min-h-screen bg-background">
+      <Header />
+      
+      <main className="container py-8">
+        {/* Page Title */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-foreground">Sample Tracking Dashboard</h1>
+          <p className="mt-2 text-muted-foreground">
+            Monitor and analyze mycotoxin testing results across agricultural samples
+          </p>
+        </div>
+
+        {/* Stats Grid */}
+        <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <StatsCard
+            title="Total Samples"
+            value={stats.total}
+            icon={FlaskConical}
+            trend="All collected samples"
+          />
+          <StatsCard
+            title="Flagged (High Risk)"
+            value={stats.flagged}
+            icon={AlertTriangle}
+            variant="danger"
+            trend="Require immediate attention"
+          />
+          <StatsCard
+            title="Completed Tests"
+            value={stats.completed}
+            icon={CheckCircle2}
+            variant="success"
+            trend="Successfully analyzed"
+          />
+          <StatsCard
+            title="In Progress"
+            value={stats.inProgress}
+            icon={Clock}
+            variant="warning"
+            trend="Awaiting results"
+          />
+        </div>
+
+        {/* Filters */}
+        <div className="mb-6">
+          <FilterBar filters={filters} onFilterChange={setFilters} />
+        </div>
+
+        {/* Results Summary */}
+        <div className="mb-4 flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">
+            Showing <span className="font-semibold text-foreground">{filteredSamples.length}</span> of{' '}
+            <span className="font-semibold text-foreground">{mockSamples.length}</span> samples
+          </p>
+        </div>
+
+        {/* Sample Table */}
+        <SampleTable samples={filteredSamples} onSelectSample={handleSelectSample} />
+
+        {/* Sample Detail Modal */}
+        <SampleDetailModal
+          sample={selectedSample}
+          open={modalOpen}
+          onOpenChange={setModalOpen}
+        />
+      </main>
     </div>
   );
 };
