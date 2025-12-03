@@ -40,6 +40,9 @@ const ProcessTimeline = ({ logs }: ProcessTimelineProps) => {
                     {format(new Date(log.timestamp), 'MMM dd, HH:mm')}
                   </time>
                 </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Conducted by: <span className="font-medium text-foreground">{log.conducted_by}</span>
+                </p>
                 {log.test_id && (
                   <p className="mt-1 text-xs text-muted-foreground">
                     Test ID: <span className="font-mono text-primary">{log.test_id}</span>

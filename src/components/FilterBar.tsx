@@ -67,7 +67,7 @@ const FilterBar = ({ filters, onFilterChange }: FilterBarProps) => {
         
         <Select value={filters.vegetation} onValueChange={(v) => updateFilter('vegetation', v)}>
           <SelectTrigger>
-            <SelectValue placeholder="Vegetation" />
+            <SelectValue placeholder="Variety" />
           </SelectTrigger>
           <SelectContent>
             {vegetationTypes.map((type) => (

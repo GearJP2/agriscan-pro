@@ -52,7 +52,7 @@ const SampleDetailModal = ({ sample, open, onOpenChange }: SampleDetailModalProp
             <div className="flex items-start gap-3 rounded-lg border border-border bg-muted/30 p-3">
               <Leaf className="h-5 w-5 text-primary shrink-0" />
               <div>
-                <p className="text-xs text-muted-foreground">Vegetation</p>
+                <p className="text-xs text-muted-foreground">Variety</p>
                 <p className="font-medium text-foreground">{sample.vegetation_variety}</p>
               </div>
             </div>
