@@ -13,10 +13,10 @@ interface SampleTableProps {
 const SampleTable = ({ samples, onSelectSample }: SampleTableProps) => {
   const getStatusBadge = (status: Sample['status']) => {
     const statusLabels = {
-      pending: 'Pending',
-      in_progress: 'In Progress',
+      pending: 'Data uploaded',
+      in_progress: 'Preparing',
       completed: 'Completed',
-      flagged: 'Flagged',
+      flagged: 'Analyzed',
     };
     return <Badge variant={status}>{statusLabels[status]}</Badge>;
   };
