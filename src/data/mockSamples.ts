@@ -16,8 +16,8 @@ export const mockSamples: Sample[] = [
       { id: 'LOG-005', timestamp: '2024-01-16T11:00:00Z', state: 'completed', test_id: 'TEST-001', conducted_by: 'Dr. Emily Davis' },
     ],
     mycotoxin_results: [
-      { name: 'Aflatoxin B1', intensity: 2, dangerous: false, threshold: 5, unit: 'µg/kg' },
-      { name: 'Ochratoxin A', intensity: 1, dangerous: false, threshold: 10, unit: 'µg/kg' },
+      { name: 'Aflatoxin B1', intensity: 2, dangerous: false, threshold: 5, unit: 'µg/kg', method: { name: 'HPLC-MS/MS', sopLink: '/sop/hplc-msms' } },
+      { name: 'Ochratoxin A', intensity: 1, dangerous: false, threshold: 10, unit: 'µg/kg', method: { name: 'ELISA', sopLink: '/sop/elisa' } },
     ],
   },
   {
@@ -35,9 +35,9 @@ export const mockSamples: Sample[] = [
       { id: 'LOG-010', timestamp: '2024-01-19T12:00:00Z', state: 'completed', test_id: 'TEST-002', notes: 'High mycotoxin levels detected', conducted_by: 'Dr. James Lee' },
     ],
     mycotoxin_results: [
-      { name: 'Aflatoxin B1', intensity: 8, dangerous: true, threshold: 5, unit: 'µg/kg' },
-      { name: 'Fumonisin B1', intensity: 7, dangerous: true, threshold: 4, unit: 'mg/kg' },
-      { name: 'Deoxynivalenol', intensity: 3, dangerous: false, threshold: 6, unit: 'mg/kg' },
+      { name: 'Aflatoxin B1', intensity: 8, dangerous: true, threshold: 5, unit: 'µg/kg', method: { name: 'HPLC-MS/MS', sopLink: '/sop/hplc-msms' } },
+      { name: 'Fumonisin B1', intensity: 7, dangerous: true, threshold: 4, unit: 'mg/kg', method: { name: 'LC-MS', sopLink: '/sop/lc-ms' } },
+      { name: 'Deoxynivalenol', intensity: 3, dangerous: false, threshold: 6, unit: 'mg/kg', method: { name: 'ELISA', sopLink: '/sop/elisa' } },
     ],
   },
   {
@@ -82,8 +82,8 @@ export const mockSamples: Sample[] = [
       { id: 'LOG-019', timestamp: '2024-01-26T11:30:00Z', state: 'completed', test_id: 'TEST-004', conducted_by: 'Dr. Steven Park' },
     ],
     mycotoxin_results: [
-      { name: 'Aflatoxin B1', intensity: 4, dangerous: false, threshold: 5, unit: 'µg/kg' },
-      { name: 'Aflatoxin B2', intensity: 2, dangerous: false, threshold: 5, unit: 'µg/kg' },
+      { name: 'Aflatoxin B1', intensity: 4, dangerous: false, threshold: 5, unit: 'µg/kg', method: { name: 'HPLC-MS/MS', sopLink: '/sop/hplc-msms' } },
+      { name: 'Aflatoxin B2', intensity: 2, dangerous: false, threshold: 5, unit: 'µg/kg', method: { name: 'HPLC-MS/MS', sopLink: '/sop/hplc-msms' } },
     ],
   },
   {
@@ -101,8 +101,8 @@ export const mockSamples: Sample[] = [
       { id: 'LOG-024', timestamp: '2024-01-29T14:00:00Z', state: 'completed', test_id: 'TEST-005', conducted_by: 'Dr. Andrew Liu' },
     ],
     mycotoxin_results: [
-      { name: 'Zearalenone', intensity: 3, dangerous: false, threshold: 8, unit: 'µg/kg' },
-      { name: 'Ochratoxin A', intensity: 2, dangerous: false, threshold: 10, unit: 'µg/kg' },
+      { name: 'Zearalenone', intensity: 3, dangerous: false, threshold: 8, unit: 'µg/kg', method: { name: 'ELISA', sopLink: '/sop/elisa' } },
+      { name: 'Ochratoxin A', intensity: 2, dangerous: false, threshold: 10, unit: 'µg/kg', method: { name: 'ELISA', sopLink: '/sop/elisa' } },
     ],
   },
   {
@@ -120,9 +120,9 @@ export const mockSamples: Sample[] = [
       { id: 'LOG-029', timestamp: '2024-02-02T11:00:00Z', state: 'completed', test_id: 'TEST-006', notes: 'Critical contamination detected', conducted_by: 'Dr. William Ng' },
     ],
     mycotoxin_results: [
-      { name: 'Aflatoxin B1', intensity: 9, dangerous: true, threshold: 5, unit: 'µg/kg' },
-      { name: 'Aflatoxin G1', intensity: 6, dangerous: true, threshold: 5, unit: 'µg/kg' },
-      { name: 'Ochratoxin A', intensity: 4, dangerous: false, threshold: 10, unit: 'µg/kg' },
+      { name: 'Aflatoxin B1', intensity: 9, dangerous: true, threshold: 5, unit: 'µg/kg', method: { name: 'HPLC-MS/MS', sopLink: '/sop/hplc-msms' } },
+      { name: 'Aflatoxin G1', intensity: 6, dangerous: true, threshold: 5, unit: 'µg/kg', method: { name: 'HPLC-MS/MS', sopLink: '/sop/hplc-msms' } },
+      { name: 'Ochratoxin A', intensity: 4, dangerous: false, threshold: 10, unit: 'µg/kg', method: { name: 'ELISA', sopLink: '/sop/elisa' } },
     ],
   },
   {
