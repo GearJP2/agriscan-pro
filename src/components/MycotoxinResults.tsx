@@ -1,6 +1,7 @@
 import { MycotoxinResult } from '@/types/sample';
-import { AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, FileText, ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
 
 interface MycotoxinResultsProps {
   results: MycotoxinResult[];
@@ -48,6 +49,23 @@ const MycotoxinResults = ({ results }: MycotoxinResultsProps) => {
                 <p className="mt-1 text-xs text-muted-foreground">
                   Threshold: {result.threshold} {result.unit}
                 </p>
+                {result.method && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground flex items-center gap-1">
+                      <FileText className="h-3 w-3" />
+                      Method: <span className="font-medium text-foreground">{result.method.name}</span>
+                    </span>
+                    <Button
+                      variant="link"
+                      size="sm"
+                      className="h-auto p-0 text-xs text-primary hover:text-primary/80"
+                      onClick={() => window.open(result.method?.sopLink, '_blank')}
+                    >
+                      <ExternalLink className="mr-1 h-3 w-3" />
+                      View SOP
+                    </Button>
+                  </div>
+                )}
               </div>
             </div>
             

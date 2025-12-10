@@ -1,10 +1,15 @@
 export interface ProcessLog {
   id: string;
   timestamp: string;
-  state: 'received' | 'prepared' | 'determination' | 'completed';
+  state: 'received' | 'prepared' | 'determination' | 'analyzed' | 'completed';
   test_id?: string;
   notes?: string;
   conducted_by: string;
+}
+
+export interface TestMethod {
+  name: string;
+  sopLink: string;
 }
 
 export interface MycotoxinResult {
@@ -13,6 +18,7 @@ export interface MycotoxinResult {
   dangerous: boolean;
   threshold: number;
   unit: string;
+  method?: TestMethod;
 }
 
 export interface Sample {
