@@ -34,10 +34,10 @@ export interface Sample {
 }
 
 export type FilterState = {
-  region: string;
-  province: string;
-  district: string;
-  vegetation: string;
-  status: string;
+  region: string[];
+  province: string[];
+  district: string[];
+  vegetation: string[];
+  status: string[];
   search: string;
 };

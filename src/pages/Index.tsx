@@ -10,11 +10,11 @@ import { Sample, FilterState } from '@/types/sample';
 
 const Index = () => {
   const [filters, setFilters] = useState<FilterState>({
-    region: '',
-    province: '',
-    district: '',
-    vegetation: '',
-    status: '',
+    region: [],
+    province: [],
+    district: [],
+    vegetation: [],
+    status: [],
     search: '',
   });
   
@@ -26,9 +26,9 @@ const Index = () => {
       if (filters.search && !sample.sample_id.toLowerCase().includes(filters.search.toLowerCase())) {
         return false;
       }
-      if (filters.region && sample.region !== filters.region) return false;
-      if (filters.vegetation && sample.vegetation_variety !== filters.vegetation) return false;
-      if (filters.status && sample.status !== filters.status) return false;
+      if (filters.region.length > 0 && !filters.region.includes(sample.region)) return false;
+      if (filters.vegetation.length > 0 && !filters.vegetation.includes(sample.vegetation_variety)) return false;
+      if (filters.status.length > 0 && !filters.status.includes(sample.status)) return false;
       return true;
     });
   }, [filters]);
