@@ -12,6 +12,8 @@ interface SampleTableProps {
   onSelectSample: (sample: Sample) => void;
 }
 
+type SortField = 'province' | 'collection_date' | 'status' | 'risk' | 'vegetation_variety';
+type SortDirection = 'asc' | 'desc' | null;
 
 const SampleTable = ({ samples, onSelectSample }: SampleTableProps) => {
   const [sortField, setSortField] = useState<SortField | null>(null);

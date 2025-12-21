@@ -39,6 +39,9 @@
     --danger: 0 72% 51%;
     --danger-foreground: 0 0% 100%;
 
+    --info: 199 89% 48%;
+    --info-foreground: 0 0% 100%;
+
     --border: 210 20% 90%;
     --input: 210 20% 90%;
     --ring: 174 62% 30%;
@@ -88,6 +91,9 @@
 
     --danger: 0 60% 45%;
     --danger-foreground: 0 0% 100%;
+
+    --info: 199 70% 50%;
+    --info-foreground: 0 0% 100%;
 
     --border: 200 30% 18%;
     --input: 200 30% 18%;

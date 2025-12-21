@@ -1,17 +1,19 @@
-import { ProcessLog } from '@/types/sample';
+import { ProcessLog, ProcessState } from '@/types/sample';
 import { format } from 'date-fns';
-import { Package, FlaskConical, Microscope, FileCheck, CheckCircle } from 'lucide-react';
+import { Package, FlaskConical, Beaker, Microscope, FileCheck, Bell, CheckCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface ProcessTimelineProps {
   logs: ProcessLog[];
 }
 
-const stateConfig = {
-  received: { icon: Package, label: 'Data uploaded', color: 'text-muted-foreground bg-muted' },
-  // prepared: { icon: FlaskConical, label: 'Prepared', color: 'text-primary bg-primary/10' },
-  prepared: { icon: Microscope, label: 'Preparing', color: 'text-warning bg-warning/10' },
-  analyzed: { icon: FileCheck, label: 'Analyzed', color: 'text-accent-foreground bg-accent' },
+const stateConfig: Record<ProcessState, { icon: typeof Package; label: string; color: string }> = {
+  registered: { icon: Package, label: 'Registered (Raw Sample)', color: 'text-muted-foreground bg-muted' },
+  preparing: { icon: FlaskConical, label: 'Preparing (Sample prep)', color: 'text-warning bg-warning/10' },
+  prepared: { icon: Beaker, label: 'Prepared', color: 'text-primary bg-primary/10' },
+  analyzing: { icon: Microscope, label: 'Analyzing', color: 'text-info bg-info/10' },
+  recorded: { icon: FileCheck, label: 'Recorded', color: 'text-accent-foreground bg-accent' },
+  notified: { icon: Bell, label: 'Notified', color: 'text-secondary-foreground bg-secondary' },
   completed: { icon: CheckCircle, label: 'Completed', color: 'text-success bg-success/10' },
 };
 

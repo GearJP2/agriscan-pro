@@ -5,10 +5,11 @@ import StatsCard from '@/components/StatsCard';
 import FilterBar from '@/components/FilterBar';
 import SampleTable from '@/components/SampleTable';
 import SampleDetailModal from '@/components/SampleDetailModal';
-import { mockSamples } from '@/data/mockSamples';
-import { Sample, FilterState } from '@/types/sample';
+import { mockSamples as initialMockSamples } from '@/data/mockSamples';
+import { Sample, FilterState, ProcessLog } from '@/types/sample';
 
 const Index = () => {
+  const [samples, setSamples] = useState<Sample[]>(initialMockSamples);
   const [filters, setFilters] = useState<FilterState>({
     region: [],
     province: [],
@@ -22,7 +23,7 @@ const Index = () => {
   const [modalOpen, setModalOpen] = useState(false);
 
   const filteredSamples = useMemo(() => {
-    return mockSamples.filter((sample) => {
+    return samples.filter((sample) => {
       if (filters.search && !sample.sample_id.toLowerCase().includes(filters.search.toLowerCase())) {
         return false;
       }
@@ -31,19 +32,36 @@ const Index = () => {
       if (filters.status.length > 0 && !filters.status.includes(sample.status)) return false;
       return true;
     });
-  }, [filters]);
+  }, [filters, samples]);
 
   const stats = useMemo(() => {
-    const total = mockSamples.length;
-    const flagged = mockSamples.filter(s => s.status === 'flagged').length;
-    const completed = mockSamples.filter(s => s.status === 'completed').length;
-    const inProgress = mockSamples.filter(s => s.status === 'in_progress' || s.status === 'pending').length;
+    const total = samples.length;
+    const flagged = samples.filter(s => s.status === 'flagged').length;
+    const completed = samples.filter(s => s.status === 'completed').length;
+    const inProgress = samples.filter(s => s.status === 'in_progress' || s.status === 'pending').length;
     return { total, flagged, completed, inProgress };
-  }, []);
+  }, [samples]);
 
   const handleSelectSample = (sample: Sample) => {
     setSelectedSample(sample);
     setModalOpen(true);
+  };
+
+  const handleUpdateSample = (sampleId: string, newLog: ProcessLog) => {
+    setSamples(prevSamples => 
+      prevSamples.map(sample => {
+        if (sample.sample_id === sampleId) {
+          const updatedSample = {
+            ...sample,
+            process_logs: [...sample.process_logs, newLog],
+          };
+          // Update selected sample to reflect changes
+          setSelectedSample(updatedSample);
+          return updatedSample;
+        }
+        return sample;
+      })
+    );
   };
 
   return (
@@ -99,7 +117,7 @@ const Index = () => {
         <div className="mb-4 flex items-center justify-between">
           <p className="text-sm text-muted-foreground">
             Showing <span className="font-semibold text-foreground">{filteredSamples.length}</span> of{' '}
-            <span className="font-semibold text-foreground">{mockSamples.length}</span> samples
+            <span className="font-semibold text-foreground">{samples.length}</span> samples
           </p>
         </div>
 
@@ -111,6 +129,7 @@ const Index = () => {
           sample={selectedSample}
           open={modalOpen}
           onOpenChange={setModalOpen}
+          onUpdateSample={handleUpdateSample}
         />
       </main>
     </div>
