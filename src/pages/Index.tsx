@@ -47,12 +47,32 @@ const Index = () => {
     setModalOpen(true);
   };
 
+  // Map process state to sample status
+  const getStatusFromProcessState = (state: ProcessLog['state']): Sample['status'] => {
+    switch (state) {
+      case 'registered':
+        return 'pending';
+      case 'preparing':
+      case 'prepared':
+      case 'analyzing':
+        return 'in_progress';
+      case 'recorded':
+      case 'notified':
+      case 'completed':
+        return 'completed';
+      default:
+        return 'pending';
+    }
+  };
+
   const handleUpdateSample = (sampleId: string, newLog: ProcessLog) => {
     setSamples(prevSamples => 
       prevSamples.map(sample => {
         if (sample.sample_id === sampleId) {
+          const newStatus = getStatusFromProcessState(newLog.state);
           const updatedSample = {
             ...sample,
+            status: newStatus,
             process_logs: [...sample.process_logs, newLog],
           };
           // Update selected sample to reflect changes
