@@ -16,8 +16,8 @@ interface StatusUpdateFormProps {
 }
 
 const stateLabels: Record<ProcessState, string> = {
-  registered: 'Registered (Raw Sample)',
-  preparing: 'Preparing (Sample prep)',
+  registered: 'Registered',
+  preparing: 'Preparing',
   prepared: 'Prepared',
   analyzing: 'Analyzing',
   recorded: 'Recorded',

@@ -8,8 +8,8 @@ interface ProcessTimelineProps {
 }
 
 const stateConfig: Record<ProcessState, { icon: typeof Package; label: string; color: string }> = {
-  registered: { icon: Package, label: 'Registered (Raw Sample)', color: 'text-muted-foreground bg-muted' },
-  preparing: { icon: FlaskConical, label: 'Preparing (Sample prep)', color: 'text-warning bg-warning/10' },
+  registered: { icon: Package, label: 'Registered', color: 'text-muted-foreground bg-muted' },
+  preparing: { icon: FlaskConical, label: 'Preparing', color: 'text-warning bg-warning/10' },
   prepared: { icon: Beaker, label: 'Prepared', color: 'text-primary bg-primary/10' },
   analyzing: { icon: Microscope, label: 'Analyzing', color: 'text-info bg-info/10' },
   recorded: { icon: FileCheck, label: 'Recorded', color: 'text-accent-foreground bg-accent' },
