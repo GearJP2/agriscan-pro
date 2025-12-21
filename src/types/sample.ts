@@ -1,7 +1,26 @@
+export type ProcessState = 
+  | 'registered'
+  | 'preparing'
+  | 'prepared'
+  | 'analyzing'
+  | 'recorded'
+  | 'notified'
+  | 'completed';
+
+export const PROCESS_STATE_ORDER: ProcessState[] = [
+  'registered',
+  'preparing',
+  'prepared',
+  'analyzing',
+  'recorded',
+  'notified',
+  'completed',
+];
+
 export interface ProcessLog {
   id: string;
   timestamp: string;
-  state: 'received' | 'prepared' | 'determination' | 'analyzed' | 'completed';
+  state: ProcessState;
   test_id?: string;
   notes?: string;
   conducted_by: string;
