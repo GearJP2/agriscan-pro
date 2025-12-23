@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
-import { FlaskConical, AlertTriangle, CheckCircle2, Clock, Download } from 'lucide-react';
+import { FlaskConical, AlertTriangle, CheckCircle2, Clock, Download, ChevronDown } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import Header from '@/components/Header';
 import StatsCard from '@/components/StatsCard';
 import FilterBar from '@/components/FilterBar';
@@ -7,6 +8,12 @@ import SampleTable from '@/components/SampleTable';
 import SampleDetailModal from '@/components/SampleDetailModal';
 import AddSampleForm from '@/components/AddSampleForm';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { mockSamples as initialMockSamples } from '@/data/mockSamples';
 import { Sample, FilterState, ProcessLog, RiskLevel } from '@/types/sample';
 import { toast } from '@/hooks/use-toast';
@@ -49,8 +56,8 @@ const Index = () => {
     });
   }, [filters, samples]);
 
-  // Export filtered samples to CSV
-  const handleExportCSV = () => {
+  // Get export data
+  const getExportData = () => {
     const headers = ['Sample ID', 'Region', 'Province', 'District', 'Variety', 'Collection Date', 'Status', 'Risk Level', 'Last Updated By'];
     
     const rows = filteredSamples.map(sample => {
@@ -67,6 +74,13 @@ const Index = () => {
         lastLog?.conducted_by || '',
       ];
     });
+
+    return { headers, rows };
+  };
+
+  // Export filtered samples to CSV
+  const handleExportCSV = () => {
+    const { headers, rows } = getExportData();
 
     const csvContent = [
       headers.join(','),
@@ -86,6 +100,29 @@ const Index = () => {
     toast({
       title: 'Export Complete',
       description: `${filteredSamples.length} samples exported to CSV.`,
+    });
+  };
+
+  // Export filtered samples to XLSX
+  const handleExportXLSX = () => {
+    const { headers, rows } = getExportData();
+    
+    const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Samples');
+    
+    // Auto-size columns
+    const colWidths = headers.map((header, i) => {
+      const maxDataWidth = Math.max(...rows.map(row => String(row[i]).length));
+      return { wch: Math.max(header.length, maxDataWidth) + 2 };
+    });
+    worksheet['!cols'] = colWidths;
+    
+    XLSX.writeFile(workbook, `samples_export_${new Date().toISOString().split('T')[0]}.xlsx`);
+    
+    toast({
+      title: 'Export Complete',
+      description: `${filteredSamples.length} samples exported to Excel.`,
     });
   };
 
@@ -203,10 +240,23 @@ const Index = () => {
             <span className="font-semibold text-foreground">{samples.length}</span> samples
           </p>
           <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={handleExportCSV} className="gap-2">
-              <Download className="h-4 w-4" />
-              Export CSV
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="gap-2">
+                  <Download className="h-4 w-4" />
+                  Export
+                  <ChevronDown className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={handleExportCSV}>
+                  Export as CSV
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleExportXLSX}>
+                  Export as Excel (XLSX)
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <AddSampleForm 
               onAddSample={handleAddSample}
               onAddMultipleSamples={handleAddMultipleSamples}
