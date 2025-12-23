@@ -16,7 +16,7 @@ const badgeVariants = cva(
         warning: "border-transparent bg-warning text-warning-foreground",
         danger: "border-transparent bg-danger text-danger-foreground animate-pulse",
         pending: "border-transparent bg-muted text-muted-foreground border-primary/30",
-        in_progress: "border-transparent bg-warning/30 text-warning border-primary/30",
+        in_progress: "border-transparent bg-warning/30 text-warning border-warning/30",
         completed: "border-transparent bg-success/20 text-success border-success/30",
         flagged: "border-transparent bg-primary/20 text-primary border-primary/30",
       },
