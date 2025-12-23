@@ -5,6 +5,7 @@ import StatsCard from '@/components/StatsCard';
 import FilterBar from '@/components/FilterBar';
 import SampleTable from '@/components/SampleTable';
 import SampleDetailModal from '@/components/SampleDetailModal';
+import AddSampleForm from '@/components/AddSampleForm';
 import { mockSamples as initialMockSamples } from '@/data/mockSamples';
 import { Sample, FilterState, ProcessLog } from '@/types/sample';
 
@@ -84,6 +85,14 @@ const Index = () => {
     );
   };
 
+  const handleAddSample = (sample: Sample) => {
+    setSamples(prevSamples => [sample, ...prevSamples]);
+  };
+
+  const handleAddMultipleSamples = (newSamples: Sample[]) => {
+    setSamples(prevSamples => [...newSamples, ...prevSamples]);
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <Header />
@@ -139,6 +148,10 @@ const Index = () => {
             Showing <span className="font-semibold text-foreground">{filteredSamples.length}</span> of{' '}
             <span className="font-semibold text-foreground">{samples.length}</span> samples
           </p>
+          <AddSampleForm 
+            onAddSample={handleAddSample}
+            onAddMultipleSamples={handleAddMultipleSamples}
+          />
         </div>
 
         {/* Sample Table */}
