@@ -52,11 +52,14 @@ export interface Sample {
   status: 'pending' | 'in_progress' | 'completed' | 'flagged';
 }
 
+export type RiskLevel = 'safe' | 'low' | 'medium' | 'high';
+
 export type FilterState = {
   region: string[];
   province: string[];
   district: string[];
   vegetation: string[];
   status: string[];
+  risk: RiskLevel[];
   search: string;
 };

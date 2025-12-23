@@ -3,7 +3,7 @@ import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { FilterState } from '@/types/sample';
+import { FilterState, RiskLevel } from '@/types/sample';
 import { regions, vegetationTypes, statuses } from '@/data/mockSamples';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ChevronDown } from 'lucide-react';
@@ -21,15 +21,25 @@ const statusLabels: Record<string, string> = {
   flagged: 'Analyzed',
 };
 
+const riskLevels: RiskLevel[] = ['safe', 'low', 'medium', 'high'];
+
+const riskLabels: Record<RiskLevel, string> = {
+  safe: 'Safe',
+  low: 'Low Risk',
+  medium: 'Medium Risk',
+  high: 'High Risk',
+};
+
 const FilterBar = ({ filters, onFilterChange }: FilterBarProps) => {
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     region: true,
     vegetation: true,
     status: true,
+    risk: true,
   });
 
-  const toggleArrayFilter = (key: 'region' | 'vegetation' | 'status', value: string) => {
-    const current = filters[key];
+  const toggleArrayFilter = (key: 'region' | 'vegetation' | 'status' | 'risk', value: string) => {
+    const current = filters[key] as string[];
     const updated = current.includes(value)
       ? current.filter(v => v !== value)
       : [...current, value];
@@ -43,6 +53,7 @@ const FilterBar = ({ filters, onFilterChange }: FilterBarProps) => {
       district: [],
       vegetation: [],
       status: [],
+      risk: [],
       search: '',
     });
   };
@@ -51,6 +62,7 @@ const FilterBar = ({ filters, onFilterChange }: FilterBarProps) => {
     filters.region.length + 
     filters.vegetation.length + 
     filters.status.length + 
+    filters.risk.length +
     (filters.search ? 1 : 0);
 
   const toggleSection = (section: string) => {
@@ -67,16 +79,16 @@ const FilterBar = ({ filters, onFilterChange }: FilterBarProps) => {
     title: string; 
     sectionKey: string;
     items: string[]; 
-    filterKey: 'region' | 'vegetation' | 'status';
+    filterKey: 'region' | 'vegetation' | 'status' | 'risk';
     labelFn?: (item: string) => string;
   }) => (
     <Collapsible open={openSections[sectionKey]} onOpenChange={() => toggleSection(sectionKey)}>
       <CollapsibleTrigger className="flex w-full items-center justify-between py-2 text-sm font-medium text-foreground hover:text-primary transition-colors">
         <span className="flex items-center gap-2">
           {title}
-          {filters[filterKey].length > 0 && (
+          {(filters[filterKey] as string[]).length > 0 && (
             <Badge variant="secondary" className="h-5 px-1.5 text-xs">
-              {filters[filterKey].length}
+              {(filters[filterKey] as string[]).length}
             </Badge>
           )}
         </span>
@@ -89,7 +101,7 @@ const FilterBar = ({ filters, onFilterChange }: FilterBarProps) => {
             className="flex items-center gap-2 cursor-pointer text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
             <Checkbox
-              checked={filters[filterKey].includes(item)}
+              checked={(filters[filterKey] as string[]).includes(item)}
               onCheckedChange={() => toggleArrayFilter(filterKey, item)}
             />
             {labelFn(item)}
@@ -131,7 +143,7 @@ const FilterBar = ({ filters, onFilterChange }: FilterBarProps) => {
       </div>
 
       {/* Checkbox Filters */}
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-4">
         <div className="space-y-1">
           <FilterSection
             title="Region"
@@ -157,6 +169,16 @@ const FilterBar = ({ filters, onFilterChange }: FilterBarProps) => {
             items={statuses}
             filterKey="status"
             labelFn={(status) => statusLabels[status] || status}
+          />
+        </div>
+
+        <div className="space-y-1">
+          <FilterSection
+            title="Risk Level"
+            sectionKey="risk"
+            items={riskLevels}
+            filterKey="risk"
+            labelFn={(risk) => riskLabels[risk as RiskLevel] || risk}
           />
         </div>
       </div>

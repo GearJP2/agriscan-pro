@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -33,12 +33,12 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/hooks/use-toast';
 import { Sample, ProcessLog } from '@/types/sample';
-import { regions, vegetationTypes } from '@/data/mockSamples';
+import { vegetationTypes } from '@/data/mockSamples';
+import { getAllProvinces, getDistrictsByProvince, getRegionByProvince } from '@/data/thailandLocations';
 
 const formSchema = z.object({
-  region: z.string().min(1, 'Region is required'),
-  province: z.string().min(1, 'Province is required').max(100),
-  district: z.string().min(1, 'District is required').max(100),
+  province: z.string().min(1, 'Province is required'),
+  district: z.string().min(1, 'District is required'),
   vegetation_variety: z.string().min(1, 'Vegetation variety is required'),
   collection_date: z.string().min(1, 'Collection date is required'),
   conducted_by: z.string().min(1, 'Your name is required').max(100),
@@ -67,11 +67,13 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [csvPreview, setCsvPreview] = useState<string[][]>([]);
   const [csvError, setCsvError] = useState<string | null>(null);
+  const [availableDistricts, setAvailableDistricts] = useState<string[]>([]);
+
+  const provinces = getAllProvinces();
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      region: '',
       province: '',
       district: '',
       vegetation_variety: '',
@@ -81,10 +83,28 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
     },
   });
 
+  const selectedProvince = form.watch('province');
+
+  // Update districts when province changes
+  useEffect(() => {
+    if (selectedProvince) {
+      const districts = getDistrictsByProvince(selectedProvince);
+      setAvailableDistricts(districts);
+      // Reset district if it's not in the new list
+      const currentDistrict = form.getValues('district');
+      if (currentDistrict && !districts.includes(currentDistrict)) {
+        form.setValue('district', '');
+      }
+    } else {
+      setAvailableDistricts([]);
+    }
+  }, [selectedProvince, form]);
+
   const onSubmit = (values: FormValues) => {
     const sampleId = generateSampleId();
     const logId = generateLogId();
     const timestamp = new Date().toISOString();
+    const region = getRegionByProvince(values.province) || 'Unknown';
 
     const initialLog: ProcessLog = {
       id: logId,
@@ -96,7 +116,7 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
 
     const newSample: Sample = {
       sample_id: sampleId,
-      region: values.region,
+      region,
       province: values.province,
       district: values.district,
       vegetation_variety: values.vegetation_variety,
@@ -132,7 +152,7 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
         const text = event.target?.result as string;
         const lines = text.split('\n').filter(line => line.trim());
         const parsed = lines.map(line => line.split(',').map(cell => cell.trim()));
-        setCsvPreview(parsed.slice(0, 6)); // Show first 5 rows + header
+        setCsvPreview(parsed.slice(0, 6));
       };
       reader.readAsText(file);
     }
@@ -150,9 +170,8 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
       return;
     }
 
-    // Expected columns: region, province, district, vegetation_variety, collection_date
     const headers = csvPreview[0].map(h => h.toLowerCase().replace(/\s+/g, '_'));
-    const requiredColumns = ['region', 'province', 'district', 'vegetation_variety', 'collection_date'];
+    const requiredColumns = ['province', 'district', 'vegetation_variety', 'collection_date'];
     
     const columnIndexes: Record<string, number> = {};
     for (const col of requiredColumns) {
@@ -164,45 +183,6 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
       columnIndexes[col] = index;
     }
 
-    const newSamples: Sample[] = [];
-    const timestamp = new Date().toISOString();
-
-    for (let i = 1; i < csvPreview.length; i++) {
-      const row = csvPreview[i];
-      if (row.length < requiredColumns.length) continue;
-
-      const sampleId = generateSampleId();
-      const logId = generateLogId();
-
-      const initialLog: ProcessLog = {
-        id: logId,
-        timestamp,
-        state: 'registered',
-        notes: 'Imported from CSV',
-        conducted_by: conductedBy,
-      };
-
-      const newSample: Sample = {
-        sample_id: sampleId,
-        region: row[columnIndexes['region']] || '',
-        province: row[columnIndexes['province']] || '',
-        district: row[columnIndexes['district']] || '',
-        vegetation_variety: row[columnIndexes['vegetation_variety']] || '',
-        collection_date: row[columnIndexes['collection_date']] || '',
-        process_logs: [initialLog],
-        mycotoxin_results: [],
-        status: 'pending',
-      };
-
-      newSamples.push(newSample);
-    }
-
-    if (newSamples.length === 0) {
-      setCsvError('No valid data rows found in CSV');
-      return;
-    }
-
-    // Read full file for all data
     const reader = new FileReader();
     reader.onload = (event) => {
       const text = event.target?.result as string;
@@ -216,6 +196,8 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
 
         const sampleId = generateSampleId();
         const logId = generateLogId();
+        const province = row[columnIndexes['province']] || '';
+        const region = getRegionByProvince(province) || 'Unknown';
 
         const initialLog: ProcessLog = {
           id: logId,
@@ -227,8 +209,8 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
 
         const sample: Sample = {
           sample_id: sampleId,
-          region: row[columnIndexes['region']] || '',
-          province: row[columnIndexes['province']] || '',
+          region,
+          province,
           district: row[columnIndexes['district']] || '',
           vegetation_variety: row[columnIndexes['vegetation_variety']] || '',
           collection_date: row[columnIndexes['collection_date']] || '',
@@ -287,20 +269,20 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
                 <div className="grid grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
-                    name="region"
+                    name="province"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Region *</FormLabel>
+                        <FormLabel>Province *</FormLabel>
                         <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
                             <SelectTrigger>
-                              <SelectValue placeholder="Select region" />
+                              <SelectValue placeholder="Select province" />
                             </SelectTrigger>
                           </FormControl>
-                          <SelectContent>
-                            {regions.map(region => (
-                              <SelectItem key={region} value={region}>
-                                {region}
+                          <SelectContent className="max-h-[300px]">
+                            {provinces.map(province => (
+                              <SelectItem key={province} value={province}>
+                                {province}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -310,6 +292,37 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
                     )}
                   />
 
+                  <FormField
+                    control={form.control}
+                    name="district"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>District *</FormLabel>
+                        <Select 
+                          onValueChange={field.onChange} 
+                          value={field.value}
+                          disabled={!selectedProvince}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder={selectedProvince ? "Select district" : "Select province first"} />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent className="max-h-[300px]">
+                            {availableDistricts.map(district => (
+                              <SelectItem key={district} value={district}>
+                                {district}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
                     name="vegetation_variety"
@@ -334,39 +347,7 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
                       </FormItem>
                     )}
                   />
-                </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="province"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Province *</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Enter province" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="district"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>District *</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Enter district" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
                     name="collection_date"
@@ -380,21 +361,21 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
                       </FormItem>
                     )}
                   />
-
-                  <FormField
-                    control={form.control}
-                    name="conducted_by"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Registered By *</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Your name" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
                 </div>
+
+                <FormField
+                  control={form.control}
+                  name="conducted_by"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Registered By *</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Your name" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
                 <FormField
                   control={form.control}
@@ -429,7 +410,7 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
                 Upload a CSV file with sample data
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
-                Required columns: region, province, district, vegetation_variety, collection_date
+                Required columns: province, district, vegetation_variety, collection_date
               </p>
               <Input
                 type="file"

@@ -1,14 +1,15 @@
 import { useState, useMemo } from 'react';
-import { FlaskConical, AlertTriangle, CheckCircle2, Clock } from 'lucide-react';
+import { FlaskConical, AlertTriangle, CheckCircle2, Clock, Download } from 'lucide-react';
 import Header from '@/components/Header';
 import StatsCard from '@/components/StatsCard';
 import FilterBar from '@/components/FilterBar';
 import SampleTable from '@/components/SampleTable';
 import SampleDetailModal from '@/components/SampleDetailModal';
 import AddSampleForm from '@/components/AddSampleForm';
+import { Button } from '@/components/ui/button';
 import { mockSamples as initialMockSamples } from '@/data/mockSamples';
-import { Sample, FilterState, ProcessLog } from '@/types/sample';
-
+import { Sample, FilterState, ProcessLog, RiskLevel } from '@/types/sample';
+import { toast } from '@/hooks/use-toast';
 const Index = () => {
   const [samples, setSamples] = useState<Sample[]>(initialMockSamples);
   const [filters, setFilters] = useState<FilterState>({
@@ -17,8 +18,20 @@ const Index = () => {
     district: [],
     vegetation: [],
     status: [],
+    risk: [],
     search: '',
   });
+
+  // Calculate risk level for a sample
+  const getRiskLevel = (sample: Sample): RiskLevel => {
+    if (sample.mycotoxin_results.length === 0) return 'safe';
+    const hasDangerous = sample.mycotoxin_results.some(r => r.dangerous);
+    if (hasDangerous) return 'high';
+    const maxIntensity = Math.max(...sample.mycotoxin_results.map(r => r.intensity));
+    if (maxIntensity >= 7) return 'medium';
+    if (maxIntensity >= 4) return 'low';
+    return 'safe';
+  };
   
   const [selectedSample, setSelectedSample] = useState<Sample | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
@@ -31,9 +44,50 @@ const Index = () => {
       if (filters.region.length > 0 && !filters.region.includes(sample.region)) return false;
       if (filters.vegetation.length > 0 && !filters.vegetation.includes(sample.vegetation_variety)) return false;
       if (filters.status.length > 0 && !filters.status.includes(sample.status)) return false;
+      if (filters.risk.length > 0 && !filters.risk.includes(getRiskLevel(sample))) return false;
       return true;
     });
   }, [filters, samples]);
+
+  // Export filtered samples to CSV
+  const handleExportCSV = () => {
+    const headers = ['Sample ID', 'Region', 'Province', 'District', 'Variety', 'Collection Date', 'Status', 'Risk Level', 'Last Updated By'];
+    
+    const rows = filteredSamples.map(sample => {
+      const lastLog = sample.process_logs[sample.process_logs.length - 1];
+      return [
+        sample.sample_id,
+        sample.region,
+        sample.province,
+        sample.district,
+        sample.vegetation_variety,
+        sample.collection_date,
+        sample.status,
+        getRiskLevel(sample),
+        lastLog?.conducted_by || '',
+      ];
+    });
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `samples_export_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    toast({
+      title: 'Export Complete',
+      description: `${filteredSamples.length} samples exported to CSV.`,
+    });
+  };
 
   const stats = useMemo(() => {
     const total = samples.length;
@@ -148,10 +202,16 @@ const Index = () => {
             Showing <span className="font-semibold text-foreground">{filteredSamples.length}</span> of{' '}
             <span className="font-semibold text-foreground">{samples.length}</span> samples
           </p>
-          <AddSampleForm 
-            onAddSample={handleAddSample}
-            onAddMultipleSamples={handleAddMultipleSamples}
-          />
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={handleExportCSV} className="gap-2">
+              <Download className="h-4 w-4" />
+              Export CSV
+            </Button>
+            <AddSampleForm 
+              onAddSample={handleAddSample}
+              onAddMultipleSamples={handleAddMultipleSamples}
+            />
+          </div>
         </div>
 
         {/* Sample Table */}
