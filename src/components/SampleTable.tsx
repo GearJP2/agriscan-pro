@@ -21,7 +21,7 @@ const SampleTable = ({ samples, onSelectSample }: SampleTableProps) => {
 
   const getStatusBadge = (status: Sample['status']) => {
     const statusLabels = {
-      pending: 'Data uploaded',
+      pending: 'Registered',
       in_progress: 'Preparing',
       completed: 'Completed',
       flagged: 'Analyzed',

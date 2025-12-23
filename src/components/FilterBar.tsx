@@ -15,7 +15,7 @@ interface FilterBarProps {
 }
 
 const statusLabels: Record<string, string> = {
-  pending: 'Data uploaded',
+  pending: 'Registered',
   in_progress: 'Preparing',
   completed: 'Completed',
   flagged: 'Analyzed',
