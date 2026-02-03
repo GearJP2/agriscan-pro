@@ -21,7 +21,6 @@ const stateLabels: Record<ProcessState, string> = {
   prepared: 'Prepared',
   analyzing: 'Analyzing',
   recorded: 'Recorded',
-  notified: 'Notified',
   completed: 'Completed',
 };
 

@@ -1,6 +1,11 @@
-import { FlaskConical, Shield } from 'lucide-react';
+import { FlaskConical } from 'lucide-react';
+import RoleSwitcher from './RoleSwitcher';
+import { useAuth } from '@/contexts/AuthContext';
+import { Badge } from '@/components/ui/badge';
 
 const Header = () => {
+  const { isAdmin } = useAuth();
+
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60">
       <div className="container flex h-16 items-center justify-between">
@@ -13,9 +18,11 @@ const Header = () => {
             <p className="text-xs text-muted-foreground">Mycotoxin Tracking System</p>
           </div>
         </div>
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Shield className="h-4 w-4 text-success" />
-          <span>Food Safety Management</span>
+        <div className="flex items-center gap-3">
+          <Badge variant={isAdmin ? 'default' : 'secondary'} className="hidden sm:flex">
+            {isAdmin ? 'Full Access' : 'View Only'}
+          </Badge>
+          <RoleSwitcher />
         </div>
       </div>
     </header>

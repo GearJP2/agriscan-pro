@@ -15,8 +15,7 @@ export const mockSamples: Sample[] = [
       { id: 'LOG-003', timestamp: '2024-01-15T14:00:00Z', state: 'prepared', test_id: 'TEST-001', conducted_by: 'Sarah Johnson' },
       { id: 'LOG-004', timestamp: '2024-01-16T09:00:00Z', state: 'analyzing', test_id: 'TEST-001', conducted_by: 'Dr. Emily Davis' },
       { id: 'LOG-005', timestamp: '2024-01-16T10:00:00Z', state: 'recorded', test_id: 'TEST-001', conducted_by: 'Dr. Emily Davis' },
-      { id: 'LOG-006', timestamp: '2024-01-16T10:30:00Z', state: 'notified', test_id: 'TEST-001', conducted_by: 'System' },
-      { id: 'LOG-007', timestamp: '2024-01-16T11:00:00Z', state: 'completed', test_id: 'TEST-001', conducted_by: 'Dr. Emily Davis' },
+      { id: 'LOG-006', timestamp: '2024-01-16T11:00:00Z', state: 'completed', test_id: 'TEST-001', conducted_by: 'Dr. Emily Davis' },
     ],
     mycotoxin_results: [
       { name: 'Aflatoxin B1', intensity: 2, dangerous: false, threshold: 5, unit: 'µg/kg', method: { name: 'HPLC-MS/MS', sopLink: '/sop/hplc-msms' } },
@@ -37,8 +36,7 @@ export const mockSamples: Sample[] = [
       { id: 'LOG-010', timestamp: '2024-01-18T15:00:00Z', state: 'prepared', test_id: 'TEST-002', conducted_by: 'Robert Brown' },
       { id: 'LOG-011', timestamp: '2024-01-19T10:00:00Z', state: 'analyzing', test_id: 'TEST-002', conducted_by: 'Dr. James Lee' },
       { id: 'LOG-012', timestamp: '2024-01-19T11:00:00Z', state: 'recorded', test_id: 'TEST-002', notes: 'High mycotoxin levels detected', conducted_by: 'Dr. James Lee' },
-      { id: 'LOG-013', timestamp: '2024-01-19T11:30:00Z', state: 'notified', test_id: 'TEST-002', conducted_by: 'System' },
-      { id: 'LOG-014', timestamp: '2024-01-19T12:00:00Z', state: 'completed', test_id: 'TEST-002', conducted_by: 'Dr. James Lee' },
+      { id: 'LOG-013', timestamp: '2024-01-19T12:00:00Z', state: 'completed', test_id: 'TEST-002', conducted_by: 'Dr. James Lee' },
     ],
     mycotoxin_results: [
       { name: 'Aflatoxin B1', intensity: 8, dangerous: true, threshold: 5, unit: 'µg/kg', method: { name: 'HPLC-MS/MS', sopLink: '/sop/hplc-msms' } },
@@ -87,8 +85,7 @@ export const mockSamples: Sample[] = [
       { id: 'LOG-020', timestamp: '2024-01-25T14:00:00Z', state: 'prepared', test_id: 'TEST-004', conducted_by: 'Chris Martin' },
       { id: 'LOG-021', timestamp: '2024-01-26T09:00:00Z', state: 'analyzing', test_id: 'TEST-004', conducted_by: 'Dr. Steven Park' },
       { id: 'LOG-022', timestamp: '2024-01-26T10:00:00Z', state: 'recorded', test_id: 'TEST-004', conducted_by: 'Dr. Steven Park' },
-      { id: 'LOG-023', timestamp: '2024-01-26T10:30:00Z', state: 'notified', test_id: 'TEST-004', conducted_by: 'System' },
-      { id: 'LOG-024', timestamp: '2024-01-26T11:30:00Z', state: 'completed', test_id: 'TEST-004', conducted_by: 'Dr. Steven Park' },
+      { id: 'LOG-023', timestamp: '2024-01-26T11:30:00Z', state: 'completed', test_id: 'TEST-004', conducted_by: 'Dr. Steven Park' },
     ],
     mycotoxin_results: [
       { name: 'Aflatoxin B1', intensity: 4, dangerous: false, threshold: 5, unit: 'µg/kg', method: { name: 'HPLC-MS/MS', sopLink: '/sop/hplc-msms' } },
@@ -109,8 +106,7 @@ export const mockSamples: Sample[] = [
       { id: 'LOG-027', timestamp: '2024-01-28T15:00:00Z', state: 'prepared', test_id: 'TEST-005', conducted_by: 'Daniel Wilson' },
       { id: 'LOG-028', timestamp: '2024-01-29T10:00:00Z', state: 'analyzing', test_id: 'TEST-005', conducted_by: 'Dr. Andrew Liu' },
       { id: 'LOG-029', timestamp: '2024-01-29T11:00:00Z', state: 'recorded', test_id: 'TEST-005', conducted_by: 'Dr. Andrew Liu' },
-      { id: 'LOG-030', timestamp: '2024-01-29T11:30:00Z', state: 'notified', test_id: 'TEST-005', conducted_by: 'System' },
-      { id: 'LOG-031', timestamp: '2024-01-29T14:00:00Z', state: 'completed', test_id: 'TEST-005', conducted_by: 'Dr. Andrew Liu' },
+      { id: 'LOG-030', timestamp: '2024-01-29T14:00:00Z', state: 'completed', test_id: 'TEST-005', conducted_by: 'Dr. Andrew Liu' },
     ],
     mycotoxin_results: [
       { name: 'Zearalenone', intensity: 3, dangerous: false, threshold: 8, unit: 'µg/kg', method: { name: 'ELISA', sopLink: '/sop/elisa' } },
@@ -131,8 +127,7 @@ export const mockSamples: Sample[] = [
       { id: 'LOG-034', timestamp: '2024-02-01T14:00:00Z', state: 'prepared', test_id: 'TEST-006', conducted_by: 'Brian Clark' },
       { id: 'LOG-035', timestamp: '2024-02-02T09:00:00Z', state: 'analyzing', test_id: 'TEST-006', conducted_by: 'Dr. William Ng' },
       { id: 'LOG-036', timestamp: '2024-02-02T10:00:00Z', state: 'recorded', test_id: 'TEST-006', notes: 'Critical contamination detected', conducted_by: 'Dr. William Ng' },
-      { id: 'LOG-037', timestamp: '2024-02-02T10:30:00Z', state: 'notified', test_id: 'TEST-006', conducted_by: 'System' },
-      { id: 'LOG-038', timestamp: '2024-02-02T11:00:00Z', state: 'completed', test_id: 'TEST-006', conducted_by: 'Dr. William Ng' },
+      { id: 'LOG-037', timestamp: '2024-02-02T11:00:00Z', state: 'completed', test_id: 'TEST-006', conducted_by: 'Dr. William Ng' },
     ],
     mycotoxin_results: [
       { name: 'Aflatoxin B1', intensity: 9, dangerous: true, threshold: 5, unit: 'µg/kg', method: { name: 'HPLC-MS/MS', sopLink: '/sop/hplc-msms' } },
