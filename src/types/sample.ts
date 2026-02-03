@@ -62,7 +62,7 @@ export interface Sample {
 
 export type RiskLevel = 'safe' | 'low' | 'medium' | 'high';
 
-export type FilterState = {
+export interface FilterState {
   region: string[];
   province: string[];
   district: string[];
@@ -70,4 +70,5 @@ export type FilterState = {
   status: string[];
   risk: RiskLevel[];
   search: string;
-};
+  watchlistOnly: boolean;
+}

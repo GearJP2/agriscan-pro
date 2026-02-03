@@ -1,4 +1,4 @@
-import { Search, Filter, X } from 'lucide-react';
+import { Search, Filter, X, Bell } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
@@ -8,6 +8,7 @@ import { regions, vegetationTypes, statuses } from '@/data/mockSamples';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ChevronDown } from 'lucide-react';
 import { useState } from 'react';
+import { useWatchlist } from '@/hooks/useWatchlist';
 
 interface FilterBarProps {
   filters: FilterState;
@@ -31,6 +32,7 @@ const riskLabels: Record<RiskLevel, string> = {
 };
 
 const FilterBar = ({ filters, onFilterChange }: FilterBarProps) => {
+  const { watchlistCount } = useWatchlist();
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     region: true,
     vegetation: true,
@@ -55,6 +57,7 @@ const FilterBar = ({ filters, onFilterChange }: FilterBarProps) => {
       status: [],
       risk: [],
       search: '',
+      watchlistOnly: false,
     });
   };
 
@@ -63,7 +66,8 @@ const FilterBar = ({ filters, onFilterChange }: FilterBarProps) => {
     filters.vegetation.length + 
     filters.status.length + 
     filters.risk.length +
-    (filters.search ? 1 : 0);
+    (filters.search ? 1 : 0) +
+    (filters.watchlistOnly ? 1 : 0);
 
   const toggleSection = (section: string) => {
     setOpenSections(prev => ({ ...prev, [section]: !prev[section] }));
@@ -132,14 +136,29 @@ const FilterBar = ({ filters, onFilterChange }: FilterBarProps) => {
       </div>
 
       {/* Search */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          placeholder="Search by Sample ID..."
-          value={filters.search}
-          onChange={(e) => onFilterChange({ ...filters, search: e.target.value })}
-          className="pl-10"
-        />
+      <div className="flex gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Search by Sample ID..."
+            value={filters.search}
+            onChange={(e) => onFilterChange({ ...filters, search: e.target.value })}
+            className="pl-10"
+          />
+        </div>
+        <Button
+          variant={filters.watchlistOnly ? 'default' : 'outline'}
+          onClick={() => onFilterChange({ ...filters, watchlistOnly: !filters.watchlistOnly })}
+          className="gap-2"
+        >
+          <Bell className="h-4 w-4" />
+          Watchlist
+          {watchlistCount > 0 && (
+            <Badge variant={filters.watchlistOnly ? 'secondary' : 'default'} className="h-5 px-1.5 text-xs">
+              {watchlistCount}
+            </Badge>
+          )}
+        </Button>
       </div>
 
       {/* Checkbox Filters */}
