@@ -7,6 +7,7 @@ import FilterBar from '@/components/FilterBar';
 import SampleTable from '@/components/SampleTable';
 import SampleDetailModal from '@/components/SampleDetailModal';
 import AddSampleForm from '@/components/AddSampleForm';
+import RequestInvestigationForm from '@/components/RequestInvestigationForm';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -259,6 +260,7 @@ const Index = () => {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+            {!isAdmin && <RequestInvestigationForm />}
             {isAdmin && (
               <AddSampleForm 
                 onAddSample={handleAddSample}
