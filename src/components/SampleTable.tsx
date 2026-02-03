@@ -4,8 +4,9 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Eye, AlertTriangle, CheckCircle2, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Eye, AlertTriangle, CheckCircle2, ArrowUpDown, ArrowUp, ArrowDown, Bell, BellOff } from 'lucide-react';
 import { format } from 'date-fns';
+import { useWatchlist } from '@/hooks/useWatchlist';
 
 interface SampleTableProps {
   samples: Sample[];
@@ -18,6 +19,7 @@ type SortDirection = 'asc' | 'desc' | null;
 const SampleTable = ({ samples, onSelectSample }: SampleTableProps) => {
   const [sortField, setSortField] = useState<SortField | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>(null);
+  const { isWatching, toggleWatchlist } = useWatchlist();
 
   const getStatusBadge = (status: Sample['status']) => {
     const statusLabels = {
@@ -105,6 +107,7 @@ const SampleTable = ({ samples, onSelectSample }: SampleTableProps) => {
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50 hover:bg-muted/50">
+              <TableHead className="font-semibold w-10">Track</TableHead>
               <TableHead className="font-semibold">Sample ID</TableHead>
               <TableHead className="font-semibold">Region</TableHead>
               <SortableHeader field="province">Province</SortableHeader>
@@ -119,7 +122,7 @@ const SampleTable = ({ samples, onSelectSample }: SampleTableProps) => {
           <TableBody>
             {sortedSamples.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} className="h-24 text-center text-muted-foreground">
+                <TableCell colSpan={10} className="h-24 text-center text-muted-foreground">
                   No samples found matching your filters.
                 </TableCell>
               </TableRow>
@@ -127,9 +130,33 @@ const SampleTable = ({ samples, onSelectSample }: SampleTableProps) => {
               sortedSamples.map((sample, index) => (
                 <TableRow 
                   key={sample.sample_id} 
-                  className="cursor-pointer transition-colors hover:bg-muted/30"
+                  className={`cursor-pointer transition-colors hover:bg-muted/30 ${isWatching(sample.sample_id) ? 'bg-primary/5' : ''}`}
                   style={{ animationDelay: `${index * 50}ms` }}
                 >
+                  <TableCell>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className={`h-8 w-8 ${isWatching(sample.sample_id) ? 'text-primary' : 'text-muted-foreground'}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleWatchlist(sample.sample_id);
+                          }}
+                        >
+                          {isWatching(sample.sample_id) ? (
+                            <Bell className="h-4 w-4 fill-current" />
+                          ) : (
+                            <BellOff className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        {isWatching(sample.sample_id) ? 'Remove from watchlist' : 'Add to watchlist'}
+                      </TooltipContent>
+                    </Tooltip>
+                  </TableCell>
                   <TableCell className="font-medium text-primary">{sample.sample_id}</TableCell>
                   <TableCell>{sample.region}</TableCell>
                   <TableCell>{sample.province}</TableCell>

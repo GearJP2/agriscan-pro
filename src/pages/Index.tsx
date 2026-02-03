@@ -19,9 +19,11 @@ import { mockSamples as initialMockSamples } from '@/data/mockSamples';
 import { Sample, FilterState, ProcessLog, RiskLevel } from '@/types/sample';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import { useWatchlist } from '@/hooks/useWatchlist';
 
 const Index = () => {
   const { isAdmin } = useAuth();
+  const { isWatching } = useWatchlist();
   const [samples, setSamples] = useState<Sample[]>(initialMockSamples);
   const [filters, setFilters] = useState<FilterState>({
     region: [],
@@ -31,6 +33,7 @@ const Index = () => {
     status: [],
     risk: [],
     search: '',
+    watchlistOnly: false,
   });
 
   // Calculate risk level for a sample
@@ -56,9 +59,10 @@ const Index = () => {
       if (filters.vegetation.length > 0 && !filters.vegetation.includes(sample.vegetation_variety)) return false;
       if (filters.status.length > 0 && !filters.status.includes(sample.status)) return false;
       if (filters.risk.length > 0 && !filters.risk.includes(getRiskLevel(sample))) return false;
+      if (filters.watchlistOnly && !isWatching(sample.sample_id)) return false;
       return true;
     });
-  }, [filters, samples]);
+  }, [filters, samples, isWatching]);
 
   // Get export data
   const getExportData = () => {
