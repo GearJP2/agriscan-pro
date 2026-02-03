@@ -26,7 +26,7 @@ const SampleTable = ({ samples, onSelectSample }: SampleTableProps) => {
       pending: 'Registered',
       in_progress: 'Preparing',
       completed: 'Completed',
-      flagged: 'Analyzed',
+      flagged: 'Recorded',
     };
     return <Badge variant={status}>{statusLabels[status]}</Badge>;
   };
