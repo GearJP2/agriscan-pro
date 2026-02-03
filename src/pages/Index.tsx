@@ -17,7 +17,10 @@ import {
 import { mockSamples as initialMockSamples } from '@/data/mockSamples';
 import { Sample, FilterState, ProcessLog, RiskLevel } from '@/types/sample';
 import { toast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
+
 const Index = () => {
+  const { isAdmin } = useAuth();
   const [samples, setSamples] = useState<Sample[]>(initialMockSamples);
   const [filters, setFilters] = useState<FilterState>({
     region: [],
@@ -149,7 +152,6 @@ const Index = () => {
       case 'analyzing':
         return 'in_progress';
       case 'recorded':
-      case 'notified':
       case 'completed':
         return 'completed';
       default:
@@ -257,10 +259,12 @@ const Index = () => {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <AddSampleForm 
-              onAddSample={handleAddSample}
-              onAddMultipleSamples={handleAddMultipleSamples}
-            />
+            {isAdmin && (
+              <AddSampleForm 
+                onAddSample={handleAddSample}
+                onAddMultipleSamples={handleAddMultipleSamples}
+              />
+            )}
           </div>
         </div>
 

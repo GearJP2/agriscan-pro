@@ -1,6 +1,6 @@
 import { ProcessLog, ProcessState } from '@/types/sample';
 import { format } from 'date-fns';
-import { Package, FlaskConical, Beaker, Microscope, FileCheck, Bell, CheckCircle } from 'lucide-react';
+import { Package, FlaskConical, Beaker, Microscope, FileCheck, CheckCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface ProcessTimelineProps {
@@ -13,7 +13,6 @@ const stateConfig: Record<ProcessState, { icon: typeof Package; label: string; c
   prepared: { icon: Beaker, label: 'Prepared', color: 'text-primary bg-primary/10' },
   analyzing: { icon: Microscope, label: 'Analyzing', color: 'text-info bg-info/10' },
   recorded: { icon: FileCheck, label: 'Recorded', color: 'text-accent-foreground bg-accent' },
-  notified: { icon: Bell, label: 'Notified', color: 'text-secondary-foreground bg-secondary' },
   completed: { icon: CheckCircle, label: 'Completed', color: 'text-success bg-success/10' },
 };
 

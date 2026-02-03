@@ -4,7 +4,6 @@ export type ProcessState =
   | 'prepared'
   | 'analyzing'
   | 'recorded'
-  | 'notified'
   | 'completed';
 
 export const PROCESS_STATE_ORDER: ProcessState[] = [
@@ -13,9 +12,18 @@ export const PROCESS_STATE_ORDER: ProcessState[] = [
   'prepared',
   'analyzing',
   'recorded',
-  'notified',
   'completed',
 ];
+
+// State descriptions for the workflow
+export const PROCESS_STATE_INFO: Record<ProcessState, { label: string; description: string }> = {
+  registered: { label: 'Registered', description: 'Raw sample received' },
+  preparing: { label: 'Preparing', description: 'Researcher preparing sample for test' },
+  prepared: { label: 'Prepared', description: 'Preparing process finished' },
+  analyzing: { label: 'Analyzing', description: 'Testing machine is ready and analyzing' },
+  recorded: { label: 'Recorded', description: 'Test result extracted' },
+  completed: { label: 'Completed', description: 'Test result recorded on dashboard' },
+};
 
 export interface ProcessLog {
   id: string;

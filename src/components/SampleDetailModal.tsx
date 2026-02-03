@@ -8,7 +8,8 @@ import { MapPin, Leaf, Calendar, ClipboardList, ArrowRight } from 'lucide-react'
 import { format } from 'date-fns';
 import ProcessTimeline from './ProcessTimeline';
 import MycotoxinResults from './MycotoxinResults';
-import StatusUpdateForm from './StatusUpdateForm';
+import AdminStatusApproval from './AdminStatusApproval';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface SampleDetailModalProps {
   sample: Sample | null;
@@ -19,6 +20,7 @@ interface SampleDetailModalProps {
 
 const SampleDetailModal = ({ sample, open, onOpenChange, onUpdateSample }: SampleDetailModalProps) => {
   const [activeTab, setActiveTab] = useState('details');
+  const { isAdmin } = useAuth();
 
   if (!sample) return null;
 
@@ -46,15 +48,17 @@ const SampleDetailModal = ({ sample, open, onOpenChange, onUpdateSample }: Sampl
         </DialogHeader>
         
         <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-4">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-2' : 'grid-cols-1'}`}>
             <TabsTrigger value="details" className="flex items-center gap-2">
               <ClipboardList className="h-4 w-4" />
               Details
             </TabsTrigger>
-            <TabsTrigger value="update" className="flex items-center gap-2">
-              <ArrowRight className="h-4 w-4" />
-              Update Status
-            </TabsTrigger>
+            {isAdmin && (
+              <TabsTrigger value="update" className="flex items-center gap-2">
+                <ArrowRight className="h-4 w-4" />
+                Approve Status
+              </TabsTrigger>
+            )}
           </TabsList>
           
           <TabsContent value="details" className="mt-4 space-y-6">
@@ -101,9 +105,11 @@ const SampleDetailModal = ({ sample, open, onOpenChange, onUpdateSample }: Sampl
             <MycotoxinResults results={sample.mycotoxin_results} />
           </TabsContent>
           
-          <TabsContent value="update" className="mt-4">
-            <StatusUpdateForm sample={sample} onUpdate={handleStatusUpdate} />
-          </TabsContent>
+          {isAdmin && (
+            <TabsContent value="update" className="mt-4">
+              <AdminStatusApproval sample={sample} onUpdate={handleStatusUpdate} />
+            </TabsContent>
+          )}
         </Tabs>
       </DialogContent>
     </Dialog>
