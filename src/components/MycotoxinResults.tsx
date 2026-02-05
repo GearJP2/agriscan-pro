@@ -37,12 +37,12 @@ const MycotoxinResults = ({ results }: MycotoxinResultsProps) => {
                   {result.dangerous ? (
                     <div className="flex items-center gap-1 rounded-full bg-danger/10 px-2 py-0.5 text-xs font-medium text-danger">
                       <AlertTriangle className="h-3 w-3" />
-                      Dangerous
+                      Positive
                     </div>
                   ) : (
                     <div className="flex items-center gap-1 rounded-full bg-success/10 px-2 py-0.5 text-xs font-medium text-success">
                       <CheckCircle2 className="h-3 w-3" />
-                      Safe
+                      Negative
                     </div>
                   )}
                 </div>
