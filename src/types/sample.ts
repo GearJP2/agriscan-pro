@@ -48,6 +48,18 @@ export interface MycotoxinResult {
   method?: TestMethod;
 }
 
+export type ProcessingType = 'raw' | 'dried' | 'milled' | 'processed' | 'fermented';
+
+export const PROCESSING_TYPES: ProcessingType[] = ['raw', 'dried', 'milled', 'processed', 'fermented'];
+
+export const PROCESSING_TYPE_LABELS: Record<ProcessingType, string> = {
+  raw: 'Raw',
+  dried: 'Dried',
+  milled: 'Milled',
+  processed: 'Processed',
+  fermented: 'Fermented',
+};
+
 export interface Sample {
   sample_id: string;
   region: string;
@@ -60,6 +72,7 @@ export interface Sample {
   status: 'pending' | 'in_progress' | 'completed' | 'flagged';
   purpose?: 'routine' | 'complaint driven' | 'target surveillance';
   sample_type?: 'field' | 'market' | 'storage' | 'export';
+  processing_type?: ProcessingType;
   collected_by?: string;
   additional_info?: string;
 }
@@ -75,4 +88,6 @@ export interface FilterState {
   risk: RiskLevel[];
   search: string;
   watchlistOnly: boolean;
+  dateFrom: string | null;
+  dateTo: string | null;
 }

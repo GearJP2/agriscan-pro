@@ -1,4 +1,4 @@
-import { Search, Filter, X, Bell } from 'lucide-react';
+import { Search, Filter, X, Bell, CalendarIcon } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
@@ -9,6 +9,9 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { ChevronDown } from 'lucide-react';
 import { useState } from 'react';
 import { useWatchlist } from '@/hooks/useWatchlist';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { format } from 'date-fns';
 
 interface FilterBarProps {
   filters: FilterState;
@@ -58,6 +61,8 @@ const FilterBar = ({ filters, onFilterChange }: FilterBarProps) => {
       risk: [],
       search: '',
       watchlistOnly: false,
+      dateFrom: null,
+      dateTo: null,
     });
   };
 
@@ -67,7 +72,9 @@ const FilterBar = ({ filters, onFilterChange }: FilterBarProps) => {
     filters.status.length + 
     filters.risk.length +
     (filters.search ? 1 : 0) +
-    (filters.watchlistOnly ? 1 : 0);
+    (filters.watchlistOnly ? 1 : 0) +
+    (filters.dateFrom ? 1 : 0) +
+    (filters.dateTo ? 1 : 0);
 
   const toggleSection = (section: string) => {
     setOpenSections(prev => ({ ...prev, [section]: !prev[section] }));
@@ -135,9 +142,9 @@ const FilterBar = ({ filters, onFilterChange }: FilterBarProps) => {
         )}
       </div>
 
-      {/* Search */}
-      <div className="flex gap-3">
-        <div className="relative flex-1">
+      {/* Search and Date Filters */}
+      <div className="flex flex-wrap gap-3">
+        <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Search by Sample ID..."
@@ -146,6 +153,43 @@ const FilterBar = ({ filters, onFilterChange }: FilterBarProps) => {
             className="pl-10"
           />
         </div>
+        
+        {/* Date From */}
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" className="gap-2 min-w-[140px]">
+              <CalendarIcon className="h-4 w-4" />
+              {filters.dateFrom ? format(new Date(filters.dateFrom), 'MMM dd, yyyy') : 'From Date'}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <Calendar
+              mode="single"
+              selected={filters.dateFrom ? new Date(filters.dateFrom) : undefined}
+              onSelect={(date) => onFilterChange({ ...filters, dateFrom: date ? format(date, 'yyyy-MM-dd') : null })}
+              initialFocus
+            />
+          </PopoverContent>
+        </Popover>
+        
+        {/* Date To */}
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" className="gap-2 min-w-[140px]">
+              <CalendarIcon className="h-4 w-4" />
+              {filters.dateTo ? format(new Date(filters.dateTo), 'MMM dd, yyyy') : 'To Date'}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <Calendar
+              mode="single"
+              selected={filters.dateTo ? new Date(filters.dateTo) : undefined}
+              onSelect={(date) => onFilterChange({ ...filters, dateTo: date ? format(date, 'yyyy-MM-dd') : null })}
+              initialFocus
+            />
+          </PopoverContent>
+        </Popover>
+        
         <Button
           variant={filters.watchlistOnly ? 'default' : 'outline'}
           onClick={() => onFilterChange({ ...filters, watchlistOnly: !filters.watchlistOnly })}
