@@ -49,7 +49,7 @@ const formSchema = z.object({
     required_error: "Collection date is required",
   }),
   purpose: z.enum(['routine', 'complaint driven', 'target surveillance'], { required_error: 'Purpose is required' }),
-  sample_type: z.enum(['source', 'warehouse', 'shop'], { required_error: 'Sample type is required' }),
+  sample_type: z.enum(['field', 'market', 'storage', 'export', 'select field'], { required_error: 'Sample type is required' }),
   collected_by: z.string().min(1, 'Collector name is required'),
   notes: z.string().max(500).optional(),
 });
@@ -95,7 +95,7 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
       // @ts-ignore
       collection_date: undefined,
       purpose: 'routine',
-      sample_type: 'source',
+      sample_type: 'field',
       collected_by: '',
       notes: '',
     },
@@ -341,7 +341,7 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
           mycotoxin_results: [],
           status: 'pending',
           purpose: (columnIndexes['purpose'] !== undefined ? cleanText(row[columnIndexes['purpose']] || '') : 'routine') as any,
-          sample_type: (columnIndexes['sample_type'] !== undefined ? cleanText(row[columnIndexes['sample_type']] || '') : 'source') as any,
+          sample_type: (columnIndexes['sample_type'] !== undefined ? cleanText(row[columnIndexes['sample_type']] || '') : 'field') as any,
           collected_by: columnIndexes['collected_by'] !== undefined ? cleanText(row[columnIndexes['collected_by']] || '') : 'Imported',
           additional_info: additionalInfo,
         };
@@ -555,9 +555,10 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="source">Source</SelectItem>
-                            <SelectItem value="warehouse">Warehouse</SelectItem>
-                            <SelectItem value="shop">Shop</SelectItem>
+                            <SelectItem value="field">Field</SelectItem>
+                            <SelectItem value="market">Market</SelectItem>
+                            <SelectItem value="storage">Storage</SelectItem>
+                            <SelectItem value="export">Export</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />
