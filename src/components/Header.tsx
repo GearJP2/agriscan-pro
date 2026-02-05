@@ -1,6 +1,7 @@
 import { FlaskConical } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import RoleSwitcher from './RoleSwitcher';
+import ThemeToggle from './ThemeToggle';
 import { useAuth } from '@/contexts/AuthContext';
 import { Badge } from '@/components/ui/badge';
 
@@ -53,7 +54,8 @@ const Header = () => {
           </Link>
         </nav>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
           <Badge variant={isAdmin ? 'default' : 'secondary'} className="hidden sm:flex">
             {isAdmin ? 'Full Access' : 'View Only'}
           </Badge>
