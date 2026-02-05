@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -125,21 +125,25 @@
   .glass-card {
     @apply bg-card/80 backdrop-blur-sm border border-border/50 shadow-lg;
   }
-  
+
   .gradient-primary {
     background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(174 62% 40%) 100%);
   }
-  
+
   .gradient-danger {
     background: linear-gradient(135deg, hsl(var(--danger)) 0%, hsl(0 60% 45%) 100%);
   }
-  
+
   .animate-fade-in {
     animation: fadeIn 0.5s ease-out forwards;
   }
-  
+
   .animate-slide-up {
     animation: slideUp 0.4s ease-out forwards;
+  }
+
+  .font-serif {
+    font-family: 'Playfair Display', serif;
   }
 }
 
@@ -147,6 +151,7 @@
   from {
     opacity: 0;
   }
+
   to {
     opacity: 1;
   }
@@ -157,6 +162,7 @@
     opacity: 0;
     transform: translateY(20px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
