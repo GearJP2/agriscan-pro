@@ -2,6 +2,7 @@ import { FlaskConical } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import RoleSwitcher from './RoleSwitcher';
 import ThemeToggle from './ThemeToggle';
+import UserDropdown from './UserDropdown';
 import { useAuth } from '@/contexts/AuthContext';
 import { Badge } from '@/components/ui/badge';
 
@@ -55,6 +56,7 @@ const Header = () => {
             {isAdmin ? 'Full Access' : 'View Only'}
           </Badge>
           <RoleSwitcher />
+          <UserDropdown />
         </div>
       </div>
     </header>
