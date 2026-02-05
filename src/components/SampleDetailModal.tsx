@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { MapPin, Leaf, Calendar, ClipboardList, ArrowRight } from 'lucide-react';
+import { MapPin, Leaf, Calendar, ClipboardList, ArrowRight, User, Info, Tag } from 'lucide-react';
 import { format } from 'date-fns';
 import ProcessTimeline from './ProcessTimeline';
 import MycotoxinResults from './MycotoxinResults';
@@ -46,7 +46,7 @@ const SampleDetailModal = ({ sample, open, onOpenChange, onUpdateSample }: Sampl
             <Badge variant={sample.status}>{statusLabels[sample.status]}</Badge>
           </div>
         </DialogHeader>
-        
+
         <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-4">
           <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-2' : 'grid-cols-1'}`}>
             <TabsTrigger value="details" className="flex items-center gap-2">
@@ -60,7 +60,7 @@ const SampleDetailModal = ({ sample, open, onOpenChange, onUpdateSample }: Sampl
               </TabsTrigger>
             )}
           </TabsList>
-          
+
           <TabsContent value="details" className="mt-4 space-y-6">
             {/* Sample Info */}
             <div className="grid gap-4 sm:grid-cols-2">
@@ -74,7 +74,7 @@ const SampleDetailModal = ({ sample, open, onOpenChange, onUpdateSample }: Sampl
                   <p className="text-sm text-muted-foreground">{sample.region} Region</p>
                 </div>
               </div>
-              
+
               <div className="flex items-start gap-3 rounded-lg border border-border bg-muted/30 p-3">
                 <Leaf className="h-5 w-5 text-primary shrink-0" />
                 <div>
@@ -82,7 +82,7 @@ const SampleDetailModal = ({ sample, open, onOpenChange, onUpdateSample }: Sampl
                   <p className="font-medium text-foreground">{sample.vegetation_variety}</p>
                 </div>
               </div>
-              
+
               <div className="flex items-start gap-3 rounded-lg border border-border bg-muted/30 p-3 sm:col-span-2">
                 <Calendar className="h-5 w-5 text-primary shrink-0" />
                 <div>
@@ -92,19 +92,52 @@ const SampleDetailModal = ({ sample, open, onOpenChange, onUpdateSample }: Sampl
                   </p>
                 </div>
               </div>
+
+
+              <div className="flex items-start gap-3 rounded-lg border border-border bg-muted/30 p-3">
+                <Tag className="h-5 w-5 text-primary shrink-0" />
+                <div>
+                  <p className="text-xs text-muted-foreground">Purpose & Type</p>
+                  <p className="font-medium text-foreground capitalize">
+                    {sample.purpose || 'N/A'} / {sample.sample_type || 'N/A'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3 rounded-lg border border-border bg-muted/30 p-3">
+                <User className="h-5 w-5 text-primary shrink-0" />
+                <div>
+                  <p className="text-xs text-muted-foreground">Collected By</p>
+                  <p className="font-medium text-foreground">
+                    {sample.collected_by || 'Unknown'}
+                  </p>
+                </div>
+              </div>
+
+              {sample.additional_info && (
+                <div className="flex items-start gap-3 rounded-lg border border-border bg-muted/30 p-3 sm:col-span-2">
+                  <Info className="h-5 w-5 text-primary shrink-0" />
+                  <div>
+                    <p className="text-xs text-muted-foreground">Additional Information</p>
+                    <p className="font-medium text-foreground text-sm">
+                      {sample.additional_info}
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
-            
+
             <Separator />
-            
+
             {/* Process Timeline */}
             <ProcessTimeline logs={sample.process_logs} />
-            
+
             <Separator />
-            
+
             {/* Mycotoxin Results */}
             <MycotoxinResults results={sample.mycotoxin_results} />
           </TabsContent>
-          
+
           {isAdmin && (
             <TabsContent value="update" className="mt-4">
               <AdminStatusApproval sample={sample} onUpdate={handleStatusUpdate} />

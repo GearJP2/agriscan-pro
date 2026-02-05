@@ -3,11 +3,15 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import * as XLSX from 'xlsx';
-import { Upload, FileText, Plus, Check, AlertCircle } from 'lucide-react';
+import { Upload, FileText, Plus, Check, AlertCircle, Download, CalendarIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Calendar } from "@/components/ui/calendar"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { format } from "date-fns"
+import { cn } from "@/lib/utils"
 import {
   Dialog,
   DialogContent,
@@ -41,8 +45,12 @@ const formSchema = z.object({
   province: z.string().min(1, 'Province is required'),
   district: z.string().min(1, 'District is required'),
   vegetation_variety: z.string().min(1, 'Vegetation variety is required'),
-  collection_date: z.string().min(1, 'Collection date is required'),
-  conducted_by: z.string().min(1, 'Your name is required').max(100),
+  collection_date: z.date({
+    required_error: "Collection date is required",
+  }),
+  purpose: z.enum(['routine', 'complaint driven', 'target surveillance'], { required_error: 'Purpose is required' }),
+  sample_type: z.enum(['source', 'warehouse', 'shop'], { required_error: 'Sample type is required' }),
+  collected_by: z.string().min(1, 'Collector name is required'),
   notes: z.string().max(500).optional(),
 });
 
@@ -84,8 +92,11 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
       province: '',
       district: '',
       vegetation_variety: '',
-      collection_date: '',
-      conducted_by: '',
+      // @ts-ignore
+      collection_date: undefined,
+      purpose: 'routine',
+      sample_type: 'source',
+      collected_by: '',
       notes: '',
     },
   });
@@ -111,6 +122,10 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
     const sampleId = generateSampleId();
     const logId = generateLogId();
     const timestamp = new Date().toISOString();
+
+    // Convert Date object to YYYY-MM-DD
+    const formattedDate = format(values.collection_date, 'yyyy-MM-dd');
+
     const region = getRegionByProvince(values.province) || 'Unknown';
 
     const initialLog: ProcessLog = {
@@ -118,7 +133,7 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
       timestamp,
       state: 'registered',
       notes: values.notes,
-      conducted_by: values.conducted_by,
+      conducted_by: 'Automated by system',
     };
 
     const newSample: Sample = {
@@ -127,10 +142,14 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
       province: values.province,
       district: values.district,
       vegetation_variety: values.vegetation_variety,
-      collection_date: values.collection_date,
+      collection_date: formattedDate,
       process_logs: [initialLog],
       mycotoxin_results: [],
       status: 'pending',
+      purpose: values.purpose,
+      sample_type: values.sample_type,
+      collected_by: values.collected_by,
+      additional_info: values.notes,
     };
 
     onAddSample(newSample);
@@ -145,7 +164,7 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
   const parseFileData = (file: File): Promise<string[][]> => {
     return new Promise((resolve, reject) => {
       const isXlsx = file.name.endsWith('.xlsx') || file.name.endsWith('.xls');
-      
+
       if (isXlsx) {
         const reader = new FileReader();
         reader.onload = (event) => {
@@ -155,7 +174,7 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
             const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
             const jsonData = XLSX.utils.sheet_to_json<string[]>(firstSheet, { header: 1 });
             // Clean quotes from all cells
-            const cleanedData = jsonData.map(row => 
+            const cleanedData = jsonData.map(row =>
               row.map(cell => cleanText(String(cell ?? '')))
             );
             resolve(cleanedData);
@@ -175,10 +194,10 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
             const cells: string[] = [];
             let current = '';
             let inQuotes = false;
-            
+
             for (let i = 0; i < line.length; i++) {
               const char = line[i];
-              if (char === '"' && (i === 0 || line[i-1] !== '\\')) {
+              if (char === '"' && (i === 0 || line[i - 1] !== '\\')) {
                 inQuotes = !inQuotes;
               } else if (char === ',' && !inQuotes) {
                 cells.push(cleanText(current));
@@ -206,7 +225,7 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
     if (file) {
       const validExtensions = ['.csv', '.xlsx', '.xls'];
       const hasValidExtension = validExtensions.some(ext => file.name.toLowerCase().endsWith(ext));
-      
+
       if (!hasValidExtension) {
         setFileError('Please upload a CSV or Excel (.xlsx, .xls) file');
         return;
@@ -228,44 +247,87 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
       return;
     }
 
-    const conductedBy = form.getValues('conducted_by');
-    if (!conductedBy) {
-      setFileError('Please enter your name before uploading');
-      return;
-    }
+    // Conducted by is now automated, so we remove the check
+
 
     const headers = filePreview[0].map(h => cleanText(h).toLowerCase().replace(/\s+/g, '_'));
-    const requiredColumns = ['province', 'district', 'vegetation_variety', 'collection_date'];
-    
+    const requiredColumns = ['province', 'district', 'variety', 'collection_date'];
+
+    // Check if optional columns exist, if not we will use defaults
+    const optionalColumns = ['purpose', 'sample_type', 'collected_by', 'additional_info', 'processing_type', 'sample_name', 'varieties', 'provinces', 'districts'];
+
     const columnIndexes: Record<string, number> = {};
-    for (const col of requiredColumns) {
-      const index = headers.findIndex(h => h.includes(col) || h === col);
-      if (index === -1) {
-        setFileError(`Missing required column: ${col}`);
-        return;
-      }
-      columnIndexes[col] = index;
-    }
+
+    // Helper to find column index with aliases
+    const findColumnIndex = (aliases: string[]) => {
+      return headers.findIndex(h => aliases.some(alias => h.includes(alias) || h === alias));
+    };
+
+    // Map required columns with aliases
+    const provinceIndex = findColumnIndex(['province', 'provinces']);
+    const districtIndex = findColumnIndex(['district', 'districts']);
+    const varietyIndex = findColumnIndex(['vegetation_variety', 'variety', 'varieties', 'crops']); // Added crops as fallback for variety
+    const dateIndex = findColumnIndex(['collection_date', 'date', 'crop_year', 'year']);
+
+    if (provinceIndex === -1) { setFileError('Missing required column: Province'); return; }
+    if (districtIndex === -1) { setFileError('Missing required column: District'); return; }
+    // if (varietyIndex === -1) { setFileError('Missing required column: Variety'); return; } // Make variety optional? No, core field.
+
+    columnIndexes['province'] = provinceIndex;
+    columnIndexes['district'] = districtIndex;
+    columnIndexes['vegetation_variety'] = varietyIndex;
+    columnIndexes['collection_date'] = dateIndex; // Can be -1
+
+    // Map optional columns
+    columnIndexes['purpose'] = findColumnIndex(['purpose']);
+    columnIndexes['sample_type'] = findColumnIndex(['sample_type', 'processing_type']); // Map processing type to sample type? Or just info?
+    columnIndexes['collected_by'] = findColumnIndex(['collected_by', 'collector']);
+    columnIndexes['additional_info'] = findColumnIndex(['additional_info', 'notes', 'sample_name']); // Map sample name to info for now
+    columnIndexes['processing_type'] = findColumnIndex(['processing_type']);
+    columnIndexes['sample_name'] = findColumnIndex(['sample_name', 'sample_names']);
 
     try {
       const allParsed = await parseFileData(uploadFile);
-      
+
       const allSamples: Sample[] = [];
       for (let i = 1; i < allParsed.length; i++) {
         const row = allParsed[i];
-        if (row.length < requiredColumns.length) continue;
+        if (Object.keys(columnIndexes).some(key => columnIndexes[key] >= row.length)) continue;
 
         const sampleId = generateSampleId();
         const logId = generateLogId();
         const province = cleanText(row[columnIndexes['province']] || '');
         const region = getRegionByProvince(province) || 'Unknown';
 
+        const rawDate = dateIndex !== -1 ? cleanText(row[columnIndexes['collection_date']] || '') : '';
+        let formattedDate = new Date().toISOString().split('T')[0]; // Default to today
+
+        if (rawDate) {
+          // Handle d/m/y format (e.g. 31/01/2024 -> 2024-01-31)
+          if (rawDate.match(/^\d{1,2}\/\d{1,2}\/\d{4}$/)) {
+            const [day, month, year] = rawDate.split('/');
+            formattedDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+          } else if (rawDate.match(/^\d{4}$/)) {
+            // Handle year only
+            formattedDate = `${rawDate}-01-01`;
+          } else {
+            // Try standard parse
+            const d = new Date(rawDate);
+            if (!isNaN(d.getTime())) {
+              formattedDate = d.toISOString().split('T')[0];
+            }
+          }
+        }
+
+        const additionalInfo = columnIndexes['additional_info'] !== undefined ? cleanText(row[columnIndexes['additional_info']] || '') : '';
+
         const initialLog: ProcessLog = {
           id: logId,
           timestamp: new Date().toISOString(),
           state: 'registered',
-          notes: `Imported from ${uploadFile.name.endsWith('.csv') ? 'CSV' : 'Excel'}`,
-          conducted_by: conductedBy,
+          notes: `Imported from ${uploadFile.name.endsWith('.csv') ? 'CSV' : 'Excel'}. ${additionalInfo} ${columnIndexes['sample_name'] !== -1 ? `Sample Name: ${cleanText(row[columnIndexes['sample_name']] || '')}` : ''
+            }`,
+          conducted_by: 'Automated by system',
         };
 
         const sample: Sample = {
@@ -274,10 +336,14 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
           province,
           district: cleanText(row[columnIndexes['district']] || ''),
           vegetation_variety: cleanText(row[columnIndexes['vegetation_variety']] || ''),
-          collection_date: cleanText(row[columnIndexes['collection_date']] || ''),
+          collection_date: formattedDate,
           process_logs: [initialLog],
           mycotoxin_results: [],
           status: 'pending',
+          purpose: (columnIndexes['purpose'] !== undefined ? cleanText(row[columnIndexes['purpose']] || '') : 'routine') as any,
+          sample_type: (columnIndexes['sample_type'] !== undefined ? cleanText(row[columnIndexes['sample_type']] || '') : 'source') as any,
+          collected_by: columnIndexes['collected_by'] !== undefined ? cleanText(row[columnIndexes['collected_by']] || '') : 'Imported',
+          additional_info: additionalInfo,
         };
 
         allSamples.push(sample);
@@ -360,8 +426,8 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>District *</FormLabel>
-                        <Select 
-                          onValueChange={field.onChange} 
+                        <Select
+                          onValueChange={field.onChange}
                           value={field.value}
                           disabled={!selectedProvince}
                         >
@@ -414,11 +480,86 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
                     control={form.control}
                     name="collection_date"
                     render={({ field }) => (
-                      <FormItem>
+                      <FormItem className="flex flex-col">
                         <FormLabel>Collection Date *</FormLabel>
-                        <FormControl>
-                          <Input type="date" {...field} />
-                        </FormControl>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <FormControl>
+                              <Button
+                                variant={"outline"}
+                                className={cn(
+                                  "w-full pl-3 text-left font-normal",
+                                  !field.value && "text-muted-foreground"
+                                )}
+                              >
+                                {field.value ? (
+                                  format(field.value, "PPP")
+                                ) : (
+                                  <span>Pick a date</span>
+                                )}
+                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                              </Button>
+                            </FormControl>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                              mode="single"
+                              selected={field.value}
+                              onSelect={field.onChange}
+                              disabled={(date) =>
+                                date > new Date() || date < new Date("1900-01-01")
+                              }
+                              initialFocus
+                            />
+                          </PopoverContent>
+                        </Popover>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="purpose"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Purpose *</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select purpose" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="routine">Routine</SelectItem>
+                            <SelectItem value="complaint driven">Complaint Driven</SelectItem>
+                            <SelectItem value="target surveillance">Target Surveillance</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="sample_type"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Sample Type *</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select type" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="source">Source</SelectItem>
+                            <SelectItem value="warehouse">Warehouse</SelectItem>
+                            <SelectItem value="shop">Shop</SelectItem>
+                          </SelectContent>
+                        </Select>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -427,12 +568,12 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
 
                 <FormField
                   control={form.control}
-                  name="conducted_by"
+                  name="collected_by"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Registered By *</FormLabel>
+                      <FormLabel>Collected By *</FormLabel>
                       <FormControl>
-                        <Input placeholder="Your name" {...field} />
+                        <Input placeholder="Collector's name" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -446,7 +587,7 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
                     <FormItem>
                       <FormLabel>Notes (Optional)</FormLabel>
                       <FormControl>
-                        <Textarea 
+                        <Textarea
                           placeholder="Any additional notes about the sample..."
                           className="resize-none"
                           {...field}
@@ -472,8 +613,43 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
                 Upload a CSV or Excel file with sample data
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
-                Required columns: province, district, vegetation_variety, collection_date
+                Required columns: Provinces, Districts, Varieties, Date. <br />
+                Optional: Purpose, Processing Type, Collected By, Sample Names, Mycotoxins (DON, ZEA...), Metals
               </p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-4 gap-2 h-8"
+                onClick={() => {
+                  const headers = [
+                    'Regions', 'Crops', 'Processing type', 'Varieties', 'Provinces', 'Districts', 'Positive/Negative', 'Sample names',
+                    'DON', 'AFB1', 'FB1', 'T-2', 'ZEA', 'OTA',
+                    'Mg', 'Al', 'P', 'K', 'Li', 'Be', 'Ca', 'Ti', 'V', 'Cr', 'Mn', 'Fe', 'Co', 'Ni', 'Cu', 'Zn', 'As', 'Rb', 'Sr', 'Y', 'Mo', 'Ag', 'Cd', 'Sn', 'Cs', 'Ba', 'La', 'Ce', 'Pr', 'Nd', 'Sm', 'Eu', 'Gd', 'Tl', 'Pb', 'Th', 'U',
+                    'd 13C', 'd 15N', 'd 18O',
+                    'Date (DD/MM/YYYY)', 'Purpose', 'Collected By'
+                  ];
+
+                  const mockRow = [
+                    'North', 'Corn', 'Dried', 'Sweet Corn', 'Chiang Mai', 'Mueang', 'Negative', 'SMP-2024-001',
+                    '<LOQ', '<LOQ', '<LOQ', '<LOQ', '<LOQ', '<LOQ',
+                    '150.5', '20.1', '350.2', '420.5', '0.05', '0.01', '120.5', '0.45', '0.12', '1.5', '12.8', '45.2', '0.3', '1.8', '5.5', '12.4', '0.05', '1.2', '2.5', '0.1', '0.08', '0.01', '0.02', '0.05', '0.01', '5.2', '0.3', '0.6', '0.1', '0.4', '0.08', '0.02', '0.09', '0.01', '0.05', '0.02', '0.01',
+                    '-25.4', '4.8', '-5.2',
+                    '01/01/2024', 'routine', 'System Admin'
+                  ];
+
+                  const csvContent = [headers.join(','), mockRow.join(',')].join('\n');
+                  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                  const link = document.createElement('a');
+                  link.href = URL.createObjectURL(blob);
+                  link.setAttribute('download', 'agriscan_template.csv');
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                }}
+              >
+                <Download className="h-3 w-3" />
+                Download Template
+              </Button>
               <Input
                 type="file"
                 accept=".csv,.xlsx,.xls"
@@ -522,19 +698,12 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
             )}
 
             <div className="space-y-4">
-              <div>
-                <Label htmlFor="file-conducted-by">Registered By *</Label>
-                <Input
-                  id="file-conducted-by"
-                  placeholder="Your name"
-                  value={form.watch('conducted_by')}
-                  onChange={(e) => form.setValue('conducted_by', e.target.value)}
-                  className="mt-1"
-                />
+              <div className="bg-muted/30 p-3 rounded text-xs text-muted-foreground">
+                <p className="flex items-center gap-1"><Check className="h-3 w-3" /> Registered By will be set to "Automated by system"</p>
               </div>
 
-              <Button 
-                onClick={handleFileUpload} 
+              <Button
+                onClick={handleFileUpload}
                 className="w-full gap-2"
                 disabled={!uploadFile || filePreview.length < 2}
               >

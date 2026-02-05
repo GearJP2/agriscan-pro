@@ -1,4 +1,4 @@
-export type ProcessState = 
+export type ProcessState =
   | 'registered'
   | 'preparing'
   | 'prepared'
@@ -58,6 +58,10 @@ export interface Sample {
   process_logs: ProcessLog[];
   mycotoxin_results: MycotoxinResult[];
   status: 'pending' | 'in_progress' | 'completed' | 'flagged';
+  purpose?: 'routine' | 'complaint driven' | 'target surveillance';
+  sample_type?: 'source' | 'warehouse' | 'shop';
+  collected_by?: string;
+  additional_info?: string;
 }
 
 export type RiskLevel = 'safe' | 'low' | 'medium' | 'high';

@@ -21,6 +21,9 @@ export const mockSamples: Sample[] = [
       { name: 'Aflatoxin B1', intensity: 2, dangerous: false, threshold: 5, unit: 'µg/kg', method: { name: 'HPLC-MS/MS', sopLink: '/sop/hplc-msms' } },
       { name: 'Ochratoxin A', intensity: 1, dangerous: false, threshold: 10, unit: 'µg/kg', method: { name: 'ELISA', sopLink: '/sop/elisa' } },
     ],
+    purpose: 'routine',
+    sample_type: 'source',
+    collected_by: 'John Doe',
   },
   {
     sample_id: 'SAM-2024-002',
@@ -43,6 +46,10 @@ export const mockSamples: Sample[] = [
       { name: 'Fumonisin B1', intensity: 7, dangerous: true, threshold: 4, unit: 'mg/kg', method: { name: 'LC-MS', sopLink: '/sop/lc-ms' } },
       { name: 'Deoxynivalenol', intensity: 3, dangerous: false, threshold: 6, unit: 'mg/kg', method: { name: 'ELISA', sopLink: '/sop/elisa' } },
     ],
+    purpose: 'complaint driven',
+    sample_type: 'warehouse',
+    collected_by: 'Jane Smith',
+    additional_info: 'Sample collected from a high-humidity area.',
   },
   {
     sample_id: 'SAM-2024-003',
@@ -57,6 +64,9 @@ export const mockSamples: Sample[] = [
       { id: 'LOG-016', timestamp: '2024-01-20T13:00:00Z', state: 'preparing', test_id: 'TEST-003', conducted_by: 'Maria Garcia' },
     ],
     mycotoxin_results: [],
+    purpose: 'target surveillance',
+    sample_type: 'shop',
+    collected_by: 'Bob Wilson',
   },
   {
     sample_id: 'SAM-2024-004',

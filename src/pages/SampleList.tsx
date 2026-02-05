@@ -66,7 +66,7 @@ const SampleList = () => {
 
     // Get export data
     const getExportData = () => {
-        const headers = ['Sample ID', 'Region', 'Province', 'District', 'Variety', 'Collection Date', 'Status', 'Risk Level', 'Last Updated By'];
+        const headers = ['Sample ID', 'Region', 'Province', 'District', 'Variety', 'Collection Date', 'Status', 'Risk Level', 'Purpose', 'Type', 'Collected By', 'Additional Info', 'Last Updated By'];
 
         const rows = filteredSamples.map(sample => {
             const lastLog = sample.process_logs[sample.process_logs.length - 1];
@@ -79,6 +79,10 @@ const SampleList = () => {
                 sample.collection_date,
                 sample.status,
                 getRiskLevel(sample),
+                sample.purpose || '-',
+                sample.sample_type || '-',
+                sample.collected_by || '-',
+                sample.additional_info || '-',
                 lastLog?.conducted_by || '',
             ];
         });
