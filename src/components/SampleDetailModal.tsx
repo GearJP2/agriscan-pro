@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { Sample, ProcessLog } from '@/types/sample';
+import { Sample, ProcessLog, PROCESSING_TYPE_LABELS, ProcessingType } from '@/types/sample';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { MapPin, Leaf, Calendar, ClipboardList, ArrowRight, User, Info, Tag } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { MapPin, Leaf, Calendar, ClipboardList, ArrowRight, User, Info, Tag, ChevronDown, AlertTriangle, CheckCircle2, Beaker } from 'lucide-react';
 import { format } from 'date-fns';
 import ProcessTimeline from './ProcessTimeline';
 import MycotoxinResults from './MycotoxinResults';
@@ -20,6 +20,9 @@ interface SampleDetailModalProps {
 
 const SampleDetailModal = ({ sample, open, onOpenChange, onUpdateSample }: SampleDetailModalProps) => {
   const [activeTab, setActiveTab] = useState('details');
+  const [showMoreInfo, setShowMoreInfo] = useState(false);
+  const [showTimeline, setShowTimeline] = useState(false);
+  const [showResults, setShowResults] = useState(true);
   const { isAdmin } = useAuth();
 
   if (!sample) return null;
@@ -31,9 +34,42 @@ const SampleDetailModal = ({ sample, open, onOpenChange, onUpdateSample }: Sampl
     flagged: 'Flagged',
   };
 
+  const hasDangerousResults = sample.mycotoxin_results.some(r => r.dangerous);
+  const hasResults = sample.mycotoxin_results.length > 0;
+
   const handleStatusUpdate = (sampleId: string, newLog: ProcessLog) => {
     onUpdateSample?.(sampleId, newLog);
   };
+
+  const CollapsibleSection = ({ 
+    title, 
+    icon: Icon, 
+    isOpen, 
+    onToggle, 
+    children,
+    badge
+  }: { 
+    title: string; 
+    icon: React.ElementType; 
+    isOpen: boolean; 
+    onToggle: () => void; 
+    children: React.ReactNode;
+    badge?: React.ReactNode;
+  }) => (
+    <Collapsible open={isOpen} onOpenChange={onToggle}>
+      <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg border border-border bg-muted/30 p-3 hover:bg-muted/50 transition-colors">
+        <div className="flex items-center gap-2">
+          <Icon className="h-4 w-4 text-primary" />
+          <span className="font-medium text-sm">{title}</span>
+          {badge}
+        </div>
+        <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      </CollapsibleTrigger>
+      <CollapsibleContent className="pt-3">
+        {children}
+      </CollapsibleContent>
+    </Collapsible>
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -61,81 +97,160 @@ const SampleDetailModal = ({ sample, open, onOpenChange, onUpdateSample }: Sampl
             )}
           </TabsList>
 
-          <TabsContent value="details" className="mt-4 space-y-6">
-            {/* Sample Info */}
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="flex items-start gap-3 rounded-lg border border-border bg-muted/30 p-3">
-                <MapPin className="h-5 w-5 text-primary shrink-0" />
-                <div>
-                  <p className="text-xs text-muted-foreground">Location</p>
-                  <p className="font-medium text-foreground">
-                    {sample.district}, {sample.province}
-                  </p>
-                  <p className="text-sm text-muted-foreground">{sample.region} Region</p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3 rounded-lg border border-border bg-muted/30 p-3">
-                <Leaf className="h-5 w-5 text-primary shrink-0" />
-                <div>
-                  <p className="text-xs text-muted-foreground">Variety</p>
-                  <p className="font-medium text-foreground">{sample.vegetation_variety}</p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3 rounded-lg border border-border bg-muted/30 p-3 sm:col-span-2">
-                <Calendar className="h-5 w-5 text-primary shrink-0" />
-                <div>
-                  <p className="text-xs text-muted-foreground">Collection Date</p>
-                  <p className="font-medium text-foreground">
-                    {format(new Date(sample.collection_date), 'MMMM dd, yyyy')}
-                  </p>
-                </div>
-              </div>
-
-
-              <div className="flex items-start gap-3 rounded-lg border border-border bg-muted/30 p-3">
-                <Tag className="h-5 w-5 text-primary shrink-0" />
-                <div>
-                  <p className="text-xs text-muted-foreground">Purpose & Type</p>
-                  <p className="font-medium text-foreground capitalize">
-                    {sample.purpose || 'N/A'} / {sample.sample_type || 'N/A'}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3 rounded-lg border border-border bg-muted/30 p-3">
-                <User className="h-5 w-5 text-primary shrink-0" />
-                <div>
-                  <p className="text-xs text-muted-foreground">Collected By</p>
-                  <p className="font-medium text-foreground">
-                    {sample.collected_by || 'Unknown'}
-                  </p>
-                </div>
-              </div>
-
-              {sample.additional_info && (
-                <div className="flex items-start gap-3 rounded-lg border border-border bg-muted/30 p-3 sm:col-span-2">
-                  <Info className="h-5 w-5 text-primary shrink-0" />
+          <TabsContent value="details" className="mt-4 space-y-4">
+            {/* Key Information - Always Visible */}
+            <div className="rounded-lg border border-border bg-card p-4 space-y-4">
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Key Information</h3>
+              
+              <div className="grid gap-3 sm:grid-cols-2">
+                {/* Location */}
+                <div className="flex items-start gap-3">
+                  <MapPin className="h-5 w-5 text-primary shrink-0 mt-0.5" />
                   <div>
-                    <p className="text-xs text-muted-foreground">Additional Information</p>
-                    <p className="font-medium text-foreground text-sm">
-                      {sample.additional_info}
+                    <p className="text-xs text-muted-foreground">Location</p>
+                    <p className="font-medium text-foreground">
+                      {sample.district}, {sample.province}
+                    </p>
+                    <p className="text-sm text-muted-foreground">{sample.region}</p>
+                  </div>
+                </div>
+
+                {/* Variety */}
+                <div className="flex items-start gap-3">
+                  <Leaf className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-xs text-muted-foreground">Variety</p>
+                    <p className="font-medium text-foreground">{sample.vegetation_variety}</p>
+                  </div>
+                </div>
+
+                {/* Collection Date */}
+                <div className="flex items-start gap-3">
+                  <Calendar className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-xs text-muted-foreground">Collection Date</p>
+                    <p className="font-medium text-foreground">
+                      {format(new Date(sample.collection_date), 'MMM dd, yyyy')}
                     </p>
                   </div>
                 </div>
-              )}
+
+                {/* Risk Status */}
+                <div className="flex items-start gap-3">
+                  {hasDangerousResults ? (
+                    <AlertTriangle className="h-5 w-5 text-danger shrink-0 mt-0.5" />
+                  ) : hasResults ? (
+                    <CheckCircle2 className="h-5 w-5 text-success shrink-0 mt-0.5" />
+                  ) : (
+                    <Beaker className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
+                  )}
+                  <div>
+                    <p className="text-xs text-muted-foreground">Risk Level</p>
+                    <p className={`font-medium ${hasDangerousResults ? 'text-danger' : hasResults ? 'text-success' : 'text-muted-foreground'}`}>
+                      {hasDangerousResults ? 'High Risk' : hasResults ? 'Safe' : 'Pending Analysis'}
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <Separator />
+            {/* Mycotoxin Results - Collapsible but default open if results exist */}
+            {hasResults && (
+              <CollapsibleSection
+                title="Test Results"
+                icon={Beaker}
+                isOpen={showResults}
+                onToggle={() => setShowResults(!showResults)}
+                badge={
+                  hasDangerousResults ? (
+                    <Badge variant="destructive" className="ml-2">Alert</Badge>
+                  ) : (
+                    <Badge variant="secondary" className="ml-2 bg-success/10 text-success">Safe</Badge>
+                  )
+                }
+              >
+                <MycotoxinResults results={sample.mycotoxin_results} />
+              </CollapsibleSection>
+            )}
 
-            {/* Process Timeline */}
-            <ProcessTimeline logs={sample.process_logs} />
+            {/* Additional Information - Collapsible */}
+            <CollapsibleSection
+              title="Additional Details"
+              icon={Info}
+              isOpen={showMoreInfo}
+              onToggle={() => setShowMoreInfo(!showMoreInfo)}
+            >
+              <div className="grid gap-3 sm:grid-cols-2 rounded-lg border border-border bg-muted/30 p-3">
+                <div className="flex items-start gap-3">
+                  <Tag className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-xs text-muted-foreground">Purpose</p>
+                    <p className="font-medium text-foreground text-sm capitalize">
+                      {sample.purpose || 'N/A'}
+                    </p>
+                  </div>
+                </div>
 
-            <Separator />
+                <div className="flex items-start gap-3">
+                  <Tag className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-xs text-muted-foreground">Sample Type</p>
+                    <p className="font-medium text-foreground text-sm capitalize">
+                      {sample.sample_type || 'N/A'}
+                    </p>
+                  </div>
+                </div>
 
-            {/* Mycotoxin Results */}
-            <MycotoxinResults results={sample.mycotoxin_results} />
+                {sample.processing_type && (
+                  <div className="flex items-start gap-3">
+                    <Beaker className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-xs text-muted-foreground">Processing Type</p>
+                      <p className="font-medium text-foreground text-sm">
+                        {PROCESSING_TYPE_LABELS[sample.processing_type as ProcessingType] || sample.processing_type}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex items-start gap-3">
+                  <User className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-xs text-muted-foreground">Collected By</p>
+                    <p className="font-medium text-foreground text-sm">
+                      {sample.collected_by || 'Unknown'}
+                    </p>
+                  </div>
+                </div>
+
+                {sample.additional_info && (
+                  <div className="flex items-start gap-3 sm:col-span-2">
+                    <Info className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-xs text-muted-foreground">Notes</p>
+                      <p className="font-medium text-foreground text-sm">
+                        {sample.additional_info}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </CollapsibleSection>
+
+            {/* Process Timeline - Collapsible */}
+            <CollapsibleSection
+              title="Process Timeline"
+              icon={ClipboardList}
+              isOpen={showTimeline}
+              onToggle={() => setShowTimeline(!showTimeline)}
+              badge={
+                <Badge variant="secondary" className="ml-2">
+                  {sample.process_logs.length} steps
+                </Badge>
+              }
+            >
+              <ProcessTimeline logs={sample.process_logs} />
+            </CollapsibleSection>
           </TabsContent>
 
           {isAdmin && (
