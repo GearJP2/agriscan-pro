@@ -59,7 +59,7 @@ export interface Sample {
   mycotoxin_results: MycotoxinResult[];
   status: 'pending' | 'in_progress' | 'completed' | 'flagged';
   purpose?: 'routine' | 'complaint driven' | 'target surveillance';
-  sample_type?: 'source' | 'warehouse' | 'shop';
+  sample_type?: 'field' | 'market' | 'storage' | 'export';
   collected_by?: string;
   additional_info?: string;
 }

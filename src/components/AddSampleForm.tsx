@@ -49,7 +49,7 @@ const formSchema = z.object({
     required_error: "Collection date is required",
   }),
   purpose: z.enum(['routine', 'complaint driven', 'target surveillance'], { required_error: 'Purpose is required' }),
-  sample_type: z.enum(['field', 'market', 'storage', 'export', 'select field'], { required_error: 'Sample type is required' }),
+  sample_type: z.enum(['field', 'market', 'storage', 'export'], { required_error: 'Sample type is required' }),
   collected_by: z.string().min(1, 'Collector name is required'),
   notes: z.string().max(500).optional(),
 });

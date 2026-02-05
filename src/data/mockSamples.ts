@@ -22,7 +22,7 @@ export const mockSamples: Sample[] = [
       { name: 'Ochratoxin A', intensity: 1, dangerous: false, threshold: 10, unit: 'µg/kg', method: { name: 'ELISA', sopLink: '/sop/elisa' } },
     ],
     purpose: 'routine',
-    sample_type: 'source',
+    sample_type: 'field',
     collected_by: 'John Doe',
   },
   {
@@ -47,7 +47,7 @@ export const mockSamples: Sample[] = [
       { name: 'Deoxynivalenol', intensity: 3, dangerous: false, threshold: 6, unit: 'mg/kg', method: { name: 'ELISA', sopLink: '/sop/elisa' } },
     ],
     purpose: 'complaint driven',
-    sample_type: 'warehouse',
+    sample_type: 'storage',
     collected_by: 'Jane Smith',
     additional_info: 'Sample collected from a high-humidity area.',
   },
@@ -65,7 +65,7 @@ export const mockSamples: Sample[] = [
     ],
     mycotoxin_results: [],
     purpose: 'target surveillance',
-    sample_type: 'shop',
+    sample_type: 'market',
     collected_by: 'Bob Wilson',
   },
   {

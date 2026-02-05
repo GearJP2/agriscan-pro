@@ -26,23 +26,26 @@ const Header = () => {
         {/* Centered Pill Navigation */}
         <nav className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 hidden md:flex items-center gap-1 rounded-full bg-secondary/30 backdrop-blur-md px-2 py-1.5 shadow-sm border border-border/50">
           {[
-            { to: '/', label: 'Homepage' },
-            { to: '/dashboard', label: 'Dashboard' },
-            { to: '/samples', label: 'Sample List' },
-            { to: '/prediction', label: 'Prediction' },
-            { to: '/doc', label: 'Documentation' },
-          ].map((link) => (
-            <Link
-              key={link.to}
-              to={link.to}
-              className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${location.pathname === link.to
-                ? 'bg-primary text-primary-foreground shadow-md'
-                : 'text-muted-foreground hover:text-foreground hover:bg-background/50'
-                }`}
-            >
-              {link.label}
-            </Link>
-          ))}
+            { to: '/', label: 'Homepage', adminOnly: false },
+            { to: '/dashboard', label: 'Dashboard', adminOnly: false },
+            { to: '/samples', label: 'Sample List', adminOnly: false },
+            { to: '/prediction', label: 'Prediction', adminOnly: false },
+            { to: '/doc', label: 'Documentation', adminOnly: false },
+            { to: '/users', label: 'Users', adminOnly: true },
+          ]
+            .filter((link) => !link.adminOnly || isAdmin)
+            .map((link) => (
+              <Link
+                key={link.to}
+                to={link.to}
+                className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${location.pathname === link.to
+                  ? 'bg-primary text-primary-foreground shadow-md'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-background/50'
+                  }`}
+              >
+                {link.label}
+              </Link>
+            ))}
         </nav>
 
         {/* Right Actions */}
