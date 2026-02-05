@@ -34,6 +34,8 @@ const SampleList = () => {
         risk: [],
         search: '',
         watchlistOnly: false,
+        dateFrom: null,
+        dateTo: null,
     });
 
     // Calculate risk level for a sample
@@ -60,6 +62,19 @@ const SampleList = () => {
             if (filters.status.length > 0 && !filters.status.includes(sample.status)) return false;
             if (filters.risk.length > 0 && !filters.risk.includes(getRiskLevel(sample))) return false;
             if (filters.watchlistOnly && !isWatching(sample.sample_id)) return false;
+            
+            // Date range filter
+            if (filters.dateFrom) {
+                const sampleDate = new Date(sample.collection_date);
+                const fromDate = new Date(filters.dateFrom);
+                if (sampleDate < fromDate) return false;
+            }
+            if (filters.dateTo) {
+                const sampleDate = new Date(sample.collection_date);
+                const toDate = new Date(filters.dateTo);
+                if (sampleDate > toDate) return false;
+            }
+            
             return true;
         });
     }, [filters, samples, isWatching]);

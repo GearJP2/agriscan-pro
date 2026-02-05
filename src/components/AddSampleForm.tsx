@@ -37,7 +37,7 @@ import {
 } from '@/components/ui/form';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/hooks/use-toast';
-import { Sample, ProcessLog } from '@/types/sample';
+import { Sample, ProcessLog, PROCESSING_TYPES, PROCESSING_TYPE_LABELS, ProcessingType } from '@/types/sample';
 import { vegetationTypes } from '@/data/mockSamples';
 import { getAllProvinces, getDistrictsByProvince, getRegionByProvince } from '@/data/thailandLocations';
 
@@ -50,6 +50,7 @@ const formSchema = z.object({
   }),
   purpose: z.enum(['routine', 'complaint driven', 'target surveillance'], { required_error: 'Purpose is required' }),
   sample_type: z.enum(['field', 'market', 'storage', 'export'], { required_error: 'Sample type is required' }),
+  processing_type: z.enum(['raw', 'dried', 'milled', 'processed', 'fermented']).optional(),
   collected_by: z.string().min(1, 'Collector name is required'),
   notes: z.string().max(500).optional(),
 });
@@ -96,6 +97,7 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
       collection_date: undefined,
       purpose: 'routine',
       sample_type: 'field',
+      processing_type: undefined,
       collected_by: '',
       notes: '',
     },
@@ -148,6 +150,7 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
       status: 'pending',
       purpose: values.purpose,
       sample_type: values.sample_type,
+      processing_type: values.processing_type as ProcessingType | undefined,
       collected_by: values.collected_by,
       additional_info: values.notes,
     };
@@ -566,6 +569,32 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
                     )}
                   />
                 </div>
+
+                {/* Processing Type */}
+                <FormField
+                  control={form.control}
+                  name="processing_type"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Processing Type (Optional)</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value || ''}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select processing type" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {PROCESSING_TYPES.map(type => (
+                            <SelectItem key={type} value={type}>
+                              {PROCESSING_TYPE_LABELS[type]}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
                 <FormField
                   control={form.control}
