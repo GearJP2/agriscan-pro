@@ -13,6 +13,10 @@ import SampleList from "./pages/SampleList";
 import Prediction from "./pages/Prediction";
 import Doc from "./pages/Doc";
 import UserManagement from "./pages/UserManagement";
+import Profile from "./pages/Profile";
+import Settings from "./pages/Settings";
+import Activity from "./pages/Activity";
+import Notifications from "./pages/Notifications";
 
 const queryClient = new QueryClient();
 
@@ -31,6 +35,10 @@ const App = () => (
               <Route path="/prediction" element={<Prediction />} />
               <Route path="/doc" element={<Doc />} />
               <Route path="/users" element={<UserManagement />} />
+              <Route path="/profile" element={<Profile />} />
+              <Route path="/settings" element={<Settings />} />
+              <Route path="/activity" element={<Activity />} />
+              <Route path="/notifications" element={<Notifications />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
