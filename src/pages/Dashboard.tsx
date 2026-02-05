@@ -46,7 +46,7 @@ const Index = () => {
     if (maxIntensity >= 4) return 'low';
     return 'safe';
   };
-  
+
   const [selectedSample, setSelectedSample] = useState<Sample | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
 
@@ -67,7 +67,7 @@ const Index = () => {
   // Get export data
   const getExportData = () => {
     const headers = ['Sample ID', 'Region', 'Province', 'District', 'Variety', 'Collection Date', 'Status', 'Risk Level', 'Last Updated By'];
-    
+
     const rows = filteredSamples.map(sample => {
       const lastLog = sample.process_logs[sample.process_logs.length - 1];
       return [
@@ -104,7 +104,7 @@ const Index = () => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    
+
     toast({
       title: 'Export Complete',
       description: `${filteredSamples.length} samples exported to CSV.`,
@@ -114,20 +114,20 @@ const Index = () => {
   // Export filtered samples to XLSX
   const handleExportXLSX = () => {
     const { headers, rows } = getExportData();
-    
+
     const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Samples');
-    
+
     // Auto-size columns
     const colWidths = headers.map((header, i) => {
       const maxDataWidth = Math.max(...rows.map(row => String(row[i]).length));
       return { wch: Math.max(header.length, maxDataWidth) + 2 };
     });
     worksheet['!cols'] = colWidths;
-    
+
     XLSX.writeFile(workbook, `samples_export_${new Date().toISOString().split('T')[0]}.xlsx`);
-    
+
     toast({
       title: 'Export Complete',
       description: `${filteredSamples.length} samples exported to Excel.`,
@@ -165,7 +165,7 @@ const Index = () => {
   };
 
   const handleUpdateSample = (sampleId: string, newLog: ProcessLog) => {
-    setSamples(prevSamples => 
+    setSamples(prevSamples =>
       prevSamples.map(sample => {
         if (sample.sample_id === sampleId) {
           const newStatus = getStatusFromProcessState(newLog.state);
@@ -194,7 +194,7 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      
+
       <main className="container py-8">
         {/* Page Title */}
         <div className="mb-8">
@@ -266,7 +266,7 @@ const Index = () => {
             </DropdownMenu>
             {!isAdmin && <RequestInvestigationForm />}
             {isAdmin && (
-              <AddSampleForm 
+              <AddSampleForm
                 onAddSample={handleAddSample}
                 onAddMultipleSamples={handleAddMultipleSamples}
               />

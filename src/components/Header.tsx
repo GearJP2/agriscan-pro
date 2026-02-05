@@ -1,4 +1,5 @@
 import { FlaskConical } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import RoleSwitcher from './RoleSwitcher';
 import { useAuth } from '@/contexts/AuthContext';
 import { Badge } from '@/components/ui/badge';
@@ -18,6 +19,40 @@ const Header = () => {
             <p className="text-xs text-muted-foreground">Mycotoxin Tracking System</p>
           </div>
         </div>
+
+        <nav className="hidden md:flex items-center gap-6 text-sm font-medium">
+          <Link
+            to="/"
+            className="transition-colors hover:text-foreground/80 text-foreground"
+          >
+            Homepage
+          </Link>
+          <Link
+            to="/dashboard"
+            className="transition-colors hover:text-foreground/80 text-muted-foreground"
+          >
+            Dashboard
+          </Link>
+          <Link
+            to="/samples"
+            className="transition-colors hover:text-foreground/80 text-muted-foreground"
+          >
+            Sample List
+          </Link>
+          <Link
+            to="/prediction"
+            className="transition-colors hover:text-foreground/80 text-muted-foreground"
+          >
+            Prediction
+          </Link>
+          <Link
+            to="/doc"
+            className="transition-colors hover:text-foreground/80 text-muted-foreground"
+          >
+            Doc
+          </Link>
+        </nav>
+
         <div className="flex items-center gap-3">
           <Badge variant={isAdmin ? 'default' : 'secondary'} className="hidden sm:flex">
             {isAdmin ? 'Full Access' : 'View Only'}
