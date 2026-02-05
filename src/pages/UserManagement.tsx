@@ -240,7 +240,6 @@ const UserManagement = () => {
                   <TableHead>Name</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Role</TableHead>
-                  <TableHead>Department</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Last Active</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -255,9 +254,6 @@ const UserManagement = () => {
                       <Badge className={USER_ROLE_COLORS[user.role]}>
                         {USER_ROLE_LABELS[user.role]}
                       </Badge>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {user.department || '-'}
                     </TableCell>
                     <TableCell>
                       <Badge className={USER_STATUS_COLORS[user.status]}>
