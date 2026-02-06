@@ -56,7 +56,7 @@ const Homepage = () => {
                     </div>
                     <div className="flex flex-1 items-center justify-center">
                         <img
-                            src="/src/assets/FoodPlate-removebg-preview.png"
+                            src="./src/assets/FoodPlate-removebg-preview.png"
                             alt="Balanced healthy meal"
                             className="max-w-full h-auto object-contain max-h-[500px] drop-shadow-xl"
                         />
@@ -122,19 +122,19 @@ const Homepage = () => {
                         <CarouselContent>
                             {[
                                 {
-                                    image: "/src/assets/blog-fungi.png",
+                                    image: "./src/assets/blog-fungi.png",
                                     title: "How are mycotoxins dangerous!",
                                     desc: "As industry of safety food growth, the policy might be developed along here is how...",
                                     alt: "Mycotoxins"
                                 },
                                 {
-                                    image: "/src/assets/blog-justice.png",
+                                    image: "./src/assets/blog-justice.png",
                                     title: "How food policy affect your life",
                                     desc: "As industry of safety food growth, the policy might be developed along here is how...",
                                     alt: "Food Policy"
                                 },
                                 {
-                                    image: "/src/assets/blog-safety-chart.png",
+                                    image: "./src/assets/blog-safety-chart.png",
                                     title: "How to keep your food safe?",
                                     desc: "First we have to know the definition or the baseline of safe standard what actually is that?",
                                     alt: "Food Safety",
@@ -142,19 +142,19 @@ const Homepage = () => {
                                 }
                             ].concat([
                                 {
-                                    image: "/src/assets/blog-fungi.png",
+                                    image: "./src/assets/blog-fungi.png",
                                     title: "How are mycotoxins dangerous!",
                                     desc: "As industry of safety food growth, the policy might be developed along here is how...",
                                     alt: "Mycotoxins"
                                 },
                                 {
-                                    image: "/src/assets/blog-justice.png",
+                                    image: "./src/assets/blog-justice.png",
                                     title: "How food policy affect your life",
                                     desc: "As industry of safety food growth, the policy might be developed along here is how...",
                                     alt: "Food Policy"
                                 },
                                 {
-                                    image: "/src/assets/blog-safety-chart.png",
+                                    image: "./src/assets/blog-safety-chart.png",
                                     title: "How to keep your food safe?",
                                     desc: "First we have to know the definition or the baseline of safe standard what actually is that?",
                                     alt: "Food Safety",
@@ -197,7 +197,7 @@ const Homepage = () => {
                 <section className="container pb-12 md:pb-24 pt-0">
                     <div className="overflow-hidden rounded-3xl shadow-2xl">
                         <img
-                            src="/src/assets/ArgricultureBanner.jpg"
+                            src="./src/assets/ArgricultureBanner.jpg"
                             alt="Agriculture Ecosystem"
                             className="w-full h-auto object-cover max-h-[600px]"
                         />
@@ -254,7 +254,7 @@ const Homepage = () => {
                         </div>
                         <div className="flex flex-1 items-center justify-center">
                             <img
-                                src="/src/assets/DetectionToPrediction.jpg"
+                                src="./src/assets/DetectionToPrediction.jpg"
                                 alt="AI Prediction Model"
                                 className="max-w-full h-auto object-contain"
                             />
