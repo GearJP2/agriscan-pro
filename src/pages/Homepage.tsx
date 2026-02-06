@@ -6,9 +6,9 @@ import { Button } from '@/components/ui/button';
 import { Carousel, CarouselContent, CarouselItem, type CarouselApi } from '@/components/ui/carousel';
 
 import foodPlateImg from '../assets/FoodPlate-removebg-preview.png';
-import blogFungiImg from '../assets/blog-fungi.png';
-import blogJusticeImg from '../assets/blog-justice.png';
-import blogSafetyChartImg from '../assets/blog-safety-chart.png';
+import mycotoxinBlog1Img from '../assets/Mycotoxinblog1.jpg';
+import mycotoxinBlog2Img from '../assets/Mycotoxinblog2.png';
+import mycotoxinBlog3Img from '../assets/Mycotoxinblog3.jpeg';
 import agricultureBannerImg from '../assets/ArgricultureBanner.jpg';
 import detectionToPredictionImg from '../assets/DetectionToPrediction.jpg';
 
@@ -129,19 +129,19 @@ const Homepage = () => {
                         <CarouselContent>
                             {[
                                 {
-                                    image: blogFungiImg,
+                                    image: mycotoxinBlog1Img,
                                     title: "How are mycotoxins dangerous!",
                                     desc: "As industry of safety food growth, the policy might be developed along here is how...",
                                     alt: "Mycotoxins"
                                 },
                                 {
-                                    image: blogJusticeImg,
+                                    image: mycotoxinBlog2Img,
                                     title: "How food policy affect your life",
                                     desc: "As industry of safety food growth, the policy might be developed along here is how...",
                                     alt: "Food Policy"
                                 },
                                 {
-                                    image: blogSafetyChartImg,
+                                    image: mycotoxinBlog3Img,
                                     title: "How to keep your food safe?",
                                     desc: "First we have to know the definition or the baseline of safe standard what actually is that?",
                                     alt: "Food Safety",
@@ -149,19 +149,19 @@ const Homepage = () => {
                                 }
                             ].concat([
                                 {
-                                    image: blogFungiImg,
+                                    image: mycotoxinBlog1Img,
                                     title: "How are mycotoxins dangerous!",
                                     desc: "As industry of safety food growth, the policy might be developed along here is how...",
                                     alt: "Mycotoxins"
                                 },
                                 {
-                                    image: blogJusticeImg,
+                                    image: mycotoxinBlog2Img,
                                     title: "How food policy affect your life",
                                     desc: "As industry of safety food growth, the policy might be developed along here is how...",
                                     alt: "Food Policy"
                                 },
                                 {
-                                    image: blogSafetyChartImg,
+                                    image: mycotoxinBlog3Img,
                                     title: "How to keep your food safe?",
                                     desc: "First we have to know the definition or the baseline of safe standard what actually is that?",
                                     alt: "Food Safety",
