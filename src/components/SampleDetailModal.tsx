@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { MapPin, Leaf, Calendar, ClipboardList, ArrowRight, User, Info, Tag, ChevronDown, AlertTriangle, CheckCircle2, Beaker } from 'lucide-react';
 import { format } from 'date-fns';
+import { cn } from '@/lib/utils';
 import ProcessTimeline from './ProcessTimeline';
 import MycotoxinResults from './MycotoxinResults';
 import AdminStatusApproval from './AdminStatusApproval';
@@ -47,7 +48,8 @@ const SampleDetailModal = ({ sample, open, onOpenChange, onUpdateSample }: Sampl
     isOpen, 
     onToggle, 
     children,
-    badge
+    badge,
+    isDangerous = false
   }: { 
     title: string; 
     icon: React.ElementType; 
@@ -55,11 +57,17 @@ const SampleDetailModal = ({ sample, open, onOpenChange, onUpdateSample }: Sampl
     onToggle: () => void; 
     children: React.ReactNode;
     badge?: React.ReactNode;
+    isDangerous?: boolean;
   }) => (
     <Collapsible open={isOpen} onOpenChange={onToggle}>
-      <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg border border-border bg-muted/30 p-3 hover:bg-muted/50 transition-colors">
+      <CollapsibleTrigger className={cn(
+        "flex w-full items-center justify-between rounded-lg border p-3 transition-colors",
+        isDangerous 
+          ? "border-danger/50 bg-danger/10 hover:bg-danger/20" 
+          : "border-border bg-muted/30 hover:bg-muted/50"
+      )}>
         <div className="flex items-center gap-2">
-          <Icon className="h-4 w-4 text-primary" />
+          <Icon className={cn("h-4 w-4", isDangerous ? "text-danger" : "text-primary")} />
           <span className="font-medium text-sm">{title}</span>
           {badge}
         </div>
@@ -161,11 +169,12 @@ const SampleDetailModal = ({ sample, open, onOpenChange, onUpdateSample }: Sampl
                 icon={Beaker}
                 isOpen={showResults}
                 onToggle={() => setShowResults(!showResults)}
+                isDangerous={hasDangerousResults}
                 badge={
                   hasDangerousResults ? (
-                    <Badge variant="destructive" className="ml-2">Alert</Badge>
+                    <Badge variant="destructive" className="ml-2">Positive</Badge>
                   ) : (
-                    <Badge variant="secondary" className="ml-2 bg-success/10 text-success">Safe</Badge>
+                    <Badge variant="secondary" className="ml-2 bg-success/10 text-success">Negative</Badge>
                   )
                 }
               >
