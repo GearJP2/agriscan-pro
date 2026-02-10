@@ -239,11 +239,11 @@ const UserManagement = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="text-center">Name</TableHead>
-                  <TableHead className="text-center">Email</TableHead>
-                  <TableHead className="text-center">Role</TableHead>
+                  <TableHead className="text-left">Name</TableHead>
+                  <TableHead className="text-left">Email</TableHead>
+                  <TableHead className="text-left">Role</TableHead>
                   {/* <TableHead className="text-center">Online Status</TableHead> */}
-                  <TableHead className="text-center">Account Status</TableHead>
+                  <TableHead className="text-left">Account Status</TableHead>
                   {/* <TableHead className="text-center">Last Online</TableHead> */}
                   <TableHead className="text-center">Actions</TableHead>
                 </TableRow>
@@ -251,9 +251,9 @@ const UserManagement = () => {
               <TableBody>
                 {filteredUsers.map((user) => (
                   <TableRow key={user.id}>
-                    <TableCell className="font-medium text-center">{user.name}</TableCell>
-                    <TableCell className="text-muted-foreground text-center">{user.email}</TableCell>
-                    <TableCell className="text-center">
+                    <TableCell className="font-medium text-left">{user.name}</TableCell>
+                    <TableCell className="text-muted-foreground text-left">{user.email}</TableCell>
+                    <TableCell className="text-left">
                       <Badge className={USER_ROLE_COLORS[user.role]}>
                         {USER_ROLE_LABELS[user.role]}
                       </Badge>
@@ -263,7 +263,7 @@ const UserManagement = () => {
                         {user.online_status === 'online' ? 'Online' : 'Offline'}
                       </Badge>
                     </TableCell> */}
-                    <TableCell className="text-center">
+                    <TableCell className="text-left">
                       <div className="inline-flex items-center p-1 bg-muted/50 rounded-lg border border-border/50">
                         <button
                           onClick={() => user.status !== 'active' && handleStatusToggle(user)}
