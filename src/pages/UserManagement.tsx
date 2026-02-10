@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
 import {
   Table,
   TableBody,
@@ -28,6 +29,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+
 import { mockUsers } from '@/data/mockUsers';
 import { User, UserRole, UserStatus, USER_ROLE_LABELS, USER_ROLE_COLORS, USER_STATUS_COLORS } from '@/types/user';
 import { useAuth } from '@/contexts/AuthContext';
@@ -71,18 +73,18 @@ const UserManagement = () => {
 
   const handleRoleChange = () => {
     if (!selectedUser) return;
-    
+
     setUsers((prev) =>
       prev.map((u) =>
         u.id === selectedUser.id ? { ...u, role: newRole } : u
       )
     );
-    
+
     toast({
       title: 'Role Updated',
       description: `${selectedUser.name}'s role has been changed to ${USER_ROLE_LABELS[newRole]}.`,
     });
-    
+
     setIsRoleDialogOpen(false);
     setSelectedUser(null);
   };
@@ -94,7 +96,7 @@ const UserManagement = () => {
         u.id === user.id ? { ...u, status: newStatus } : u
       )
     );
-    
+
     toast({
       title: 'Status Updated',
       description: `${user.name} is now ${newStatus}.`,
@@ -110,7 +112,7 @@ const UserManagement = () => {
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      
+
       <main className="container py-8">
         {/* Page Header */}
         <div className="mb-8">
@@ -135,7 +137,7 @@ const UserManagement = () => {
               </div>
             </CardContent>
           </Card>
-          
+
           <Card className="glass-card">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
@@ -149,7 +151,7 @@ const UserManagement = () => {
               </div>
             </CardContent>
           </Card>
-          
+
           <Card className="glass-card">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
@@ -163,7 +165,7 @@ const UserManagement = () => {
               </div>
             </CardContent>
           </Card>
-          
+
           <Card className="glass-card">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
@@ -192,7 +194,7 @@ const UserManagement = () => {
                   className="pl-9"
                 />
               </div>
-              
+
               <Select value={roleFilter} onValueChange={setRoleFilter}>
                 <SelectTrigger className="w-[180px]">
                   <SelectValue placeholder="Filter by role" />
@@ -206,7 +208,7 @@ const UserManagement = () => {
                   <SelectItem value="admin">Admin</SelectItem>
                 </SelectContent>
               </Select>
-              
+
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="w-[150px]">
                   <SelectValue placeholder="Filter by status" />
@@ -217,7 +219,7 @@ const UserManagement = () => {
                   <SelectItem value="inactive">Inactive</SelectItem>
                 </SelectContent>
               </Select>
-              
+
               <Button className="gap-2">
                 <UserPlus className="h-4 w-4" />
                 Add User
@@ -237,49 +239,65 @@ const UserManagement = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Last Active</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead className="text-center">Name</TableHead>
+                  <TableHead className="text-center">Email</TableHead>
+                  <TableHead className="text-center">Role</TableHead>
+                  {/* <TableHead className="text-center">Online Status</TableHead> */}
+                  <TableHead className="text-center">Account Status</TableHead>
+                  {/* <TableHead className="text-center">Last Online</TableHead> */}
+                  <TableHead className="text-center">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredUsers.map((user) => (
                   <TableRow key={user.id}>
-                    <TableCell className="font-medium">{user.name}</TableCell>
-                    <TableCell className="text-muted-foreground">{user.email}</TableCell>
-                    <TableCell>
+                    <TableCell className="font-medium text-center">{user.name}</TableCell>
+                    <TableCell className="text-muted-foreground text-center">{user.email}</TableCell>
+                    <TableCell className="text-center">
                       <Badge className={USER_ROLE_COLORS[user.role]}>
                         {USER_ROLE_LABELS[user.role]}
                       </Badge>
                     </TableCell>
-                    <TableCell>
-                      <Badge className={USER_STATUS_COLORS[user.status]}>
-                        {user.status === 'active' ? 'Active' : 'Inactive'}
+                    {/* <TableCell className="text-center">
+                      <Badge className={user.online_status === 'online' ? 'bg-success/20 text-success' : 'bg-muted text-muted-foreground'}>
+                        {user.online_status === 'online' ? 'Online' : 'Offline'}
                       </Badge>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {user.last_active || '-'}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => openRoleDialog(user)}
+                    </TableCell> */}
+                    <TableCell className="text-center">
+                      <div className="inline-flex items-center p-1 bg-muted/50 rounded-lg border border-border/50">
+                        <button
+                          onClick={() => user.status !== 'active' && handleStatusToggle(user)}
+                          className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${user.status === 'active'
+                            ? 'bg-background shadow-sm text-foreground ring-1 ring-border/50'
+                            : 'text-muted-foreground hover:text-foreground'
+                            }`}
                         >
-                          Change Role
-                        </Button>
-                        <Button
-                          variant={user.status === 'active' ? 'destructive' : 'default'}
-                          size="sm"
-                          onClick={() => handleStatusToggle(user)}
+                          <UserCheck className="h-3.5 w-3.5" />
+                          Active
+                        </button>
+                        <button
+                          onClick={() => user.status === 'active' && handleStatusToggle(user)}
+                          className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${user.status === 'inactive'
+                            ? 'bg-background shadow-sm text-foreground ring-1 ring-border/50'
+                            : 'text-muted-foreground hover:text-foreground'
+                            }`}
                         >
-                          {user.status === 'active' ? 'Deactivate' : 'Activate'}
-                        </Button>
+                          <UserX className="h-3.5 w-3.5" />
+                          Inactive
+                        </button>
                       </div>
+                    </TableCell>
+                    {/* <TableCell className="text-center text-muted-foreground">
+                      {user.last_active || '-'}
+                    </TableCell> */}
+                    <TableCell className="text-center">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => openRoleDialog(user)}
+                      >
+                        Change Role
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -298,7 +316,7 @@ const UserManagement = () => {
               Update the role for {selectedUser?.name}
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="py-4">
             <Select value={newRole} onValueChange={(value) => setNewRole(value as UserRole)}>
               <SelectTrigger>
@@ -313,7 +331,7 @@ const UserManagement = () => {
               </SelectContent>
             </Select>
           </div>
-          
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsRoleDialogOpen(false)}>
               Cancel
