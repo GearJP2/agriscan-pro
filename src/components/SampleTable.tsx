@@ -67,7 +67,7 @@ const SampleTable = ({ samples, onSelectSample }: SampleTableProps) => {
 
   const sortedSamples = [...samples].sort((a, b) => {
     if (!sortField || !sortDirection) return 0;
-    
+
     let comparison = 0;
     switch (sortField) {
       case 'province':
@@ -90,7 +90,7 @@ const SampleTable = ({ samples, onSelectSample }: SampleTableProps) => {
   });
 
   const SortableHeader = ({ field, children }: { field: SortField; children: React.ReactNode }) => (
-    <TableHead 
+    <TableHead
       className="font-semibold cursor-pointer hover:bg-muted/30 transition-colors select-none"
       onClick={() => handleSort(field)}
     >
@@ -116,7 +116,7 @@ const SampleTable = ({ samples, onSelectSample }: SampleTableProps) => {
               <SortableHeader field="collection_date">Date</SortableHeader>
               <SortableHeader field="status">Status</SortableHeader>
               <SortableHeader field="risk">Risk</SortableHeader>
-              <TableHead className="font-semibold text-right">Action</TableHead>
+              <TableHead className="font-semibold text-center">Action</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -128,8 +128,8 @@ const SampleTable = ({ samples, onSelectSample }: SampleTableProps) => {
               </TableRow>
             ) : (
               sortedSamples.map((sample, index) => (
-                <TableRow 
-                  key={sample.sample_id} 
+                <TableRow
+                  key={sample.sample_id}
                   className={`cursor-pointer transition-colors hover:bg-muted/30 ${isWatching(sample.sample_id) ? 'bg-primary/5' : ''}`}
                   style={{ animationDelay: `${index * 50}ms` }}
                 >
@@ -211,10 +211,10 @@ const SampleTable = ({ samples, onSelectSample }: SampleTableProps) => {
                       <span className="text-xs text-muted-foreground">Pending</span>
                     )}
                   </TableCell>
-                  <TableCell className="text-right">
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
+                  <TableCell className="text-center">
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={() => onSelectSample(sample)}
                       className="h-8"
                     >

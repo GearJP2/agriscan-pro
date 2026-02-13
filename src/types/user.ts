@@ -11,6 +11,7 @@ export interface User {
   department?: string;
   created_at: string;
   last_active?: string;
+  online_status: 'online' | 'offline';
 }
 
 export const USER_ROLE_LABELS: Record<UserRole, string> = {

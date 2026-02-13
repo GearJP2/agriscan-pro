@@ -5,6 +5,13 @@ import Header from '@/components/Header';
 import { Button } from '@/components/ui/button';
 import { Carousel, CarouselContent, CarouselItem, type CarouselApi } from '@/components/ui/carousel';
 
+import foodPlateImg from '../assets/FoodPlate-removebg-preview.png';
+import mycotoxinBlog1Img from '../assets/Mycotoxinblog1.jpg';
+import mycotoxinBlog2Img from '../assets/Mycotoxinblog2.png';
+import mycotoxinBlog3Img from '../assets/Mycotoxinblog3.jpeg';
+import agricultureBannerImg from '../assets/ArgricultureBanner.jpg';
+import detectionToPredictionImg from '../assets/DetectionToPrediction.jpg';
+
 const Homepage = () => {
     const [api, setApi] = useState<CarouselApi>();
 
@@ -56,7 +63,7 @@ const Homepage = () => {
                     </div>
                     <div className="flex flex-1 items-center justify-center">
                         <img
-                            src="/src/assets/FoodPlate-removebg-preview.png"
+                            src={foodPlateImg}
                             alt="Balanced healthy meal"
                             className="max-w-full h-auto object-contain max-h-[500px] drop-shadow-xl"
                         />
@@ -122,19 +129,19 @@ const Homepage = () => {
                         <CarouselContent>
                             {[
                                 {
-                                    image: "/src/assets/blog-fungi.png",
+                                    image: mycotoxinBlog1Img,
                                     title: "How are mycotoxins dangerous!",
                                     desc: "As industry of safety food growth, the policy might be developed along here is how...",
                                     alt: "Mycotoxins"
                                 },
                                 {
-                                    image: "/src/assets/blog-justice.png",
+                                    image: mycotoxinBlog2Img,
                                     title: "How food policy affect your life",
                                     desc: "As industry of safety food growth, the policy might be developed along here is how...",
                                     alt: "Food Policy"
                                 },
                                 {
-                                    image: "/src/assets/blog-safety-chart.png",
+                                    image: mycotoxinBlog3Img,
                                     title: "How to keep your food safe?",
                                     desc: "First we have to know the definition or the baseline of safe standard what actually is that?",
                                     alt: "Food Safety",
@@ -142,19 +149,19 @@ const Homepage = () => {
                                 }
                             ].concat([
                                 {
-                                    image: "/src/assets/blog-fungi.png",
+                                    image: mycotoxinBlog1Img,
                                     title: "How are mycotoxins dangerous!",
                                     desc: "As industry of safety food growth, the policy might be developed along here is how...",
                                     alt: "Mycotoxins"
                                 },
                                 {
-                                    image: "/src/assets/blog-justice.png",
+                                    image: mycotoxinBlog2Img,
                                     title: "How food policy affect your life",
                                     desc: "As industry of safety food growth, the policy might be developed along here is how...",
                                     alt: "Food Policy"
                                 },
                                 {
-                                    image: "/src/assets/blog-safety-chart.png",
+                                    image: mycotoxinBlog3Img,
                                     title: "How to keep your food safe?",
                                     desc: "First we have to know the definition or the baseline of safe standard what actually is that?",
                                     alt: "Food Safety",
@@ -197,7 +204,7 @@ const Homepage = () => {
                 <section className="container pb-12 md:pb-24 pt-0">
                     <div className="overflow-hidden rounded-3xl shadow-2xl">
                         <img
-                            src="/src/assets/ArgricultureBanner.jpg"
+                            src={agricultureBannerImg}
                             alt="Agriculture Ecosystem"
                             className="w-full h-auto object-cover max-h-[600px]"
                         />
@@ -254,7 +261,7 @@ const Homepage = () => {
                         </div>
                         <div className="flex flex-1 items-center justify-center">
                             <img
-                                src="/src/assets/DetectionToPrediction.jpg"
+                                src={detectionToPredictionImg}
                                 alt="AI Prediction Model"
                                 className="max-w-full h-auto object-contain"
                             />

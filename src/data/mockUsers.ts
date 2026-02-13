@@ -9,7 +9,8 @@ export const mockUsers: User[] = [
     status: 'active',
     department: 'Mycotoxin Research',
     created_at: '2023-06-15',
-    last_active: '2024-02-05',
+    last_active: '2024-02-05 09:30',
+    online_status: 'online',
   },
   {
     id: 'user-002',
@@ -19,7 +20,8 @@ export const mockUsers: User[] = [
     status: 'active',
     department: 'Sample Analysis',
     created_at: '2023-09-20',
-    last_active: '2024-02-04',
+    last_active: '2024-02-04 14:20',
+    online_status: 'offline',
   },
   {
     id: 'user-003',
@@ -29,7 +31,8 @@ export const mockUsers: User[] = [
     status: 'active',
     department: 'Sample Preparation',
     created_at: '2024-01-10',
-    last_active: '2024-02-05',
+    last_active: '2024-02-05 10:15',
+    online_status: 'online',
   },
   {
     id: 'user-004',
@@ -39,7 +42,8 @@ export const mockUsers: User[] = [
     status: 'inactive',
     department: 'Quality Control',
     created_at: '2023-08-01',
-    last_active: '2024-01-15',
+    last_active: '2024-01-15 11:00',
+    online_status: 'offline',
   },
   {
     id: 'user-005',
@@ -49,7 +53,8 @@ export const mockUsers: User[] = [
     status: 'active',
     department: 'Data Entry',
     created_at: '2024-02-01',
-    last_active: '2024-02-05',
+    last_active: '2024-02-05 08:45',
+    online_status: 'online',
   },
   {
     id: 'user-006',
@@ -59,7 +64,8 @@ export const mockUsers: User[] = [
     status: 'active',
     department: 'Administration',
     created_at: '2023-01-01',
-    last_active: '2024-02-05',
+    last_active: '2024-02-05 12:00',
+    online_status: 'online',
   },
   {
     id: 'user-007',
@@ -69,7 +75,8 @@ export const mockUsers: User[] = [
     status: 'active',
     department: 'Mycotoxin Research',
     created_at: '2023-11-15',
-    last_active: '2024-02-03',
+    last_active: '2024-02-03 16:30',
+    online_status: 'offline',
   },
   {
     id: 'user-008',
@@ -79,6 +86,7 @@ export const mockUsers: User[] = [
     status: 'inactive',
     department: 'Sample Preparation',
     created_at: '2023-07-20',
-    last_active: '2023-12-20',
+    last_active: '2023-12-20 09:15',
+    online_status: 'offline',
   },
 ];
