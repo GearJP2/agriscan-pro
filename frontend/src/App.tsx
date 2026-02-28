@@ -5,14 +5,14 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
 import { AuthProvider } from "@/contexts/AuthContext";
-import Dashboard from "./pages/Dashboard";
+import Dashboard from "@/features/dashboard/components/Dashboard";
 import NotFound from "./pages/NotFound";
 
 import Homepage from "./pages/Homepage";
-import SampleList from "./pages/SampleList";
+import SampleList from "@/features/samples/components/SampleList";
 import Prediction from "./pages/Prediction";
 import Doc from "./pages/Doc";
-import UserManagement from "./pages/UserManagement";
+import UserManagement from "@/features/users/components/UserManagement";
 import Profile from "./pages/Profile";
 import Settings from "./pages/Settings";
 import Activity from "./pages/Activity";

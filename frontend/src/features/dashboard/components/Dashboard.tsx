@@ -1,14 +1,14 @@
 import { useMemo } from 'react';
 import Header from '@/components/Header';
-import SystemOverview from '@/components/dashboard/SystemOverview';
-import RiskOverview from '@/components/dashboard/RiskOverview';
-import ActionItems from '@/components/dashboard/ActionItems';
+import SystemOverview from './SystemOverview';
+import RiskOverview from './RiskOverview';
+import ActionItems from './ActionItems';
 import { mockSamples } from '@/data/mockSamples';
 import { useAuth } from '@/contexts/AuthContext';
 
 const Dashboard = () => {
   const { isAdmin } = useAuth();
-  
+
   // In real app, this would come from a query
   const samples = useMemo(() => mockSamples, []);
 
@@ -21,7 +21,7 @@ const Dashboard = () => {
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
           <p className="mt-2 text-muted-foreground">
-            {isAdmin 
+            {isAdmin
               ? 'Monitor system performance, team workload, and risk alerts'
               : 'View risk overview and important alerts'
             }
