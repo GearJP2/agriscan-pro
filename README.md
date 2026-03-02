@@ -1,73 +1,49 @@
-# Welcome to your Lovable project
+# System & Stack Requirements: Agriscan Pro
 
-## Project info
+To run, build, or contribute to this project, you will need to have the following runtimes and frameworks installed.
 
-**URL**: https://lovable.dev/projects/08b228d2-7088-4730-9cf9-45f0e5a5042c
+## 1. System Requirements (Runtimes)
 
-## How can I edit this code?
+| Technology | Recommended Version | Purpose |
+| :--- | :--- | :--- |
+| **Node.js** | `v20.20.0+` | Core JavaScript runtime for the frontend. |
+| **npm** | `10.8.x+` | Package manager for frontend dependencies. |
+| **Python** | `3.12.x` | Runtime for the Django backend. |
+| **PostgreSQL** | `14+` | Recommended relational database for production (SQLite is used in development). |
 
-There are several ways of editing your application.
+## 2. Frontend Core Dependencies (React / Vite)
 
-**Use Lovable**
+| Package | Version | Purpose |
+| :--- | :--- | :--- |
+| **React** | `18.3.1` | UI Library |
+| **React DOM** | `18.3.1` | Web DOM render for React |
+| **Vite** | `5.4.19` | Build tool and fast development server |
+| **TypeScript** | `5.8.3` | Static typing for JavaScript |
+| **Tailwind CSS** | `3.4.17` | Utility-first CSS framework for styling |
+| **Shadcn UI** | `(v0.x)` | Reusable UI components (Radix UI + Tailwind) |
+| **React Router** | `6.30.1` | Client-side routing |
+| **React Query** | `5.83.0` | Server state management and API data fetching |
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/08b228d2-7088-4730-9cf9-45f0e5a5042c) and start prompting.
+## 3. Backend Core Dependencies (Django)
 
-Changes made via Lovable will be committed automatically to this repo.
+| Package | Version | Purpose |
+| :--- | :--- | :--- |
+| **Django** | `6.0.x` | Core Python Web Framework |
+| **Django REST Framework** | `3.16.x` | Toolkit for building Web APIs (DRF) |
+| **django-cors-headers**| `4.9.x` | Handling Cross-Origin Resource Sharing (CORS) |
 
-**Use your preferred IDE**
+## 4. How to Install Dependencies
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+**Frontend:**
+```bash
+cd frontend
+npm install
 ```
 
-**Edit a file directly in GitHub**
-
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
-
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/08b228d2-7088-4730-9cf9-45f0e5a5042c) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+**Backend:**
+```bash
+cd backend
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
