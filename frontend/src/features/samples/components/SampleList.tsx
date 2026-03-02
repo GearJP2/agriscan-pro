@@ -4,10 +4,10 @@ import * as XLSX from 'xlsx';
 import Header from '@/components/Header';
 import StatsCard from '@/components/StatsCard';
 import FilterBar from '@/components/FilterBar';
-import SampleTable from '@/components/SampleTable';
-import SampleDetailModal from '@/components/SampleDetailModal';
-import AddSampleForm from '@/components/AddSampleForm';
-import RequestInvestigationForm from '@/components/RequestInvestigationForm';
+import SampleTable from './SampleTable';
+import SampleDetailModal from './SampleDetailModal';
+import AddSampleForm from './AddSampleForm';
+import RequestInvestigationForm from './RequestInvestigationForm';
 import { Button } from '@/components/ui/button';
 import {
     DropdownMenu,
@@ -62,7 +62,7 @@ const SampleList = () => {
             if (filters.status.length > 0 && !filters.status.includes(sample.status)) return false;
             if (filters.risk.length > 0 && !filters.risk.includes(getRiskLevel(sample))) return false;
             if (filters.watchlistOnly && !isWatching(sample.sample_id)) return false;
-            
+
             // Date range filter
             if (filters.dateFrom) {
                 const sampleDate = new Date(sample.collection_date);
@@ -74,7 +74,7 @@ const SampleList = () => {
                 const toDate = new Date(filters.dateTo);
                 if (sampleDate > toDate) return false;
             }
-            
+
             return true;
         });
     }, [filters, samples, isWatching]);
