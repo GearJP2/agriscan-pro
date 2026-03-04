@@ -1,5 +1,5 @@
-import { Link } from 'react-router-dom';
-import { User, Settings, FolderOpen, Bell, Users, LogOut, ChevronRight } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { User as UserIcon, Settings, FolderOpen, Bell, Users, LogOut, ChevronRight } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -13,15 +13,18 @@ import {
 import { Button } from '@/components/ui/button';
 
 const UserDropdown = () => {
-  const { user, isAdmin, switchRole } = useAuth();
+  const { user, isAdmin, logout } = useAuth();
+  const navigate = useNavigate();
 
   const handleLogout = () => {
-    // For demo, just switch to user role
-    switchRole('user');
+    navigate('/');
+    setTimeout(() => {
+      logout();
+    }, 0);
   };
 
   const menuItems = [
-    { to: '/profile', label: 'My Profile', icon: User },
+    { to: '/profile', label: 'My Profile', icon: UserIcon },
     { to: '/settings', label: 'Settings', icon: Settings },
     { to: '/activity', label: 'Activity', icon: FolderOpen },
     { to: '/notifications', label: 'Notification', icon: Bell },

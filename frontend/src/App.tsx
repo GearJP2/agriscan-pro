@@ -17,6 +17,7 @@ import Profile from "./pages/Profile";
 import Settings from "./pages/Settings";
 import Activity from "./pages/Activity";
 import Notifications from "./pages/Notifications";
+import ProtectedRoute from "./components/ProtectedRoute";
 
 const queryClient = new QueryClient();
 
@@ -27,18 +28,29 @@ const App = () => (
         <TooltipProvider>
           <Toaster />
           <Sonner />
-          <BrowserRouter>
+          <BrowserRouter
+            future={{
+              v7_startTransition: true,
+              v7_relativeSplatPath: true,
+            }}
+          >
             <Routes>
+              {/* Public Routes */}
               <Route path="/" element={<Homepage />} />
+              <Route path="/doc" element={<Doc />} />
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/samples" element={<SampleList />} />
               <Route path="/prediction" element={<Prediction />} />
-              <Route path="/doc" element={<Doc />} />
-              <Route path="/users" element={<UserManagement />} />
-              <Route path="/profile" element={<Profile />} />
-              <Route path="/settings" element={<Settings />} />
-              <Route path="/activity" element={<Activity />} />
-              <Route path="/notifications" element={<Notifications />} />
+
+              {/* Protected Routes */}
+              <Route element={<ProtectedRoute />}>
+                <Route path="/users" element={<UserManagement />} />
+                <Route path="/profile" element={<Profile />} />
+                <Route path="/settings" element={<Settings />} />
+                <Route path="/activity" element={<Activity />} />
+                <Route path="/notifications" element={<Notifications />} />
+              </Route>
+
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>

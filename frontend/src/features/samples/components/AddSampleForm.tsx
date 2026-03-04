@@ -37,6 +37,7 @@ import {
 } from '@/components/ui/form';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 import { Sample, ProcessLog, PROCESSING_TYPES, PROCESSING_TYPE_LABELS, ProcessingType } from '@/types/sample';
 import { vegetationTypes } from '@/data/mockSamples';
 import { getAllProvinces, getDistrictsByProvince, getRegionByProvince } from '@/data/thailandLocations';
@@ -79,6 +80,7 @@ const cleanText = (text: string): string => {
 };
 
 const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps) => {
+  const { isAuthenticated } = useAuth();
   const [open, setOpen] = useState(false);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [filePreview, setFilePreview] = useState<string[][]>([]);
@@ -367,7 +369,13 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={(newOpen) => {
+      if (newOpen && !isAuthenticated) {
+        window.dispatchEvent(new CustomEvent('open-login-modal'));
+        return;
+      }
+      setOpen(newOpen);
+    }}>
       <DialogTrigger asChild>
         <Button className="gap-2">
           <Plus className="h-4 w-4" />

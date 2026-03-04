@@ -1,4 +1,5 @@
 import { useAuth, UserRole } from '@/contexts/AuthContext';
+import { USER_ROLE_LABELS } from '@/types/user';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -9,14 +10,21 @@ import {
 import { Shield, User, ChevronDown, Check } from 'lucide-react';
 
 const RoleSwitcher = () => {
-  const { role, switchRole } = useAuth();
+  const { user, role, switchRole } = useAuth();
 
-  const roles: { value: UserRole; label: string; icon: typeof Shield }[] = [
-    { value: 'admin', label: 'Admin', icon: Shield },
-    { value: 'user', label: 'Viewer', icon: User },
+  if (!user) return null;
+
+  const originalRole = user.role;
+  const originalLabel = USER_ROLE_LABELS[originalRole as keyof typeof USER_ROLE_LABELS] || 'Admin';
+
+  const roles = [
+    { value: originalRole, label: originalLabel, icon: Shield },
+    { value: 'user' as UserRole, label: 'Viewer', icon: User },
   ];
 
-  const currentRole = roles.find(r => r.value === role) || roles[0];
+  const uniqueRoles = originalRole === 'user' ? [roles[1]] : roles;
+
+  const currentRole = uniqueRoles.find(r => r.value === role) || uniqueRoles[0];
   const CurrentIcon = currentRole.icon;
 
   return (
@@ -32,8 +40,8 @@ const RoleSwitcher = () => {
         {roles.map((r) => {
           const Icon = r.icon;
           return (
-            <DropdownMenuItem 
-              key={r.value} 
+            <DropdownMenuItem
+              key={r.value}
               onClick={() => switchRole(r.value)}
               className="gap-2"
             >
