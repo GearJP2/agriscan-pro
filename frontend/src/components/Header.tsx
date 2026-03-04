@@ -3,12 +3,17 @@ import { Link, useLocation } from 'react-router-dom';
 import RoleSwitcher from './RoleSwitcher';
 import ThemeToggle from './ThemeToggle';
 import UserDropdown from './UserDropdown';
+import LoginModal from './LoginModal';
 import { useAuth } from '@/contexts/AuthContext';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { USER_ROLE_WEIGHT } from '@/types/user';
 
 const Header = () => {
-  const { isAdmin } = useAuth();
+  const { isAdmin, isAuthenticated, user, role } = useAuth();
   const location = useLocation();
+
+  const canSwitchRole = user && USER_ROLE_WEIGHT[user.role as keyof typeof USER_ROLE_WEIGHT] >= USER_ROLE_WEIGHT['research_assistant'];
 
   return (
     <header className="sticky top-0 z-50 w-full bg-background/80 backdrop-blur-sm pt-4 pb-2">
@@ -27,14 +32,17 @@ const Header = () => {
         {/* Centered Pill Navigation */}
         <nav className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 hidden md:flex items-center gap-1 rounded-full bg-secondary/30 backdrop-blur-md px-2 py-1.5 shadow-sm border border-border/50">
           {[
-            { to: '/', label: 'Homepage', adminOnly: false },
-            { to: '/dashboard', label: 'Dashboard', adminOnly: false },
-            { to: '/samples', label: 'Sample List', adminOnly: false },
-            { to: '/prediction', label: 'Prediction', adminOnly: false },
-            { to: '/doc', label: 'Documentation', adminOnly: false },
-            { to: '/users', label: 'Users', adminOnly: true },
+            { to: '/', label: 'Homepage', minWeight: 0 },
+            { to: '/dashboard', label: 'Dashboard', minWeight: 0 },
+            { to: '/samples', label: 'Sample List', minWeight: 0 },
+            { to: '/prediction', label: 'Prediction', minWeight: 0 },
+            { to: '/doc', label: 'Documentation', minWeight: 0 },
+            { to: '/users', label: 'Users', minWeight: USER_ROLE_WEIGHT['research_assistant'] },
           ]
-            .filter((link) => !link.adminOnly || isAdmin)
+            .filter((link) => {
+              const currentWeight = isAuthenticated ? USER_ROLE_WEIGHT[role as keyof typeof USER_ROLE_WEIGHT] : 0;
+              return currentWeight >= link.minWeight;
+            })
             .map((link) => (
               <Link
                 key={link.to}
@@ -52,11 +60,14 @@ const Header = () => {
         {/* Right Actions */}
         <div className="flex items-center gap-2 shrink-0">
           <ThemeToggle />
-          <Badge variant={isAdmin ? 'default' : 'secondary'} className="hidden sm:flex">
-            {isAdmin ? 'Full Access' : 'View Only'}
-          </Badge>
-          <RoleSwitcher />
-          <UserDropdown />
+          {isAuthenticated ? (
+            <>
+              {canSwitchRole && <RoleSwitcher />}
+              <UserDropdown />
+            </>
+          ) : (
+            <LoginModal />
+          )}
         </div>
       </div>
     </header>

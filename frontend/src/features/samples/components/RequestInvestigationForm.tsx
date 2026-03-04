@@ -1,5 +1,7 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Search, MapPin, FileText } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -27,9 +29,11 @@ interface RequestInvestigationFormProps {
 const vegetationTypes = ['Rice', 'Corn', 'Wheat', 'Cassava', 'Peanut', 'Soybean', 'Other'];
 
 const RequestInvestigationForm = ({ onSubmitRequest }: RequestInvestigationFormProps) => {
+  const { isAuthenticated } = useAuth();
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
+
   const [formData, setFormData] = useState({
     requesterName: '',
     region: '',
@@ -52,7 +56,7 @@ const RequestInvestigationForm = ({ onSubmitRequest }: RequestInvestigationFormP
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!formData.requesterName.trim() || !formData.region || !formData.province || !formData.reason.trim()) {
       toast({
         title: 'Validation Error',
@@ -99,9 +103,18 @@ const RequestInvestigationForm = ({ onSubmitRequest }: RequestInvestigationFormP
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={(newOpen) => {
+      if (newOpen && !isAuthenticated) {
+        window.dispatchEvent(new CustomEvent('open-login-modal'));
+        return;
+      }
+      setOpen(newOpen);
+    }}>
       <DialogTrigger asChild>
-        <Button variant="outline" className="gap-2">
+        <Button
+          variant="outline"
+          className="gap-2"
+        >
           <Search className="h-4 w-4" />
           Request Investigation
         </Button>
@@ -133,7 +146,7 @@ const RequestInvestigationForm = ({ onSubmitRequest }: RequestInvestigationFormP
               <MapPin className="h-4 w-4" />
               Location *
             </Label>
-            
+
             <Select value={formData.region} onValueChange={handleRegionChange}>
               <SelectTrigger>
                 <SelectValue placeholder="Select Region" />
@@ -145,8 +158,8 @@ const RequestInvestigationForm = ({ onSubmitRequest }: RequestInvestigationFormP
               </SelectContent>
             </Select>
 
-            <Select 
-              value={formData.province} 
+            <Select
+              value={formData.province}
               onValueChange={handleProvinceChange}
               disabled={!formData.region}
             >
@@ -160,8 +173,8 @@ const RequestInvestigationForm = ({ onSubmitRequest }: RequestInvestigationFormP
               </SelectContent>
             </Select>
 
-            <Select 
-              value={formData.district} 
+            <Select
+              value={formData.district}
               onValueChange={(district) => setFormData(prev => ({ ...prev, district }))}
               disabled={!formData.province}
             >
@@ -179,8 +192,8 @@ const RequestInvestigationForm = ({ onSubmitRequest }: RequestInvestigationFormP
           {/* Vegetation Type */}
           <div className="space-y-2">
             <Label>Crop/Vegetation Type</Label>
-            <Select 
-              value={formData.vegetationType} 
+            <Select
+              value={formData.vegetationType}
               onValueChange={(vegetationType) => setFormData(prev => ({ ...prev, vegetationType }))}
             >
               <SelectTrigger>

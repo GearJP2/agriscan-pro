@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { FlaskConical, AlertTriangle, CheckCircle2, Clock, Download, ChevronDown } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import Header from '@/components/Header';
@@ -20,10 +21,13 @@ import { Sample, FilterState, ProcessLog, RiskLevel } from '@/types/sample';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useWatchlist } from '@/hooks/useWatchlist';
+import { USER_ROLE_WEIGHT } from '@/types/user';
 
 const SampleList = () => {
-    const { isAdmin } = useAuth();
+    const { isAdmin, isAuthenticated, role } = useAuth();
+    const navigate = useNavigate();
     const { isWatching } = useWatchlist();
+    const [exportOpen, setExportOpen] = useState(false);
     const [samples, setSamples] = useState<Sample[]>(initialMockSamples);
     const [filters, setFilters] = useState<FilterState>({
         region: [],
@@ -235,9 +239,18 @@ const SampleList = () => {
                         <span className="font-semibold text-foreground">{samples.length}</span> samples
                     </p>
                     <div className="flex items-center gap-2">
-                        <DropdownMenu>
+                        <DropdownMenu open={exportOpen} onOpenChange={(open) => {
+                            if (open && !isAuthenticated) {
+                                window.dispatchEvent(new CustomEvent('open-login-modal'));
+                                return;
+                            }
+                            setExportOpen(open);
+                        }}>
                             <DropdownMenuTrigger asChild>
-                                <Button variant="outline" className="gap-2">
+                                <Button
+                                    variant="outline"
+                                    className="gap-2"
+                                >
                                     <Download className="h-4 w-4" />
                                     Export
                                     <ChevronDown className="h-4 w-4" />
@@ -252,8 +265,8 @@ const SampleList = () => {
                                 </DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>
-                        {!isAdmin && <RequestInvestigationForm />}
-                        {isAdmin && (
+                        <RequestInvestigationForm />
+                        {isAuthenticated && USER_ROLE_WEIGHT[role as keyof typeof USER_ROLE_WEIGHT] >= USER_ROLE_WEIGHT['research_assistant'] && (
                             <AddSampleForm
                                 onAddSample={handleAddSample}
                                 onAddMultipleSamples={handleAddMultipleSamples}

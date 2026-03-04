@@ -100,10 +100,6 @@ CREATE TABLE "mycotoxin" (
      )
 );
 
--- Free plan table limit reached. SUBSCRIBE for more.
-
-
-
 ALTER TABLE "sample" ADD CONSTRAINT "fk_sample_region_id" FOREIGN KEY("region_id")
 REFERENCES "region" ("region_id");
 

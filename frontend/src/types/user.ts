@@ -10,6 +10,7 @@ export interface User {
   status: UserStatus;
   department?: string;
   created_at: string;
+  date_joined: string;
   last_active?: string;
   online_status: 'online' | 'offline';
 }
@@ -33,4 +34,12 @@ export const USER_ROLE_COLORS: Record<UserRole, string> = {
 export const USER_STATUS_COLORS: Record<UserStatus, string> = {
   active: 'bg-success/20 text-success',
   inactive: 'bg-muted text-muted-foreground',
+};
+
+export const USER_ROLE_WEIGHT: Record<UserRole, number> = {
+  admin: 5,
+  head_researcher: 4,
+  researcher: 3,
+  research_assistant: 2,
+  user: 1,
 };
