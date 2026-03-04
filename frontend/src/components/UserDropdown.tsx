@@ -76,7 +76,7 @@ const UserDropdown = () => {
           ))}
         </DropdownMenuGroup>
 
-        <DropdownMenuSeparator />
+        <hr className="border-t border-gray-200 dark:border-gray-700 mx-2 my-2" />
 
         {/* Logout */}
         <div className="p-2">
