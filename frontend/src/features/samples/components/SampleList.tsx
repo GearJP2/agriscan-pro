@@ -44,13 +44,13 @@ const SampleList = () => {
 
     const queryClient = useQueryClient();
 
-    // fetch samples using filters
+    // fetch samples using filters - use 'samples-list' key so it can be isolated from dashboard
     const {
         data: samplesData,
         isLoading,
         error,
     } = useQuery({
-        queryKey: ['samples', filters],
+        queryKey: ['samples-list', filters],
         queryFn: () =>
             sampleAPI.getSamples(undefined, 100, {
                 search: filters.search || undefined,
@@ -67,10 +67,11 @@ const SampleList = () => {
 
     const samples: Sample[] = samplesData?.results || samplesData || [];
 
-    // mutations for creation
+    // mutations for creation - invalidate both list and dashboard queries
     const createSampleMutation = useMutation(sampleAPI.createSample, {
         onSuccess: () => {
-            queryClient.invalidateQueries(['samples']);
+            queryClient.invalidateQueries(['samples-list']);
+            queryClient.invalidateQueries(['samples-dashboard']);
         },
     });
 
@@ -78,7 +79,8 @@ const SampleList = () => {
         (newSamples: Sample[]) => Promise.all(newSamples.map(s => sampleAPI.createSample(s))),
         {
             onSuccess: () => {
-                queryClient.invalidateQueries(['samples']);
+                queryClient.invalidateQueries(['samples-list']);
+                queryClient.invalidateQueries(['samples-dashboard']);
             },
         }
     );

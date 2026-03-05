@@ -11,9 +11,9 @@ import { Loader2, AlertTriangle } from 'lucide-react';
 const Dashboard = () => {
   const { isAdmin, isAuthenticated } = useAuth();
 
-  // fetch samples for dashboard calculations
+  // fetch samples for dashboard calculations - use 'samples-dashboard' key for cache isolation
   const { data: samplesData, isLoading, error } = useQuery(
-    ['samples', {}],
+    ['samples-dashboard'],
     () => sampleAPI.getSamples(undefined, 1000),
     { enabled: isAuthenticated }
   );
@@ -45,6 +45,16 @@ const Dashboard = () => {
           ) : isLoading ? (
             <div className="flex items-center justify-center h-64">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : samples.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-12 text-center">
+              <div className="mx-auto h-12 w-12 text-gray-400 mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <h2 className="text-2xl font-bold text-gray-900">No samples yet</h2>
+              <p className="mt-2 text-gray-600">Start by adding samples from the <strong>Sample List</strong> to see dashboard metrics and risk analysis.</p>
             </div>
           ) : (
             <>            
