@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Users, UserPlus, Search, Shield, UserCheck, UserX } from 'lucide-react';
+import API_BASE_URL from '@/config/api';
 import Header from '@/components/Header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -52,7 +53,7 @@ const UserManagement = () => {
   const fetchUsers = async () => {
     try {
       const token = localStorage.getItem('access_token');
-      const response = await fetch('http://localhost:8000/api/accounts/users/', {
+      const response = await fetch(`${API_BASE_URL}/api/accounts/users/`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -119,7 +120,7 @@ const UserManagement = () => {
 
     try {
       const token = localStorage.getItem('access_token');
-      const response = await fetch(`http://localhost:8000/api/accounts/users/${selectedUser.id}/`, {
+      const response = await fetch(`${API_BASE_URL}/api/accounts/users/${selectedUser.id}/`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -158,7 +159,7 @@ const UserManagement = () => {
 
     try {
       const token = localStorage.getItem('access_token');
-      const response = await fetch(`http://localhost:8000/api/accounts/users/${user.id}/`, {
+      const response = await fetch(`${API_BASE_URL}/api/accounts/users/${user.id}/`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',

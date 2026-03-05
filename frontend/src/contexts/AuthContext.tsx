@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { jwtDecode } from 'jwt-decode';
+import API_BASE_URL from '@/config/api';
 
 export type UserRole = 'user' | 'admin' | 'researcher' | 'research_assistant' | 'head_researcher' | 'guest';
 
@@ -58,7 +59,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             return;
           }
 
-          const userRes = await fetch(`http://localhost:8000/api/accounts/users/${decoded.user_id}/`, {
+          const userRes = await fetch(`${API_BASE_URL}/api/accounts/users/${decoded.user_id}/`, {
             headers: {
               'Authorization': `Bearer ${token}`
             }
@@ -82,7 +83,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const login = async (username: string, password: string) => {
     try {
-      const response = await fetch('http://localhost:8000/api/accounts/login/', {
+      const response = await fetch(`${API_BASE_URL}/api/accounts/login/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password }),
@@ -98,7 +99,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       const decoded: TokenPayload = jwtDecode(data.access);
 
-      const userRes = await fetch(`http://localhost:8000/api/accounts/users/${decoded.user_id}/`, {
+      const userRes = await fetch(`${API_BASE_URL}/api/accounts/users/${decoded.user_id}/`, {
         headers: {
           'Authorization': `Bearer ${data.access}`
         }

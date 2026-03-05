@@ -1,4 +1,9 @@
 Django>=6.0.0,<6.1.0
 djangorestframework>=3.16.0,<3.17.0
+djangorestframework-simplejwt>=5.4.0
 django-cors-headers>=4.9.0,<4.10.0
 psycopg2-binary>=2.9.0
+django-storages[s3]>=1.14.0
+boto3>=1.35.0
+gunicorn>=21.2.0
+python-dotenv>=1.0.0

@@ -1,6 +1,7 @@
 import { useState, FormEvent, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Eye, EyeOff, Leaf, AlertCircle, Loader2 } from 'lucide-react';
+import API_BASE_URL from '@/config/api';
 import {
     Dialog,
     DialogContent,
@@ -100,7 +101,7 @@ const LoginModal = () => {
         setIsSubmitting(true);
 
         try {
-            const response = await fetch('http://localhost:8000/api/accounts/register/', {
+            const response = await fetch(`${API_BASE_URL}/api/accounts/register/`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

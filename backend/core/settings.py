@@ -12,6 +12,10 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 
 from pathlib import Path
 import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file (for local development)
+load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -21,12 +25,14 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-3!n4w0--61siog!wdpwtj!%nsz@2)_$wuy=3)r71t1=sbe5lj('
+SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-3!n4w0--61siog!wdpwtj!%nsz@2)_$wuy=3)r71t1=sbe5lj(')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 
-ALLOWED_HOSTS = []
+# Comma-separated list of allowed hosts, e.g. "mybackend.up.railway.app,api.mydomain.com"
+_ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '')
+ALLOWED_HOSTS = [h.strip() for h in _ALLOWED_HOSTS.split(',') if h.strip()] if _ALLOWED_HOSTS else ['localhost', '127.0.0.1']
 
 
 # Application definition
@@ -41,6 +47,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework_simplejwt',
     'corsheaders',
+    'storages',
     'accounts',
 ]
 
@@ -90,6 +97,23 @@ DATABASES = {
     }
 }
 
+# Cloudflare R2 Storage (S3-compatible)
+# Documents: https://django-storages.readthedocs.io/en/latest/backends/amazon-S3.html
+_R2_KEY = os.environ.get('R2_ACCESS_KEY_ID', '')
+if _R2_KEY:
+    DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
+    AWS_ACCESS_KEY_ID = _R2_KEY
+    AWS_SECRET_ACCESS_KEY = os.environ.get('R2_SECRET_ACCESS_KEY', '')
+    AWS_STORAGE_BUCKET_NAME = os.environ.get('R2_BUCKET_NAME', '')
+    # R2 endpoint: https://<account-id>.r2.cloudflarestorage.com
+    AWS_S3_ENDPOINT_URL = os.environ.get('R2_ENDPOINT_URL', '')
+    AWS_S3_SIGNATURE_VERSION = 's3v4'
+    AWS_S3_REGION_NAME = 'auto'
+    AWS_DEFAULT_ACL = 'public-read'
+    AWS_QUERYSTRING_AUTH = False  # Public URLs without signed params
+    # Optional: custom domain (Cloudflare R2 Public Domain)
+    AWS_S3_CUSTOM_DOMAIN = os.environ.get('R2_CUSTOM_DOMAIN', '')
+
 
 # Password validation
 # https://docs.djangoproject.com/en/6.0/ref/settings/#auth-password-validators
@@ -129,7 +153,13 @@ STATIC_URL = 'static/'
 
 AUTH_USER_MODEL = 'accounts.User'
 
-CORS_ALLOW_ALL_ORIGINS = True
+# In production, set CORS_ALLOWED_ORIGINS to comma-separated list of allowed frontend URLs
+# e.g. "https://agriscan-pro.pages.dev,https://agriscan.yourdomain.com"
+_CORS_ORIGINS = os.environ.get('CORS_ALLOWED_ORIGINS', '')
+if _CORS_ORIGINS:
+    CORS_ALLOWED_ORIGINS = [o.strip() for o in _CORS_ORIGINS.split(',') if o.strip()]
+else:
+    CORS_ALLOW_ALL_ORIGINS = True  # Development only
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
