@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FlaskConical, AlertTriangle, CheckCircle2, Clock, Download, ChevronDown } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { FlaskConical, AlertTriangle, CheckCircle2, Clock, Download, ChevronDown, Loader2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import Header from '@/components/Header';
 import StatsCard from '@/components/StatsCard';
@@ -16,19 +17,18 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { mockSamples as initialMockSamples } from '@/data/mockSamples';
 import { Sample, FilterState, ProcessLog, RiskLevel } from '@/types/sample';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useWatchlist } from '@/hooks/useWatchlist';
 import { USER_ROLE_WEIGHT } from '@/types/user';
+import { sampleAPI } from '@/lib/api';
 
 const SampleList = () => {
     const { isAdmin, isAuthenticated, role } = useAuth();
     const navigate = useNavigate();
     const { isWatching } = useWatchlist();
     const [exportOpen, setExportOpen] = useState(false);
-    const [samples, setSamples] = useState<Sample[]>(initialMockSamples);
     const [filters, setFilters] = useState<FilterState>({
         region: [],
         province: [],
@@ -41,6 +41,83 @@ const SampleList = () => {
         dateFrom: null,
         dateTo: null,
     });
+
+    const queryClient = useQueryClient();
+
+    // fetch samples using filters
+    const {
+        data: samplesData,
+        isLoading,
+        error,
+    } = useQuery({
+        queryKey: ['samples', filters],
+        queryFn: () =>
+            sampleAPI.getSamples(undefined, 100, {
+                search: filters.search || undefined,
+                status: filters.status.length ? filters.status : undefined,
+                region: filters.region.length ? filters.region[0] : undefined,
+                vegetation: filters.vegetation.length ? filters.vegetation[0] : undefined,
+                riskLevel: filters.risk.length ? filters.risk : undefined,
+                dateFrom: filters.dateFrom || undefined,
+                dateTo: filters.dateTo || undefined,
+            }),
+        enabled: isAuthenticated,
+        staleTime: 30000,
+    });
+
+    const samples: Sample[] = samplesData?.results || samplesData || [];
+
+    // mutations for creation
+    const createSampleMutation = useMutation(sampleAPI.createSample, {
+        onSuccess: () => {
+            queryClient.invalidateQueries(['samples']);
+        },
+    });
+
+    const createManyMutation = useMutation(
+        (newSamples: Sample[]) => Promise.all(newSamples.map(s => sampleAPI.createSample(s))),
+        {
+            onSuccess: () => {
+                queryClient.invalidateQueries(['samples']);
+            },
+        }
+    );
+
+    const handleAddSample = (sample: Sample) => {
+        createSampleMutation.mutate(sample, {
+            onSuccess: () => {
+                toast({
+                    title: 'Sample Registered',
+                    description: `Sample ${sample.sample_id} added successfully.`,
+                });
+            },
+            onError: () => {
+                toast({
+                    title: 'Error',
+                    description: 'Failed to create sample.',
+                    variant: 'destructive',
+                });
+            },
+        });
+    };
+
+    const handleAddMultipleSamples = (newSamples: Sample[]) => {
+        createManyMutation.mutate(newSamples, {
+            onSuccess: () => {
+                toast({
+                    title: 'Samples Imported',
+                    description: `${newSamples.length} samples registered successfully.`,
+                });
+            },
+            onError: () => {
+                toast({
+                    title: 'Error',
+                    description: 'Failed to import samples.',
+                    variant: 'destructive',
+                });
+            },
+        });
+    };
 
     // Calculate risk level for a sample
     const getRiskLevel = (sample: Sample): RiskLevel => {
@@ -57,30 +134,11 @@ const SampleList = () => {
     const [modalOpen, setModalOpen] = useState(false);
 
     const filteredSamples = useMemo(() => {
-        return samples.filter((sample) => {
-            if (filters.search && !sample.sample_id.toLowerCase().includes(filters.search.toLowerCase())) {
-                return false;
-            }
-            if (filters.region.length > 0 && !filters.region.includes(sample.region)) return false;
-            if (filters.vegetation.length > 0 && !filters.vegetation.includes(sample.vegetation_variety)) return false;
-            if (filters.status.length > 0 && !filters.status.includes(sample.status)) return false;
-            if (filters.risk.length > 0 && !filters.risk.includes(getRiskLevel(sample))) return false;
-            if (filters.watchlistOnly && !isWatching(sample.sample_id)) return false;
-
-            // Date range filter
-            if (filters.dateFrom) {
-                const sampleDate = new Date(sample.collection_date);
-                const fromDate = new Date(filters.dateFrom);
-                if (sampleDate < fromDate) return false;
-            }
-            if (filters.dateTo) {
-                const sampleDate = new Date(sample.collection_date);
-                const toDate = new Date(filters.dateTo);
-                if (sampleDate > toDate) return false;
-            }
-
-            return true;
-        });
+        // backend already handles most filters; only watchlist is applied client‑side
+        if (filters.watchlistOnly) {
+            return samples.filter(s => isWatching(s.sample_id));
+        }
+        return samples;
     }, [filters, samples, isWatching]);
 
     // Get export data
@@ -187,32 +245,7 @@ const SampleList = () => {
         }
     };
 
-    const handleUpdateSample = (sampleId: string, newLog: ProcessLog) => {
-        setSamples(prevSamples =>
-            prevSamples.map(sample => {
-                if (sample.sample_id === sampleId) {
-                    const newStatus = getStatusFromProcessState(newLog.state);
-                    const updatedSample = {
-                        ...sample,
-                        status: newStatus,
-                        process_logs: [...sample.process_logs, newLog],
-                    };
-                    // Update selected sample to reflect changes
-                    setSelectedSample(updatedSample);
-                    return updatedSample;
-                }
-                return sample;
-            })
-        );
-    };
-
-    const handleAddSample = (sample: Sample) => {
-        setSamples(prevSamples => [sample, ...prevSamples]);
-    };
-
-    const handleAddMultipleSamples = (newSamples: Sample[]) => {
-        setSamples(prevSamples => [...newSamples, ...prevSamples]);
-    };
+    // NOTE: object updates now happen via API; local mutations removed.
 
     return (
         <div className="min-h-screen bg-background">
@@ -237,6 +270,7 @@ const SampleList = () => {
                     <p className="text-sm text-muted-foreground">
                         Showing <span className="font-semibold text-foreground">{filteredSamples.length}</span> of{' '}
                         <span className="font-semibold text-foreground">{samples.length}</span> samples
+                        {isLoading && <Loader2 className="ml-2 h-4 w-4 animate-spin inline" />}
                     </p>
                     <div className="flex items-center gap-2">
                         <DropdownMenu open={exportOpen} onOpenChange={(open) => {
@@ -276,7 +310,19 @@ const SampleList = () => {
                 </div>
 
                 {/* Sample Table */}
-                <SampleTable samples={filteredSamples} onSelectSample={handleSelectSample} />
+                {error ? (
+                    <div className="rounded-lg border border-red-200 bg-red-50 p-8 text-center">
+                      <AlertTriangle className="mx-auto h-12 w-12 text-red-600 mb-4" />
+                      <h2 className="text-2xl font-bold text-red-900">Error loading samples</h2>
+                      <p className="mt-2 text-red-800">Failed to fetch samples from the server. Please try again later.</p>
+                    </div>
+                ) : isLoading ? (
+                    <div className="flex items-center justify-center h-96">
+                        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                    </div>
+                ) : (
+                    <SampleTable samples={filteredSamples} onSelectSample={handleSelectSample} />
+                )
 
                 {/* Sample Detail Modal */}
                 <SampleDetailModal

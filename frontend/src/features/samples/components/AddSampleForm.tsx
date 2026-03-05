@@ -158,10 +158,6 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
     };
 
     onAddSample(newSample);
-    toast({
-      title: 'Sample Registered',
-      description: `Sample ${sampleId} has been registered successfully.`,
-    });
     form.reset();
     setOpen(false);
   };
@@ -355,10 +351,6 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
       }
 
       onAddMultipleSamples(allSamples);
-      toast({
-        title: 'Samples Imported',
-        description: `${allSamples.length} samples have been registered.`,
-      });
       setUploadFile(null);
       setFilePreview([]);
       form.reset();
