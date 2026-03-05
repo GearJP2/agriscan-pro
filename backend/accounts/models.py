@@ -1,8 +1,13 @@
 from django.db import models
-from django.contrib.auth.models import AbstractUser
+from django.contrib.auth.models import AbstractUser, UserManager
 from django.utils.translation import gettext_lazy as _
 
-# Create your models here.
+class CustomUserManager(UserManager):
+    def create_superuser(self, username, email=None, password=None, **extra_fields):
+        extra_fields.setdefault('is_staff', True)
+        extra_fields.setdefault('is_superuser', True)
+        extra_fields.setdefault('role', 'admin')
+        return super().create_superuser(username, email, password, **extra_fields)
 
 class User(AbstractUser):
     ROLE_CHOICES = (
@@ -19,6 +24,8 @@ class User(AbstractUser):
     
     # We'll use email for logging in as well as username, but username is still required by AbstractUser
     # We can keep the default username field from AbstractUser as unique=True, which is the default.
+
+    objects = CustomUserManager()
 
 class UserActionLog(models.Model):
     actor = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='actions_performed')
