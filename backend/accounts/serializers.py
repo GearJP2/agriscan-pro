@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import User
+from .repositories import UserRepository
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
@@ -21,7 +22,8 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         validated_data.pop('verify_password')
-        user = User.objects.create_user(
+        # Use the Repository instead of User.objects.create_user directly
+        user = UserRepository.create_user(
             username=validated_data['username'],
             email=validated_data['email'],
             name=validated_data['name'],

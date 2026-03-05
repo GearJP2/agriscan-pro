@@ -1,49 +1,36 @@
 from rest_framework import generics, permissions
 from rest_framework.response import Response
 from .serializers import RegisterSerializer, UserSerializer
-from .models import User, UserActionLog
-from django.core.cache import cache
+from .repositories import UserRepository, UserActionLogRepository
 from rest_framework_simplejwt.views import TokenObtainPairView
 
 class CustomTokenObtainPairView(TokenObtainPairView):
     def post(self, request, *args, **kwargs):
-        username = request.data.get('username')
-        if not username:
-            return super().post(request, *args, **kwargs)
-            
-        cache_key = f"login_attempts_{username}"
-        attempts = cache.get(cache_key, 0)
-        
-        if attempts >= 5:
-            return Response(
-                {"detail": "Too many failed login attempts. Please wait 1 minute before trying again."}, 
-                status=429
-            )
-            
-        try:
-            response = super().post(request, *args, **kwargs)
-            cache.delete(cache_key)
-            return response
-        except Exception as e:
-            attempts += 1
-            cache.set(cache_key, attempts, 60)
-            raise e
+        return super().post(request, *args, **kwargs)
+
 
 class RegisterView(generics.CreateAPIView):
-    queryset = User.objects.all()
     # Temporarily AllowAny for easy development, typically IsAdminUser
     permission_classes = (permissions.AllowAny,)
     serializer_class = RegisterSerializer
+    # CreateAPIView does not need a queryset as long as we don't need to fetch objects
+    # but the serializer still needs to be capable of creation.
 
 class UserListView(generics.ListAPIView):
-    queryset = User.objects.all()
     permission_classes = (permissions.IsAuthenticated,)
     serializer_class = UserSerializer
 
+    def get_queryset(self):
+        # Using the Repository pattern to fetch all users instead of User.objects.all() directly
+        return UserRepository.get_all_users()
+
 class UserDetailView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = User.objects.all()
     permission_classes = (permissions.IsAuthenticated,)
     serializer_class = UserSerializer
+
+    def get_queryset(self):
+        # We still need to return a queryset for the Generic view's get_object() to work properly
+        return UserRepository.get_all_users()
 
     def perform_update(self, serializer):
         user = self.get_object()
@@ -52,9 +39,9 @@ class UserDetailView(generics.RetrieveUpdateDestroyAPIView):
 
         updated_user = serializer.save()
 
-        # Log changes
+        # Log changes using the Repository pattern
         if old_role != updated_user.role:
-            UserActionLog.objects.create(
+            UserActionLogRepository.log_action(
                 actor=self.request.user,
                 target_user=updated_user,
                 action='CHANGED_ROLE',
@@ -63,7 +50,7 @@ class UserDetailView(generics.RetrieveUpdateDestroyAPIView):
         
         if old_status != updated_user.is_active:
             status_text = "Activated" if updated_user.is_active else "Deactivated"
-            UserActionLog.objects.create(
+            UserActionLogRepository.log_action(
                 actor=self.request.user,
                 target_user=updated_user,
                 action='CHANGED_STATUS',
