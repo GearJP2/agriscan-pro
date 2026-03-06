@@ -1,0 +1,51 @@
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: agriscan
+      POSTGRES_USER: agriscan_user
+      POSTGRES_PASSWORD: agriscan_pass
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agriscan_user -d agriscan"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: ./backend
+    command: sh -c "python manage.py migrate && python manage.py runserver 0.0.0.0:8080"
+    volumes:
+      - ./backend:/app
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      - DB_ENGINE=postgresql
+      - DB_NAME=agriscan
+      - DB_USER=agriscan_user
+      - DB_PASSWORD=agriscan_pass
+      - DB_HOST=db
+      - DB_PORT=5432
+      - SECRET_KEY=django-insecure-key-for-dev
+      - DEBUG=True
+
+  frontend:
+    build: ./frontend
+    command: npm run dev -- --host 0.0.0.0
+    volumes:
+      - ./frontend:/app
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+    environment:
+      - VITE_API_BASE_URL=http://backend:8080/api
+
+volumes:
+  postgres_data:
