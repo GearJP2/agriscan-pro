@@ -17,3 +17,8 @@ backend/.env
 # OS
 .DS_Store
 Thumbs.db
+
+# python virtual environments
+.venv/
+venv/
+env/

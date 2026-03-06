@@ -68,22 +68,21 @@ const SampleList = () => {
     const samples: Sample[] = samplesData?.results || samplesData || [];
 
     // mutations for creation - invalidate both list and dashboard queries
-    const createSampleMutation = useMutation(sampleAPI.createSample, {
+    const createSampleMutation = useMutation({
+        mutationFn: (data: Partial<Sample>) => sampleAPI.createSample(data),
         onSuccess: () => {
-            queryClient.invalidateQueries(['samples-list']);
-            queryClient.invalidateQueries(['samples-dashboard']);
+            queryClient.invalidateQueries({ queryKey: ['samples-list'] });
+            queryClient.invalidateQueries({ queryKey: ['samples-dashboard'] });
         },
     });
 
-    const createManyMutation = useMutation(
-        (newSamples: Sample[]) => Promise.all(newSamples.map(s => sampleAPI.createSample(s))),
-        {
-            onSuccess: () => {
-                queryClient.invalidateQueries(['samples-list']);
-                queryClient.invalidateQueries(['samples-dashboard']);
-            },
-        }
-    );
+    const createManyMutation = useMutation({
+        mutationFn: (newSamples: Sample[]) => Promise.all(newSamples.map(s => sampleAPI.createSample(s))),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['samples-list'] });
+            queryClient.invalidateQueries({ queryKey: ['samples-dashboard'] });
+        },
+    });
 
     const handleAddSample = (sample: Sample) => {
         createSampleMutation.mutate(sample, {
@@ -247,7 +246,11 @@ const SampleList = () => {
         }
     };
 
-    // NOTE: object updates now happen via API; local mutations removed.
+    const handleUpdateSample = async (sampleId: string, newLog: ProcessLog) => {
+        await sampleAPI.addProcessLog(sampleId, newLog);
+        queryClient.invalidateQueries({ queryKey: ['samples-list'] });
+        queryClient.invalidateQueries({ queryKey: ['samples-dashboard'] });
+    };
 
     return (
         <div className="min-h-screen bg-background">
@@ -312,27 +315,29 @@ const SampleList = () => {
                 </div>
 
                 {/* Sample Table */}
-                {error ? (
-                    <div className="rounded-lg border border-red-200 bg-red-50 p-8 text-center">
-                      <AlertTriangle className="mx-auto h-12 w-12 text-red-600 mb-4" />
-                      <h2 className="text-2xl font-bold text-red-900">Error loading samples</h2>
-                      <p className="mt-2 text-red-800">Failed to fetch samples from the server. Please try again later.</p>
-                    </div>
-                ) : isLoading ? (
-                    <div className="flex items-center justify-center h-96">
-                        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                    </div>
-                ) : (
-                    <SampleTable samples={filteredSamples} onSelectSample={handleSelectSample} />
-                )
+                <>
+                    {error ? (
+                        <div className="rounded-lg border border-red-200 bg-red-50 p-8 text-center">
+                            <AlertTriangle className="mx-auto h-12 w-12 text-red-600 mb-4" />
+                            <h2 className="text-2xl font-bold text-red-900">Error loading samples</h2>
+                            <p className="mt-2 text-red-800">Failed to fetch samples from the server. Please try again later.</p>
+                        </div>
+                    ) : isLoading ? (
+                        <div className="flex items-center justify-center h-96">
+                            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                        </div>
+                    ) : (
+                        <SampleTable samples={filteredSamples} onSelectSample={handleSelectSample} />
+                    )}
 
-                {/* Sample Detail Modal */}
-                <SampleDetailModal
-                    sample={selectedSample}
-                    open={modalOpen}
-                    onOpenChange={setModalOpen}
-                    onUpdateSample={handleUpdateSample}
-                />
+                    {/* Sample Detail Modal */}
+                    <SampleDetailModal
+                        sample={selectedSample}
+                        open={modalOpen}
+                        onOpenChange={setModalOpen}
+                        onUpdateSample={handleUpdateSample}
+                    />
+                </>
             </main>
         </div>
     );
