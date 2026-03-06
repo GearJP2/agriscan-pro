@@ -50,7 +50,7 @@ INSTALLED_APPS = [
     'storages',
     'accounts',
     'samples',
-],
+]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
