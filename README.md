@@ -31,8 +31,19 @@ To run, build, or contribute to this project, you will need to have the followin
 | **Django** | `6.0.x` | Core Python Web Framework |
 | **Django REST Framework** | `3.16.x` | Toolkit for building Web APIs (DRF) |
 | **django-cors-headers**| `4.9.x` | Handling Cross-Origin Resource Sharing (CORS) |
+| **django-redis** | `5.4.x` | Redis cache backend (also serves as Celery broker) |
+| **celery** *(coming soon)* | `5.4.x` | Distributed async task queue |
 
-## 4. How to Install Dependencies
+## 4. Cache / Queue Requirements
+
+| Service | Recommended Version | Purpose |
+| :--- | :--- | :--- |
+| **Redis** | `7.x` | Cache backend + Celery broker | 
+
+> Set `REDIS_URL=redis://localhost:6379/0` in your `.env` file.
+> See [`backend/requirement.md`](./backend/requirement.md) for full Redis & Celery setup guide.
+
+## 5. How to Install Dependencies
 
 **Frontend:**
 ```bash
