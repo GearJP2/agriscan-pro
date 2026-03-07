@@ -128,6 +128,46 @@ if _R2_KEY:
     AWS_S3_CUSTOM_DOMAIN = os.environ.get('R2_CUSTOM_DOMAIN', '')
 
 
+# ─── Redis ────────────────────────────────────────────────────────────────────
+# django-redis is used as the cache backend.
+# Celery will also point its broker/result-backend at the same Redis URL.
+# Set REDIS_URL in .env, e.g.:
+#   REDIS_URL=redis://localhost:6379/0   (local)
+#   REDIS_URL=redis://:password@host:6379/0  (production)
+
+REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
+
+CACHES = {
+    'default': {
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': REDIS_URL,
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+            # Connection pool: reuse connections across requests
+            'CONNECTION_POOL_KWARGS': {'max_connections': 50},
+        },
+        'KEY_PREFIX': 'agriscan',   # Namespace to avoid key collisions
+        'TIMEOUT': 300,            # Default TTL: 5 minutes
+    }
+}
+
+# Session storage in Redis (optional — falls back to DB if Redis is down)
+# SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
+# SESSION_CACHE_ALIAS = 'default'
+
+# ── How Celery will use this Redis ───────────────────────────────────────────
+# Your teammate can copy these two lines into celery.py:
+#
+#   app.conf.broker_url = env('REDIS_URL')           # Task queue
+#   app.conf.result_backend = env('REDIS_URL', 1)    # db=1 keeps results separate
+#
+# Then route a task like this from your Django view:
+#
+#   from myapp.tasks import run_prediction
+#   run_prediction.delay(sample_id=42)   # fire-and-forget → Celery picks up from Redis
+# ─────────────────────────────────────────────────────────────────────────────
+
+
 # Password validation
 # https://docs.djangoproject.com/en/6.0/ref/settings/#auth-password-validators
 
