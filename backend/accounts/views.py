@@ -1,12 +1,11 @@
 from rest_framework import generics, permissions
 from rest_framework.response import Response
-from .serializers import RegisterSerializer, UserSerializer
+from .serializers import RegisterSerializer, UserSerializer, CustomTokenObtainPairSerializer
 from .repositories import UserRepository, UserActionLogRepository
 from rest_framework_simplejwt.views import TokenObtainPairView
 
 class CustomTokenObtainPairView(TokenObtainPairView):
-    def post(self, request, *args, **kwargs):
-        return super().post(request, *args, **kwargs)
+    serializer_class = CustomTokenObtainPairSerializer
 
 
 class RegisterView(generics.CreateAPIView):

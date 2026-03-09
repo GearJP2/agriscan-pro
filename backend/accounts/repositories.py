@@ -24,12 +24,13 @@ class UserRepository:
             return None
 
     @staticmethod
-    def create_user(username: str, email: str, name: str, password: str):
+    def create_user(username: str, email: str, name: str, password: str, is_active: bool = True):
         return User.objects.create_user(
             username=username,
             email=email,
             name=name,
-            password=password
+            password=password,
+            is_active=is_active
         )
 
     @staticmethod
