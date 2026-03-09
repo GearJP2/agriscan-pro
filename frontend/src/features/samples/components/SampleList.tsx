@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { FlaskConical, AlertTriangle, CheckCircle2, Clock, Download, ChevronDown, Loader2 } from 'lucide-react';
+import { AlertTriangle, Download, ChevronDown, Loader2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import Header from '@/components/Header';
 import StatsCard from '@/components/StatsCard';
@@ -44,29 +44,6 @@ const SampleList = () => {
 
     const queryClient = useQueryClient();
 
-    // fetch samples using filters - use 'samples-list' key so it can be isolated from dashboard
-    const {
-        data: samplesData,
-        isLoading,
-        error,
-    } = useQuery({
-        queryKey: ['samples-list', filters],
-        queryFn: () =>
-            sampleAPI.getSamples(undefined, 100, {
-                search: filters.search || undefined,
-                status: filters.status.length ? filters.status : undefined,
-                region: filters.region.length ? filters.region[0] : undefined,
-                vegetation: filters.vegetation.length ? filters.vegetation[0] : undefined,
-                riskLevel: filters.risk.length ? filters.risk : undefined,
-                dateFrom: filters.dateFrom || undefined,
-                dateTo: filters.dateTo || undefined,
-            }),
-        enabled: isAuthenticated,
-        staleTime: 30000,
-    });
-
-    const samples: Sample[] = samplesData?.results || samplesData || [];
-
     // mutations for creation - invalidate both list and dashboard queries
     const createSampleMutation = useMutation({
         mutationFn: (data: Partial<Sample>) => sampleAPI.createSample(data),
@@ -77,7 +54,24 @@ const SampleList = () => {
     });
 
     const createManyMutation = useMutation({
-        mutationFn: (newSamples: Sample[]) => sampleAPI.bulkCreateSamples(newSamples),
+        mutationFn: (newSamples: Sample[]) => {
+            // Strip out read-only fields and empty/null values that the backend will default
+            const cleanedSamples = newSamples.map(sample => ({
+                sample_id: sample.sample_id,
+                region: sample.region || 'Unknown',
+                province: sample.province,
+                district: sample.district,
+                vegetation_variety: sample.vegetation_variety,
+                collection_date: sample.collection_date,
+                status: sample.status || 'pending',
+                purpose: sample.purpose || null,  // Let backend default to 'routine'
+                sample_type: sample.sample_type || null,  // Let backend default to 'field'
+                processing_type: sample.processing_type || null,  // Let backend default to 'raw'
+                collected_by: sample.collected_by || null,  // Let backend default to 'Imported'
+                additional_info: sample.additional_info || '',
+            }));
+            return sampleAPI.bulkCreateSamples(cleanedSamples);
+        },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['samples-list'] });
             queryClient.invalidateQueries({ queryKey: ['samples-dashboard'] });
@@ -110,15 +104,42 @@ const SampleList = () => {
                     description: `${newSamples.length} samples registered successfully.`,
                 });
             },
-            onError: () => {
+            onError: (error: any) => {
+                const errorMsg = error?.response?.data ? JSON.stringify(error.response.data) : 'Failed to import samples.';
+                console.error('Import error details:', errorMsg);
                 toast({
-                    title: 'Error',
-                    description: 'Failed to import samples.',
+                    title: 'Import Error',
+                    description: errorMsg,
                     variant: 'destructive',
                 });
             },
         });
     };
+
+    // fetch samples using filters - use 'samples-list' key so it can be isolated from dashboard
+    const {
+        data: samplesData,
+        isLoading,
+        error,
+    } = useQuery({
+        queryKey: ['samples-list', filters],
+        queryFn: () =>
+            sampleAPI.getSamples(undefined, 100, {
+                search: filters.search || undefined,
+                status: filters.status.length ? filters.status : undefined,
+                region: filters.region.length ? filters.region[0] : undefined,
+                vegetation: filters.vegetation.length ? filters.vegetation[0] : undefined,
+                riskLevel: filters.risk.length ? filters.risk : undefined,
+                dateFrom: filters.dateFrom || undefined,
+                dateTo: filters.dateTo || undefined,
+            }),
+        enabled: isAuthenticated,
+        staleTime: 30000,
+    });
+
+    const samples: Sample[] = samplesData?.results || samplesData || [];
+
+
 
     // Calculate risk level for a sample
     const getRiskLevel = (sample: Sample): RiskLevel => {

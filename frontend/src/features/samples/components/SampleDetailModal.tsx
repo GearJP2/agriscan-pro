@@ -4,12 +4,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { MapPin, Leaf, Calendar, ClipboardList, ArrowRight, User, Info, Tag, ChevronDown, AlertTriangle, CheckCircle2, Beaker } from 'lucide-react';
+import { MapPin, Leaf, Calendar, ClipboardList, ArrowRight, User, Info, Tag, ChevronDown, AlertTriangle, CheckCircle2, Beaker, Plus } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
 import ProcessTimeline from './ProcessTimeline';
 import MycotoxinResults from './MycotoxinResults';
 import AdminStatusApproval from './AdminStatusApproval';
+import MycotoxinForm from './MycotoxinForm';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface SampleDetailModalProps {
@@ -24,6 +26,7 @@ const SampleDetailModal = ({ sample, open, onOpenChange, onUpdateSample }: Sampl
   const [showMoreInfo, setShowMoreInfo] = useState(false);
   const [showTimeline, setShowTimeline] = useState(false);
   const [showResults, setShowResults] = useState(true);
+  const [showMycotoxinForm, setShowMycotoxinForm] = useState(false);
   const { isAdmin } = useAuth();
 
   if (!sample) return null;
@@ -187,6 +190,28 @@ const SampleDetailModal = ({ sample, open, onOpenChange, onUpdateSample }: Sampl
               >
                 <MycotoxinResults results={sample.mycotoxin_results} />
               </CollapsibleSection>
+            )}
+
+            {/* Add Mycotoxin Result Form */}
+            {isAdmin && (
+              <div className="space-y-3">
+                {showMycotoxinForm ? (
+                  <MycotoxinForm
+                    sampleId={sample.sample_id}
+                    onSuccess={() => setShowMycotoxinForm(false)}
+                    onClose={() => setShowMycotoxinForm(false)}
+                  />
+                ) : (
+                  <Button
+                    onClick={() => setShowMycotoxinForm(true)}
+                    variant="outline"
+                    className="w-full gap-2"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add Test Result
+                  </Button>
+                )}
+              </div>
             )}
 
             {/* Additional Information - Collapsible */}

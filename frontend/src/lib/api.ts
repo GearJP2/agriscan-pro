@@ -8,7 +8,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 10000,
+  timeout: 30000, // Increased from 10s to 30s for bulk imports
   headers: {
     'Content-Type': 'application/json',
   },
@@ -153,11 +153,25 @@ export const sampleAPI = {
   },
 
   /**
+   * Add mycotoxin test result to a sample
+   */
+  async addMycotoxinResult(sampleId: number | string, resultData: any) {
+    const response = await apiClient.post(`/samples/${sampleId}/add_mycotoxin_result/`, resultData);
+    return response.data;
+  },
+
+  /**
    * Bulk create samples
    */
   async bulkCreateSamples(data: Partial<Sample>[]) {
-    const response = await apiClient.post('/samples/bulk_create/', data);
-    return response.data;
+    try {
+      const response = await apiClient.post('/samples/bulk_create/', data);
+      return response.data;
+    } catch (error: any) {
+      console.error('Bulk create error response:', error.response?.data);
+      console.error('Bulk create request data:', data);
+      throw error;
+    }
   },
 
   /**

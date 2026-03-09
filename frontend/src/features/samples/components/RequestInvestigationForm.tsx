@@ -26,7 +26,13 @@ interface RequestInvestigationFormProps {
   onSubmitRequest?: (request: InvestigationRequest) => void;
 }
 
-const vegetationTypes = ['Rice', 'Corn', 'Wheat', 'Cassava', 'Peanut', 'Soybean', 'Other'];
+const vegetationTypes = [
+  'Rice', 'White rice', 'Brown rice', 'Jasmine rice',
+  'Corn', 'Sweet corn', 'Popcorn',
+  'Wheat', 'Durum wheat',
+  'Cassava', 'Peanut', 'Soybean',
+  'Other'
+];
 
 const RequestInvestigationForm = ({ onSubmitRequest }: RequestInvestigationFormProps) => {
   const { isAuthenticated } = useAuth();

@@ -119,23 +119,53 @@ class SampleViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['post'])
     def bulk_create(self, request):
         """Bulk create samples"""
-        serializer = SampleCreateUpdateSerializer(data=request.data, many=True)
+        data = request.data if isinstance(request.data, list) else [request.data]
+        
+        serializer = SampleCreateUpdateSerializer(data=data, many=True)
+        if not serializer.is_valid():
+            # Log validation errors for debugging
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Bulk create validation errors: {serializer.errors}")
+            logger.error(f"Request data: {data}")
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        samples = []
+        for validated_item in serializer.validated_data:
+            # Create sample using the serializer's create method to apply defaults
+            # Set defaults for empty/null fields
+            if not validated_item.get('purpose'):
+                validated_item['purpose'] = 'routine'
+            if not validated_item.get('sample_type'):
+                validated_item['sample_type'] = 'field'
+            if not validated_item.get('processing_type'):
+                validated_item['processing_type'] = 'raw'
+            if not validated_item.get('collected_by'):
+                validated_item['collected_by'] = 'Imported'
+            if not validated_item.get('additional_info'):
+                validated_item['additional_info'] = ''
+            
+            # Create sample with updated_by field
+            sample = Sample.objects.create(**validated_item, updated_by=request.user)
+            samples.append(sample)
+            
+            # Create initial process log
+            ProcessLog.objects.create(
+                sample=sample,
+                state='registered',
+                notes=f'Bulk imported - {len(data)} samples',
+                conducted_by=request.user.username or 'System'
+            )
+        
+        return Response(SampleSerializer(samples, many=True).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'])
+    def add_mycotoxin_result(self, request, sample_id=None):
+        """Add a mycotoxin test result to a sample"""
+        sample = self.get_object()
+        serializer = MycotoxinResultSerializer(data=request.data)
         if serializer.is_valid():
-            # Manually create samples to ensure they're saved
-            samples = []
-            for item in request.data:
-                sample = Sample.objects.create(**item, updated_by=request.user)
-                samples.append(sample)
-            
-            # Create initial process logs for each sample
-            for sample in samples:
-                ProcessLog.objects.create(
-                    sample=sample,
-                    state='registered',
-                    notes='Bulk imported',
-                    conducted_by='System'
-                )
-            
-            return Response(SampleSerializer(samples, many=True).data, status=status.HTTP_201_CREATED)
+            serializer.save(sample=sample)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
