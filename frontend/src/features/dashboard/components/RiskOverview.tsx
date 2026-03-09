@@ -9,7 +9,7 @@ interface RiskOverviewProps {
 }
 
 const getRiskLevel = (sample: Sample): RiskLevel => {
-  if (sample.mycotoxin_results.length === 0) return 'safe';
+  if (!sample.mycotoxin_results || sample.mycotoxin_results.length === 0) return 'safe';
   const hasDangerous = sample.mycotoxin_results.some((r) => r.dangerous);
   if (hasDangerous) return 'high';
   const maxIntensity = Math.max(...sample.mycotoxin_results.map((r) => r.intensity));

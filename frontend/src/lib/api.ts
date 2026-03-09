@@ -2,7 +2,9 @@ import axios from 'axios';
 import { Sample, ProcessLog, RiskLevel } from '@/types/sample';
 
 // Configure base URL for API
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV
+  ? 'http://localhost:8080/api'
+  : 'https://agriscan-pro-copy-production.up.railway.app/api');
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -119,6 +121,14 @@ export const sampleAPI = {
   },
 
   /**
+   * Get a single sample by sample_id
+   */
+  async getSampleDetail(sampleId: string) {
+    const response = await apiClient.get(`/samples/${sampleId}/`);
+    return response.data;
+  },
+
+  /**
    * Update an existing sample
    */
   async updateSample(id: number | string, data: Partial<Sample>) {
@@ -143,10 +153,10 @@ export const sampleAPI = {
   },
 
   /**
-   * Add a mycotoxin result to a sample
+   * Bulk create samples
    */
-  async addMycotoxinResult(sampleId: number | string, resultData: any) {
-    const response = await apiClient.post(`/samples/${sampleId}/add_mycotoxin_result/`, resultData);
+  async bulkCreateSamples(data: Partial<Sample>[]) {
+    const response = await apiClient.post('/samples/bulk_create/', data);
     return response.data;
   },
 

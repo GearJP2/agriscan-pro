@@ -32,7 +32,7 @@ services:
       - DB_PASSWORD=agriscan_pass
       - DB_HOST=db
       - DB_PORT=5432
-      - SECRET_KEY=django-insecure-key-for-dev
+      - SECRET_KEY=django-insecure-very-long-secret-key-for-jwt-tokens-32-chars-minimum!
       - DEBUG=True
       - REDIS_URL=redis://redis:6379/0
 
@@ -45,7 +45,7 @@ services:
     build:
       context: ./frontend
       args:
-        - VITE_API_BASE_URL=http://localhost:8080
+        - VITE_API_BASE_URL=http://localhost:8080/api
     command: npm run dev -- --host 0.0.0.0
     volumes:
       - ./frontend:/app
@@ -54,7 +54,7 @@ services:
     depends_on:
       - backend
     environment:
-      - VITE_API_BASE_URL=http://localhost:8080
+      - VITE_API_BASE_URL=http://localhost:8080/api
       - PORT=5173
 
 volumes:

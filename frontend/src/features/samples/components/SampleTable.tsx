@@ -21,27 +21,50 @@ const SampleTable = ({ samples, onSelectSample }: SampleTableProps) => {
   const [sortDirection, setSortDirection] = useState<SortDirection>(null);
   const { isWatching, toggleWatchlist } = useWatchlist();
 
-  const getStatusBadge = (status: Sample['status']) => {
-    const statusLabels = {
-      pending: 'Registered',
-      in_progress: 'Preparing',
+  const getStatusBadge = (sample: Sample) => {
+    // Get the latest process state from logs (this is what's actually recorded)
+    const logs = sample.process_logs ?? [];
+    const latestState = logs.length > 0 ? logs[logs.length - 1].state : null;
+    
+    const stateLabels: Record<string, string> = {
+      registered: 'Registered',
+      preparing: 'Preparing',
+      prepared: 'Prepared',
+      analyzing: 'Analyzing',
+      recorded: 'Recorded',
       completed: 'Completed',
-      flagged: 'Recorded',
     };
-    return <Badge variant={status}>{statusLabels[status]}</Badge>;
+    
+    const colorMap: Record<string, { bg: string; text: string }> = {
+      registered: { bg: 'bg-slate-200', text: 'text-slate-800' },
+      preparing: { bg: 'bg-amber-200', text: 'text-amber-800' },
+      prepared: { bg: 'bg-cyan-200', text: 'text-cyan-800' },
+      analyzing: { bg: 'bg-blue-200', text: 'text-blue-800' },
+      recorded: { bg: 'bg-teal-200', text: 'text-teal-800' },
+      completed: { bg: 'bg-green-200', text: 'text-green-800' },
+    };
+    
+    const label = latestState ? stateLabels[latestState] : 'Not Started';
+    const colors = latestState ? colorMap[latestState] : { bg: 'bg-slate-200', text: 'text-slate-800' };
+    
+    return (
+      <Badge className={`${colors.bg} ${colors.text} border-0`}>
+        {label}
+      </Badge>
+    );
   };
 
   const hasDangerousResults = (sample: Sample) => {
-    return sample.mycotoxin_results.some(r => r.dangerous);
+    return sample.mycotoxin_results?.some(r => r.dangerous) ?? false;
   };
 
   const getMaxIntensity = (sample: Sample) => {
-    if (sample.mycotoxin_results.length === 0) return null;
+    if (!sample.mycotoxin_results || sample.mycotoxin_results.length === 0) return null;
     return Math.max(...sample.mycotoxin_results.map(r => r.intensity));
   };
 
   const getRiskScore = (sample: Sample) => {
-    if (sample.mycotoxin_results.length === 0) return -1;
+    if (!sample.mycotoxin_results || sample.mycotoxin_results.length === 0) return -1;
     if (hasDangerousResults(sample)) return 100 + getMaxIntensity(sample)!;
     return getMaxIntensity(sample)!;
   };
@@ -167,7 +190,7 @@ const SampleTable = ({ samples, onSelectSample }: SampleTableProps) => {
                   <TableCell className="text-muted-foreground">
                     {format(new Date(sample.collection_date), 'MMM dd, yyyy')}
                   </TableCell>
-                  <TableCell>{getStatusBadge(sample.status)}</TableCell>
+                  <TableCell>{getStatusBadge(sample)}</TableCell>
                   <TableCell>
                     {hasDangerousResults(sample) ? (
                       <Tooltip>
@@ -180,7 +203,7 @@ const SampleTable = ({ samples, onSelectSample }: SampleTableProps) => {
                         <TooltipContent className="max-w-xs">
                           <div className="space-y-1">
                             <p className="font-semibold text-danger">⚠️ High Risk - Exceeds Threshold</p>
-                            {sample.mycotoxin_results.filter(r => r.dangerous).map((r, i) => (
+                            {sample.mycotoxin_results?.filter(r => r.dangerous).map((r, i) => (
                               <p key={i} className="text-xs">
                                 {r.name}: <span className="font-medium">{r.intensity}/{r.threshold} {r.unit}</span>
                               </p>
@@ -188,7 +211,7 @@ const SampleTable = ({ samples, onSelectSample }: SampleTableProps) => {
                           </div>
                         </TooltipContent>
                       </Tooltip>
-                    ) : sample.mycotoxin_results.length > 0 ? (
+                    ) : (sample.mycotoxin_results?.length ?? 0) > 0 ? (
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <div className="flex items-center gap-1.5 text-success cursor-help">
@@ -199,7 +222,7 @@ const SampleTable = ({ samples, onSelectSample }: SampleTableProps) => {
                         <TooltipContent className="max-w-xs">
                           <div className="space-y-1">
                             <p className="font-semibold text-success">✓ Safe - Within Limits</p>
-                            {sample.mycotoxin_results.map((r, i) => (
+                            {sample.mycotoxin_results?.map((r, i) => (
                               <p key={i} className="text-xs">
                                 {r.name}: <span className="font-medium">{r.intensity}/{r.threshold} {r.unit}</span>
                               </p>

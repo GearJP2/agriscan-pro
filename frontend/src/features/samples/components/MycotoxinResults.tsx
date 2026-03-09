@@ -4,11 +4,11 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 
 interface MycotoxinResultsProps {
-  results: MycotoxinResult[];
+  results?: MycotoxinResult[] | null;
 }
 
 const MycotoxinResults = ({ results }: MycotoxinResultsProps) => {
-  if (results.length === 0) {
+  if (!results || results.length === 0) {
     return (
       <div className="rounded-lg border border-dashed border-border bg-muted/30 p-6 text-center">
         <p className="text-sm text-muted-foreground">No mycotoxin results available yet.</p>

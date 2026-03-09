@@ -67,11 +67,25 @@ class SampleCreateUpdateSerializer(serializers.ModelSerializer):
             'collected_by',
             'additional_info',
         )
+    
+    def create(self, validated_data):
+        # Set defaults for empty fields
+        if not validated_data.get('purpose'):
+            validated_data['purpose'] = 'routine'
+        if not validated_data.get('sample_type'):
+            validated_data['sample_type'] = 'field'
+        if not validated_data.get('collected_by'):
+            validated_data['collected_by'] = 'Not specified'
+        if not validated_data.get('additional_info'):
+            validated_data['additional_info'] = ''
+        
+        return super().create(validated_data)
 
 
 class SampleListSerializer(serializers.ModelSerializer):
     """Lightweight serializer for list views"""
     risk_level = serializers.SerializerMethodField()
+    process_logs = ProcessLogSerializer(many=True, read_only=True)
 
     class Meta:
         model = Sample
@@ -79,10 +93,13 @@ class SampleListSerializer(serializers.ModelSerializer):
             'id',
             'sample_id',
             'region',
+            'province',
+            'district',
             'vegetation_variety',
             'collection_date',
             'status',
             'risk_level',
+            'process_logs',
         )
 
     def get_risk_level(self, obj):

@@ -67,8 +67,8 @@ export interface Sample {
   district: string;
   vegetation_variety: string;
   collection_date: string;
-  process_logs: ProcessLog[];
-  mycotoxin_results: MycotoxinResult[];
+  process_logs?: ProcessLog[];
+  mycotoxin_results?: MycotoxinResult[];
   status: 'pending' | 'in_progress' | 'completed' | 'flagged';
   purpose?: 'routine' | 'complaint driven' | 'target surveillance';
   sample_type?: 'field' | 'market' | 'storage' | 'export';

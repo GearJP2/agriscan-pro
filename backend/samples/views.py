@@ -24,6 +24,7 @@ class SampleViewSet(viewsets.ModelViewSet):
     search_fields = ['sample_id', 'region', 'vegetation_variety']
     ordering_fields = ['collection_date', 'created_at', 'status']
     ordering = ['-collection_date']
+    lookup_field = 'sample_id'
 
     def get_serializer_class(self):
         if self.action == 'list':
@@ -63,7 +64,15 @@ class SampleViewSet(viewsets.ModelViewSet):
         return queryset
 
     def perform_create(self, serializer):
-        serializer.save(updated_by=self.request.user)
+        sample = serializer.save(updated_by=self.request.user)
+        # Create initial process log for new samples
+        if not sample.process_logs.exists():
+            ProcessLog.objects.create(
+                sample=sample,
+                state='registered',
+                notes='Sample created',
+                conducted_by=self.request.user.username
+            )
 
     def perform_update(self, serializer):
         serializer.save(updated_by=self.request.user)
@@ -98,7 +107,7 @@ class SampleViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
     @action(detail=True, methods=['post'])
-    def add_process_log(self, request, pk=None):
+    def add_process_log(self, request, sample_id=None):
         """Add a process log entry to a sample"""
         sample = self.get_object()
         serializer = ProcessLogSerializer(data=request.data)
@@ -107,13 +116,26 @@ class SampleViewSet(viewsets.ModelViewSet):
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    @action(detail=True, methods=['post'])
-    def add_mycotoxin_result(self, request, pk=None):
-        """Add a mycotoxin result to a sample"""
-        sample = self.get_object()
-        serializer = MycotoxinResultSerializer(data=request.data)
+    @action(detail=False, methods=['post'])
+    def bulk_create(self, request):
+        """Bulk create samples"""
+        serializer = SampleCreateUpdateSerializer(data=request.data, many=True)
         if serializer.is_valid():
-            serializer.save(sample=sample)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
+            # Manually create samples to ensure they're saved
+            samples = []
+            for item in request.data:
+                sample = Sample.objects.create(**item, updated_by=request.user)
+                samples.append(sample)
+            
+            # Create initial process logs for each sample
+            for sample in samples:
+                ProcessLog.objects.create(
+                    sample=sample,
+                    state='registered',
+                    notes='Bulk imported',
+                    conducted_by='System'
+                )
+            
+            return Response(SampleSerializer(samples, many=True).data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 

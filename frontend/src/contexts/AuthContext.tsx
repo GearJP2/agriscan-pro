@@ -59,7 +59,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             return;
           }
 
-          const userRes = await fetch(`${API_BASE_URL}/api/accounts/users/${decoded.user_id}/`, {
+      const userRes = await fetch(`${API_BASE_URL}/accounts/users/${decoded.user_id}/`, {
             headers: {
               'Authorization': `Bearer ${token}`
             }
@@ -83,7 +83,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const login = async (username: string, password: string) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/accounts/login/`, {
+      // Note: API_BASE_URL already includes the `/api` prefix (configured via env var)
+      const response = await fetch(`${API_BASE_URL}/accounts/login/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password }),
@@ -99,7 +100,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       const decoded: TokenPayload = jwtDecode(data.access);
 
-      const userRes = await fetch(`${API_BASE_URL}/api/accounts/users/${decoded.user_id}/`, {
+      const userRes = await fetch(`${API_BASE_URL}/accounts/users/${decoded.user_id}/`, {
         headers: {
           'Authorization': `Bearer ${data.access}`
         }

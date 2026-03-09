@@ -77,7 +77,7 @@ const SampleList = () => {
     });
 
     const createManyMutation = useMutation({
-        mutationFn: (newSamples: Sample[]) => Promise.all(newSamples.map(s => sampleAPI.createSample(s))),
+        mutationFn: (newSamples: Sample[]) => sampleAPI.bulkCreateSamples(newSamples),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['samples-list'] });
             queryClient.invalidateQueries({ queryKey: ['samples-dashboard'] });
@@ -122,7 +122,7 @@ const SampleList = () => {
 
     // Calculate risk level for a sample
     const getRiskLevel = (sample: Sample): RiskLevel => {
-        if (sample.mycotoxin_results.length === 0) return 'safe';
+        if (!sample.mycotoxin_results || sample.mycotoxin_results.length === 0) return 'safe';
         const hasDangerous = sample.mycotoxin_results.some(r => r.dangerous);
         if (hasDangerous) return 'high';
         const maxIntensity = Math.max(...sample.mycotoxin_results.map(r => r.intensity));
@@ -147,7 +147,8 @@ const SampleList = () => {
         const headers = ['Sample ID', 'Region', 'Province', 'District', 'Variety', 'Collection Date', 'Status', 'Risk Level', 'Purpose', 'Type', 'Collected By', 'Additional Info', 'Last Updated By'];
 
         const rows = filteredSamples.map(sample => {
-            const lastLog = sample.process_logs[sample.process_logs.length - 1];
+            const logs = sample.process_logs ?? [];
+            const lastLog = logs.length > 0 ? logs[logs.length - 1] : null;
             return [
                 sample.sample_id,
                 sample.region,
@@ -225,8 +226,17 @@ const SampleList = () => {
     }, [samples]);
 
     const handleSelectSample = (sample: Sample) => {
-        setSelectedSample(sample);
+        // Find the latest sample data from the samples list to ensure we show current data
+        const currentSample = samples.find(s => s.sample_id === sample.sample_id) || sample;
+        setSelectedSample(currentSample);
         setModalOpen(true);
+        
+        // Refetch the individual sample to ensure latest process logs and data
+        sampleAPI.getSampleDetail(currentSample.sample_id).then(updatedSample => {
+            setSelectedSample(updatedSample);
+        }).catch(err => {
+            console.error('Failed to fetch sample details:', err);
+        });
     };
 
     // Map process state to sample status
@@ -334,7 +344,12 @@ const SampleList = () => {
                     <SampleDetailModal
                         sample={selectedSample}
                         open={modalOpen}
-                        onOpenChange={setModalOpen}
+                        onOpenChange={(open) => {
+                            if (!open) {
+                                setSelectedSample(null);
+                            }
+                            setModalOpen(open);
+                        }}
                         onUpdateSample={handleUpdateSample}
                     />
                 </>

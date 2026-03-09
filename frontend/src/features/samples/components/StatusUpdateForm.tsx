@@ -30,8 +30,9 @@ const StatusUpdateForm = ({ sample, onUpdate }: StatusUpdateFormProps) => {
   const [selectedState, setSelectedState] = useState<ProcessState | ''>('');
 
   // Get current state from the latest log
-  const currentState = sample.process_logs.length > 0 
-    ? sample.process_logs[sample.process_logs.length - 1].state 
+  const logs = sample.process_logs ?? [];
+  const currentState = logs.length > 0 
+    ? logs[logs.length - 1].state 
     : null;
 
   const currentStateIndex = currentState ? PROCESS_STATE_ORDER.indexOf(currentState) : -1;

@@ -10,7 +10,7 @@ interface ActionItemsProps {
 }
 
 const getRiskLevel = (sample: Sample): RiskLevel => {
-  if (sample.mycotoxin_results.length === 0) return 'safe';
+  if (!sample.mycotoxin_results || sample.mycotoxin_results.length === 0) return 'safe';
   const hasDangerous = sample.mycotoxin_results.some((r) => r.dangerous);
   if (hasDangerous) return 'high';
   const maxIntensity = Math.max(...sample.mycotoxin_results.map((r) => r.intensity));
@@ -20,8 +20,9 @@ const getRiskLevel = (sample: Sample): RiskLevel => {
 };
 
 const getDaysSinceLastUpdate = (sample: Sample): number => {
-  const lastLog = sample.process_logs[sample.process_logs.length - 1];
-  if (!lastLog) return 0;
+  const logs = sample.process_logs ?? [];
+  if (logs.length === 0) return 0;
+  const lastLog = logs[logs.length - 1];
   const lastUpdate = new Date(lastLog.timestamp);
   const now = new Date();
   return Math.floor((now.getTime() - lastUpdate.getTime()) / (1000 * 60 * 60 * 24));
@@ -32,7 +33,9 @@ const ActionItems = ({ samples }: ActionItemsProps) => {
   const recentHighRisk = samples
     .filter((s) => getRiskLevel(s) === 'high')
     .filter((s) => {
-      const lastLog = s.process_logs[s.process_logs.length - 1];
+      const logs = s.process_logs ?? [];
+      if (logs.length === 0) return false;
+      const lastLog = logs[logs.length - 1];
       if (!lastLog) return false;
       const daysSince = getDaysSinceLastUpdate(s);
       return daysSince <= 7;

@@ -35,11 +35,18 @@ const SampleDetailModal = ({ sample, open, onOpenChange, onUpdateSample }: Sampl
     flagged: 'Flagged',
   };
 
-  const hasDangerousResults = sample.mycotoxin_results.some(r => r.dangerous);
-  const hasResults = sample.mycotoxin_results.length > 0;
+  const hasDangerousResults = sample.mycotoxin_results?.some(r => r.dangerous) ?? false;
+  const hasResults = (sample.mycotoxin_results?.length ?? 0) > 0;
 
   const handleStatusUpdate = (sampleId: string, newLog: ProcessLog) => {
-    onUpdateSample?.(sampleId, newLog);
+    // Call the update callback if provided
+    if (onUpdateSample) {
+      onUpdateSample(sampleId, newLog);
+      // Close modal after a brief delay to allow the update to process
+      setTimeout(() => {
+        onOpenChange(false);
+      }, 500);
+    }
   };
 
   const CollapsibleSection = ({ 
@@ -254,11 +261,11 @@ const SampleDetailModal = ({ sample, open, onOpenChange, onUpdateSample }: Sampl
               onToggle={() => setShowTimeline(!showTimeline)}
               badge={
                 <Badge variant="secondary" className="ml-2">
-                  {sample.process_logs.length} steps
+                  {(sample.process_logs?.length ?? 0)} steps
                 </Badge>
               }
             >
-              <ProcessTimeline logs={sample.process_logs} />
+              <ProcessTimeline logs={sample.process_logs ?? []} />
             </CollapsibleSection>
           </TabsContent>
 
