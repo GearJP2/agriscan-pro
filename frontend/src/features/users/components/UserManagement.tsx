@@ -53,7 +53,7 @@ const UserManagement = () => {
   const fetchUsers = async () => {
     try {
       const token = localStorage.getItem('access_token');
-      const response = await fetch(`${API_BASE_URL}/api/accounts/users/`, {
+      const response = await fetch(`${API_BASE_URL}/accounts/users/`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -120,7 +120,7 @@ const UserManagement = () => {
 
     try {
       const token = localStorage.getItem('access_token');
-      const response = await fetch(`${API_BASE_URL}/api/accounts/users/${selectedUser.id}/`, {
+      const response = await fetch(`${API_BASE_URL}/accounts/users/${selectedUser.id}/`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -159,7 +159,7 @@ const UserManagement = () => {
 
     try {
       const token = localStorage.getItem('access_token');
-      const response = await fetch(`${API_BASE_URL}/api/accounts/users/${user.id}/`, {
+      const response = await fetch(`${API_BASE_URL}/accounts/users/${user.id}/`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
