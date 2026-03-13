@@ -203,6 +203,33 @@ export const shouldIgnoreColumn = (headerName: string): boolean => {
  */
 export const parseResearchDataFile = (headers: string[], rows: string[][]): ParsedSampleWithResults[] => {
   const results: ParsedSampleWithResults[] = [];
+  const usedSampleIds = new Set<string>();
+  const importStamp = Date.now().toString().slice(-6);
+
+  const toSafeSampleId = (value: string): string => {
+    return value
+      .trim()
+      .replace(/\s+/g, '-')
+      .replace(/[^A-Za-z0-9_-]/g, '')
+      .toUpperCase()
+      .slice(0, 50);
+  };
+
+  const getUniqueSampleId = (baseId: string, rowIndex: number): string => {
+    const fallbackBase = `IMP-${new Date().getFullYear()}-${importStamp}-${String(rowIndex + 1).padStart(4, '0')}`;
+    const safeBase = toSafeSampleId(baseId) || fallbackBase;
+
+    let candidate = safeBase;
+    let suffix = 1;
+    while (usedSampleIds.has(candidate)) {
+      const trimmedBase = safeBase.slice(0, Math.max(1, 50 - (`-${suffix}`).length));
+      candidate = `${trimmedBase}-${suffix}`;
+      suffix += 1;
+    }
+
+    usedSampleIds.add(candidate);
+    return candidate;
+  };
   
   // Find column indices
   const columnIndices: Record<string, number> = {};
@@ -276,6 +303,8 @@ export const parseResearchDataFile = (headers: string[], rows: string[][]): Pars
     if (!province || !district || !variety) {
       return;
     }
+
+    const generatedSampleId = getUniqueSampleId(sampleName, rowIndex);
     
     // Extract mycotoxin results
     const mycotoxins: ParsedSampleWithResults['mycotoxins'] = [];
@@ -296,6 +325,7 @@ export const parseResearchDataFile = (headers: string[], rows: string[][]): Pars
     
     // Create sample
     const sample: ParsedSampleWithResults['sample'] = {
+      sample_id: generatedSampleId,
       region: String(region),
       province,
       district,

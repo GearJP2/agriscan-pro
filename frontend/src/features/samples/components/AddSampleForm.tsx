@@ -82,6 +82,21 @@ const cleanText = (text: string): string => {
   return text.trim().replace(/^["']|["']$/g, '').trim();
 };
 
+const isLikelyDateValue = (value: string): boolean => {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return false;
+
+  // YYYY-MM-DD or YYYY/MM/DD
+  if (/^\d{4}[-/]\d{1,2}[-/]\d{1,2}$/.test(normalized)) return true;
+  // DD/MM/YYYY or MM/DD/YYYY
+  if (/^\d{1,2}[-/]\d{1,2}[-/]\d{4}$/.test(normalized)) return true;
+  // 21-Dec, 21 Dec, Dec-21, Dec 21
+  if (/^\d{1,2}[\s-][a-z]{3,9}$/.test(normalized)) return true;
+  if (/^[a-z]{3,9}[\s-]\d{1,2}$/.test(normalized)) return true;
+
+  return false;
+};
+
 const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps) => {
   const { isAuthenticated } = useAuth();
   const [open, setOpen] = useState(false);
@@ -350,19 +365,19 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
 
         // Fuzzy column matching
         const findColumnIndex = (searchTerms: string[]): number => {
+          const normalizedTerms = searchTerms.map(term => term.toLowerCase().trim());
+
+          // Prefer exact header matches first.
+          const exactIdx = headers.findIndex(h => normalizedTerms.includes(h.toLowerCase().trim()));
+          if (exactIdx !== -1) return exactIdx;
+
           let bestIdx = -1;
           let bestScore = 0;
           
           headers.forEach((header, idx) => {
             const headerLower = header.toLowerCase().trim();
             
-            for (const term of searchTerms) {
-              const termLower = term.toLowerCase().trim();
-              
-              // Exact match
-              if (headerLower === termLower) {
-                return; // Will set bestIdx = idx in exact match below
-              }
+            for (const termLower of normalizedTerms) {
               
               // Substring match
               if (headerLower.includes(termLower) || termLower.includes(headerLower)) {
@@ -373,17 +388,13 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
               }
             }
           });
-          
-          // Final exact match check
-          const exactIdx = headers.findIndex(h => searchTerms.includes(h));
-          if (exactIdx !== -1) return exactIdx;
-          
+
           return bestIdx;
         };
 
         const provinceIndex = findColumnIndex(['province', 'provinces']);
         const districtIndex = findColumnIndex(['district', 'districts']);
-        const varietyIndex = findColumnIndex(['vegetation_variety', 'variety', 'varieties', 'crop', 'crops']);
+        const varietyIndex = findColumnIndex(['vegetation_variety', 'variety', 'varieties', 'crop variety', 'crop_variety']);
         const dateIndex = findColumnIndex(['collection_date', 'date', 'crop_year', 'year']);
         const regionIndex = findColumnIndex(['region', 'regions', 'state', 'states']);
         const processingTypeIndex = findColumnIndex(['processing type', 'processing_type', 'process type']);
@@ -452,9 +463,9 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
           const district = getRowValue_Current(districtIndex);
           let variety = varietyIndex >= 0 ? getRowValue_Current(varietyIndex) : '';
 
-          // Validate and clean variety - reject if it's just a number (like year "2022")
-          if (variety && /^\d+$/.test(variety)) {
-            console.warn(`[FileUpload] Row ${i + 1}: variety is just a number (${variety}), treating as invalid`);
+          // Validate and clean variety - reject numeric/year and date-like values.
+          if (variety && (/^\d+$/.test(variety) || isLikelyDateValue(variety))) {
+            console.warn(`[FileUpload] Row ${i + 1}: variety looks invalid (${variety}), treating as invalid`);
             variety = '';
           }
 
@@ -621,6 +632,32 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
       const errors: string[] = [];
       const failureDetails: any[] = []; // Track detailed failure info
 
+      const createSampleWithRetry = async (sample: any, rowNumber: number) => {
+        try {
+          return await sampleAPI.createSample(sample);
+        } catch (err: any) {
+          const sampleIdError = err?.response?.data?.sample_id;
+          const sampleIdErrorText = Array.isArray(sampleIdError)
+            ? sampleIdError.join(' ').toLowerCase()
+            : String(sampleIdError || '').toLowerCase();
+
+          const isDuplicateSampleId = sampleIdErrorText.includes('already exists') || sampleIdErrorText.includes('unique');
+          if (!isDuplicateSampleId) {
+            throw err;
+          }
+
+          const baseId = String(sample.sample_id || `IMP-${new Date().getFullYear()}`)
+            .replace(/\s+/g, '-')
+            .replace(/[^A-Za-z0-9_-]/g, '')
+            .toUpperCase()
+            .slice(0, 40);
+          const retrySuffix = `${Date.now().toString().slice(-4)}${rowNumber}`;
+          const retrySampleId = `${baseId}-${retrySuffix}`.slice(0, 50);
+
+          return sampleAPI.createSample({ ...sample, sample_id: retrySampleId });
+        }
+      };
+
       for (let i = 0; i < parsedData.length; i++) {
         let parsed: any = null; // Declare outside try-catch for catch block access
         try {
@@ -651,7 +688,7 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
           if (parsed.mycotoxins && parsed.mycotoxins.length > 0) {
             // Has mycotoxin results - create sample and link tests
             console.log(`[Import] Creating sample with ${parsed.mycotoxins.length} mycotoxin results`);
-            const sampleResponse = await sampleAPI.createSample(sample as any);
+            const sampleResponse = await createSampleWithRetry(sample as any, i + 1);
             const sampleId = sampleResponse.sample_id;
             console.log(`[Import] Sample created: ${sampleId}`);
 
@@ -667,7 +704,7 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
           } else {
             // Simple sample without toxins
             console.log(`[Import] Creating simple sample`);
-            await sampleAPI.createSample(sample as any);
+            await createSampleWithRetry(sample as any, i + 1);
             successCount++;
           }
           console.log(`[Import] Sample ${i + 1} completed successfully`);
