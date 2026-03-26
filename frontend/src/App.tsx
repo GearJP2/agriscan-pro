@@ -18,6 +18,7 @@ import Settings from "./pages/Settings";
 import Activity from "./pages/Activity";
 import Notifications from "./pages/Notifications";
 import ProtectedRoute from "./components/ProtectedRoute";
+import SurveillanceDashboard from "./components/surveillance/SurveillanceDashboard";
 
 const queryClient = new QueryClient();
 
@@ -41,6 +42,7 @@ const App = () => (
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/samples" element={<SampleList />} />
               <Route path="/prediction" element={<Prediction />} />
+              <Route path="/surveillance" element={<SurveillanceDashboard />} />
 
               {/* Protected Routes */}
               <Route element={<ProtectedRoute />}>
