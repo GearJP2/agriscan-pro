@@ -1,7 +1,8 @@
 import logging
 import time
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from django.core.cache import cache
+from django.conf import settings
 from django.http import JsonResponse
 from accounts.models import User
 
@@ -12,7 +13,7 @@ class RateLimitMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
-        if request.path.startswith('/api/'):
+        if request.path.startswith('/api/') and not getattr(settings, 'IS_TESTING', False):
             user_id = request.user.id if request.user.is_authenticated else self.get_client_ip(request)
             minute = int(time.time() // 60)
             
@@ -26,7 +27,14 @@ class RateLimitMiddleware:
                     self.handle_violation(request.user)
                 else:
                     logger.warning('ratelimit.exceeded', extra={'ip': user_id, 'path': request.path})
-                return JsonResponse({'error': 'Rate limit exceeded. Try again later.'}, status=429)
+                return JsonResponse({
+                    'error': {
+                        'code': 'rate_limit_exceeded',
+                        'message': 'Rate limit exceeded. Try again later.',
+                    },
+                    'status': 'error',
+                    'timestamp': datetime.now(timezone.utc).isoformat(),
+                }, status=429)
 
             cache.set(req_key, requests + 1, 60)
 

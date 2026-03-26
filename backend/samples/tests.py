@@ -226,6 +226,18 @@ class SampleCRUDEdgeCaseTests(SampleTestMixin, TestCase):
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
+    def test_update_nonexistent_sample_returns_404(self):
+        """PATCH on a sample_id that does not exist should return 404."""
+        url = reverse('sample-detail', kwargs={'sample_id': 'DOES-NOT-EXIST'})
+        response = self.client.patch(url, {'status': 'in_progress'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_delete_nonexistent_sample_returns_404(self):
+        """DELETE on a sample_id that does not exist should return 404."""
+        url = reverse('sample-detail', kwargs={'sample_id': 'DOES-NOT-EXIST'})
+        response = self.client.delete(url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
     def test_create_sample_auto_creates_initial_process_log(self):
         """Creating a sample through the API should auto-create a 'registered' process log."""
         from .models import ProcessLog
@@ -274,6 +286,22 @@ class SampleStatisticsTests(SampleTestMixin, TestCase):
         self.assertEqual(response.data['completed'], 1)
         self.assertEqual(response.data['flagged'], 1)
         self.assertEqual(response.data['pending'], 1)
+
+    def test_statistics_high_risk_count_with_dangerous_result(self):
+        """high_risk should count samples that have at least one dangerous=True result."""
+        from .models import MycotoxinResult
+        flagged_sample = Sample.objects.get(sample_id='STAT-002')
+        MycotoxinResult.objects.create(
+            sample=flagged_sample,
+            name='Aflatoxin B1',
+            intensity=9,
+            dangerous=True,
+            threshold=4.0,
+            unit='ppb',
+        )
+        url = reverse('sample-statistics')
+        response = self.client.get(url)
+        self.assertEqual(response.data['high_risk'], 1)
 
     def test_recent_alerts_returns_only_flagged_samples(self):
         """recent_alerts should only include samples with status='flagged'."""
@@ -325,6 +353,13 @@ class ProcessLogTests(SampleTestMixin, TestCase):
         response = self.client.post(url, payload, format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_add_process_log_to_nonexistent_sample_returns_404(self):
+        """POSTing a process log to a sample_id that does not exist should return 404."""
+        url = reverse('sample-add-process-log', kwargs={'sample_id': 'NO-SUCH-SAMPLE'})
+        payload = {'state': 'preparing', 'conducted_by': 'Lab Tech'}
+        response = self.client.post(url, payload, format='json')
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
 
 class MycotoxinResultTests(SampleTestMixin, TestCase):
     """Tests for the add_mycotoxin_result custom action."""
@@ -362,6 +397,21 @@ class MycotoxinResultTests(SampleTestMixin, TestCase):
         response = self.client.post(self.mycotoxin_url, payload, format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_add_mycotoxin_result_to_nonexistent_sample_returns_404(self):
+        """POSTing a mycotoxin result to a sample_id that does not exist should return 404."""
+        url = reverse('sample-add-mycotoxin-result', kwargs={'sample_id': 'NO-SUCH-SAMPLE'})
+        response = self.client.post(url, self.valid_payload, format='json')
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_risk_level_safe_with_no_results(self):
+        """A sample with no mycotoxin results should have risk_level='safe'."""
+        url = reverse('sample-list')
+        response = self.client.get(url)
+        results = response.data if not isinstance(response.data, dict) else response.data.get('results', [])
+        sample_entry = next((s for s in results if s['sample_id'] == self.sample.sample_id), None)
+        self.assertIsNotNone(sample_entry)
+        self.assertEqual(sample_entry['risk_level'], 'safe')
+
     def test_risk_level_high_with_dangerous_result(self):
         """A sample with a dangerous=True result should report risk_level='high'."""
         from .models import MycotoxinResult
@@ -379,6 +429,42 @@ class MycotoxinResultTests(SampleTestMixin, TestCase):
         sample_entry = next((s for s in results if s['sample_id'] == self.sample.sample_id), None)
         self.assertIsNotNone(sample_entry)
         self.assertEqual(sample_entry['risk_level'], 'high')
+
+    def test_risk_level_medium_with_intensity_7(self):
+        """A sample with max intensity >= 7 and dangerous=False should have risk_level='medium'."""
+        from .models import MycotoxinResult
+        MycotoxinResult.objects.create(
+            sample=self.sample,
+            name='Fumonisin B1',
+            intensity=7,
+            dangerous=False,
+            threshold=4.0,
+            unit='ppb',
+        )
+        url = reverse('sample-list')
+        response = self.client.get(url)
+        results = response.data if not isinstance(response.data, dict) else response.data.get('results', [])
+        sample_entry = next((s for s in results if s['sample_id'] == self.sample.sample_id), None)
+        self.assertIsNotNone(sample_entry)
+        self.assertEqual(sample_entry['risk_level'], 'medium')
+
+    def test_risk_level_low_with_intensity_4(self):
+        """A sample with max intensity in [4, 6] and dangerous=False should have risk_level='low'."""
+        from .models import MycotoxinResult
+        MycotoxinResult.objects.create(
+            sample=self.sample,
+            name='Deoxynivalenol',
+            intensity=4,
+            dangerous=False,
+            threshold=4.0,
+            unit='ppb',
+        )
+        url = reverse('sample-list')
+        response = self.client.get(url)
+        results = response.data if not isinstance(response.data, dict) else response.data.get('results', [])
+        sample_entry = next((s for s in results if s['sample_id'] == self.sample.sample_id), None)
+        self.assertIsNotNone(sample_entry)
+        self.assertEqual(sample_entry['risk_level'], 'low')
 
 
 class SampleUnauthenticatedTests(TestCase):
@@ -398,3 +484,46 @@ class SampleUnauthenticatedTests(TestCase):
         url = reverse('sample-list')
         response = self.client.post(url, {}, format='json')
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+class SampleErrorHandlingTests(SampleTestMixin, TestCase):
+    """Tests for error handling and custom exception responses."""
+
+    def test_get_nonexistent_sample_returns_404_with_error_envelope(self):
+        """Getting a non-existent sample should return 404 with consistent error format."""
+        url = reverse('sample-detail', kwargs={'sample_id': 'NONEXISTENT'})
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertIn('error', response.data)
+        self.assertIn('code', response.data['error'])
+        self.assertIn('message', response.data['error'])
+        self.assertEqual(response.data['status'], 'error')
+        self.assertIn('timestamp', response.data)
+
+    def test_create_sample_missing_required_fields_returns_400_with_details(self):
+        """Creating a sample with missing required fields should return 400 with field details."""
+        url = reverse('sample-list')
+        invalid_data = {'sample_id': 'TEST-002'}  # Missing many required fields
+        response = self.client.post(url, invalid_data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('error', response.data)
+        self.assertIn('code', response.data['error'])
+        self.assertEqual(response.data['error']['message'], 'Validation failed.')
+        self.assertIn('details', response.data['error'])
+        self.assertEqual(response.data['status'], 'error')
+
+    def test_bulk_create_duplicate_sample_id_returns_409(self):
+        """Bulk creating a sample with existing sample_id should return 409."""
+        # Create first sample
+        Sample.objects.create(**self.sample_data, updated_by=self.user)
+
+        # Try to bulk create with the same sample_id - reuse sample_data to ensure all fields are valid
+        url = reverse('sample-bulk-create')
+        bulk_data = [self.sample_data.copy()]  # Use same data with same sample_id
+        bulk_data[0]['collection_date'] = '2026-01-20'  # Just change the date
+
+        response = self.client.post(url, bulk_data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertIn('error', response.data)
+        self.assertEqual(response.data['error']['code'], 'sample_already_exists')
+        self.assertEqual(response.data['status'], 'error')

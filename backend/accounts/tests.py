@@ -196,3 +196,41 @@ class AuthorizationTests(TestCase):
         url = reverse('sample-list')
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+
+class UserErrorHandlingTests(TestCase):
+    """Tests for error handling in user endpoints."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.user = User.objects.create_user(
+            username='testuser',
+            email='test@example.com',
+            name='Test User',
+            password='StrongPass123!',
+        )
+        self.client.force_authenticate(user=self.user)
+
+    def test_login_wrong_password_returns_error_envelope(self):
+        """Login with wrong password should return 401 with consistent error format."""
+        url = reverse('token_obtain_pair')
+        response = self.client.post(
+            url,
+            {'username': 'testuser', 'password': 'WrongPassword123!'},
+            format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertIn('error', response.data)
+        self.assertIn('code', response.data['error'])
+        self.assertEqual(response.data['status'], 'error')
+        self.assertIn('timestamp', response.data)
+
+    def test_get_nonexistent_user_returns_404(self):
+        """Getting a non-existent user should return 404 with consistent error format."""
+        url = reverse('user-detail', kwargs={'pk': 99999})
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertIn('error', response.data)
+        self.assertIn('code', response.data['error'])
+        self.assertEqual(response.data['status'], 'error')
+        self.assertIn('timestamp', response.data)

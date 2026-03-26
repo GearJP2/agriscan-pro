@@ -1,4 +1,5 @@
 import logging
+from django.db import IntegrityError
 from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -12,6 +13,7 @@ from .serializers import (
     ProcessLogSerializer,
     MycotoxinResultSerializer,
 )
+from core.exceptions import SampleAlreadyExists
 
 logger = logging.getLogger('agriscan.samples')
 
@@ -127,6 +129,13 @@ class SampleViewSet(viewsets.ModelViewSet):
         """Bulk create samples"""
         data = request.data if isinstance(request.data, list) else [request.data]
 
+        # Check for existing sample_ids before validation (returns 409 instead of 400)
+        incoming_ids = [item.get('sample_id') for item in data if isinstance(item, dict) and item.get('sample_id')]
+        if incoming_ids:
+            existing = list(Sample.objects.filter(sample_id__in=incoming_ids).values_list('sample_id', flat=True))
+            if existing:
+                raise SampleAlreadyExists(detail=f"Sample ID(s) already exist: {', '.join(existing)}")
+
         serializer = SampleCreateUpdateSerializer(data=data, many=True)
         if not serializer.is_valid():
             logger.error('sample.bulk_create.validation_error', extra={'error_count': len(serializer.errors), 'user': self.request.user.username})
@@ -148,9 +157,12 @@ class SampleViewSet(viewsets.ModelViewSet):
                 validated_item['additional_info'] = ''
             
             # Create sample with updated_by field
-            sample = Sample.objects.create(**validated_item, updated_by=request.user)
+            try:
+                sample = Sample.objects.create(**validated_item, updated_by=request.user)
+            except IntegrityError:
+                raise SampleAlreadyExists(detail=f"Sample ID '{validated_item.get('sample_id')}' already exists.")
             samples.append(sample)
-            
+
             # Create initial process log
             ProcessLog.objects.create(
                 sample=sample,
