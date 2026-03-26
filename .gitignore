@@ -23,18 +23,12 @@ Thumbs.db
 venv/
 env/
 
-# Agent Orchestrator
-agents-orchestrator/node_modules/
-agents-orchestrator/logs/
-agents-orchestrator/.env
-agents-orchestrator/.env.local
-agents-orchestrator/dist/
+# Agent Orchestrator (30 files - WIP, not yet integrated)
+agents-orchestrator/
 
-# MCP Servers
-.mcp/.env
-.mcp/.env.local
-.mcp/node_modules/
-.mcp/logs/
+# MCP Servers (29 files - WIP, not yet integrated)
+.mcp/
+.mcp.json
 
 # Claude Code local settings
 .claude/settings.local.json
