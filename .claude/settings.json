@@ -1,0 +1,57 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "agent",
+            "prompt": "Route this task to the appropriate agent. Analyze the user request and determine which agent(s) should handle it:\n\n1. Orchestrator Agent - Task routing, dependency checking, escalation\n2. Dev Agent - Full stack development (boilerplate, migrations, PR review, tests)\n3. Data Pipeline Agent - Data ingestion from sensors/CSV, validation, schema, database loading\n4. Research Collab Agent - Researcher requests (datasets, model fields, experiment data, notifications)\n5. DevOps Agent - CI/CD, environment provisioning, secrets, monitoring\n6. QA Agent - Testing, data quality checks, schema validation\n7. Report/Notify Agent - Slack/Email/PDF reporting, dashboards\n\nAnalyze the task and respond with: AGENT_NAME and brief reasoning.",
+            "statusMessage": "Routing task to appropriate agent...",
+            "model": "claude-opus-4-6"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "agent",
+            "prompt": "Code review post-write check: Verify the code follows project patterns and has no obvious issues. File: $ARGUMENTS. Check:\n1. Syntax correctness\n2. Project conventions\n3. Security issues\n4. Missing imports/types",
+            "statusMessage": "Running code review...",
+            "model": "claude-haiku-4-5-20251001"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "agent",
+            "prompt": "Verify command execution safety and success: $ARGUMENTS. Check exit codes and output for errors.",
+            "statusMessage": "Verifying command execution...",
+            "model": "claude-haiku-4-5-20251001"
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Read",
+      "Glob",
+      "Grep",
+      "Bash(git:*)",
+      "Bash(npm:*)",
+      "Bash(docker:*)",
+      "Edit",
+      "Write"
+    ]
+  },
+  "env": {
+    "AGRISCAN_ENV": "development",
+    "LOG_LEVEL": "info"
+  }
+}
