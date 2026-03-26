@@ -1,8 +1,11 @@
+import logging
 import time
 from datetime import datetime, date
 from django.core.cache import cache
 from django.http import JsonResponse
 from accounts.models import User
+
+logger = logging.getLogger('agriscan.middleware')
 
 class RateLimitMiddleware:
     def __init__(self, get_response):
@@ -19,7 +22,10 @@ class RateLimitMiddleware:
             
             if requests >= 100:
                 if request.user.is_authenticated:
+                    logger.warning('ratelimit.exceeded', extra={'user': request.user.username, 'path': request.path})
                     self.handle_violation(request.user)
+                else:
+                    logger.warning('ratelimit.exceeded', extra={'ip': user_id, 'path': request.path})
                 return JsonResponse({'error': 'Rate limit exceeded. Try again later.'}, status=429)
 
             cache.set(req_key, requests + 1, 60)
@@ -54,5 +60,6 @@ class RateLimitMiddleware:
                     db_user = User.objects.get(id=user.id)
                     db_user.is_active = False
                     db_user.save()
+                    logger.error('ratelimit.account_deactivated', extra={'user': db_user.username, 'violation_count': violations})
                 except User.DoesNotExist:
                     pass

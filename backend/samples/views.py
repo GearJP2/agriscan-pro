@@ -1,3 +1,4 @@
+import logging
 from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -11,6 +12,8 @@ from .serializers import (
     ProcessLogSerializer,
     MycotoxinResultSerializer,
 )
+
+logger = logging.getLogger('agriscan.samples')
 
 
 class SampleViewSet(viewsets.ModelViewSet):
@@ -65,6 +68,7 @@ class SampleViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         sample = serializer.save(updated_by=self.request.user)
+        logger.info('sample.created', extra={'sample_id': sample.sample_id, 'user': self.request.user.username})
         # Create initial process log for new samples
         if not sample.process_logs.exists():
             ProcessLog.objects.create(
@@ -75,7 +79,8 @@ class SampleViewSet(viewsets.ModelViewSet):
             )
 
     def perform_update(self, serializer):
-        serializer.save(updated_by=self.request.user)
+        sample = serializer.save(updated_by=self.request.user)
+        logger.info('sample.updated', extra={'sample_id': sample.sample_id, 'user': self.request.user.username})
 
     @action(detail=False, methods=['get'])
     def statistics(self, request):
@@ -112,7 +117,8 @@ class SampleViewSet(viewsets.ModelViewSet):
         sample = self.get_object()
         serializer = ProcessLogSerializer(data=request.data)
         if serializer.is_valid():
-            serializer.save(sample=sample)
+            process_log = serializer.save(sample=sample)
+            logger.info('sample.process_log.added', extra={'sample_id': sample.sample_id, 'state': process_log.state})
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -120,14 +126,10 @@ class SampleViewSet(viewsets.ModelViewSet):
     def bulk_create(self, request):
         """Bulk create samples"""
         data = request.data if isinstance(request.data, list) else [request.data]
-        
+
         serializer = SampleCreateUpdateSerializer(data=data, many=True)
         if not serializer.is_valid():
-            # Log validation errors for debugging
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.error(f"Bulk create validation errors: {serializer.errors}")
-            logger.error(f"Request data: {data}")
+            logger.error('sample.bulk_create.validation_error', extra={'error_count': len(serializer.errors), 'user': self.request.user.username})
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         
         samples = []
@@ -156,7 +158,8 @@ class SampleViewSet(viewsets.ModelViewSet):
                 notes=f'Bulk imported - {len(data)} samples',
                 conducted_by=request.user.username or 'System'
             )
-        
+
+        logger.info('sample.bulk_created', extra={'count': len(samples), 'user': self.request.user.username})
         return Response(SampleSerializer(samples, many=True).data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['post'])
@@ -165,7 +168,10 @@ class SampleViewSet(viewsets.ModelViewSet):
         sample = self.get_object()
         serializer = MycotoxinResultSerializer(data=request.data)
         if serializer.is_valid():
-            serializer.save(sample=sample)
+            result = serializer.save(sample=sample)
+            logger.info('sample.mycotoxin_result.added', extra={'sample_id': sample.sample_id, 'test_method': result.test_method, 'dangerous': result.dangerous})
+            if result.dangerous:
+                logger.warning('sample.dangerous_result', extra={'sample_id': sample.sample_id, 'test_method': result.test_method, 'intensity': result.intensity})
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 

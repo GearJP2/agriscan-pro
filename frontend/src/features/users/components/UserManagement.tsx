@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Users, UserPlus, Search, Shield, UserCheck, UserX } from 'lucide-react';
 import API_BASE_URL from '@/config/api';
+import { getAccessToken } from '@/lib/tokenStorage';
 import Header from '@/components/Header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -52,7 +53,7 @@ const UserManagement = () => {
   // Fetch users from backend
   const fetchUsers = async () => {
     try {
-      const token = localStorage.getItem('access_token');
+      const token = getAccessToken();
       const response = await fetch(`${API_BASE_URL}/accounts/users/`, {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -119,7 +120,7 @@ const UserManagement = () => {
     if (!selectedUser) return;
 
     try {
-      const token = localStorage.getItem('access_token');
+      const token = getAccessToken();
       const response = await fetch(`${API_BASE_URL}/accounts/users/${selectedUser.id}/`, {
         method: 'PATCH',
         headers: {
@@ -158,7 +159,7 @@ const UserManagement = () => {
     const newIsActive = newStatus === 'active';
 
     try {
-      const token = localStorage.getItem('access_token');
+      const token = getAccessToken();
       const response = await fetch(`${API_BASE_URL}/accounts/users/${user.id}/`, {
         method: 'PATCH',
         headers: {

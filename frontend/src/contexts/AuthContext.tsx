@@ -1,6 +1,13 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { jwtDecode } from 'jwt-decode';
 import API_BASE_URL from '@/config/api';
+import {
+  getAccessToken,
+  getRefreshToken,
+  setTokens,
+  clearTokens,
+  migrateFromLocalStorage,
+} from '@/lib/tokenStorage';
 
 export type UserRole = 'user' | 'admin' | 'researcher' | 'research_assistant' | 'head_researcher' | 'guest';
 
@@ -49,30 +56,41 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const isAdmin = isAuthenticated && (role === 'admin' || role === 'head_researcher');
 
   useEffect(() => {
+    // Migrate any tokens left in localStorage by the old implementation
+    migrateFromLocalStorage();
+
     const checkAuth = async () => {
-      const token = localStorage.getItem('access_token');
+      const token = getAccessToken();
       if (token) {
         try {
           const decoded: TokenPayload = jwtDecode(token);
           if (decoded.exp * 1000 < Date.now()) {
+            // Access token expired -- try silent refresh
+            const refreshToken = getRefreshToken();
+            if (refreshToken) {
+              try {
+                const refreshRes = await fetch(`${API_BASE_URL}/accounts/login/refresh/`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ refresh: refreshToken }),
+                });
+                if (refreshRes.ok) {
+                  const refreshData = await refreshRes.json();
+                  setTokens(refreshData.access, refreshData.refresh || refreshToken);
+                  // Continue with the new access token
+                  const newDecoded: TokenPayload = jwtDecode(refreshData.access);
+                  await fetchAndSetUser(refreshData.access, newDecoded.user_id);
+                  return;
+                }
+              } catch {
+                // Refresh failed, fall through to logout
+              }
+            }
             logout();
             return;
           }
 
-      const userRes = await fetch(`${API_BASE_URL}/accounts/users/${decoded.user_id}/`, {
-            headers: {
-              'Authorization': `Bearer ${token}`
-            }
-          });
-          if (userRes.ok) {
-            const userData = await userRes.json();
-            setIsAuthenticated(true);
-            setCurrentUser(userData);
-            setRole(userData.role);
-            setUserName(userData.name);
-          } else {
-            logout();
-          }
+          await fetchAndSetUser(token, decoded.user_id);
         } catch (e) {
           logout();
         }
@@ -80,6 +98,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
     checkAuth();
   }, []);
+
+  const fetchAndSetUser = async (token: string, userId: number) => {
+    const userRes = await fetch(`${API_BASE_URL}/accounts/users/${userId}/`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    if (userRes.ok) {
+      const userData = await userRes.json();
+      setIsAuthenticated(true);
+      setCurrentUser(userData);
+      setRole(userData.role);
+      setUserName(userData.name);
+    } else {
+      logout();
+    }
+  };
 
   const login = async (username: string, password: string) => {
     try {
@@ -95,8 +130,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
 
       const data = await response.json();
-      localStorage.setItem('access_token', data.access);
-      localStorage.setItem('refresh_token', data.refresh);
+
+      // Store tokens in secure in-memory storage (NOT localStorage)
+      setTokens(data.access, data.refresh);
 
       const decoded: TokenPayload = jwtDecode(data.access);
 
@@ -119,8 +155,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const logout = () => {
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
+    clearTokens();
     setIsAuthenticated(false);
     setCurrentUser(null);
   };

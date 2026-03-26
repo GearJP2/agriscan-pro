@@ -13,6 +13,7 @@ backend/__pycache__/
 *$py.class
 backend/db.sqlite3
 backend/.env
+backend/logs/
 
 # OS
 .DS_Store

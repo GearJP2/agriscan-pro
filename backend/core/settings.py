@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'rest_framework_simplejwt',
+    'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
     'storages',
     'accounts',
@@ -222,11 +223,11 @@ REST_FRAMEWORK = {
 
 from datetime import timedelta
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(days=7),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=14),
-    'ROTATE_REFRESH_TOKENS': False,
-    'BLACKLIST_AFTER_ROTATION': False,
-    'UPDATE_LAST_LOGIN': False,
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=15),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
+    'UPDATE_LAST_LOGIN': True,
 
     'ALGORITHM': 'HS256',
     'SIGNING_KEY': SECRET_KEY,
@@ -254,3 +255,103 @@ SIMPLE_JWT = {
 SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = 'DENY'
+
+# Structured Logging Configuration
+import json
+import logging.config
+import sys
+
+class StructuredFormatter(logging.Formatter):
+    """JSON-structured logging formatter"""
+    def format(self, record):
+        log_obj = {
+            'timestamp': self.formatTime(record),
+            'level': record.levelname,
+            'logger': record.name,
+            'message': record.getMessage(),
+        }
+        if hasattr(record, 'request_id'):
+            log_obj['request_id'] = record.request_id
+        if record.exc_info:
+            log_obj['exc_info'] = self.formatException(record.exc_info)
+        if hasattr(record, '__dict__'):
+            for key, value in record.__dict__.items():
+                if key not in ('name', 'msg', 'args', 'created', 'filename', 'funcName', 'levelname', 'levelno', 'lineno', 'module', 'msecs', 'message', 'pathname', 'process', 'processName', 'relativeCreated', 'thread', 'threadName', 'exc_info', 'exc_text', 'stack_info', 'request_id'):
+                    log_obj[key] = value
+        return json.dumps(log_obj)
+
+# Check if we're running tests
+IS_TESTING = 'test' in sys.argv or 'pytest' in sys.argv[0]
+
+# Build handlers dictionary - only include file handlers in production
+_handlers = {
+    'console': {
+        'class': 'logging.StreamHandler',
+        'formatter': 'verbose' if DEBUG else 'structured',
+    },
+}
+
+# Add file handlers only if not testing
+if not IS_TESTING:
+    _logs_dir = BASE_DIR / 'logs'
+    _logs_dir.mkdir(exist_ok=True)
+
+    _handlers['app_file'] = {
+        'class': 'logging.handlers.RotatingFileHandler',
+        'filename': os.environ.get('AGRISCAN_LOG_DIR', str(_logs_dir)) + '/app.log',
+        'maxBytes': 10485760,  # 10MB
+        'backupCount': 5,
+        'formatter': 'structured',
+    }
+    _handlers['error_file'] = {
+        'class': 'logging.handlers.RotatingFileHandler',
+        'filename': os.environ.get('AGRISCAN_LOG_DIR', str(_logs_dir)) + '/error.log',
+        'maxBytes': 10485760,  # 10MB
+        'backupCount': 5,
+        'formatter': 'structured',
+        'level': 'ERROR',
+    }
+    _handlers['audit_file'] = {
+        'class': 'logging.handlers.RotatingFileHandler',
+        'filename': os.environ.get('AGRISCAN_LOG_DIR', str(_logs_dir)) + '/audit.log',
+        'maxBytes': 10485760,  # 10MB
+        'backupCount': 5,
+        'formatter': 'structured',
+    }
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'structured': {
+            '()': StructuredFormatter,
+        },
+        'verbose': {
+            'format': '[{levelname}] {asctime} {name} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': _handlers,
+    'loggers': {
+        'agriscan.samples': {
+            'handlers': ['console'] + (['app_file', 'error_file'] if not IS_TESTING else []),
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'agriscan.accounts': {
+            'handlers': ['console'] + (['app_file', 'error_file'] if not IS_TESTING else []),
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'agriscan.middleware': {
+            'handlers': ['console'] + (['app_file', 'error_file'] if not IS_TESTING else []),
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'agriscan.audit': {
+            'handlers': ['console'] + (['audit_file'] if not IS_TESTING else []),
+            'level': 'INFO',
+            'propagate': False,
+        },
+    },
+}

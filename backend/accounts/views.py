@@ -1,11 +1,24 @@
-from rest_framework import generics, permissions
+import logging
+from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from .serializers import RegisterSerializer, UserSerializer, CustomTokenObtainPairSerializer
 from .repositories import UserRepository, UserActionLogRepository
 from rest_framework_simplejwt.views import TokenObtainPairView
 
+logger = logging.getLogger('agriscan.accounts')
+
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
+
+    def post(self, request, *args, **kwargs):
+        response = super().post(request, *args, **kwargs)
+        if response.status_code == 200:
+            email = request.data.get('email', 'unknown')
+            logger.info('user.login.success', extra={'email': email})
+        else:
+            email = request.data.get('email', 'unknown')
+            logger.warning('user.login.failed', extra={'email': email, 'reason': 'invalid_credentials'})
+        return response
 
 
 class RegisterView(generics.CreateAPIView):
@@ -14,6 +27,10 @@ class RegisterView(generics.CreateAPIView):
     serializer_class = RegisterSerializer
     # CreateAPIView does not need a queryset as long as we don't need to fetch objects
     # but the serializer still needs to be capable of creation.
+
+    def perform_create(self, serializer):
+        user = serializer.save()
+        logger.info('user.registered', extra={'email': user.email, 'user_id': str(user.id)})
 
 class UserListView(generics.ListAPIView):
     permission_classes = (permissions.IsAuthenticated,)
@@ -46,7 +63,8 @@ class UserDetailView(generics.RetrieveUpdateDestroyAPIView):
                 action='CHANGED_ROLE',
                 details=f"Changed role from '{old_role}' to '{updated_user.role}'"
             )
-        
+            logger.info('user.updated', extra={'actor': self.request.user.username, 'target': updated_user.email, 'change': 'role', 'old_value': old_role, 'new_value': updated_user.role})
+
         if old_status != updated_user.is_active:
             status_text = "Activated" if updated_user.is_active else "Deactivated"
             UserActionLogRepository.log_action(
@@ -55,3 +73,4 @@ class UserDetailView(generics.RetrieveUpdateDestroyAPIView):
                 action='CHANGED_STATUS',
                 details=f"{status_text} user account"
             )
+            logger.info('user.updated', extra={'actor': self.request.user.username, 'target': updated_user.email, 'change': 'status', 'old_value': old_status, 'new_value': updated_user.is_active})

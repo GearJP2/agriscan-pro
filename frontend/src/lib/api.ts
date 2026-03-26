@@ -1,5 +1,16 @@
 import axios from 'axios';
 import { Sample, ProcessLog, RiskLevel } from '@/types/sample';
+import {
+  getAccessToken,
+  getRefreshToken,
+  setTokens,
+  clearTokens,
+  migrateFromLocalStorage,
+} from '@/lib/tokenStorage';
+import { logger } from '@/lib/logger';
+
+// Migrate any tokens left in localStorage by the previous implementation
+migrateFromLocalStorage();
 
 // Configure base URL for API
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV
@@ -14,10 +25,10 @@ const apiClient = axios.create({
   },
 });
 
-// Add token to requests
+// Add token to requests (reads from secure in-memory storage)
 apiClient.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('access_token');
+    const token = getAccessToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -26,15 +37,87 @@ apiClient.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Handle response errors
-apiClient.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
-      window.location.href = '/login';
+// ---------- Automatic silent token refresh ----------
+// Prevents multiple concurrent refresh requests.
+let isRefreshing = false;
+let failedQueue: Array<{
+  resolve: (token: string) => void;
+  reject: (error: unknown) => void;
+}> = [];
+
+const processQueue = (error: unknown, token: string | null = null) => {
+  failedQueue.forEach((prom) => {
+    if (token) {
+      prom.resolve(token);
+    } else {
+      prom.reject(error);
     }
+  });
+  failedQueue = [];
+};
+
+apiClient.interceptors.response.use(
+  (response) => {
+    logger.debug('api.request_success', { url: response.config.url, status: response.status });
+    return response;
+  },
+  async (error) => {
+    const originalRequest = error.config;
+    logger.warn('api.request_failed', { url: originalRequest?.url, status: error.response?.status });
+
+    // If we get a 401 and this is NOT the refresh request itself, try to refresh
+    if (
+      error.response?.status === 401 &&
+      !originalRequest._retry &&
+      !originalRequest.url?.includes('login/refresh')
+    ) {
+      if (isRefreshing) {
+        // Another refresh is in-flight; queue this request
+        return new Promise((resolve, reject) => {
+          failedQueue.push({
+            resolve: (token: string) => {
+              originalRequest.headers.Authorization = `Bearer ${token}`;
+              resolve(apiClient(originalRequest));
+            },
+            reject: (err: unknown) => reject(err),
+          });
+        });
+      }
+
+      originalRequest._retry = true;
+      isRefreshing = true;
+
+      const currentRefreshToken = getRefreshToken();
+      if (!currentRefreshToken) {
+        clearTokens();
+        window.location.href = '/login';
+        return Promise.reject(error);
+      }
+
+      try {
+        // Call the Django token refresh endpoint
+        const { data } = await axios.post(`${API_BASE_URL}/accounts/login/refresh/`, {
+          refresh: currentRefreshToken,
+        });
+
+        // Store new tokens (the backend now rotates refresh tokens too)
+        setTokens(data.access, data.refresh || currentRefreshToken);
+
+        // Retry the original request with the new access token
+        originalRequest.headers.Authorization = `Bearer ${data.access}`;
+        processQueue(null, data.access);
+        return apiClient(originalRequest);
+      } catch (refreshError) {
+        processQueue(refreshError, null);
+        clearTokens();
+        window.location.href = '/login';
+        return Promise.reject(refreshError);
+      } finally {
+        isRefreshing = false;
+      }
+    }
+
+    // For non-401 errors or if refresh failed, reject normally
     return Promise.reject(error);
   }
 );
@@ -166,10 +249,10 @@ export const sampleAPI = {
   async bulkCreateSamples(data: Partial<Sample>[]) {
     try {
       const response = await apiClient.post('/samples/bulk_create/', data);
+      logger.info('api.bulk_create.success', { count: data.length });
       return response.data;
     } catch (error: any) {
-      console.error('Bulk create error response:', error.response?.data);
-      console.error('Bulk create request data:', data);
+      logger.error('api.bulk_create.failed', error, { count: data.length, status: error.response?.status });
       throw error;
     }
   },
