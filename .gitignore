@@ -36,6 +36,9 @@ agents-orchestrator/
 .claude/plans/
 .claude/memory/
 
+# Local review/analysis docs (not for repo)
+CODE_REVIEW.md
+
 # IDE & Editor
 .vscode/
 .idea/
