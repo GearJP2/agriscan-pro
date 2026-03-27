@@ -12,11 +12,11 @@ const Dashboard = () => {
   const { isAdmin, isAuthenticated } = useAuth();
 
   // fetch samples for dashboard calculations - use 'samples-dashboard' key for cache isolation
-  const { data: samplesData, isLoading, error } = useQuery(
-    ['samples-dashboard'],
-    () => sampleAPI.getSamples(undefined, 1000),
-    { enabled: isAuthenticated }
-  );
+  const { data: samplesData, isLoading, error } = useQuery({
+    queryKey: ['samples-dashboard'],
+    queryFn: () => sampleAPI.getSamples(undefined, 1000),
+    enabled: isAuthenticated,
+  });
   const samples = samplesData?.results || samplesData || [];
 
   return (

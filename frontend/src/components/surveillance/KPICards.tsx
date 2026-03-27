@@ -1,6 +1,8 @@
 import { kpiData } from '@/data/mockDashboardData';
 import type { KPICard } from '@/types/dashboard';
+import { Card, CardContent } from '@/components/ui/card';
 import { ArrowUp, ArrowDown } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 function DeltaBadge({ card }: { card: KPICard }) {
   if (card.delta === null || card.deltaDirection === null) return null;
@@ -9,15 +11,15 @@ function DeltaBadge({ card }: { card: KPICard }) {
   const isBad = card.isImprovement === false;
 
   const colorClass = isGood
-    ? 'bg-emerald-500/20 text-emerald-400'
+    ? 'bg-success/20 text-success'
     : isBad
-      ? 'bg-red-500/20 text-red-400'
-      : 'bg-gray-500/20 text-gray-400';
+      ? 'bg-danger/20 text-danger'
+      : 'bg-muted text-muted-foreground';
 
   const Icon = card.deltaDirection === 'up' ? ArrowUp : ArrowDown;
 
   return (
-    <span className={`inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-xs font-medium ${colorClass}`}>
+    <span className={cn('inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-xs font-medium', colorClass)}>
       <Icon className="h-3 w-3" />
       {Math.abs(card.delta)}%
     </span>
@@ -25,7 +27,6 @@ function DeltaBadge({ card }: { card: KPICard }) {
 }
 
 export default function KPICards({ filters }: { filters?: { commodities: string[]; regions: string[] } }) {
-  // Re-render with filtered data (mock: vary values slightly based on filter count)
   const scale = filters && (filters.commodities.length > 0 || filters.regions.length > 0)
     ? 0.6 + Math.random() * 0.4
     : 1;
@@ -36,33 +37,35 @@ export default function KPICards({ filters }: { filters?: { commodities: string[
         {kpiData.cards.map((card) => {
           const hasRedAccent = card.accent === 'red';
           return (
-            <div
+            <Card
               key={card.label}
-              className={`
-                relative rounded-xl bg-gray-900 border border-gray-800 p-5
-                ${hasRedAccent ? 'border-l-4 border-l-red-500 shadow-[0_0_15px_rgba(239,68,68,0.15)]' : ''}
-              `}
+              className={cn(
+                'glass-card relative',
+                hasRedAccent && 'border-l-4 border-l-danger shadow-[0_0_15px_rgba(239,68,68,0.1)]'
+              )}
             >
-              {/* Delta badge - top right */}
-              <div className="absolute top-3 right-3">
-                <DeltaBadge card={card} />
-              </div>
+              <CardContent className="p-5">
+                {/* Delta badge - top right */}
+                <div className="absolute top-3 right-3">
+                  <DeltaBadge card={card} />
+                </div>
 
-              {/* Main value */}
-              <p className="text-3xl font-bold text-gray-50 mt-2">
-                {typeof card.value === 'number'
-                  ? Math.round(Number(card.value) * scale)
-                  : card.value}
-              </p>
+                {/* Main value */}
+                <p className="text-3xl font-bold text-foreground mt-2">
+                  {typeof card.value === 'number'
+                    ? Math.round(Number(card.value) * scale)
+                    : card.value}
+                </p>
 
-              {/* Label */}
-              <p className="text-sm text-gray-400 mt-1">{card.label}</p>
+                {/* Label */}
+                <p className="text-sm text-muted-foreground mt-1">{card.label}</p>
 
-              {/* Context line */}
-              <p className="text-xs text-gray-500 mt-3 border-t border-gray-800 pt-2">
-                {card.context}
-              </p>
-            </div>
+                {/* Context line */}
+                <p className="text-xs text-muted-foreground/60 mt-3 border-t border-border pt-2">
+                  {card.context}
+                </p>
+              </CardContent>
+            </Card>
           );
         })}
       </div>

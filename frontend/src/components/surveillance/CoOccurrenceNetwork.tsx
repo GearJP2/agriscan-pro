@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
 import { networkData, TOXIN_COLORS } from '@/data/mockDashboardData';
+import { useTheme } from 'next-themes';
 
 // D3 force-directed network graph rendered inside React via useRef + useEffect.
 // We let D3 own the SVG DOM entirely to avoid React/D3 conflicts.
@@ -18,6 +19,8 @@ interface SimLink extends d3.SimulationLinkDatum<SimNode> {
 export default function CoOccurrenceNetwork() {
   const svgRef = useRef<SVGSVGElement>(null);
   const [tooltip, setTooltip] = useState<{ x: number; y: number; text: string } | null>(null);
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === 'dark';
 
   useEffect(() => {
     const svg = d3.select(svgRef.current);
@@ -29,6 +32,10 @@ export default function CoOccurrenceNetwork() {
     const height = container.clientHeight || 280;
 
     svg.attr('viewBox', `0 0 ${width} ${height}`);
+
+    const strokeColor = isDark ? '#1f2937' : '#e5e7eb';
+    const linkColor = isDark ? '#4b5563' : '#d1d5db';
+    const labelColor = isDark ? '#f9fafb' : '#1f2937';
 
     // Deep clone data so D3 mutations don't affect source
     const nodes: SimNode[] = networkData.nodes.map((n) => ({ ...n }));
@@ -55,7 +62,7 @@ export default function CoOccurrenceNetwork() {
       .selectAll('line')
       .data(links)
       .join('line')
-      .attr('stroke', '#4b5563')
+      .attr('stroke', linkColor)
       .attr('stroke-opacity', 0.6)
       .attr('stroke-width', (d) => linkScale(d.value));
 
@@ -88,12 +95,11 @@ export default function CoOccurrenceNetwork() {
       .append('circle')
       .attr('r', (d) => nodeScale(d.frequency))
       .attr('fill', (d) => d.color)
-      .attr('stroke', '#1f2937')
+      .attr('stroke', strokeColor)
       .attr('stroke-width', 2)
       .attr('opacity', 0.85)
       .on('mouseover', function (event, d) {
         d3.select(this).attr('opacity', 1).attr('stroke', '#fbbf24');
-        // Find connected links
         const connected = links.filter(
           (l) =>
             (l.source as SimNode).id === d.id || (l.target as SimNode).id === d.id
@@ -114,7 +120,7 @@ export default function CoOccurrenceNetwork() {
         });
       })
       .on('mouseout', function () {
-        d3.select(this).attr('opacity', 0.85).attr('stroke', '#1f2937');
+        d3.select(this).attr('opacity', 0.85).attr('stroke', strokeColor);
         setTooltip(null);
       });
 
@@ -124,7 +130,7 @@ export default function CoOccurrenceNetwork() {
       .text((d) => d.id)
       .attr('text-anchor', 'middle')
       .attr('dy', 4)
-      .attr('fill', '#f9fafb')
+      .attr('fill', labelColor)
       .attr('font-size', 11)
       .attr('font-weight', 600)
       .attr('pointer-events', 'none');
@@ -140,14 +146,14 @@ export default function CoOccurrenceNetwork() {
     });
 
     return () => { simulation.stop(); };
-  }, []);
+  }, [isDark]);
 
   return (
     <div className="relative h-full min-h-[280px]">
       <svg ref={svgRef} className="w-full h-full" aria-label="Co-occurrence network graph showing toxin relationships" />
       {tooltip && (
         <div
-          className="absolute pointer-events-none bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-xs text-gray-200 whitespace-pre-line z-50"
+          className="absolute pointer-events-none bg-popover border border-border rounded-lg px-3 py-2 text-xs text-popover-foreground whitespace-pre-line z-50"
           style={{ left: tooltip.x + 12, top: tooltip.y - 10 }}
         >
           {tooltip.text}

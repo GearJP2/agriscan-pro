@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
 import { AuthProvider } from "@/contexts/AuthContext";
-import Dashboard from "@/features/dashboard/components/Dashboard";
+import Dashboard from "@/components/surveillance/SurveillanceDashboard";
 import NotFound from "./pages/NotFound";
 
 import Homepage from "./pages/Homepage";
@@ -18,7 +18,7 @@ import Settings from "./pages/Settings";
 import Activity from "./pages/Activity";
 import Notifications from "./pages/Notifications";
 import ProtectedRoute from "./components/ProtectedRoute";
-import SurveillanceDashboard from "./components/surveillance/SurveillanceDashboard";
+
 
 const queryClient = new QueryClient();
 
@@ -42,7 +42,7 @@ const App = () => (
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/samples" element={<SampleList />} />
               <Route path="/prediction" element={<Prediction />} />
-              <Route path="/surveillance" element={<SurveillanceDashboard />} />
+
 
               {/* Protected Routes */}
               <Route element={<ProtectedRoute />}>

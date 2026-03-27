@@ -15,4 +15,8 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  cacheDir: '/tmp/agriscan-vite-cache',
+  optimizeDeps: {
+    force: true,
+  },
 }));
