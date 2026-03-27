@@ -228,6 +228,14 @@ export const sampleAPI = {
   },
 
   /**
+   * Bulk delete samples (admin only)
+   */
+  async bulkDeleteSamples(sampleIds: string[]) {
+    const response = await apiClient.post('/samples/bulk_delete/', { sample_ids: sampleIds });
+    return response.data;
+  },
+
+  /**
    * Add a process log entry to a sample
    */
   async addProcessLog(sampleId: number | string, logData: Partial<ProcessLog>) {

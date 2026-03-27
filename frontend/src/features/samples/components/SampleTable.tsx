@@ -3,22 +3,38 @@ import { Sample } from '@/types/sample';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Eye, AlertTriangle, CheckCircle2, ArrowUpDown, ArrowUp, ArrowDown, Bell, BellOff } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+import { Eye, AlertTriangle, CheckCircle2, ArrowUpDown, ArrowUp, ArrowDown, Bell, BellOff, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { useWatchlist } from '@/hooks/useWatchlist';
 
 interface SampleTableProps {
   samples: Sample[];
   onSelectSample: (sample: Sample) => void;
+  isAdmin?: boolean;
+  onDeleteSample?: (sampleId: string) => void;
+  onBulkDeleteSamples?: (sampleIds: string[]) => void;
 }
 
 type SortField = 'province' | 'collection_date' | 'status' | 'risk' | 'vegetation_variety';
 type SortDirection = 'asc' | 'desc' | null;
 
-const SampleTable = ({ samples, onSelectSample }: SampleTableProps) => {
+const SampleTable = ({ samples, onSelectSample, isAdmin = false, onDeleteSample, onBulkDeleteSamples }: SampleTableProps) => {
   const [sortField, setSortField] = useState<SortField | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const { isWatching, toggleWatchlist } = useWatchlist();
 
   const getStatusBadge = (sample: Sample) => {
@@ -55,7 +71,17 @@ const SampleTable = ({ samples, onSelectSample }: SampleTableProps) => {
   };
 
   const hasDangerousResults = (sample: Sample) => {
-    return sample.mycotoxin_results?.some(r => r.dangerous) ?? false;
+    if (sample.mycotoxin_results && sample.mycotoxin_results.length > 0) {
+      return sample.mycotoxin_results.some(r => r.dangerous);
+    }
+    return sample.risk_level === 'high';
+  };
+
+  const hasRecordedResults = (sample: Sample) => {
+    if (sample.mycotoxin_results && sample.mycotoxin_results.length > 0) {
+      return true;
+    }
+    return (sample.results_count ?? 0) > 0 || ['low', 'medium', 'high'].includes(sample.risk_level || '');
   };
 
   const getMaxIntensity = (sample: Sample) => {
@@ -64,9 +90,20 @@ const SampleTable = ({ samples, onSelectSample }: SampleTableProps) => {
   };
 
   const getRiskScore = (sample: Sample) => {
-    if (!sample.mycotoxin_results || sample.mycotoxin_results.length === 0) return -1;
-    if (hasDangerousResults(sample)) return 100 + getMaxIntensity(sample)!;
-    return getMaxIntensity(sample)!;
+    if (!hasRecordedResults(sample)) return -1;
+    const maxIntensity = getMaxIntensity(sample);
+    if (hasDangerousResults(sample)) return 100 + (maxIntensity ?? 1);
+    if (sample.mycotoxin_results && sample.mycotoxin_results.length > 0) {
+      return maxIntensity ?? 1;
+    }
+
+    const riskWeight: Record<string, number> = {
+      safe: 1,
+      low: 2,
+      medium: 3,
+      high: 4,
+    };
+    return riskWeight[sample.risk_level || 'safe'] || 0;
   };
 
   const handleSort = (field: SortField) => {
@@ -112,6 +149,32 @@ const SampleTable = ({ samples, onSelectSample }: SampleTableProps) => {
     return sortDirection === 'asc' ? comparison : -comparison;
   });
 
+  const allSelected = sortedSamples.length > 0 && sortedSamples.every(s => selectedIds.has(s.sample_id));
+  const someSelected = !allSelected && sortedSamples.some(s => selectedIds.has(s.sample_id));
+
+  const toggleSelectAll = () => {
+    if (allSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(sortedSamples.map(s => s.sample_id)));
+    }
+  };
+
+  const toggleSelectRow = (sampleId: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(sampleId)) next.delete(sampleId); else next.add(sampleId);
+      return next;
+    });
+  };
+
+  const handleBulkDelete = () => {
+    if (onBulkDeleteSamples) {
+      onBulkDeleteSamples(Array.from(selectedIds));
+      setSelectedIds(new Set());
+    }
+  };
+
   const SortableHeader = ({ field, children }: { field: SortField; children: React.ReactNode }) => (
     <TableHead
       className="font-semibold cursor-pointer hover:bg-muted/30 transition-colors select-none"
@@ -127,9 +190,53 @@ const SampleTable = ({ samples, onSelectSample }: SampleTableProps) => {
   return (
     <TooltipProvider>
       <div className="rounded-xl border border-border bg-card overflow-hidden animate-slide-up">
+        {isAdmin && selectedIds.size > 0 && (
+          <div className="flex items-center justify-between px-4 py-2 bg-destructive/10 border-b border-destructive/20">
+            <span className="text-sm font-medium text-destructive">
+              {selectedIds.size} sample{selectedIds.size !== 1 ? 's' : ''} selected
+            </span>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" size="sm" className="h-8 gap-1.5">
+                  <Trash2 className="h-4 w-4" />
+                  Delete {selectedIds.size} Selected
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete {selectedIds.size} Samples</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Are you sure you want to permanently delete{' '}
+                    <span className="font-semibold text-foreground">{selectedIds.size} sample{selectedIds.size !== 1 ? 's' : ''}</span>?{' '}
+                    All associated process logs and mycotoxin results will also be deleted.
+                    This action cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    onClick={handleBulkDelete}
+                  >
+                    Delete All Selected
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        )}
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50 hover:bg-muted/50">
+              {isAdmin && (
+                <TableHead className="w-10">
+                  <Checkbox
+                    checked={allSelected ? true : someSelected ? 'indeterminate' : false}
+                    onCheckedChange={toggleSelectAll}
+                    aria-label="Select all"
+                  />
+                </TableHead>
+              )}
               <TableHead className="font-semibold w-10">Track</TableHead>
               <TableHead className="font-semibold">Sample ID</TableHead>
               <TableHead className="font-semibold">Region</TableHead>
@@ -145,7 +252,7 @@ const SampleTable = ({ samples, onSelectSample }: SampleTableProps) => {
           <TableBody>
             {sortedSamples.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={10} className="h-24 text-center text-muted-foreground">
+                <TableCell colSpan={isAdmin ? 11 : 10} className="h-24 text-center text-muted-foreground">
                   No samples found matching your filters.
                 </TableCell>
               </TableRow>
@@ -153,9 +260,18 @@ const SampleTable = ({ samples, onSelectSample }: SampleTableProps) => {
               sortedSamples.map((sample, index) => (
                 <TableRow
                   key={sample.sample_id}
-                  className={`cursor-pointer transition-colors hover:bg-muted/30 ${isWatching(sample.sample_id) ? 'bg-primary/5' : ''}`}
+                  className={`cursor-pointer transition-colors hover:bg-muted/30 ${isWatching(sample.sample_id) ? 'bg-primary/5' : ''} ${selectedIds.has(sample.sample_id) ? 'bg-destructive/5' : ''}`}
                   style={{ animationDelay: `${index * 50}ms` }}
                 >
+                  {isAdmin && (
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <Checkbox
+                        checked={selectedIds.has(sample.sample_id)}
+                        onCheckedChange={() => toggleSelectRow(sample.sample_id)}
+                        aria-label={`Select ${sample.sample_id}`}
+                      />
+                    </TableCell>
+                  )}
                   <TableCell>
                     <Tooltip>
                       <TooltipTrigger asChild>
@@ -197,34 +313,34 @@ const SampleTable = ({ samples, onSelectSample }: SampleTableProps) => {
                         <TooltipTrigger asChild>
                           <div className="flex items-center gap-1.5 text-danger cursor-help">
                             <AlertTriangle className="h-4 w-4" />
-                            <span className="text-xs font-medium">High</span>
+                            <span className="text-xs font-medium">Positive</span>
                           </div>
                         </TooltipTrigger>
                         <TooltipContent className="max-w-xs">
                           <div className="space-y-1">
-                            <p className="font-semibold text-danger">⚠️ High Risk - Exceeds Threshold</p>
+                            <p className="font-semibold text-danger">Positive - Exceeds threshold</p>
                             {sample.mycotoxin_results?.filter(r => r.dangerous).map((r, i) => (
                               <p key={i} className="text-xs">
-                                {r.name}: <span className="font-medium">{r.intensity}/{r.threshold} {r.unit}</span>
+                                {r.name}: <span className="font-medium">{r.intensity} {r.unit}</span>
                               </p>
                             ))}
                           </div>
                         </TooltipContent>
                       </Tooltip>
-                    ) : (sample.mycotoxin_results?.length ?? 0) > 0 ? (
+                    ) : hasRecordedResults(sample) ? (
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <div className="flex items-center gap-1.5 text-success cursor-help">
                             <CheckCircle2 className="h-4 w-4" />
-                            <span className="text-xs font-medium">Safe</span>
+                            <span className="text-xs font-medium">Negative</span>
                           </div>
                         </TooltipTrigger>
                         <TooltipContent className="max-w-xs">
                           <div className="space-y-1">
-                            <p className="font-semibold text-success">✓ Safe - Within Limits</p>
+                            <p className="font-semibold text-success">Negative - No result exceeded threshold</p>
                             {sample.mycotoxin_results?.map((r, i) => (
                               <p key={i} className="text-xs">
-                                {r.name}: <span className="font-medium">{r.intensity}/{r.threshold} {r.unit}</span>
+                                {r.name}: <span className="font-medium">{r.intensity} {r.unit}</span>
                               </p>
                             ))}
                           </div>
@@ -235,15 +351,51 @@ const SampleTable = ({ samples, onSelectSample }: SampleTableProps) => {
                     )}
                   </TableCell>
                   <TableCell className="text-center">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => onSelectSample(sample)}
-                      className="h-8"
-                    >
-                      <Eye className="mr-1 h-4 w-4" />
-                      View
-                    </Button>
+                    <div className="flex items-center justify-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onSelectSample(sample)}
+                        className="h-8"
+                      >
+                        <Eye className="mr-1 h-4 w-4" />
+                        View
+                      </Button>
+                      {isAdmin && onDeleteSample && (
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete Sample</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Are you sure you want to permanently delete{' '}
+                                <span className="font-semibold text-foreground">{sample.sample_id}</span>?{' '}
+                                This will also delete all associated process logs and mycotoxin results.
+                                This action cannot be undone.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                onClick={() => onDeleteSample(sample.sample_id)}
+                              >
+                                Delete
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))

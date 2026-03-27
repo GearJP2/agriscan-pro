@@ -41,7 +41,7 @@ export interface TestMethod {
 
 export interface MycotoxinResult {
   name: string;
-  intensity: number; // 1-10 scale
+  intensity: number; // Exact measured concentration from lab
   dangerous: boolean;
   threshold: number;
   unit: string;
@@ -69,6 +69,8 @@ export interface Sample {
   collection_date: string;
   process_logs?: ProcessLog[];
   mycotoxin_results?: MycotoxinResult[];
+  results_count?: number;
+  risk_level?: RiskLevel;
   status: 'pending' | 'in_progress' | 'completed' | 'flagged';
   purpose?: 'routine' | 'complaint driven' | 'target surveillance';
   sample_type?: 'field' | 'market' | 'storage' | 'export';

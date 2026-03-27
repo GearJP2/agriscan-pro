@@ -1,6 +1,6 @@
 from django.db import models
 from django.contrib.auth import get_user_model
-from django.core.validators import MinValueValidator, MaxValueValidator
+from django.core.validators import MinValueValidator
 
 User = get_user_model()
 
@@ -88,7 +88,7 @@ class ProcessLog(models.Model):
 class MycotoxinResult(models.Model):
     sample = models.ForeignKey(Sample, on_delete=models.CASCADE, related_name='mycotoxin_results')
     name = models.CharField(max_length=100)
-    intensity = models.IntegerField(validators=[MinValueValidator(1), MaxValueValidator(10)])
+    intensity = models.FloatField(validators=[MinValueValidator(0)])
     dangerous = models.BooleanField(default=False)
     threshold = models.FloatField()
     unit = models.CharField(max_length=50)

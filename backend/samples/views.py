@@ -84,6 +84,33 @@ class SampleViewSet(viewsets.ModelViewSet):
         sample = serializer.save(updated_by=self.request.user)
         logger.info('sample.updated', extra={'sample_id': sample.sample_id, 'user': self.request.user.username})
 
+    def destroy(self, request, *args, **kwargs):
+        if not (request.user.is_superuser or getattr(request.user, 'role', None) == 'admin'):
+            return Response(
+                {'detail': 'You do not have permission to delete samples. Admin access required.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        instance = self.get_object()
+        # Collect audit data before CASCADE deletion removes related records
+        process_log_count = instance.process_logs.count()
+        mycotoxin_count = instance.mycotoxin_results.count()
+        sample_id = instance.sample_id
+        logger.warning(
+            'sample.deleted',
+            extra={
+                'sample_id': sample_id,
+                'region': instance.region,
+                'province': instance.province,
+                'vegetation_variety': instance.vegetation_variety,
+                'collection_date': str(instance.collection_date),
+                'process_logs_deleted': process_log_count,
+                'mycotoxin_results_deleted': mycotoxin_count,
+                'deleted_by': request.user.username,
+            },
+        )
+        self.perform_destroy(instance)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
     @action(detail=False, methods=['get'])
     def statistics(self, request):
         """Get dashboard statistics"""
@@ -181,9 +208,60 @@ class SampleViewSet(viewsets.ModelViewSet):
         serializer = MycotoxinResultSerializer(data=request.data)
         if serializer.is_valid():
             result = serializer.save(sample=sample)
+
+            # If results are recorded, mark the sample workflow as completed.
+            if sample.status != 'completed':
+                sample.status = 'completed'
+                sample.updated_by = request.user
+                sample.save(update_fields=['status', 'updated_by', 'updated_at'])
+
+            latest_log = sample.process_logs.order_by('-timestamp').first()
+            if not latest_log or latest_log.state != 'completed':
+                ProcessLog.objects.create(
+                    sample=sample,
+                    state='completed',
+                    notes='Mycotoxin result(s) recorded and finalized.',
+                    conducted_by=request.user.username or 'System',
+                )
+
             logger.info('sample.mycotoxin_result.added', extra={'sample_id': sample.sample_id, 'test_method': result.test_method, 'dangerous': result.dangerous})
             if result.dangerous:
                 logger.warning('sample.dangerous_result', extra={'sample_id': sample.sample_id, 'test_method': result.test_method, 'intensity': result.intensity})
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['post'])
+    def bulk_delete(self, request):
+        """Bulk delete samples - admin only"""
+        if not (request.user.is_superuser or getattr(request.user, 'role', None) == 'admin'):
+            return Response(
+                {'detail': 'You do not have permission to delete samples. Admin access required.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        sample_ids = request.data.get('sample_ids', [])
+        if not isinstance(sample_ids, list) or not sample_ids:
+            return Response(
+                {'detail': 'sample_ids must be a non-empty list.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if len(sample_ids) > 500:
+            return Response(
+                {'detail': 'Cannot delete more than 500 samples at once.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        samples_qs = Sample.objects.filter(sample_id__in=sample_ids)
+        found_ids = list(samples_qs.values_list('sample_id', flat=True))
+        not_found = [sid for sid in sample_ids if sid not in found_ids]
+        count = samples_qs.count()
+        logger.warning(
+            'sample.bulk_deleted',
+            extra={
+                'sample_ids': found_ids,
+                'count': count,
+                'deleted_by': request.user.username,
+                'not_found': not_found,
+            },
+        )
+        samples_qs.delete()
+        return Response({'deleted': count, 'not_found': not_found}, status=status.HTTP_200_OK)
 

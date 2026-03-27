@@ -28,8 +28,7 @@ import { sampleAPI } from '@/lib/api';
 const mycotoxinSchema = z.object({
   name: z.string().min(1, 'Toxin name is required'),
   intensity: z.coerce.number()
-    .min(1, 'Intensity must be at least 1')
-    .max(10, 'Intensity must be at most 10'),
+    .min(0, 'Concentration must be 0 or higher'),
   threshold: z.coerce.number().positive('Threshold must be a positive number'),
   unit: z.string().min(1, 'Unit is required'),
   dangerous: z.boolean().default(false),
@@ -52,7 +51,7 @@ const MycotoxinForm = ({ sampleId, onSuccess, onClose }: MycotoxinFormProps) => 
     resolver: zodResolver(mycotoxinSchema),
     defaultValues: {
       name: '',
-      intensity: 5,
+      intensity: 0,
       threshold: 10,
       unit: 'ppb',
       dangerous: false,
@@ -124,18 +123,18 @@ const MycotoxinForm = ({ sampleId, onSuccess, onClose }: MycotoxinFormProps) => 
           />
 
           <div className="grid gap-4 sm:grid-cols-3">
-            {/* Intensity */}
+            {/* Concentration */}
             <FormField
               control={form.control}
               name="intensity"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Intensity (1-10) *</FormLabel>
+                  <FormLabel>Measured Concentration *</FormLabel>
                   <FormControl>
                     <Input
                       type="number"
-                      min="1"
-                      max="10"
+                      min="0"
+                      step="0.001"
                       {...field}
                       disabled={isSubmitting}
                     />

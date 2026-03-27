@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -37,10 +38,11 @@ import {
 } from '@/components/ui/form';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { sampleAPI } from '@/lib/api';
-import { parseResearchDataFile } from '@/lib/dataImport';
+import { getDetectedMycotoxinHeaders, hasAnyMycotoxinColumns, parseResearchDataFile } from '@/lib/dataImport';
 import { Sample, ProcessLog, PROCESSING_TYPES, PROCESSING_TYPE_LABELS, ProcessingType } from '@/types/sample';
 import { vegetationTypes } from '@/data/mockSamples';
 import { getAllProvinces, getDistrictsByProvince, getRegionByProvince } from '@/data/thailandLocations';
@@ -66,10 +68,45 @@ interface AddSampleFormProps {
   onAddMultipleSamples: (samples: Sample[]) => void;
 }
 
+type ImportStage = 'idle' | 'parsing' | 'reviewing' | 'importing' | 'success' | 'error';
+
+interface ImportProgressState {
+  processed: number;
+  total: number;
+  successCount: number;
+  failureCount: number;
+  currentSample: string;
+  phaseMessage: string;
+}
+
+interface ImportEntry {
+  row: number;
+  parsed: any;
+  sample: any;
+  mycotoxins: any[];
+}
+
+interface FailedRowDetail {
+  row: number;
+  sample_id: string;
+  region: string;
+  province: string;
+  district: string;
+  vegetation_variety: string;
+  collection_date: string;
+  error: string;
+}
+
 const generateSampleId = () => {
   const year = new Date().getFullYear();
   const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
   return `SAM-${year}-${random}`;
+};
+
+const generateImportSampleId = (rowNumber: number) => {
+  const year = new Date().getFullYear();
+  const stamp = Date.now().toString().slice(-6);
+  return `SAM-${year}-${stamp}-${rowNumber.toString().padStart(4, '0')}`;
 };
 
 const generateLogId = () => {
@@ -97,8 +134,152 @@ const isLikelyDateValue = (value: string): boolean => {
   return false;
 };
 
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const formatErrorPayload = (value: unknown): string => {
+  if (value === null || value === undefined) return '';
+
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => formatErrorPayload(item))
+      .filter(Boolean)
+      .join(', ');
+  }
+
+  if (typeof value === 'object') {
+    return Object.entries(value as Record<string, unknown>)
+      .map(([key, nestedValue]) => {
+        const formatted = formatErrorPayload(nestedValue);
+        return formatted ? `${key}: ${formatted}` : key;
+      })
+      .filter(Boolean)
+      .join('; ');
+  }
+
+  return String(value);
+};
+
+const getRetryDelayMs = (err: any, attempt: number) => {
+  const retryAfterHeader = err?.response?.headers?.['retry-after'];
+  const retryAfterSeconds = Number.parseInt(String(retryAfterHeader ?? ''), 10);
+
+  if (!Number.isNaN(retryAfterSeconds) && retryAfterSeconds > 0) {
+    return retryAfterSeconds * 1000;
+  }
+
+  return Math.min(1000 * 2 ** attempt, 8000);
+};
+
+const getReadableImportError = (err: any): string => {
+  if (err?.response?.status === 429) {
+    const retryAfterHeader = err?.response?.headers?.['retry-after'];
+    const retryAfterSeconds = Number.parseInt(String(retryAfterHeader ?? ''), 10);
+
+    if (!Number.isNaN(retryAfterSeconds) && retryAfterSeconds > 0) {
+      return `Rate limit exceeded. The server asked to wait ${retryAfterSeconds} second${retryAfterSeconds === 1 ? '' : 's'} before retrying.`;
+    }
+
+    return 'Rate limit exceeded. Too many import requests were sent to the server too quickly.';
+  }
+
+  const responseData = err?.response?.data;
+  if (responseData) {
+    const formatted = formatErrorPayload(responseData);
+    if (formatted) {
+      return formatted;
+    }
+  }
+
+  if (err?.message) {
+    return err.message;
+  }
+
+  return 'Failed to create sample';
+};
+
+const normalizeSampleId = (rawValue: string, rowNumber: number): string => {
+  const cleaned = String(rawValue || '')
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, '-')
+    .replace(/[^A-Z0-9_-]/g, '');
+
+  if (!cleaned) return generateImportSampleId(rowNumber);
+  if (cleaned.length > 48) return cleaned.slice(0, 48);
+  return cleaned;
+};
+
+const normalizePurpose = (rawValue: string): any => {
+  const value = String(rawValue || '').trim().toLowerCase();
+  if (!value) return 'routine';
+  if (value === 'routine') return 'routine';
+  if (value === 'complaint driven' || value.includes('complaint')) return 'complaint driven';
+  if (value === 'target surveillance' || value.includes('target')) return 'target surveillance';
+  return 'routine';
+};
+
+const normalizeSampleType = (rawValue: string): any => {
+  const value = String(rawValue || '').trim().toLowerCase();
+  if (value.includes('field')) return 'field';
+  if (value.includes('market')) return 'market';
+  if (value.includes('storage')) return 'storage';
+  if (value.includes('export')) return 'export';
+  return 'field';
+};
+
+const normalizeProcessingType = (rawValue: string): any => {
+  const value = String(rawValue || '').trim().toLowerCase();
+  if (value.includes('raw')) return 'raw';
+  if (value.includes('dried') || value.includes('dry')) return 'dried';
+  if (value.includes('milled') || value.includes('mill')) return 'milled';
+  if (value.includes('processed') || value.includes('process')) return 'processed';
+  if (value.includes('fermented') || value.includes('ferment')) return 'fermented';
+  return 'raw';
+};
+
+const toBulkCreatePayload = (sample: any): Partial<Sample> => ({
+  sample_id: sample.sample_id,
+  region: sample.region || 'Unknown',
+  province: sample.province,
+  district: sample.district,
+  vegetation_variety: sample.vegetation_variety,
+  collection_date: sample.collection_date,
+  status: sample.status || 'pending',
+  purpose: sample.purpose || null,
+  sample_type: sample.sample_type || null,
+  processing_type: sample.processing_type || null,
+  collected_by: sample.collected_by || null,
+  additional_info: sample.additional_info || '',
+});
+
+const groupImportErrors = (errors: string[]) => {
+  const groups: Record<string, number> = {};
+
+  errors.forEach((error) => {
+    const withoutRow = error.replace(/^Row\s+\d+\s*:\s*/i, '').trim();
+    let key = withoutRow;
+
+    if (/rate limit|too many requests|429/i.test(withoutRow)) {
+      key = 'Rate limit (429)';
+    } else if (/already exists|unique|duplicate/i.test(withoutRow)) {
+      key = 'Duplicate sample ID';
+    } else if (/missing required|required/i.test(withoutRow)) {
+      key = 'Missing required fields';
+    } else if (/validation/i.test(withoutRow)) {
+      key = 'Validation error';
+    }
+
+    groups[key] = (groups[key] || 0) + 1;
+  });
+
+  return Object.entries(groups)
+    .map(([reason, count]) => ({ reason, count }))
+    .sort((a, b) => b.count - a.count);
+};
+
 const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps) => {
   const { isAuthenticated } = useAuth();
+  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [filePreview, setFilePreview] = useState<string[][]>([]);
@@ -111,7 +292,17 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
   const [advancedFileError, setAdvancedFileError] = useState('');
   const [parsedData, setParsedData] = useState<any[]>([]);
   const [isImporting, setIsImporting] = useState(false);
-  const [importStatus, setImportStatus] = useState<'idle' | 'reviewing' | 'importing' | 'success'>('idle');
+  const [importStatus, setImportStatus] = useState<ImportStage>('idle');
+  const [importErrors, setImportErrors] = useState<string[]>([]);
+  const [failedRows, setFailedRows] = useState<FailedRowDetail[]>([]);
+  const [importProgress, setImportProgress] = useState<ImportProgressState>({
+    processed: 0,
+    total: 0,
+    successCount: 0,
+    failureCount: 0,
+    currentSample: '',
+    phaseMessage: '',
+  });
 
   const provinces = getAllProvinces();
 
@@ -132,6 +323,45 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
   });
 
   const selectedProvince = form.watch('province');
+  const importProgressValue = importProgress.total > 0
+    ? Math.round((importProgress.processed / importProgress.total) * 100)
+    : importStatus === 'parsing'
+      ? 20
+      : 0;
+  const groupedImportErrors = groupImportErrors(importErrors);
+
+  const resetImportFeedback = () => {
+    setImportErrors([]);
+    setFailedRows([]);
+    setImportProgress({
+      processed: 0,
+      total: 0,
+      successCount: 0,
+      failureCount: 0,
+      currentSample: '',
+      phaseMessage: '',
+    });
+  };
+
+  const downloadFailedRowsReport = () => {
+    if (failedRows.length === 0) return;
+
+    const headers = ['row', 'sample_id', 'region', 'province', 'district', 'vegetation_variety', 'collection_date', 'error'];
+    const lines = [
+      headers.join(','),
+      ...failedRows.map((row) => headers.map((key) => `"${String((row as any)[key] ?? '').replace(/"/g, '""')}"`).join(',')),
+    ];
+
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `failed_samples_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
 
   // Update districts when province changes
   useEffect(() => {
@@ -190,6 +420,17 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
 
   const parseFileData = (file: File): Promise<string[][]> => {
     return new Promise((resolve, reject) => {
+      const parseCsvTextWithXlsx = (text: string): string[][] => {
+        const workbook = XLSX.read(text, { type: 'string' });
+        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+        const jsonData = XLSX.utils.sheet_to_json<any[]>(firstSheet, {
+          header: 1,
+          raw: false,
+          defval: '',
+        });
+        return jsonData.map((row) => row.map((cell) => cleanText(String(cell ?? ''))));
+      };
+
       const isXlsx = file.name.endsWith('.xlsx') || file.name.endsWith('.xls');
 
       if (isXlsx) {
@@ -214,29 +455,13 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
       } else {
         const reader = new FileReader();
         reader.onload = (event) => {
-          const text = event.target?.result as string;
-          const lines = text.split('\n').filter(line => line.trim());
-          // Parse CSV properly handling quoted values
-          const parsed = lines.map(line => {
-            const cells: string[] = [];
-            let current = '';
-            let inQuotes = false;
-
-            for (let i = 0; i < line.length; i++) {
-              const char = line[i];
-              if (char === '"' && (i === 0 || line[i - 1] !== '\\')) {
-                inQuotes = !inQuotes;
-              } else if (char === ',' && !inQuotes) {
-                cells.push(cleanText(current));
-                current = '';
-              } else {
-                current += char;
-              }
-            }
-            cells.push(cleanText(current));
-            return cells;
-          });
-          resolve(parsed);
+          try {
+            const text = event.target?.result as string;
+            const parsed = parseCsvTextWithXlsx(text);
+            resolve(parsed);
+          } catch (error) {
+            reject(new Error('Failed to parse CSV file'));
+          }
         };
         reader.onerror = () => reject(new Error('Failed to read file'));
         reader.readAsText(file);
@@ -250,6 +475,7 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
     setFilePreview([]);
     setParsedData([]);
     setImportStatus('idle');
+    resetImportFeedback();
 
     if (file) {
       console.log(`[FileUpload] File selected: ${file.name} (${file.size} bytes)`);
@@ -264,13 +490,34 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
 
       setUploadFile(file);
       try {
+        setImportStatus('parsing');
+        setImportProgress({
+          processed: 0,
+          total: 1,
+          successCount: 0,
+          failureCount: 0,
+          currentSample: file.name,
+          phaseMessage: 'Reading and validating the uploaded file.',
+        });
         console.log(`[FileUpload] Parsing file...`);
         const parsed = await parseFileData(file);
         console.log(`[FileUpload] File parsed successfully: ${parsed.length} rows, ${parsed[0]?.length || 0} columns`);
         setFilePreview(parsed.slice(0, 6));
+        resetImportFeedback();
+        setImportStatus('idle');
       } catch (error) {
         console.error('[FileUpload] Parse error:', error);
         setFileError(error instanceof Error ? error.message : 'Failed to parse file');
+        setImportStatus('error');
+        setImportErrors([error instanceof Error ? error.message : 'Failed to parse file']);
+        setImportProgress({
+          processed: 0,
+          total: 1,
+          successCount: 0,
+          failureCount: 1,
+          currentSample: file.name,
+          phaseMessage: 'The file could not be parsed.',
+        });
       }
     }
   };
@@ -323,27 +570,155 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
     }
 
     setIsImporting(true);
-    setImportStatus('reviewing');
+    setImportStatus('parsing');
+    setImportErrors([]);
+    setImportProgress({
+      processed: 0,
+      total: 1,
+      successCount: 0,
+      failureCount: 0,
+      currentSample: uploadFile.name,
+      phaseMessage: 'Preparing your file for import preview.',
+    });
 
     try {
       const allParsed = await parseFileData(uploadFile);
-      const headers = allParsed[0].map(h => String(h).trim());
+      const headers = allParsed[0].map(h => String(h ?? '').trim());
       const rows = allParsed.slice(1);
 
       console.log('[FileUpload] File headers:', headers);
 
-      // Check if file has mycotoxin columns
-      const mycotoxinColumns = ['DON', 'AFB1', 'FB1', 'T-2', 'ZEA', 'OTA'];
-      const hasMycotoxins = headers.some(header => 
-        mycotoxinColumns.some(tox => header.toUpperCase().includes(tox))
-      );
-
       let parsedData: any[] = [];
 
-      if (hasMycotoxins) {
-        // Use research data parser for files with mycotoxins
-        console.log('[FileUpload] Detected mycotoxin columns, using research parser');
-        parsedData = parseResearchDataFile(headers, rows);
+      // Always try research parser first to avoid missing toxin data due header variations.
+      // Some files have title rows and 2-level headers, so scan the first rows dynamically.
+      const maxHeaderProbe = Math.min(3, Math.max(1, allParsed.length - 1));
+      const researchCandidates: Array<{ name: string; headers: string[]; rows: any[] }> = [];
+
+      const isLikelyHeaderRow = (row: any[]) => {
+        const values = (row || []).map((cell) => String(cell ?? '').trim()).filter(Boolean);
+        if (values.length === 0) return false;
+
+        const headerLikeCount = values.filter((value) => {
+          const lower = value.toLowerCase();
+          if (lower === '<lod' || lower.startsWith('<lod')) return false;
+          if (/^tint\d+/i.test(value)) return false;
+          if (/^[-+]?\d+(?:[.,]\d+)?$/.test(value)) return false;
+          return /[a-z]/i.test(value);
+        }).length;
+
+        return headerLikeCount >= Math.max(2, Math.ceil(values.length * 0.4));
+      };
+
+      const forwardFill = (values: string[]) => {
+        let lastValue = '';
+        return values.map((value) => {
+          const trimmed = String(value ?? '').trim();
+          if (trimmed) {
+            lastValue = trimmed;
+            return trimmed;
+          }
+          return lastValue;
+        });
+      };
+
+      const buildHybridHeaders = (topRow: string[], secondRow: string[]) => {
+        const propagatedTopRow = forwardFill(topRow);
+
+        return propagatedTopRow.map((top, idx) => {
+          const second = String(secondRow[idx] ?? '').trim();
+          const normalizedTop = top.toLowerCase();
+          const topLooksLikeMycotoxinGroup = normalizedTop.includes('mycotoxin');
+          const secondLooksLikeMycotoxin = !!second && hasAnyMycotoxinColumns([second]);
+
+          if (topLooksLikeMycotoxinGroup && second) {
+            return `${top} ${second}`.trim();
+          }
+
+          if (secondLooksLikeMycotoxin) {
+            return second;
+          }
+
+          if (top && !topLooksLikeMycotoxinGroup) {
+            return top;
+          }
+
+          return (second || top || '').trim();
+        });
+      };
+
+      for (let i = 0; i < maxHeaderProbe; i++) {
+        const primary = (allParsed[i] || []).map((h: any) => String(h ?? '').trim());
+        if (primary.length && isLikelyHeaderRow(primary)) {
+          researchCandidates.push({
+            name: `header-row-${i + 1}`,
+            headers: primary,
+            rows: allParsed.slice(i + 1),
+          });
+        }
+
+        if (i + 1 < allParsed.length) {
+          const secondary = (allParsed[i + 1] || []).map((h: any) => String(h ?? '').trim());
+          const combined = primary.map((top, idx) => {
+            const second = String(secondary[idx] ?? '').trim();
+            if (top && second) return `${top} ${second}`.trim();
+            return (second || top || '').trim();
+          });
+          const hybrid = buildHybridHeaders(primary, secondary);
+          if (combined.length && isLikelyHeaderRow(combined)) {
+            researchCandidates.push({
+              name: `combined-header-rows-${i + 1}-${i + 2}`,
+              headers: combined,
+              rows: allParsed.slice(i + 2),
+            });
+          }
+          if (hybrid.length && isLikelyHeaderRow(hybrid)) {
+            researchCandidates.push({
+              name: `hybrid-header-rows-${i + 1}-${i + 2}`,
+              headers: hybrid,
+              rows: allParsed.slice(i + 2),
+            });
+          }
+        }
+      }
+
+      let bestResearchResult: any[] = [];
+      let bestMycotoxinCount = 0;
+      let bestSampleCount = 0;
+      let chosenCandidateName = '';
+
+      for (const candidate of researchCandidates) {
+        const result = parseResearchDataFile(candidate.headers, candidate.rows as any);
+        const mycotoxinCount = result.reduce((sum, entry) => sum + (entry.mycotoxins?.length || 0), 0);
+        const sampleCount = result.length;
+
+        if (
+          mycotoxinCount > bestMycotoxinCount ||
+          (mycotoxinCount === bestMycotoxinCount && sampleCount > bestSampleCount)
+        ) {
+          bestMycotoxinCount = mycotoxinCount;
+          bestSampleCount = sampleCount;
+          bestResearchResult = result;
+          chosenCandidateName = candidate.name;
+        }
+      }
+
+      const detectedMycotoxinHeaders = Array.from(
+        new Set(
+          researchCandidates.flatMap((candidate) => getDetectedMycotoxinHeaders(candidate.headers))
+        )
+      ).filter((h) => /[a-zA-Z]/.test(h));
+
+      const hasMycotoxinHeaders = researchCandidates.some((candidate) => hasAnyMycotoxinColumns(candidate.headers));
+
+      if (bestMycotoxinCount > 0 || (hasMycotoxinHeaders && bestSampleCount > 0)) {
+        console.log('[FileUpload] Parsed mycotoxin results, using research parser', {
+          candidate: chosenCandidateName,
+          samples: bestResearchResult.length,
+          parsedMycotoxinCount: bestMycotoxinCount,
+          detectedMycotoxinHeaders,
+        });
+        parsedData = bestResearchResult;
       } else {
         // Use simple file parser for basic samples
         
@@ -364,32 +739,33 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
         };
 
         // Fuzzy column matching
+        const normalizeHeader = (value: string) =>
+          value.toLowerCase().trim().replace(/[_\-]+/g, ' ').replace(/\s+/g, ' ');
+
         const findColumnIndex = (searchTerms: string[]): number => {
-          const normalizedTerms = searchTerms.map(term => term.toLowerCase().trim());
+          const normalizedTerms = searchTerms.map((term) => normalizeHeader(term));
+          const normalizedHeaders = headers.map((h) => normalizeHeader(h));
 
           // Prefer exact header matches first.
-          const exactIdx = headers.findIndex(h => normalizedTerms.includes(h.toLowerCase().trim()));
+          const exactIdx = normalizedHeaders.findIndex((header) => normalizedTerms.includes(header));
           if (exactIdx !== -1) return exactIdx;
 
-          let bestIdx = -1;
-          let bestScore = 0;
-          
-          headers.forEach((header, idx) => {
-            const headerLower = header.toLowerCase().trim();
-            
-            for (const termLower of normalizedTerms) {
-              
-              // Substring match
-              if (headerLower.includes(termLower) || termLower.includes(headerLower)) {
-                if (bestScore < 0.9) {
-                  bestScore = 0.9;
-                  bestIdx = idx;
-                }
-              }
-            }
-          });
+          // Then prefer header contains term (NOT reverse) to avoid short-header false positives like "AF".
+          for (const term of normalizedTerms) {
+            if (term.length < 3) continue;
+            const containsIdx = normalizedHeaders.findIndex((header) => header.includes(term));
+            if (containsIdx !== -1) return containsIdx;
+          }
 
-          return bestIdx;
+          // Last attempt: all words from term exist in header.
+          for (const term of normalizedTerms) {
+            const words = term.split(' ').filter((w) => w.length >= 3);
+            if (!words.length) continue;
+            const idx = normalizedHeaders.findIndex((header) => words.every((w) => header.includes(w)));
+            if (idx !== -1) return idx;
+          }
+
+          return -1;
         };
 
         const provinceIndex = findColumnIndex(['province', 'provinces']);
@@ -411,16 +787,36 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
         });
 
         if (provinceIndex === -1) { 
-          setFileError('Missing required column: Province (searched for: province, provinces)'); 
+          const errorMessage = 'Missing required column: Province (searched for: province, provinces)';
+          setFileError(errorMessage); 
           setIsImporting(false); 
-          setImportStatus('idle'); 
+          setImportStatus('error'); 
+          setImportErrors([errorMessage]);
+          setImportProgress({
+            processed: 0,
+            total: 1,
+            successCount: 0,
+            failureCount: 1,
+            currentSample: uploadFile.name,
+            phaseMessage: 'The file is missing a required province column.',
+          });
           console.error('[FileUpload] Available headers:', headers);
           return; 
         }
         if (districtIndex === -1) { 
-          setFileError('Missing required column: District (searched for: district, districts)'); 
+          const errorMessage = 'Missing required column: District (searched for: district, districts)';
+          setFileError(errorMessage); 
           setIsImporting(false); 
-          setImportStatus('idle'); 
+          setImportStatus('error'); 
+          setImportErrors([errorMessage]);
+          setImportProgress({
+            processed: 0,
+            total: 1,
+            successCount: 0,
+            failureCount: 1,
+            currentSample: uploadFile.name,
+            phaseMessage: 'The file is missing a required district column.',
+          });
           console.error('[FileUpload] Available headers:', headers);
           return; 
         }
@@ -443,8 +839,7 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
         };
 
         const allSamples: Sample[] = [];
-        const validSampleTypes = ['field', 'market', 'storage', 'export'];
-        const validProcessingTypes = ['raw', 'dried', 'milled', 'processed', 'fermented'];
+        const usedSampleIds = new Set<string>();
 
         for (let i = 0; i < rows.length; i++) {
           const row = rows[i];
@@ -486,7 +881,12 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
             continue;
           }
 
-          const sampleId = generateSampleId();
+          const sourceSampleId = sampleNameIndex >= 0 ? getRowValue_Current(columnIndexes['sample_name']) : '';
+          let sampleId = normalizeSampleId(sourceSampleId, i + 1);
+          if (usedSampleIds.has(sampleId)) {
+            sampleId = `${sampleId}-${(i + 1).toString().padStart(3, '0')}`;
+          }
+          usedSampleIds.add(sampleId);
           // Try to use region column if available, otherwise derive from province
           let region = columnIndexes['region'] >= 0 
             ? getRowValue_Current(columnIndexes['region']).trim() || 'Unknown'
@@ -511,6 +911,7 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
 
           const sampleTypeRaw = columnIndexes['sample_type'] >= 0 ? getRowValue_Current(columnIndexes['sample_type']).toLowerCase() : '';
           const processingTypeRaw = columnIndexes['processing_type'] >= 0 ? getRowValue_Current(columnIndexes['processing_type']).toLowerCase() : '';
+          const purposeRaw = columnIndexes['purpose'] >= 0 ? getRowValue_Current(columnIndexes['purpose']) : '';
 
           const sample: Sample = {
             sample_id: sampleId,
@@ -520,9 +921,9 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
             vegetation_variety: variety || 'Unknown',
             collection_date: formattedDate,
             status: 'pending',
-            purpose: (columnIndexes['purpose'] >= 0 ? normalizeEmptyValue(row[columnIndexes['purpose']] || '') : '') as any,
-            sample_type: (sampleTypeRaw && validSampleTypes.includes(sampleTypeRaw) ? sampleTypeRaw : '') as any,
-            processing_type: (processingTypeRaw && validProcessingTypes.includes(processingTypeRaw) ? processingTypeRaw : '') as any,
+            purpose: normalizePurpose(purposeRaw),
+            sample_type: normalizeSampleType(sampleTypeRaw),
+            processing_type: normalizeProcessingType(processingTypeRaw),
             collected_by: columnIndexes['collected_by'] >= 0 ? normalizeEmptyValue(row[columnIndexes['collected_by']] || '') : '',
             additional_info: columnIndexes['additional_info'] >= 0 ? normalizeEmptyValue(row[columnIndexes['additional_info']] || '') : '',
           };
@@ -539,23 +940,33 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
       console.log('[FileUpload] Sample data preview (first 3):');
       parsedData.slice(0, 3).forEach((p, idx) => {
         const sample = p.sample || p;
-        console.log(`  Sample ${idx + 1}:`, {
+        console.log(`  Sample ${idx + 1}: ${JSON.stringify({
           sample_id: sample.sample_id,
           region: sample.region,
           province: sample.province,
           district: sample.district,
           vegetation_variety: sample.vegetation_variety,
           collection_date: sample.collection_date,
-        });
+        })}`);
       });
       
       setParsedData(parsedData);
       setImportStatus('reviewing');
+      resetImportFeedback();
       setIsImporting(false); // Reset importing state after parsing completes
     } catch (error) {
       console.error('[FileUpload] File import error:', error);
       setFileError(error instanceof Error ? error.message : 'Failed to import file');
-      setImportStatus('idle');
+      setImportStatus('error');
+      setImportErrors([error instanceof Error ? error.message : 'Failed to import file']);
+      setImportProgress({
+        processed: 0,
+        total: 1,
+        successCount: 0,
+        failureCount: 1,
+        currentSample: uploadFile.name,
+        phaseMessage: 'The file could not be prepared for import.',
+      });
       setIsImporting(false);
     }
   };
@@ -614,6 +1025,16 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
     
     if (invalidCount > 0) {
       console.warn(`[Import] Found ${invalidCount} validation errors:`, validationErrors.slice(0, 10));
+      setImportStatus('error');
+      setImportErrors(validationErrors);
+      setImportProgress({
+        processed: 0,
+        total: parsedData.length,
+        successCount: 0,
+        failureCount: invalidCount,
+        currentSample: '',
+        phaseMessage: 'Validation failed before any samples were sent to the server.',
+      });
       toast({
         title: 'Validation Errors Found',
         description: `${invalidCount} samples have validation errors. First error: ${validationErrors[0]}. Check console for details.`,
@@ -626,165 +1047,274 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
     console.log('[Import] Pre-validation passed');
     setIsImporting(true);
     setImportStatus('importing');
+        setImportErrors([]);
+        setFailedRows([]);
+        setImportProgress({
+          processed: 0,
+          total: parsedData.length,
+          successCount: 0,
+          failureCount: 0,
+          currentSample: '',
+          phaseMessage: 'Uploading samples to the server and attaching test results.',
+        });
 
     try {
       let successCount = 0;
       const errors: string[] = [];
-      const failureDetails: any[] = []; // Track detailed failure info
+      const failureDetails: FailedRowDetail[] = [];
+      const indexedEntries: ImportEntry[] = parsedData.map((parsed: any, idx: number) => {
+        const sample = parsed.sample || parsed;
+        return {
+          row: idx + 1,
+          parsed,
+          sample,
+          mycotoxins: parsed.mycotoxins || [],
+        };
+      });
+
+      const simpleEntries = indexedEntries.filter((entry) => entry.mycotoxins.length === 0);
+      const toxinEntries = indexedEntries.filter((entry) => entry.mycotoxins.length > 0);
+
+      const recordFailure = (entry: ImportEntry, errorMsg: string) => {
+        errors.push(`Row ${entry.row}: ${errorMsg}`);
+        failureDetails.push({
+          row: entry.row,
+          sample_id: entry.sample.sample_id,
+          region: entry.sample.region,
+          province: entry.sample.province,
+          district: entry.sample.district,
+          vegetation_variety: entry.sample.vegetation_variety,
+          collection_date: entry.sample.collection_date,
+          error: errorMsg,
+        });
+      };
 
       const createSampleWithRetry = async (sample: any, rowNumber: number) => {
-        try {
-          return await sampleAPI.createSample(sample);
-        } catch (err: any) {
-          const sampleIdError = err?.response?.data?.sample_id;
-          const sampleIdErrorText = Array.isArray(sampleIdError)
-            ? sampleIdError.join(' ').toLowerCase()
-            : String(sampleIdError || '').toLowerCase();
+        let requestSample = sample;
+        let didRetryDuplicateId = false;
 
-          const isDuplicateSampleId = sampleIdErrorText.includes('already exists') || sampleIdErrorText.includes('unique');
-          if (!isDuplicateSampleId) {
+        for (let attempt = 0; attempt < 5; attempt++) {
+          try {
+            return await sampleAPI.createSample(requestSample);
+          } catch (err: any) {
+            const sampleIdError = err?.response?.data?.sample_id;
+            const sampleIdErrorText = Array.isArray(sampleIdError)
+              ? sampleIdError.join(' ').toLowerCase()
+              : String(sampleIdError || '').toLowerCase();
+            const fullErrorText = formatErrorPayload(err?.response?.data).toLowerCase();
+
+            const isDuplicateSampleId =
+              sampleIdErrorText.includes('already exists') ||
+              sampleIdErrorText.includes('unique') ||
+              /sample[_\s-]*id.*already exists|duplicate|unique constraint/.test(fullErrorText);
+            if (isDuplicateSampleId && !didRetryDuplicateId) {
+              const baseId = String(requestSample.sample_id || `IMP-${new Date().getFullYear()}`)
+                .replace(/\s+/g, '-')
+                .replace(/[^A-Za-z0-9_-]/g, '')
+                .toUpperCase()
+                .slice(0, 40);
+              const retrySuffix = `${Date.now().toString().slice(-4)}${rowNumber}`;
+              const retrySampleId = `${baseId}-${retrySuffix}`.slice(0, 50);
+
+              requestSample = { ...requestSample, sample_id: retrySampleId };
+              didRetryDuplicateId = true;
+              continue;
+            }
+
+            if (err?.response?.status === 429 && attempt < 4) {
+              const delayMs = getRetryDelayMs(err, attempt);
+              setImportProgress((prev) => ({
+                ...prev,
+                currentSample: requestSample.sample_id || `Row ${rowNumber}`,
+                phaseMessage: `Rate limit reached. Retrying row ${rowNumber} in ${Math.ceil(delayMs / 1000)}s.`,
+              }));
+              await wait(delayMs);
+              continue;
+            }
+
             throw err;
           }
+        }
 
-          const baseId = String(sample.sample_id || `IMP-${new Date().getFullYear()}`)
-            .replace(/\s+/g, '-')
-            .replace(/[^A-Za-z0-9_-]/g, '')
-            .toUpperCase()
-            .slice(0, 40);
-          const retrySuffix = `${Date.now().toString().slice(-4)}${rowNumber}`;
-          const retrySampleId = `${baseId}-${retrySuffix}`.slice(0, 50);
+        throw new Error(`Failed to create sample after multiple attempts for row ${rowNumber}.`);
+      };
 
-          return sampleAPI.createSample({ ...sample, sample_id: retrySampleId });
+      const bulkCreateChunkWithRetry = async (entries: ImportEntry[]) => {
+        const payload = entries.map((entry) => toBulkCreatePayload(entry.sample));
+
+        for (let attempt = 0; attempt < 4; attempt++) {
+          try {
+            await sampleAPI.bulkCreateSamples(payload);
+            return;
+          } catch (err: any) {
+            if (err?.response?.status === 429 && attempt < 3) {
+              const delayMs = getRetryDelayMs(err, attempt);
+              setImportProgress((prev) => ({
+                ...prev,
+                currentSample: `${entries[0]?.sample?.sample_id || 'batch'} -> ${entries[entries.length - 1]?.sample?.sample_id || 'batch'}`,
+                phaseMessage: `Rate limit reached for batch import. Retrying in ${Math.ceil(delayMs / 1000)}s.`,
+              }));
+              await wait(delayMs);
+              continue;
+            }
+
+            throw err;
+          }
         }
       };
 
-      for (let i = 0; i < parsedData.length; i++) {
-        let parsed: any = null; // Declare outside try-catch for catch block access
-        try {
-          parsed = parsedData[i];
-          const sample = parsed.sample || parsed;
-          
-          // Log first 5 samples for debugging
-          if (i < 5) {
-            console.log(`[Import] Sample ${i + 1} data:`, {
-              sample_id: sample.sample_id,
-              region: sample.region,
-              province: sample.province,
-              district: sample.district,
-              vegetation_variety: sample.vegetation_variety,
-              collection_date: sample.collection_date,
-            });
-          }
-          
-          console.log(`[Import] Processing sample ${i + 1}:`, sample.sample_id);
-          
-          // Validate sample has required fields
-          if (!sample.sample_id || !sample.province || !sample.district || !sample.vegetation_variety) {
-            errors.push(`Row ${i + 1}: Missing required fields`);
-            console.warn(`[Import] Row ${i + 1} missing required fields`);
-            continue;
-          }
-          
-          if (parsed.mycotoxins && parsed.mycotoxins.length > 0) {
-            // Has mycotoxin results - create sample and link tests
-            console.log(`[Import] Creating sample with ${parsed.mycotoxins.length} mycotoxin results`);
-            const sampleResponse = await createSampleWithRetry(sample as any, i + 1);
-            const sampleId = sampleResponse.sample_id;
-            console.log(`[Import] Sample created: ${sampleId}`);
+      // 1) Fast path: chunked bulk import for simple rows (no mycotoxins)
+      const SIMPLE_CHUNK_SIZE = 20;
+      for (let start = 0; start < simpleEntries.length; start += SIMPLE_CHUNK_SIZE) {
+        const chunk = simpleEntries.slice(start, start + SIMPLE_CHUNK_SIZE);
+        const chunkLabel = `${start + 1}-${Math.min(start + chunk.length, simpleEntries.length)} of ${simpleEntries.length}`;
 
-            for (const mycotoxin of parsed.mycotoxins) {
-              try {
-                await sampleAPI.addMycotoxinResult(sampleId, mycotoxin);
-              } catch (err) {
-                console.error(`Failed to add mycotoxin result for ${sampleId}:`, err);
-                errors.push(`Row ${i + 1}: Failed to add test result`);
-              }
+        setImportProgress((prev) => ({
+          ...prev,
+          currentSample: `Simple batch ${chunkLabel}`,
+          phaseMessage: `Bulk importing simple samples (${chunkLabel}).`,
+        }));
+
+        try {
+          await bulkCreateChunkWithRetry(chunk);
+          successCount += chunk.length;
+          setImportProgress((prev) => ({
+            ...prev,
+            processed: prev.processed + chunk.length,
+            successCount,
+            failureCount: errors.length,
+          }));
+        } catch (chunkError: any) {
+          // Fallback: salvage each row in this chunk individually for granular errors.
+          for (const entry of chunk) {
+            try {
+              setImportProgress((prev) => ({
+                ...prev,
+                currentSample: entry.sample.sample_id || `Row ${entry.row}`,
+                phaseMessage: `Retrying row ${entry.row} individually after batch failure.`,
+              }));
+              await createSampleWithRetry(entry.sample, entry.row);
+              successCount++;
+            } catch (err: any) {
+              const errorMsg = getReadableImportError(err);
+              recordFailure(entry, errorMsg);
+            } finally {
+              setImportProgress((prev) => ({
+                ...prev,
+                processed: prev.processed + 1,
+                successCount,
+                failureCount: errors.length,
+              }));
             }
-            successCount++;
-          } else {
-            // Simple sample without toxins
-            console.log(`[Import] Creating simple sample`);
-            await createSampleWithRetry(sample as any, i + 1);
-            successCount++;
           }
-          console.log(`[Import] Sample ${i + 1} completed successfully`);
+        }
+      }
+
+      // 2) Process rows with mycotoxin results individually (must keep sample IDs for child records)
+      for (const entry of toxinEntries) {
+        try {
+          setImportProgress((prev) => ({
+            ...prev,
+            currentSample: entry.sample.sample_id || `Row ${entry.row}`,
+            phaseMessage: `Processing sample ${entry.row} with ${entry.mycotoxins.length} mycotoxin results.`,
+          }));
+
+          const sampleResponse = await createSampleWithRetry(entry.sample, entry.row);
+          const sampleId = sampleResponse.sample_id;
+
+          for (const mycotoxin of entry.mycotoxins) {
+            await sampleAPI.addMycotoxinResult(sampleId, mycotoxin);
+          }
+
+          successCount++;
         } catch (err: any) {
-          console.error(`[Import] Failed to create sample at row ${i + 1}:`, err);
-          // Extract detailed error message from backend
-          let errorMsg = 'Failed to create sample';
-          if (err?.response?.data) {
-            const data = err.response.data;
-            // Handle both detail and field-specific errors
-            if (typeof data === 'object') {
-              const messages = Object.entries(data)
-                .map(([key, value]: [string, any]) => {
-                  if (Array.isArray(value)) {
-                    return `${key}: ${value.join(', ')}`;
-                  }
-                  return `${key}: ${value}`;
-                })
-                .join('; ');
-              errorMsg = messages || data.detail || 'Validation failed';
-            } else {
-              errorMsg = String(data);
-            }
-          } else if (err?.message) {
-            errorMsg = err.message;
-          }
-          console.error(`[Import] Error details for row ${i + 1}:`, errorMsg);
-          // parsed is now accessible here since it's declared outside try-catch
-          if (parsed) {
-            const sample = parsed.sample || parsed;
-            const failureData = {
-              sample_id: sample.sample_id,
-              region: sample.region,
-              province: sample.province,
-              district: sample.district,
-              vegetation_variety: sample.vegetation_variety,
-              collection_date: sample.collection_date,
-              error: errorMsg,
-            };
-            console.warn(`[Import] Failed sample data:`, failureData);
-            
-            // Keep track of first 10 failures for debugging
-            if (failureDetails.length < 10) {
-              failureDetails.push({ row: i + 1, ...failureData });
-            }
-          }
-          errors.push(`Row ${i + 1}: ${errorMsg}`);
+          const errorMsg = getReadableImportError(err);
+          recordFailure(entry, errorMsg);
+        } finally {
+          setImportProgress((prev) => ({
+            ...prev,
+            processed: prev.processed + 1,
+            successCount,
+            failureCount: errors.length,
+          }));
         }
       }
 
       console.log(`[Import] Loop complete. Successful: ${successCount}/${parsedData.length}`);
       
-      // Show first 10 failures for debugging
+      // Show failures for debugging
       if (failureDetails.length > 0) {
-        console.log(`[Import] First ${failureDetails.length} failures:`, failureDetails);
+        console.log(`[Import] Failure details (${failureDetails.length}):`, failureDetails.slice(0, 10));
       }
 
       // Always reset importing state
       setIsImporting(false);
+      setFailedRows(failureDetails);
 
       if (successCount > 0) {
-        setImportStatus('success');
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['samples-list'] }),
+          queryClient.invalidateQueries({ queryKey: ['samples-dashboard'] }),
+        ]);
+      }
+
+      if (successCount > 0) {
         const totalToxins = parsedData.reduce((sum: number, p: any) => sum + (p.mycotoxins?.length || 0), 0);
+        if (errors.length === 0) {
+          setImportStatus('success');
+          setImportProgress({
+            processed: parsedData.length,
+            total: parsedData.length,
+            successCount,
+            failureCount: 0,
+            currentSample: '',
+            phaseMessage: 'All samples finished importing successfully.',
+          });
 
-        toast({
-          title: 'Import Complete',
-          description: `${successCount} of ${parsedData.length} samples imported${totalToxins > 0 ? ` with ${totalToxins} test results` : ''}.`,
-        });
+          toast({
+            title: 'Import Complete',
+            description: `${successCount} of ${parsedData.length} samples imported${totalToxins > 0 ? ` with ${totalToxins} test results` : ''}.`,
+          });
 
-        setTimeout(() => {
-          setOpen(false);
-          setUploadFile(null);
-          setFilePreview([]);
-          setParsedData([]);
-          setImportStatus('idle');
-          form.reset();
-        }, 2000);
+          setTimeout(() => {
+            setOpen(false);
+            setUploadFile(null);
+            setFilePreview([]);
+            setParsedData([]);
+            setImportStatus('idle');
+            resetImportFeedback();
+            form.reset();
+          }, 2000);
+        } else {
+          setImportStatus('error');
+          setImportErrors(errors);
+          setImportProgress({
+            processed: parsedData.length,
+            total: parsedData.length,
+            successCount,
+            failureCount: errors.length,
+            currentSample: '',
+            phaseMessage: `${successCount} samples imported, but some rows still need attention.`,
+          });
+
+          toast({
+            title: 'Import Partially Complete',
+            description: `${successCount} samples imported, ${errors.length} failed. Review the error panel for details.`,
+            variant: 'destructive',
+          });
+        }
       } else {
         // All samples failed
-        setImportStatus('reviewing');
+        setImportStatus('error');
+        setImportErrors(errors);
+        setImportProgress({
+          processed: parsedData.length,
+          total: parsedData.length,
+          successCount: 0,
+          failureCount: errors.length,
+          currentSample: '',
+          phaseMessage: 'No samples were imported. Review the reported errors and try again.',
+        });
         console.error(`[Import] All samples failed. Errors: `, errors);
         toast({
           title: 'Import Failed',
@@ -795,7 +1325,13 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
     } catch (error: any) {
       console.error('[Import] Unexpected import error:', error);
       setIsImporting(false);
-      setImportStatus('reviewing');
+      setImportStatus('error');
+      setImportErrors([error?.message || 'An unexpected error occurred']);
+      setImportProgress((prev) => ({
+        ...prev,
+        failureCount: prev.failureCount + 1,
+        phaseMessage: 'The import was interrupted before completion.',
+      }));
       toast({
         title: 'Import Error',
         description: error?.message || 'An unexpected error occurred',
@@ -806,6 +1342,17 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
 
   const parseAdvancedFileData = (file: File): Promise<string[][]> => {
     return new Promise((resolve, reject) => {
+      const parseCsvTextWithXlsx = (text: string): string[][] => {
+        const workbook = XLSX.read(text, { type: 'string' });
+        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+        const jsonData = XLSX.utils.sheet_to_json<any[]>(firstSheet, {
+          header: 1,
+          raw: false,
+          defval: '',
+        });
+        return jsonData.map((row) => row.map((cell) => String(cell ?? '').trim()));
+      };
+
       const isXlsx = file.name.endsWith('.xlsx') || file.name.endsWith('.xls');
 
       if (isXlsx) {
@@ -826,28 +1373,13 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
       } else {
         const reader = new FileReader();
         reader.onload = (event) => {
-          const text = event.target?.result as string;
-          const lines = text.split('\n').filter(line => line.trim());
-          const parsed = lines.map(line => {
-            const cells: string[] = [];
-            let current = '';
-            let inQuotes = false;
-
-            for (let i = 0; i < line.length; i++) {
-              const char = line[i];
-              if (char === '"' && (i === 0 || line[i - 1] !== '\\')) {
-                inQuotes = !inQuotes;
-              } else if (char === ',' && !inQuotes) {
-                cells.push(current.trim());
-                current = '';
-              } else {
-                current += char;
-              }
-            }
-            cells.push(current.trim());
-            return cells;
-          });
-          resolve(parsed);
+          try {
+            const text = event.target?.result as string;
+            const parsed = parseCsvTextWithXlsx(text);
+            resolve(parsed);
+          } catch (error) {
+            reject(new Error('Failed to parse CSV file'));
+          }
         };
         reader.onerror = () => reject(new Error('Failed to read file'));
         reader.readAsText(file);
@@ -909,6 +1441,11 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
       if (newOpen && !isAuthenticated) {
         window.dispatchEvent(new CustomEvent('open-login-modal'));
         return;
+      }
+      if (!newOpen) {
+        resetImportFeedback();
+        setImportStatus('idle');
+        setFileError(null);
       }
       setOpen(newOpen);
     }}>
@@ -1181,6 +1718,62 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
           </TabsContent>
 
           <TabsContent value="upload" className="mt-6 space-y-4">
+            {(importStatus === 'parsing' || importStatus === 'importing') && (
+              <div className="rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/5 via-background to-primary/10 p-6 shadow-sm">
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 ring-8 ring-primary/5">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                </div>
+
+                <div className="mt-5 text-center">
+                  <p className="text-lg font-semibold text-foreground">
+                    {importStatus === 'parsing' ? 'Preparing import preview' : 'Importing samples'}
+                  </p>
+                  <p className="mt-1 text-sm text-muted-foreground">{importProgress.phaseMessage}</p>
+                </div>
+
+                <div className="mt-6 space-y-3">
+                  <Progress value={importProgressValue} className="h-2.5" />
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span>
+                      {importProgress.total > 0
+                        ? `${importProgress.processed} / ${importProgress.total} completed`
+                        : 'Initializing import'}
+                    </span>
+                    <span>{importProgressValue}%</span>
+                  </div>
+
+                  {importProgress.currentSample && (
+                    <div className="rounded-xl border border-border/60 bg-background/80 px-4 py-3 text-sm">
+                      <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Current item</p>
+                      <p className="mt-1 truncate font-medium text-foreground">{importProgress.currentSample}</p>
+                    </div>
+                  )}
+
+                  {importStatus === 'importing' && (
+                    <div className="grid grid-cols-2 gap-3 pt-1 sm:grid-cols-4">
+                      <div className="rounded-xl border border-border/60 bg-background/70 p-3 text-center">
+                        <p className="text-xs text-muted-foreground">Queued</p>
+                        <p className="mt-1 text-lg font-semibold text-foreground">{Math.max(importProgress.total - importProgress.processed, 0)}</p>
+                      </div>
+                      <div className="rounded-xl border border-border/60 bg-background/70 p-3 text-center">
+                        <p className="text-xs text-muted-foreground">Imported</p>
+                        <p className="mt-1 text-lg font-semibold text-emerald-600">{importProgress.successCount}</p>
+                      </div>
+                      <div className="rounded-xl border border-border/60 bg-background/70 p-3 text-center">
+                        <p className="text-xs text-muted-foreground">Errors</p>
+                        <p className="mt-1 text-lg font-semibold text-destructive">{importProgress.failureCount}</p>
+                      </div>
+                      <div className="flex items-center justify-center gap-1 rounded-xl border border-border/60 bg-background/70 p-3">
+                        <span className="h-2.5 w-2.5 animate-bounce rounded-full bg-primary [animation-delay:-0.3s]" />
+                        <span className="h-2.5 w-2.5 animate-bounce rounded-full bg-primary [animation-delay:-0.15s]" />
+                        <span className="h-2.5 w-2.5 animate-bounce rounded-full bg-primary" />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {importStatus === 'idle' && (
               <>
                 <label className="block">
@@ -1262,6 +1855,95 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
               </>
             )}
 
+            {importStatus === 'error' && (
+              <div className="space-y-4 rounded-2xl border border-destructive/25 bg-destructive/5 p-5">
+                <div className="flex items-start gap-3">
+                  <div className="rounded-full bg-destructive/10 p-2">
+                    <AlertCircle className="h-5 w-5 text-destructive" />
+                  </div>
+                  <div>
+                    <p className="text-base font-semibold text-foreground">Import needs attention</p>
+                    <p className="mt-1 text-sm text-muted-foreground">{importProgress.phaseMessage || 'Some parts of the import failed. Review the details below before retrying.'}</p>
+                  </div>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-xl border border-border/60 bg-background/80 p-3">
+                    <p className="text-xs text-muted-foreground">Processed</p>
+                    <p className="mt-1 text-xl font-semibold text-foreground">{importProgress.processed}</p>
+                  </div>
+                  <div className="rounded-xl border border-border/60 bg-background/80 p-3">
+                    <p className="text-xs text-muted-foreground">Imported</p>
+                    <p className="mt-1 text-xl font-semibold text-emerald-600">{importProgress.successCount}</p>
+                  </div>
+                  <div className="rounded-xl border border-border/60 bg-background/80 p-3">
+                    <p className="text-xs text-muted-foreground">Failed</p>
+                    <p className="mt-1 text-xl font-semibold text-destructive">{Math.max(importProgress.failureCount, importErrors.length)}</p>
+                  </div>
+                </div>
+
+                {importErrors.length > 0 && (
+                  <div className="rounded-xl border border-destructive/20 bg-background/80 p-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Error details</p>
+                    {groupedImportErrors.length > 0 && (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {groupedImportErrors.slice(0, 5).map((group) => (
+                          <Badge key={group.reason} variant="outline" className="text-xs">
+                            {group.reason}: {group.count}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                    <div className="mt-3 max-h-52 space-y-2 overflow-y-auto pr-1">
+                      {importErrors.slice(0, 8).map((error, index) => (
+                        <div key={`${error}-${index}`} className="rounded-lg border border-destructive/10 bg-destructive/5 px-3 py-2 text-sm text-foreground">
+                          {error}
+                        </div>
+                      ))}
+                    </div>
+                    {importErrors.length > 8 && (
+                      <p className="mt-3 text-xs text-muted-foreground">Showing 8 of {importErrors.length} errors.</p>
+                    )}
+                    {failedRows.length > 0 && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="mt-3 gap-2"
+                        onClick={downloadFailedRowsReport}
+                      >
+                        <Download className="h-4 w-4" />
+                        Download Failed Rows ({failedRows.length})
+                      </Button>
+                    )}
+                  </div>
+                )}
+
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      if (parsedData.length > 0) {
+                        setImportStatus('reviewing');
+                      } else {
+                        setImportStatus('idle');
+                      }
+                      setFileError(null);
+                      resetImportFeedback();
+                    }}
+                  >
+                    {parsedData.length > 0 ? 'Back to Review' : 'Choose Another File'}
+                  </Button>
+                  {parsedData.length > 0 && (
+                    <Button onClick={handleImportReview} className="gap-2">
+                      <Upload className="h-4 w-4" />
+                      Retry Import
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )}
+
             {importStatus === 'reviewing' && parsedData.length > 0 && (
               <div className="space-y-4">
                 <div className="grid gap-3 grid-cols-3">
@@ -1338,16 +2020,6 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
                     {isImporting && <Loader2 className="h-4 w-4 animate-spin" />}
                     Import {parsedData.length} Samples
                   </Button>
-                </div>
-              </div>
-            )}
-
-            {importStatus === 'importing' && (
-              <div className="flex items-center justify-center py-16">
-                <div className="text-center">
-                  <Loader2 className="mx-auto h-10 w-10 animate-spin text-primary mb-4" />
-                  <p className="text-sm font-medium text-foreground">Importing samples...</p>
-                  <p className="text-xs text-muted-foreground mt-1">This may take a moment.</p>
                 </div>
               </div>
             )}

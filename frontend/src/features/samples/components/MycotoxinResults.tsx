@@ -71,22 +71,32 @@ const MycotoxinResults = ({ results }: MycotoxinResultsProps) => {
             
             <div className="mt-4">
               <div className="flex items-center justify-between text-xs">
-                <span className="text-muted-foreground">Intensity Level</span>
+                <span className="text-muted-foreground">Measured Concentration</span>
                 <span className={cn(
                   'font-semibold',
                   result.dangerous ? 'text-danger' : 'text-foreground'
                 )}>
-                  {result.intensity}/10
+                  {result.intensity} {result.unit}
                 </span>
               </div>
+              <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
+                <span>Threshold</span>
+                <span>{result.threshold} {result.unit}</span>
+              </div>
               <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted">
+                {(() => {
+                  const ratio = result.threshold > 0 ? (result.intensity / result.threshold) : 0;
+                  const progress = Math.max(0, Math.min(100, ratio * 100));
+                  return (
                 <div 
                   className={cn(
                     'h-full rounded-full transition-all duration-500',
                     result.dangerous ? 'gradient-danger' : 'gradient-primary'
                   )}
-                  style={{ width: `${result.intensity * 10}%` }}
+                  style={{ width: `${progress}%` }}
                 />
+                  );
+                })()}
               </div>
             </div>
           </div>

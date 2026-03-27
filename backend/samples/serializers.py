@@ -149,6 +149,8 @@ class SampleListSerializer(serializers.ModelSerializer):
     """Lightweight serializer for list views"""
     risk_level = serializers.SerializerMethodField()
     process_logs = ProcessLogSerializer(many=True, read_only=True)
+    mycotoxin_results = MycotoxinResultSerializer(many=True, read_only=True)
+    results_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Sample
@@ -162,6 +164,8 @@ class SampleListSerializer(serializers.ModelSerializer):
             'collection_date',
             'status',
             'risk_level',
+            'results_count',
+            'mycotoxin_results',
             'process_logs',
         )
 
@@ -171,11 +175,16 @@ class SampleListSerializer(serializers.ModelSerializer):
         has_dangerous = obj.mycotoxin_results.filter(dangerous=True).exists()
         if has_dangerous:
             return 'high'
-        max_intensity = obj.mycotoxin_results.values_list('intensity', flat=True)
-        if max_intensity:
-            max_val = max(max_intensity)
-            if max_val >= 7:
-                return 'medium'
-            elif max_val >= 4:
-                return 'low'
+        max_ratio = 0.0
+        for result in obj.mycotoxin_results.all():
+            if result.threshold and result.threshold > 0:
+                max_ratio = max(max_ratio, float(result.intensity) / float(result.threshold))
+
+        if max_ratio >= 0.75:
+            return 'medium'
+        if max_ratio > 0:
+            return 'low'
         return 'safe'
+
+    def get_results_count(self, obj):
+        return obj.mycotoxin_results.count()

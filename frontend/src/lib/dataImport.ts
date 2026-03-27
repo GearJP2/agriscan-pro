@@ -135,6 +135,19 @@ const MYCOTOXIN_CONFIGS: Record<string, { threshold: number; unit: string }> = {
   'AFM1': { threshold: 0.5, unit: 'ppb' },           // Aflatoxin M1
 };
 
+const MYCOTOXIN_ALIASES: Record<string, string[]> = {
+  DON: ['don', 'deoxynivalenol'],
+  AFB1: ['afb1', 'aflatoxin b1'],
+  FB1: ['fb1', 'fumonisin b1'],
+  'T-2': ['t-2', 't2', 't 2', 't-2 toxin', 't2 toxin'],
+  ZEA: ['zea', 'zearalenone'],
+  OTA: ['ota', 'ochratoxin a'],
+  AF: ['af', 'aflatoxin'],
+  AFG1: ['afg1', 'aflatoxin g1'],
+  AFG2: ['afg2', 'aflatoxin g2'],
+  AFM1: ['afm1', 'aflatoxin m1'],
+};
+
 // Columns to ignore (metals, minerals, isotopes, etc)
 const IGNORE_PATTERNS = [
   'metal', 'mineral', 'isotope', 'd13c', 'd15n', 'd18o',
@@ -153,7 +166,10 @@ export const normalizeValue = (value: string | number): string | number | null =
   if (!str || str === '#VALUE!' || str === '-' || str === 'N/A' || str === 'none') {
     return null;
   }
-  if (str.toLowerCase() === '<lod') return null; // Below limit of detection
+  const lowered = str.toLowerCase();
+  if (lowered === '<lod' || lowered.startsWith('<') || lowered === 'bdl' || lowered === 'nd') {
+    return null; // Below/No detection
+  }
   return value;
 };
 
@@ -164,30 +180,75 @@ export const parseMycotoxinValue = (value: any): number | null => {
   const normalized = normalizeValue(value);
   if (normalized === null) return null;
   if (typeof normalized === 'number') return normalized;
-  
-  const num = parseFloat(String(normalized));
+
+  let cleaned = String(normalized).trim();
+  // Handle locale decimal values, e.g. "0,4" -> "0.4"
+  if (cleaned.includes(',') && !cleaned.includes('.')) {
+    cleaned = cleaned.replace(',', '.');
+  } else if (cleaned.includes(',') && cleaned.includes('.')) {
+    // Assume commas are thousands separators when both are present.
+    cleaned = cleaned.replace(/,/g, '');
+  }
+
+  // Keep only first numeric segment if extra annotations exist.
+  const match = cleaned.match(/[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?/);
+  if (!match) return null;
+
+  const numericText = match[0];
+  const num = parseFloat(numericText);
   return isNaN(num) ? null : num;
+};
+
+const normalizeHeader = (value: string): string => value.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+const getMycotoxinByAlias = (headerName: string): string | null => {
+  const raw = headerName.toLowerCase().trim();
+  const normalized = normalizeHeader(headerName);
+
+  for (const [toxin, aliases] of Object.entries(MYCOTOXIN_ALIASES)) {
+    if (aliases.some((alias) => {
+      const aliasNormalized = normalizeHeader(alias);
+      return raw.includes(alias) || normalized.includes(aliasNormalized);
+    })) {
+      return toxin;
+    }
+  }
+
+  return null;
 };
 
 /**
  * Detect if a column is a mycotoxin column
  */
 export const isMycotoxinColumn = (headerName: string): boolean => {
-  const name = headerName.toUpperCase().trim();
-  return Object.keys(MYCOTOXIN_CONFIGS).some(toxin => name.includes(toxin));
+  return getMycotoxinByAlias(headerName) !== null;
+};
+
+export const hasAnyMycotoxinColumns = (headers: string[]): boolean => {
+  const fallbackPattern = /(aflatoxin|fumonisin|deoxynivalenol|zearalenone|ochratoxin|\bafb1\b|\bafb2\b|\bafg1\b|\bafg2\b|\bafm1\b|\bfb1\b|\bdon\b|\bzea\b|\bota\b|\bt\s*-?\s*2\b|mycotoxin)/i;
+
+  return headers.some((header) => {
+    if (isMycotoxinColumn(header)) return true;
+    const normalized = header.toLowerCase().replace(/[_\-]+/g, ' ').trim();
+    return fallbackPattern.test(normalized);
+  });
+};
+
+export const getDetectedMycotoxinHeaders = (headers: string[]): string[] => {
+  const fallbackPattern = /(aflatoxin|fumonisin|deoxynivalenol|zearalenone|ochratoxin|\bafb1\b|\bafb2\b|\bafg1\b|\bafg2\b|\bafm1\b|\bfb1\b|\bdon\b|\bzea\b|\bota\b|\bt\s*-?\s*2\b|mycotoxin)/i;
+
+  return headers.filter((header) => {
+    if (isMycotoxinColumn(header)) return true;
+    const normalized = header.toLowerCase().replace(/[_\-]+/g, ' ').trim();
+    return fallbackPattern.test(normalized);
+  });
 };
 
 /**
  * Get mycotoxin name from column header
  */
 export const getMycotoxinName = (headerName: string): string | null => {
-  const name = headerName.toUpperCase().trim();
-  for (const toxin of Object.keys(MYCOTOXIN_CONFIGS)) {
-    if (name.includes(toxin)) {
-      return toxin;
-    }
-  }
-  return null;
+  return getMycotoxinByAlias(headerName);
 };
 
 /**
@@ -233,7 +294,7 @@ export const parseResearchDataFile = (headers: string[], rows: string[][]): Pars
   
   // Find column indices
   const columnIndices: Record<string, number> = {};
-  const mycotoxinIndices: Record<string, number> = {};
+  const mycotoxinIndices: Record<string, number[]> = {};
   
   headers.forEach((header, index) => {
     const lowerHeader = header.toLowerCase().trim();
@@ -245,7 +306,10 @@ export const parseResearchDataFile = (headers: string[], rows: string[][]): Pars
     if (isMycotoxinColumn(header)) {
       const toxinName = getMycotoxinName(header);
       if (toxinName) {
-        mycotoxinIndices[toxinName] = index;
+        if (!mycotoxinIndices[toxinName]) {
+          mycotoxinIndices[toxinName] = [];
+        }
+        mycotoxinIndices[toxinName].push(index);
       }
     } else {
       // Map to sample property - use more specific patterns
@@ -308,13 +372,22 @@ export const parseResearchDataFile = (headers: string[], rows: string[][]): Pars
     
     // Extract mycotoxin results
     const mycotoxins: ParsedSampleWithResults['mycotoxins'] = [];
-    Object.entries(mycotoxinIndices).forEach(([toxinName, colIndex]) => {
-      const value = parseMycotoxinValue(String(row[colIndex] ?? ''));
+    Object.entries(mycotoxinIndices).forEach(([toxinName, colIndexes]) => {
+      let value: number | null = null;
+
+      for (const colIndex of colIndexes) {
+        const parsed = parseMycotoxinValue(String(row[colIndex] ?? ''));
+        if (parsed !== null) {
+          value = parsed;
+          break;
+        }
+      }
+
       if (value !== null && value > 0) {
         const config = MYCOTOXIN_CONFIGS[toxinName];
         mycotoxins.push({
           name: toxinName,
-          intensity: Math.min(value, 10), // Normalize to 1-10 scale if needed
+          intensity: value,
           threshold: config.threshold,
           unit: config.unit,
           dangerous: value > config.threshold,
