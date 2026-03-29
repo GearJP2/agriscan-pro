@@ -1,14 +1,15 @@
-import { topProvinces } from '@/data/mockDashboardData';
-import { TOXIN_COLORS } from '@/data/mockDashboardData';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import type { ProvinceRank } from '@/types/dashboard';
 import { cn } from '@/lib/utils';
 
 interface Props {
   onSelectProvince: (province: string) => void;
   selectedProvince: string | null;
+  provinces: ProvinceRank[];
+  toxinColors: Record<string, string>;
 }
 
-export default function RegionalRiskRanking({ onSelectProvince, selectedProvince }: Props) {
+export default function RegionalRiskRanking({ onSelectProvince, selectedProvince, provinces, toxinColors }: Props) {
   return (
     <Card className="glass-card h-full flex flex-col">
       <CardHeader className="pb-2">
@@ -16,7 +17,11 @@ export default function RegionalRiskRanking({ onSelectProvince, selectedProvince
       </CardHeader>
 
       <CardContent className="space-y-3 flex-1">
-        {topProvinces.map((p) => {
+        {provinces.length === 0 ? (
+          <div className="flex h-full min-h-[240px] items-center justify-center rounded-lg border border-dashed border-border text-sm text-muted-foreground">
+            No high-risk provinces in the selected filters.
+          </div>
+        ) : provinces.map((p) => {
           const isSelected = selectedProvince === p.province;
           const rankColor = p.riskLevel === 'critical' ? 'bg-danger' : 'bg-warning';
 
@@ -60,8 +65,8 @@ export default function RegionalRiskRanking({ onSelectProvince, selectedProvince
                     <span
                       className="text-xs font-medium px-1.5 py-0.5 rounded"
                       style={{
-                        backgroundColor: `${TOXIN_COLORS[p.dominantToxin] || '#6b7280'}33`,
-                        color: TOXIN_COLORS[p.dominantToxin] || '#9ca3af',
+                        backgroundColor: `${toxinColors[p.dominantToxin] || '#6b7280'}33`,
+                        color: toxinColors[p.dominantToxin] || '#9ca3af',
                       }}
                     >
                       {p.dominantToxin}

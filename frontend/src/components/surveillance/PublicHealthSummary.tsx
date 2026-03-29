@@ -1,10 +1,10 @@
-import { publicHealthSummary } from '@/data/mockDashboardData';
 import { AlertTriangle, Wheat, Users } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
+import type { HealthSummary } from '@/types/dashboard';
 
-export default function PublicHealthSummary() {
-  const { riskDrivers, affectedCommodities, impactedPopulations } = publicHealthSummary;
+export default function PublicHealthSummary({ summary }: { summary: HealthSummary }) {
+  const { riskDrivers, affectedCommodities, impactedPopulations } = summary;
 
   return (
     <section aria-label="Public Health Risk Summary">
@@ -28,7 +28,7 @@ export default function PublicHealthSummary() {
               </ul>
               <div className="inline-flex items-center gap-1.5 rounded-full bg-warning/10 border border-warning/30 px-3 py-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-warning animate-pulse" />
-                <span className="text-xs text-warning">AI-generated · Pending admin review</span>
+                <span className="text-xs text-warning">Generated from current sample data</span>
               </div>
             </div>
 

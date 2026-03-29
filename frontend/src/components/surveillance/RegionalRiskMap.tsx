@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { MapContainer, TileLayer, GeoJSON, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { provinceRiskData } from '@/data/mockDashboardData';
 import type { ProvinceRisk } from '@/types/dashboard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useTheme } from 'next-themes';
@@ -14,10 +13,6 @@ const RISK_COLORS: Record<string, string> = {
   high: '#ef4444',
   critical: '#991b1b',
 };
-
-// Build lookup from province name to risk data
-const riskLookup = new Map<string, ProvinceRisk>();
-provinceRiskData.forEach((p) => riskLookup.set(p.name, p));
 
 // Highlight a specific province by zooming to it
 function HighlightProvince({ province, geoData }: { province: string | null; geoData: any }) {
@@ -43,15 +38,19 @@ function HighlightProvince({ province, geoData }: { province: string | null; geo
 interface Props {
   selectedProvince: string | null;
   onSelectProvince: (province: string) => void;
+  provinceRiskData: ProvinceRisk[];
 }
 
-export default function RegionalRiskMap({ selectedProvince, onSelectProvince }: Props) {
+export default function RegionalRiskMap({ selectedProvince, onSelectProvince, provinceRiskData }: Props) {
   const [geoData, setGeoData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const geoJsonRef = useRef<L.GeoJSON | null>(null);
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === 'dark';
+  const riskLookup = new Map<string, ProvinceRisk>();
+
+  provinceRiskData.forEach((province) => riskLookup.set(province.name, province));
 
   // Pick tile layer based on theme
   const tileUrl = isDark

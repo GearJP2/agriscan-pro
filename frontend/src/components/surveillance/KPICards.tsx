@@ -1,4 +1,3 @@
-import { kpiData } from '@/data/mockDashboardData';
 import type { KPICard } from '@/types/dashboard';
 import { Card, CardContent } from '@/components/ui/card';
 import { ArrowUp, ArrowDown } from 'lucide-react';
@@ -26,15 +25,11 @@ function DeltaBadge({ card }: { card: KPICard }) {
   );
 }
 
-export default function KPICards({ filters }: { filters?: { commodities: string[]; regions: string[] } }) {
-  const scale = filters && (filters.commodities.length > 0 || filters.regions.length > 0)
-    ? 0.6 + Math.random() * 0.4
-    : 1;
-
+export default function KPICards({ cards }: { cards: KPICard[] }) {
   return (
     <section aria-label="Key Performance Indicators">
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
-        {kpiData.cards.map((card) => {
+        {cards.map((card) => {
           const hasRedAccent = card.accent === 'red';
           return (
             <Card
@@ -52,9 +47,7 @@ export default function KPICards({ filters }: { filters?: { commodities: string[
 
                 {/* Main value */}
                 <p className="text-3xl font-bold text-foreground mt-2">
-                  {typeof card.value === 'number'
-                    ? Math.round(Number(card.value) * scale)
-                    : card.value}
+                  {card.value}
                 </p>
 
                 {/* Label */}

@@ -161,6 +161,42 @@ export const sampleAPI = {
   },
 
   /**
+   * Get all samples by following paginated results.
+   */
+  async getAllSamples(filters?: {
+    search?: string;
+    status?: string[];
+    region?: string;
+    vegetation?: string;
+    riskLevel?: RiskLevel[];
+    dateFrom?: string;
+    dateTo?: string;
+  }) {
+    const allSamples: Sample[] = [];
+    let page = 1;
+
+    while (true) {
+      const data = await this.getSamples(page, 200, filters);
+
+      if (Array.isArray(data)) {
+        allSamples.push(...data);
+        break;
+      }
+
+      const pageResults: Sample[] = Array.isArray(data?.results) ? data.results : [];
+      allSamples.push(...pageResults);
+
+      if (!data?.next || pageResults.length === 0) {
+        break;
+      }
+
+      page += 1;
+    }
+
+    return allSamples;
+  },
+
+  /**
    * Get a single sample by ID
    */
   async getSample(id: number | string) {

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
-import { networkData, TOXIN_COLORS } from '@/data/mockDashboardData';
 import { useTheme } from 'next-themes';
+import type { NetworkData } from '@/types/dashboard';
 
 // D3 force-directed network graph rendered inside React via useRef + useEffect.
 // We let D3 own the SVG DOM entirely to avoid React/D3 conflicts.
@@ -16,7 +16,7 @@ interface SimLink extends d3.SimulationLinkDatum<SimNode> {
   value: number;
 }
 
-export default function CoOccurrenceNetwork() {
+export default function CoOccurrenceNetwork({ networkData }: { networkData: NetworkData }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [tooltip, setTooltip] = useState<{ x: number; y: number; text: string } | null>(null);
   const { resolvedTheme } = useTheme();
@@ -146,7 +146,7 @@ export default function CoOccurrenceNetwork() {
     });
 
     return () => { simulation.stop(); };
-  }, [isDark]);
+  }, [isDark, networkData]);
 
   return (
     <div className="relative h-full min-h-[280px]">

@@ -7,6 +7,12 @@ interface SystemOverviewProps {
   samples: Sample[];
 }
 
+const getCompletionDate = (sample: Sample): Date | null => {
+  const logs = sample.process_logs ?? [];
+  const completedLog = [...logs].reverse().find((l) => l.state === 'completed');
+  return completedLog ? new Date(completedLog.timestamp) : null;
+};
+
 const SystemOverview = ({ samples }: SystemOverviewProps) => {
   const stats = {
     total: samples.length,
@@ -15,11 +21,30 @@ const SystemOverview = ({ samples }: SystemOverviewProps) => {
     pending: samples.filter((s) => s.status === 'pending').length,
   };
 
-  // Mock trend data - in real app would compare with previous period
-  const weeklyCompleted = 12;
-  const previousWeekCompleted = 10;
-  const trend = weeklyCompleted > previousWeekCompleted ? 'up' : 'down';
-  const trendPercent = Math.round(((weeklyCompleted - previousWeekCompleted) / previousWeekCompleted) * 100);
+  // Compute weekly completed from actual process_logs completion timestamps
+  const now = new Date();
+  const startOfCurrentWeek = new Date(now);
+  const daysToMonday = startOfCurrentWeek.getDay() === 0 ? 6 : startOfCurrentWeek.getDay() - 1;
+  startOfCurrentWeek.setDate(startOfCurrentWeek.getDate() - daysToMonday);
+  startOfCurrentWeek.setHours(0, 0, 0, 0);
+  const startOfLastWeek = new Date(startOfCurrentWeek);
+  startOfLastWeek.setDate(startOfLastWeek.getDate() - 7);
+
+  const weeklyCompleted = samples.filter((s) => {
+    const d = getCompletionDate(s);
+    return d !== null && d >= startOfCurrentWeek && d <= now;
+  }).length;
+
+  const previousWeekCompleted = samples.filter((s) => {
+    const d = getCompletionDate(s);
+    return d !== null && d >= startOfLastWeek && d < startOfCurrentWeek;
+  }).length;
+
+  const trend: 'up' | 'down' = weeklyCompleted >= previousWeekCompleted ? 'up' : 'down';
+  const trendPercent =
+    previousWeekCompleted === 0
+      ? weeklyCompleted > 0 ? 100 : 0
+      : Math.abs(Math.round(((weeklyCompleted - previousWeekCompleted) / previousWeekCompleted) * 100));
 
   const statCards = [
     {

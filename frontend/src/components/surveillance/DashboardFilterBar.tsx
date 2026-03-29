@@ -1,11 +1,13 @@
 import { useState, useRef, useEffect } from 'react';
-import { ALL_COMMODITIES, ALL_REGIONS, QUARTERS } from '@/data/mockDashboardData';
 import type { DashboardFilters } from '@/types/dashboard';
 import { Calendar, ChevronDown, X, Filter } from 'lucide-react';
 
 interface Props {
     filters: DashboardFilters;
     onChange: (filters: DashboardFilters) => void;
+    commodityOptions: string[];
+    regionOptions: string[];
+    quarterOptions: string[];
 }
 
 function MultiSelect({
@@ -67,7 +69,7 @@ function MultiSelect({
     );
 }
 
-export default function DashboardFilterBar({ filters, onChange }: Props) {
+export default function DashboardFilterBar({ filters, onChange, commodityOptions, regionOptions, quarterOptions }: Props) {
     const toggleItem = (list: string[], item: string) =>
         list.includes(item) ? list.filter((i) => i !== item) : [...list, item];
 
@@ -104,14 +106,14 @@ export default function DashboardFilterBar({ filters, onChange }: Props) {
 
                     <MultiSelect
                         label="Commodity"
-                        options={ALL_COMMODITIES}
+                        options={commodityOptions}
                         selected={filters.commodities}
                         onToggle={(opt) => onChange({ ...filters, commodities: toggleItem(filters.commodities, opt) })}
                     />
 
                     <MultiSelect
                         label="Region"
-                        options={ALL_REGIONS}
+                        options={regionOptions}
                         selected={filters.regions}
                         onToggle={(opt) => onChange({ ...filters, regions: toggleItem(filters.regions, opt) })}
                     />
@@ -123,7 +125,7 @@ export default function DashboardFilterBar({ filters, onChange }: Props) {
                         className="rounded-lg bg-muted border border-border px-3 py-1.5 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary/20"
                         aria-label="Quarter comparison"
                     >
-                        {QUARTERS.map((q) => (
+                        {quarterOptions.map((q) => (
                             <option key={q} value={q}>{q}</option>
                         ))}
                     </select>

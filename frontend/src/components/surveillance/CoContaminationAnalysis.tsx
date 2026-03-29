@@ -1,9 +1,3 @@
-import {
-  coContamSummary,
-  coOccurrenceList,
-  toxinsPerSample,
-  TOXIN_COLORS,
-} from '@/data/mockDashboardData';
 import CoOccurrenceNetwork from './CoOccurrenceNetwork';
 import {
   BarChart,
@@ -17,9 +11,18 @@ import {
 } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useTheme } from 'next-themes';
+import type { CoContamSummary, CoOccurrence, NetworkData, ToxinDist } from '@/types/dashboard';
 
-function ToxinTag({ name }: { name: string }) {
-  const color = TOXIN_COLORS[name] || '#6b7280';
+interface CoContaminationAnalysisProps {
+  coContamSummary: CoContamSummary;
+  coOccurrenceList: CoOccurrence[];
+  toxinsPerSample: ToxinDist[];
+  networkData: NetworkData;
+  toxinColors: Record<string, string>;
+}
+
+function ToxinTag({ name, toxinColors }: { name: string; toxinColors: Record<string, string> }) {
+  const color = toxinColors[name] || '#6b7280';
   return (
     <span
       className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
@@ -30,16 +33,21 @@ function ToxinTag({ name }: { name: string }) {
   );
 }
 
-const summaryTiles = [
-  { label: 'Avg toxins per positive sample', value: coContamSummary.avgToxinsPerSample.toFixed(1), tint: 'bg-info/10' },
-  { label: 'Samples with 2+ toxins', value: `${coContamSummary.pctTwoPlus}%`, tint: 'bg-warning/10' },
-  { label: 'Samples with 3+ toxins', value: `${coContamSummary.pctThreePlus}%`, tint: 'bg-danger/10' },
-  { label: 'Most common co-occurrence', value: coContamSummary.mostCommonPair, tint: 'bg-purple-500/10' },
-];
-
-export default function CoContaminationAnalysis() {
+export default function CoContaminationAnalysis({
+  coContamSummary,
+  coOccurrenceList,
+  toxinsPerSample,
+  networkData,
+  toxinColors,
+}: CoContaminationAnalysisProps) {
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === 'dark';
+  const summaryTiles = [
+    { label: 'Avg toxins per positive sample', value: coContamSummary.avgToxinsPerSample.toFixed(1), tint: 'bg-info/10' },
+    { label: 'Samples with 2+ toxins', value: `${coContamSummary.pctTwoPlus}%`, tint: 'bg-warning/10' },
+    { label: 'Samples with 3+ toxins', value: `${coContamSummary.pctThreePlus}%`, tint: 'bg-danger/10' },
+    { label: 'Most common co-occurrence', value: coContamSummary.mostCommonPair, tint: 'bg-purple-500/10' },
+  ];
 
   const gridStroke = isDark ? '#374151' : '#e5e7eb';
   const tickFill = isDark ? '#9ca3af' : '#6b7280';
@@ -84,7 +92,7 @@ export default function CoContaminationAnalysis() {
                       <div className="flex items-center gap-2 flex-wrap">
                         {co.toxins.map((t, j) => (
                           <span key={t} className="flex items-center gap-1">
-                            <ToxinTag name={t} />
+                            <ToxinTag name={t} toxinColors={toxinColors} />
                             {j < co.toxins.length - 1 && <span className="text-muted-foreground text-xs">+</span>}
                           </span>
                         ))}
@@ -105,7 +113,7 @@ export default function CoContaminationAnalysis() {
               {/* Panel 3: Co-occurrence Network (D3) */}
               <div className="rounded-lg bg-muted/50 p-4">
                 <h3 className="text-sm font-medium text-muted-foreground mb-3">Co-occurrence Network</h3>
-                <CoOccurrenceNetwork />
+                <CoOccurrenceNetwork networkData={networkData} />
               </div>
 
               {/* Panel 4: Toxins per Sample Distribution */}

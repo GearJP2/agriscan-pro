@@ -48,8 +48,27 @@ const RiskOverview = ({ samples }: RiskOverviewProps) => {
     .sort((a, b) => b[1] - a[1])
     .slice(0, 3);
 
-  // Mock trend - in real app would compare with historical data
-  const riskTrend = 'stable' as 'improving' | 'stable' | 'worsening';
+  // Compute risk trend by comparing high-risk sample counts this month vs last month
+  const now = new Date();
+  const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+
+  const thisMonthHighRisk = samples.filter((s) => {
+    const d = new Date(s.collection_date);
+    return d >= currentMonthStart && getRiskLevel(s) === 'high';
+  }).length;
+
+  const lastMonthHighRisk = samples.filter((s) => {
+    const d = new Date(s.collection_date);
+    return d >= lastMonthStart && d < currentMonthStart && getRiskLevel(s) === 'high';
+  }).length;
+
+  const riskTrend: 'improving' | 'stable' | 'worsening' =
+    thisMonthHighRisk < lastMonthHighRisk
+      ? 'improving'
+      : thisMonthHighRisk > lastMonthHighRisk
+      ? 'worsening'
+      : 'stable';
 
   return (
     <div className="space-y-4">

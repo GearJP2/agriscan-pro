@@ -1,10 +1,4 @@
 import {
-  mycotoxinBarData,
-  commodityShare,
-  thresholdByCommodity,
-  heatmapData,
-} from '@/data/mockDashboardData';
-import {
   BarChart,
   Bar,
   XAxis,
@@ -21,6 +15,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useTheme } from 'next-themes';
 import { cn } from '@/lib/utils';
+import type { CommodityShare, HeatmapCell, ThresholdData, ToxinScore } from '@/types/dashboard';
 
 const SEVERITY_COLORS: Record<string, string> = {
   critical: '#ef4444',
@@ -35,9 +30,6 @@ function barColor(pct: number) {
   return '#22c55e';
 }
 
-const allRegions = ['North', 'Northeast', 'Central', 'East', 'West', 'South'];
-const allCommodities = ['Maize', 'Peanuts', 'Rice', 'Animal Feed', 'Others'];
-
 function intensityColor(value: number): string {
   if (value > 75) return '#991b1b';
   if (value > 50) return '#ef4444';
@@ -46,16 +38,32 @@ function intensityColor(value: number): string {
   return '#374151';
 }
 
-const sortedCells = [...heatmapData].sort((a, b) => b.intensity - a.intensity);
-const top3 = new Set(sortedCells.slice(0, 3).map((c) => `${c.region}-${c.commodity}`));
+interface MycotoxinAnalysisProps {
+  mycotoxinBarData: ToxinScore[];
+  commodityShare: CommodityShare[];
+  thresholdByCommodity: ThresholdData[];
+  heatmapData: HeatmapCell[];
+  heatmapRegions: string[];
+  heatmapCommodities: string[];
+  affectedSampleCount: number;
+}
 
-const heatmapLookup = new Map<string, number>();
-heatmapData.forEach((c) => heatmapLookup.set(`${c.region}-${c.commodity}`, c.intensity));
-
-export default function MycotoxinAnalysis() {
-  const totalSamples = Math.round(4821 * 0.673);
+export default function MycotoxinAnalysis({
+  mycotoxinBarData,
+  commodityShare,
+  thresholdByCommodity,
+  heatmapData,
+  heatmapRegions,
+  heatmapCommodities,
+  affectedSampleCount,
+}: MycotoxinAnalysisProps) {
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === 'dark';
+  const sortedCells = [...heatmapData].sort((a, b) => b.intensity - a.intensity);
+  const top3 = new Set(sortedCells.slice(0, 3).map((cell) => `${cell.region}-${cell.commodity}`));
+  const heatmapLookup = new Map<string, number>();
+
+  heatmapData.forEach((cell) => heatmapLookup.set(`${cell.region}-${cell.commodity}`, cell.intensity));
 
   // Theme-aware chart colors
   const gridStroke = isDark ? '#374151' : '#e5e7eb';
@@ -124,7 +132,7 @@ export default function MycotoxinAnalysis() {
                       formatter={(value) => <span className="text-muted-foreground">{value}</span>}
                     />
                     <text x="50%" y="48%" textAnchor="middle" fill={centerTextFill} fontSize={22} fontWeight="bold">
-                      {totalSamples.toLocaleString()}
+                      {affectedSampleCount.toLocaleString()}
                     </text>
                     <text x="50%" y="57%" textAnchor="middle" fill={subTextFill} fontSize={11}>
                       affected
@@ -163,7 +171,7 @@ export default function MycotoxinAnalysis() {
                   <thead>
                     <tr>
                       <th className="text-xs text-muted-foreground/60 text-left p-1.5" />
-                      {allCommodities.map((c) => (
+                      {heatmapCommodities.map((c) => (
                         <th key={c} className="text-xs text-muted-foreground font-medium text-center p-1.5 min-w-[70px]">
                           {c}
                         </th>
@@ -171,10 +179,10 @@ export default function MycotoxinAnalysis() {
                     </tr>
                   </thead>
                   <tbody>
-                    {allRegions.map((region) => (
+                    {heatmapRegions.map((region) => (
                       <tr key={region}>
                         <td className="text-xs text-muted-foreground font-medium p-1.5 whitespace-nowrap">{region}</td>
-                        {allCommodities.map((commodity) => {
+                        {heatmapCommodities.map((commodity) => {
                           const key = `${region}-${commodity}`;
                           const value = heatmapLookup.get(key) ?? 0;
                           const isTop3 = top3.has(key);
