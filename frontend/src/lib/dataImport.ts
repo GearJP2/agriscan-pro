@@ -3,13 +3,6 @@
  * Handles mycotoxin data and auto-mapping to system fields\n */
 
 // Valid options for dropdowns
-const VEGETATION_TYPES = [
-  'Rice', 'White rice', 'Brown rice', 'Jasmine rice',
-  'Corn', 'Sweet corn', 'Popcorn',
-  'Wheat', 'Durum wheat',
-  'Cassava', 'Peanut', 'Soybean',
-  'Other'
-];
 const PROCESSING_TYPES = ['raw', 'dried', 'milled', 'processed', 'fermented'];
 
 /**
@@ -105,6 +98,7 @@ export interface ParsedSampleWithResults {
     district: string;
     vegetation_variety: string;
     collection_date: string;
+    status?: 'pending' | 'in_progress' | 'completed' | 'flagged';
     purpose?: string;
     sample_type: string;
     processing_type: string;
@@ -149,13 +143,15 @@ const MYCOTOXIN_ALIASES: Record<string, string[]> = {
 };
 
 // Columns to ignore (metals, minerals, isotopes, etc)
-const IGNORE_PATTERNS = [
-  'metal', 'mineral', 'isotope', 'd13c', 'd15n', 'd18o',
+const IGNORE_CONTAINS_PATTERNS = ['metal', 'mineral', 'isotope'];
+
+const IGNORE_EXACT_HEADERS = new Set([
+  'd13c', 'd15n', 'd18o',
   'mg', 'al', 'p', 'k', 'li', 'be', 'ca', 'ti', 'v', 'cr',
   'mn', 'fe', 'co', 'ni', 'cu', 'zn', 'as', 'rb', 'sr', 'y',
   'mo', 'ag', 'cd', 'sn', 'cs', 'ba', 'la', 'ce', 'pr', 'nd',
-  'sm', 'eu', 'gd', 'tl', 'pb', 'th', 'u', 'positive/negative'
-];
+  'sm', 'eu', 'gd', 'tl', 'pb', 'th', 'u',
+]);
 
 /**
  * Normalize a value - handle <LOD, #VALUE!, empty strings, etc
@@ -256,7 +252,13 @@ export const getMycotoxinName = (headerName: string): string | null => {
  */
 export const shouldIgnoreColumn = (headerName: string): boolean => {
   const name = headerName.toLowerCase().trim();
-  return IGNORE_PATTERNS.some(pattern => name.includes(pattern));
+  const normalized = name.replace(/[^a-z0-9]/g, '');
+
+  if (IGNORE_CONTAINS_PATTERNS.some((pattern) => name.includes(pattern))) {
+    return true;
+  }
+
+  return IGNORE_EXACT_HEADERS.has(normalized);
 };
 
 /**
@@ -276,9 +278,8 @@ export const parseResearchDataFile = (headers: string[], rows: string[][]): Pars
       .slice(0, 50);
   };
 
-  const getUniqueSampleId = (baseId: string, rowIndex: number): string => {
-    const fallbackBase = `IMP-${new Date().getFullYear()}-${importStamp}-${String(rowIndex + 1).padStart(4, '0')}`;
-    const safeBase = toSafeSampleId(baseId) || fallbackBase;
+  const getUniqueSampleId = (rowIndex: number): string => {
+    const safeBase = `IMP-${new Date().getFullYear()}-${importStamp}-${String(rowIndex + 1).padStart(4, '0')}`;
 
     let candidate = safeBase;
     let suffix = 1;
@@ -346,8 +347,8 @@ export const parseResearchDataFile = (headers: string[], rows: string[][]): Pars
     const varietyRaw = columnIndices['vegetation_variety'] >= 0
       ? (normalizeValue(String(row[columnIndices['vegetation_variety']] ?? ''))?.toString()) || ''
       : '';
-    // Fuzzy match variety to closest valid option
-    const variety = varietyRaw ? findBestMatch(varietyRaw, VEGETATION_TYPES) : '';
+    // Keep variety exactly as provided in input file.
+    const variety = varietyRaw;
     
     // Only set processing_type if column was explicitly found
     const processingTypeRaw = columnIndices['processing_type'] >= 0
@@ -362,13 +363,15 @@ export const parseResearchDataFile = (headers: string[], rows: string[][]): Pars
     const statusRaw = columnIndices['status'] >= 0
       ? (normalizeValue(String(row[columnIndices['status']] ?? ''))?.toString().toLowerCase()) || ''
       : '';
+    const statusIsPositive = statusRaw.includes('positive');
+    const statusIsNegative = statusRaw.includes('negative');
     
     // Skip if critical fields are missing
     if (!province || !district || !variety) {
       return;
     }
 
-    const generatedSampleId = getUniqueSampleId(sampleName, rowIndex);
+    const generatedSampleId = getUniqueSampleId(rowIndex);
     
     // Extract mycotoxin results
     const mycotoxins: ParsedSampleWithResults['mycotoxins'] = [];
@@ -383,18 +386,22 @@ export const parseResearchDataFile = (headers: string[], rows: string[][]): Pars
         }
       }
 
-      if (value !== null && value > 0) {
+      if (value !== null) {
         const config = MYCOTOXIN_CONFIGS[toxinName];
         mycotoxins.push({
           name: toxinName,
           intensity: value,
           threshold: config.threshold,
           unit: config.unit,
-          dangerous: value > config.threshold,
+          dangerous: statusIsPositive ? true : (statusIsNegative ? false : value > config.threshold),
           test_method: 'HPLC-FLD',
         });
       }
     });
+
+    const hasResultStatus = statusIsPositive || statusIsNegative;
+    const hasAnyMycotoxinResult = mycotoxins.length > 0;
+    const sampleStatus: 'pending' | 'completed' = (hasResultStatus || hasAnyMycotoxinResult) ? 'completed' : 'pending';
     
     // Create sample
     const sample: ParsedSampleWithResults['sample'] = {
@@ -404,6 +411,7 @@ export const parseResearchDataFile = (headers: string[], rows: string[][]): Pars
       district,
       vegetation_variety: variety,
       collection_date: new Date().toISOString().split('T')[0],
+      status: sampleStatus,
       sample_type: 'field',
       processing_type: finalProcessingType,
       collected_by: 'Research Data Import',

@@ -81,6 +81,9 @@ const SampleTable = ({ samples, onSelectSample, isAdmin = false, onDeleteSample,
     if (sample.mycotoxin_results && sample.mycotoxin_results.length > 0) {
       return true;
     }
+    if (sample.status === 'completed') {
+      return true;
+    }
     return (sample.results_count ?? 0) > 0 || ['low', 'medium', 'high'].includes(sample.risk_level || '');
   };
 

@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import * as XLSX from 'xlsx';
-import { Upload, FileText, Plus, Check, AlertCircle, Download, CalendarIcon, Loader2, Eye, EyeOff } from 'lucide-react';
+import { Upload, FileText, Plus, Check, AlertCircle, AlertTriangle, Download, CalendarIcon, Loader2, Eye, EyeOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -682,10 +682,15 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
         }
       }
 
-      let bestResearchResult: any[] = [];
-      let bestMycotoxinCount = 0;
-      let bestSampleCount = 0;
-      let chosenCandidateName = '';
+      const directResearchResult = parseResearchDataFile(headers, rows as any);
+      const directMycotoxinCount = directResearchResult.reduce((sum, entry) => sum + (entry.mycotoxins?.length || 0), 0);
+      const directSampleCount = directResearchResult.length;
+      const directHasMycotoxinHeaders = hasAnyMycotoxinColumns(headers);
+
+      let bestResearchResult: any[] = directResearchResult;
+      let bestMycotoxinCount = directMycotoxinCount;
+      let bestSampleCount = directSampleCount;
+      let chosenCandidateName = 'direct-header-row-1';
 
       for (const candidate of researchCandidates) {
         const result = parseResearchDataFile(candidate.headers, candidate.rows as any);
@@ -709,9 +714,14 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
         )
       ).filter((h) => /[a-zA-Z]/.test(h));
 
-      const hasMycotoxinHeaders = researchCandidates.some((candidate) => hasAnyMycotoxinColumns(candidate.headers));
+      const hasMycotoxinHeaders =
+        directHasMycotoxinHeaders ||
+        researchCandidates.some((candidate) => hasAnyMycotoxinColumns(candidate.headers));
 
-      if (bestMycotoxinCount > 0 || (hasMycotoxinHeaders && bestSampleCount > 0)) {
+      if (hasMycotoxinHeaders) {
+        if (bestSampleCount === 0) {
+          throw new Error('Detected mycotoxin columns but could not parse any valid sample rows. Please verify province, district, and variety columns.');
+        }
         console.log('[FileUpload] Parsed mycotoxin results, using research parser', {
           candidate: chosenCandidateName,
           samples: bestResearchResult.length,
@@ -881,8 +891,7 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
             continue;
           }
 
-          const sourceSampleId = sampleNameIndex >= 0 ? getRowValue_Current(columnIndexes['sample_name']) : '';
-          let sampleId = normalizeSampleId(sourceSampleId, i + 1);
+          let sampleId = generateImportSampleId(i + 1);
           if (usedSampleIds.has(sampleId)) {
             sampleId = `${sampleId}-${(i + 1).toString().padStart(3, '0')}`;
           }

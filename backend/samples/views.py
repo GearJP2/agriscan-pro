@@ -190,11 +190,17 @@ class SampleViewSet(viewsets.ModelViewSet):
                 raise SampleAlreadyExists(detail=f"Sample ID '{validated_item.get('sample_id')}' already exists.")
             samples.append(sample)
 
-            # Create initial process log
+            # Create initial process log based on imported status.
+            initial_state = 'completed' if sample.status == 'completed' else 'registered'
+            initial_note = (
+                'Bulk imported with recorded results.'
+                if initial_state == 'completed'
+                else f'Bulk imported - {len(data)} samples'
+            )
             ProcessLog.objects.create(
                 sample=sample,
-                state='registered',
-                notes=f'Bulk imported - {len(data)} samples',
+                state=initial_state,
+                notes=initial_note,
                 conducted_by=request.user.username or 'System'
             )
 
