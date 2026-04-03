@@ -111,22 +111,29 @@ else:
         }
     }
 
-# Cloudflare R2 Storage (S3-compatible)
-# Documents: https://django-storages.readthedocs.io/en/latest/backends/amazon-S3.html
-_R2_KEY = os.environ.get('R2_ACCESS_KEY_ID', '')
-if _R2_KEY:
-    DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
-    AWS_ACCESS_KEY_ID = _R2_KEY
-    AWS_SECRET_ACCESS_KEY = os.environ.get('R2_SECRET_ACCESS_KEY', '')
-    AWS_STORAGE_BUCKET_NAME = os.environ.get('R2_BUCKET_NAME', '')
-    # R2 endpoint: https://<account-id>.r2.cloudflarestorage.com
-    AWS_S3_ENDPOINT_URL = os.environ.get('R2_ENDPOINT_URL', '')
-    AWS_S3_SIGNATURE_VERSION = 's3v4'
-    AWS_S3_REGION_NAME = 'auto'
-    AWS_DEFAULT_ACL = 'public-read'
-    AWS_QUERYSTRING_AUTH = False  # Public URLs without signed params
-    # Optional: custom domain (Cloudflare R2 Public Domain)
-    AWS_S3_CUSTOM_DOMAIN = os.environ.get('R2_CUSTOM_DOMAIN', '')
+# ─── AWS S3 Storage ───────────────────────────────────────────────────────────
+AWS_ACCESS_KEY_ID       = os.environ.get('AWS_ACCESS_KEY_ID')
+AWS_SECRET_ACCESS_KEY   = os.environ.get('AWS_SECRET_ACCESS_KEY')
+AWS_STORAGE_BUCKET_NAME = os.environ.get('AWS_STORAGE_BUCKET_NAME')
+AWS_S3_REGION_NAME      = os.environ.get('AWS_S3_REGION_NAME', 'ap-southeast-1')
+AWS_S3_FILE_OVERWRITE   = False   # ชื่อซ้ำ → เพิ่ม suffix อัตโนมัติ
+AWS_DEFAULT_ACL         = None    # ไม่ใช้ ACL ใช้ bucket policy แทน
+AWS_S3_SIGNATURE_VERSION = 's3v4'
+
+STORAGES = {
+    "default": {
+        "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
+        "OPTIONS": {
+            "bucket_name": AWS_STORAGE_BUCKET_NAME,
+            "region_name": AWS_S3_REGION_NAME,
+            "location": "uploads/raw",
+            "file_overwrite": False,
+        },
+    },
+    "staticfiles": {
+        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+    },
+}
 
 
 # ─── Redis ────────────────────────────────────────────────────────────────────

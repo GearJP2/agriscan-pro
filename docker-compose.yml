@@ -17,7 +17,7 @@ services:
 
   backend:
     build: ./backend
-    command: sh -c "python manage.py migrate && python manage.py runserver 0.0.0.0:8080"
+    command: sh -c "python manage.py makemigrations && python manage.py migrate && python manage.py runserver 0.0.0.0:8080"
     volumes:
       - ./backend:/app
     ports:
@@ -35,6 +35,8 @@ services:
       - SECRET_KEY=django-insecure-very-long-secret-key-for-jwt-tokens-32-chars-minimum!
       - DEBUG=True
       - REDIS_URL=redis://redis:6379/0
+    env_file:
+      - backend/.env
 
   redis:
     image: redis:7-alpine
