@@ -4,7 +4,8 @@ from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from django.db.models import Q
+from django.db.models import Q, Count
+from celery.result import AsyncResult
 from .models import Sample, ProcessLog, MycotoxinResult
 from .serializers import (
     SampleSerializer,
@@ -113,32 +114,26 @@ class SampleViewSet(viewsets.ModelViewSet):
         self.perform_destroy(instance)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
+    RECENT_ALERTS_LIMIT = 10
+
     @action(detail=False, methods=['get'])
     def statistics(self, request):
         """Get dashboard statistics"""
-        total_samples = Sample.objects.count()
-        completed_samples = Sample.objects.filter(status='completed').count()
-        flagged_samples = Sample.objects.filter(status='flagged').count()
-        pending_samples = Sample.objects.filter(status='pending').count()
-        
-        high_risk = Sample.objects.filter(
-            mycotoxin_results__dangerous=True
-        ).distinct().count()
-        
-        return Response({
-            'total_samples': total_samples,
-            'completed': completed_samples,
-            'flagged': flagged_samples,
-            'pending': pending_samples,
-            'high_risk': high_risk,
-        })
+        stats = Sample.objects.aggregate(
+            total_samples=Count('id'),
+            completed=Count('id', filter=Q(status='completed')),
+            flagged=Count('id', filter=Q(status='flagged')),
+            pending=Count('id', filter=Q(status='pending')),
+            high_risk=Count('id', filter=Q(mycotoxin_results__dangerous=True), distinct=True),
+        )
+        return Response(stats)
 
     @action(detail=False, methods=['get'])
     def recent_alerts(self, request):
         """Get recently flagged samples"""
         recent = Sample.objects.filter(
             status='flagged'
-        ).order_by('-updated_at')[:10]
+        ).order_by('-updated_at')[:self.RECENT_ALERTS_LIMIT]
         serializer = SampleListSerializer(recent, many=True)
         return Response(serializer.data)
 
@@ -283,7 +278,6 @@ class SampleViewSet(viewsets.ModelViewSet):
         GET /api/samples/task_status/{task_id}/
         Returns: { "status": "pending|started|success|failure", "result": {...} }
         """
-        from celery.result import AsyncResult
         result = AsyncResult(task_id)
         response = {'task_id': task_id, 'status': result.status}
         if result.ready():
