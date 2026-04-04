@@ -1,5 +1,8 @@
+import os
 import boto3
 from django.conf import settings
+
+_ALLOWED_EXTENSIONS = {'.csv', '.xlsx', '.xls'}
 
 
 def get_s3_client():
@@ -11,13 +14,18 @@ def get_s3_client():
     )
 
 
-def generate_upload_url(filename: str, content_type: str) -> dict:
+def generate_upload_url(username: str, filename: str, content_type: str) -> dict:
     """
     Frontend เรียกก่อน upload — ได้ URL แล้ว PUT ตรงไป S3
     ไฟล์ไม่ผ่าน Django/Railway เลย
+    Path: mycotoxin-sample/{username}/{filename}
     """
+    ext = os.path.splitext(filename)[1].lower()
+    if ext not in _ALLOWED_EXTENSIONS:
+        raise ValueError(f"ไฟล์ประเภท '{ext}' ไม่รองรับ ใช้: {', '.join(_ALLOWED_EXTENSIONS)}")
+
     s3 = get_s3_client()
-    key = f"uploads/raw/{filename}"
+    key = f"mycotoxin-sample/{username}/{filename}"
 
     url = s3.generate_presigned_url(
         'put_object',

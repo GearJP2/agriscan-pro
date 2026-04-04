@@ -36,6 +36,7 @@ agents-orchestrator/
 .claude/settings.local.json
 .claude/plans/
 .claude/memory/
+.claude/skills/
 
 # Local review/analysis docs (not for repo)
 CODE_REVIEW.md

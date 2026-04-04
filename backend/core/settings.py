@@ -163,16 +163,13 @@ CACHES = {
 # SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
 # SESSION_CACHE_ALIAS = 'default'
 
-# ── How Celery will use this Redis ───────────────────────────────────────────
-# Your teammate can copy these two lines into celery.py:
-#
-#   app.conf.broker_url = env('REDIS_URL')           # Task queue
-#   app.conf.result_backend = env('REDIS_URL', 1)    # db=1 keeps results separate
-#
-# Then route a task like this from your Django view:
-#
-#   from myapp.tasks import run_prediction
-#   run_prediction.delay(sample_id=42)   # fire-and-forget → Celery picks up from Redis
+# ─── Celery ───────────────────────────────────────────────────────────────────
+CELERY_BROKER_URL = REDIS_URL
+CELERY_RESULT_BACKEND = REDIS_URL
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'UTC'
 # ─────────────────────────────────────────────────────────────────────────────
 
 

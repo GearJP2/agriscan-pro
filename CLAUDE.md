@@ -293,6 +293,9 @@ node agents-orchestrator/examples/simple-task.js
 - Dashboard statistics
 - Bulk sample import
 - Django admin integration
+- AWS S3 storage integration with presigned URL upload service
+- Celery async task queue (broker: Redis)
+- Background file processing via Celery tasks (`backend/samples/tasks.py`)
 
 ### 🚧 In Development (Local Only - Not in Cloud)
 - **Agent Orchestrator** (`agents-orchestrator/`) - Multi-agent task execution system
@@ -498,6 +501,6 @@ git push origin main                 # Push to GitHub
 ---
 
 ## Last Updated
-- Date: 2026-03-27
+- Date: 2026-04-04
 - By: Claude Code
-- Status: Initial creation, ready for team review
+- Status: AWS S3 + Celery integration added

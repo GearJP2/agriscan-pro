@@ -14,6 +14,8 @@ from .serializers import (
     MycotoxinResultSerializer,
 )
 from core.exceptions import SampleAlreadyExists
+from .services.s3_service import generate_upload_url
+from .tasks import process_sample_file
 
 logger = logging.getLogger('agriscan.samples')
 
@@ -235,6 +237,44 @@ class SampleViewSet(viewsets.ModelViewSet):
                 logger.warning('sample.dangerous_result', extra={'sample_id': sample.sample_id, 'test_method': result.test_method, 'intensity': result.intensity})
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['post'])
+    def request_upload(self, request):
+        """
+        Step 1: Frontend ขอ presigned URL ก่อน upload
+        Body: { "filename": "sample.csv", "content_type": "text/csv" }
+        Returns: { "upload_url": "...", "key": "mycotoxin-sample/{user}/{filename}" }
+        """
+        filename = request.data.get('filename', '').strip()
+        content_type = request.data.get('content_type', 'application/octet-stream')
+        if not filename:
+            return Response({'detail': 'filename is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            result = generate_upload_url(
+                username=request.user.username,
+                filename=filename,
+                content_type=content_type,
+            )
+        except ValueError as e:
+            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(result)
+
+    @action(detail=False, methods=['post'])
+    def confirm_upload(self, request):
+        """
+        Step 2: Frontend เรียกหลัง PUT ไฟล์ขึ้น S3 สำเร็จ — enqueue Celery task
+        Body: { "key": "mycotoxin-sample/{user}/{filename}" }
+        Returns: { "task_id": "...", "status": "queued" }
+        """
+        key = request.data.get('key', '').strip()
+        if not key:
+            return Response({'detail': 'key is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        task = process_sample_file.delay(key=key, uploaded_by_username=request.user.username)
+        logger.info('sample.upload.confirmed', extra={'key': key, 'task_id': task.id, 'user': request.user.username})
+        return Response({'task_id': task.id, 'status': 'queued'}, status=status.HTTP_202_ACCEPTED)
 
     @action(detail=False, methods=['post'])
     def bulk_delete(self, request):
