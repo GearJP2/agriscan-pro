@@ -10,7 +10,8 @@ python-dotenv>=1.0.0
 
 # Redis
 django-redis>=5.4.0
+redis>=5.0.0
 
 # Celery
-celery>=5.3.0
+celery[redis]>=5.3.0
 openpyxl>=3.1.0
