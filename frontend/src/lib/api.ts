@@ -15,7 +15,7 @@ migrateFromLocalStorage();
 // Configure base URL for API
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV
   ? 'http://localhost:8080/api'
-  : 'https://agriscan-pro-copy-production.up.railway.app/api');
+  : 'https://agriscan-pro-production.up.railway.app/api');
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
