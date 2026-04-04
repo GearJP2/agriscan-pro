@@ -48,6 +48,11 @@
       "Bash(docker:*)",
       "Edit",
       "Write"
+    ],
+    "deny": [
+      "Read(**/.env)",
+      "Read(**/.env.local)",
+      "Read(**/.env.*.local)"
     ]
   },
   "env": {
