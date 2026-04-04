@@ -276,6 +276,23 @@ class SampleViewSet(viewsets.ModelViewSet):
         logger.info('sample.upload.confirmed', extra={'key': key, 'task_id': task.id, 'user': request.user.username})
         return Response({'task_id': task.id, 'status': 'queued'}, status=status.HTTP_202_ACCEPTED)
 
+    @action(detail=False, methods=['get'], url_path='task_status/(?P<task_id>[^/.]+)')
+    def task_status(self, request, task_id=None):
+        """
+        Poll Celery task status after confirm_upload
+        GET /api/samples/task_status/{task_id}/
+        Returns: { "status": "pending|started|success|failure", "result": {...} }
+        """
+        from celery.result import AsyncResult
+        result = AsyncResult(task_id)
+        response = {'task_id': task_id, 'status': result.status}
+        if result.ready():
+            if result.successful():
+                response['result'] = result.get()
+            else:
+                response['error'] = str(result.result)
+        return Response(response)
+
     @action(detail=False, methods=['post'])
     def bulk_delete(self, request):
         """Bulk delete samples - admin only"""
