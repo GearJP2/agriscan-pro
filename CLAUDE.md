@@ -107,6 +107,10 @@ agriscan-pro/
 - `backend/accounts/models.py` - User model definition
 - `backend/accounts/serializers.py` - User serialization
 - `backend/accounts/views.py` - Login/register endpoints
+- `backend/accounts/oauth.py` - Google OAuth 2.0 implementation
+- `frontend/src/components/AuthDialog.tsx` - Redesigned login/register modal
+- `frontend/src/pages/GoogleAuthCallback.tsx` - OAuth callback handler
+- `frontend/src/lib/oauth.ts` - OAuth utilities (token exchange, CSRF protection)
 
 #### Core Business Logic (Samples)
 - `backend/samples/models.py` - Sample, ProcessLog, MycotoxinResult models
@@ -119,9 +123,11 @@ agriscan-pro/
 
 ### Authentication
 ```
-POST /api/auth/login/           # Login (email, password)
-POST /api/auth/register/        # Register (email, password, name)
-POST /api/auth/token/refresh/   # Refresh JWT token
+POST /api/accounts/login/              # Login (username/email, password)
+POST /api/accounts/register/           # Register (email, password, name)
+POST /api/accounts/login/refresh/      # Refresh JWT token
+POST /api/accounts/google-callback/    # Exchange Google auth code for JWT
+GET  /api/accounts/google-auth/        # Get Google OAuth authorization URL
 ```
 
 ### Samples (Core Business)
@@ -286,7 +292,8 @@ node agents-orchestrator/examples/simple-task.js
 ## 🚀 Status & WIP Features
 
 ### ✅ Completed
-- User authentication (JWT)
+- User authentication (JWT + Google OAuth 2.0)
+- Redesigned auth UI with Material Design 3 aesthetic (Clinical Orchard theme)
 - Sample CRUD operations
 - Process logging
 - Mycotoxin result tracking
