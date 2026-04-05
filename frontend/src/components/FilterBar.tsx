@@ -34,6 +34,58 @@ const riskLabels: Record<RiskLevel, string> = {
   high: 'High Risk',
 };
 
+interface FilterSectionProps {
+  title: string;
+  sectionKey: string;
+  items: string[];
+  filterKey: 'region' | 'vegetation' | 'status' | 'risk';
+  labelFn?: (item: string) => string;
+  filters: FilterState;
+  openSections: Record<string, boolean>;
+  onToggleSection: (section: string, isOpen: boolean) => void;
+  onToggleFilter: (key: 'region' | 'vegetation' | 'status' | 'risk', value: string) => void;
+}
+
+const FilterSectionBlock = ({
+  title,
+  sectionKey,
+  items,
+  filterKey,
+  labelFn = (item: string) => item,
+  filters,
+  openSections,
+  onToggleSection,
+  onToggleFilter
+}: FilterSectionProps) => (
+  <Collapsible open={openSections[sectionKey]} onOpenChange={(isOpen) => onToggleSection(sectionKey, isOpen)}>
+    <CollapsibleTrigger className="flex w-full items-center justify-between py-2 text-sm font-medium text-foreground hover:text-primary transition-colors">
+      <span className="flex items-center gap-2">
+        {title}
+        {(filters[filterKey] as string[]).length > 0 && (
+          <Badge variant="secondary" className="h-5 px-1.5 text-xs">
+            {(filters[filterKey] as string[]).length}
+          </Badge>
+        )}
+      </span>
+      <ChevronDown className={`h-4 w-4 transition-transform ${openSections[sectionKey] ? 'rotate-180' : ''}`} />
+    </CollapsibleTrigger>
+    <CollapsibleContent className="space-y-2 pb-3">
+      {items.map((item) => (
+        <label
+          key={item}
+          className="flex items-center gap-2 cursor-pointer text-sm text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <Checkbox
+            checked={(filters[filterKey] as string[]).includes(item)}
+            onCheckedChange={() => onToggleFilter(filterKey, item)}
+          />
+          {labelFn(item)}
+        </label>
+      ))}
+    </CollapsibleContent>
+  </Collapsible>
+);
+
 const FilterBar = ({ filters, onFilterChange }: FilterBarProps) => {
   const { watchlistCount } = useWatchlist();
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
@@ -66,61 +118,15 @@ const FilterBar = ({ filters, onFilterChange }: FilterBarProps) => {
     });
   };
 
-  const activeFilterCount = 
-    filters.region.length + 
-    filters.vegetation.length + 
-    filters.status.length + 
+  const activeFilterCount =
+    filters.region.length +
+    filters.vegetation.length +
+    filters.status.length +
     filters.risk.length +
     (filters.search ? 1 : 0) +
     (filters.watchlistOnly ? 1 : 0) +
     (filters.dateFrom ? 1 : 0) +
     (filters.dateTo ? 1 : 0);
-
-  const toggleSection = (section: string) => {
-    setOpenSections(prev => ({ ...prev, [section]: !prev[section] }));
-  };
-
-  const FilterSection = ({ 
-    title, 
-    sectionKey, 
-    items, 
-    filterKey,
-    labelFn = (item: string) => item 
-  }: { 
-    title: string; 
-    sectionKey: string;
-    items: string[]; 
-    filterKey: 'region' | 'vegetation' | 'status' | 'risk';
-    labelFn?: (item: string) => string;
-  }) => (
-    <Collapsible open={openSections[sectionKey]} onOpenChange={() => toggleSection(sectionKey)}>
-      <CollapsibleTrigger className="flex w-full items-center justify-between py-2 text-sm font-medium text-foreground hover:text-primary transition-colors">
-        <span className="flex items-center gap-2">
-          {title}
-          {(filters[filterKey] as string[]).length > 0 && (
-            <Badge variant="secondary" className="h-5 px-1.5 text-xs">
-              {(filters[filterKey] as string[]).length}
-            </Badge>
-          )}
-        </span>
-        <ChevronDown className={`h-4 w-4 transition-transform ${openSections[sectionKey] ? 'rotate-180' : ''}`} />
-      </CollapsibleTrigger>
-      <CollapsibleContent className="space-y-2 pb-3">
-        {items.map((item) => (
-          <label
-            key={item}
-            className="flex items-center gap-2 cursor-pointer text-sm text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <Checkbox
-              checked={(filters[filterKey] as string[]).includes(item)}
-              onCheckedChange={() => toggleArrayFilter(filterKey, item)}
-            />
-            {labelFn(item)}
-          </label>
-        ))}
-      </CollapsibleContent>
-    </Collapsible>
-  );
 
   return (
     <div className="space-y-4 rounded-xl border border-border bg-card p-4 animate-slide-up">
@@ -153,7 +159,7 @@ const FilterBar = ({ filters, onFilterChange }: FilterBarProps) => {
             className="pl-10"
           />
         </div>
-        
+
         {/* Date From */}
         <Popover>
           <PopoverTrigger asChild>
@@ -171,7 +177,7 @@ const FilterBar = ({ filters, onFilterChange }: FilterBarProps) => {
             />
           </PopoverContent>
         </Popover>
-        
+
         {/* Date To */}
         <Popover>
           <PopoverTrigger asChild>
@@ -189,7 +195,7 @@ const FilterBar = ({ filters, onFilterChange }: FilterBarProps) => {
             />
           </PopoverContent>
         </Popover>
-        
+
         <Button
           variant={filters.watchlistOnly ? 'default' : 'outline'}
           onClick={() => onFilterChange({ ...filters, watchlistOnly: !filters.watchlistOnly })}
@@ -208,40 +214,56 @@ const FilterBar = ({ filters, onFilterChange }: FilterBarProps) => {
       {/* Checkbox Filters */}
       <div className="grid gap-4 sm:grid-cols-4">
         <div className="space-y-1">
-          <FilterSection
+          <FilterSectionBlock
             title="Region"
             sectionKey="region"
             items={regions}
             filterKey="region"
+            filters={filters}
+            openSections={openSections}
+            onToggleSection={(key, val) => setOpenSections(prev => ({ ...prev, [key]: val }))}
+            onToggleFilter={toggleArrayFilter}
           />
         </div>
 
         <div className="space-y-1">
-          <FilterSection
+          <FilterSectionBlock
             title="Variety"
             sectionKey="vegetation"
             items={vegetationTypes}
             filterKey="vegetation"
+            filters={filters}
+            openSections={openSections}
+            onToggleSection={(key, val) => setOpenSections(prev => ({ ...prev, [key]: val }))}
+            onToggleFilter={toggleArrayFilter}
           />
         </div>
 
         <div className="space-y-1">
-          <FilterSection
+          <FilterSectionBlock
             title="Status"
             sectionKey="status"
             items={statuses}
             filterKey="status"
             labelFn={(status) => statusLabels[status] || status}
+            filters={filters}
+            openSections={openSections}
+            onToggleSection={(key, val) => setOpenSections(prev => ({ ...prev, [key]: val }))}
+            onToggleFilter={toggleArrayFilter}
           />
         </div>
 
         <div className="space-y-1">
-          <FilterSection
+          <FilterSectionBlock
             title="Risk Level"
             sectionKey="risk"
             items={riskLevels}
             filterKey="risk"
             labelFn={(risk) => riskLabels[risk as RiskLevel] || risk}
+            filters={filters}
+            openSections={openSections}
+            onToggleSection={(key, val) => setOpenSections(prev => ({ ...prev, [key]: val }))}
+            onToggleFilter={toggleArrayFilter}
           />
         </div>
       </div>

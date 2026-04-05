@@ -52,10 +52,7 @@ export default function CoContaminationAnalysis({
   const gridStroke = isDark ? '#374151' : '#e5e7eb';
   const tickFill = isDark ? '#9ca3af' : '#6b7280';
   const labelFill = isDark ? '#6b7280' : '#9ca3af';
-  const tooltipBg = isDark ? '#1f2937' : '#ffffff';
-  const tooltipBorder = isDark ? '#374151' : '#e5e7eb';
-  const tooltipColor = isDark ? '#f3f4f6' : '#1f2937';
-  const tooltipStyle = { backgroundColor: tooltipBg, border: `1px solid ${tooltipBorder}`, borderRadius: 8, color: tooltipColor };
+  const tooltipStyle = { backgroundColor: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 8, color: '#111827' };
 
   return (
     <section aria-label="Co-contamination Analysis">
@@ -81,7 +78,7 @@ export default function CoContaminationAnalysis({
               </div>
 
               {/* Panel 2: Common Co-occurrences Table */}
-              <div className="rounded-lg bg-muted/50 p-4">
+              <div className="rounded-lg bg-black/5 dark:bg-muted/50 p-4">
                 <h3 className="text-sm font-medium text-muted-foreground mb-3">Common Co-occurrences</h3>
                 <div className="space-y-2" aria-label="Ranked list of common toxin co-occurrences">
                   {coOccurrenceList.map((co, i) => (
@@ -111,13 +108,13 @@ export default function CoContaminationAnalysis({
             <div className="space-y-6">
 
               {/* Panel 3: Co-occurrence Network (D3) */}
-              <div className="rounded-lg bg-muted/50 p-4">
+              <div className="rounded-lg bg-black/5 dark:bg-muted/50 p-4">
                 <h3 className="text-sm font-medium text-muted-foreground mb-3">Co-occurrence Network</h3>
                 <CoOccurrenceNetwork networkData={networkData} />
               </div>
 
               {/* Panel 4: Toxins per Sample Distribution */}
-              <div className="rounded-lg bg-muted/50 p-4">
+              <div className="rounded-lg bg-black/5 dark:bg-muted/50 p-4">
                 <h3 className="text-sm font-medium text-muted-foreground mb-3">Toxins per Sample Distribution</h3>
                 <div className="h-52" aria-label="Bar chart showing distribution of toxin count per sample">
                   <ResponsiveContainer width="100%" height="100%">

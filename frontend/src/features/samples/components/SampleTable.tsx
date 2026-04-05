@@ -41,7 +41,7 @@ const SampleTable = ({ samples, onSelectSample, isAdmin = false, onDeleteSample,
     // Get the latest process state from logs (this is what's actually recorded)
     const logs = sample.process_logs ?? [];
     const latestState = logs.length > 0 ? logs[logs.length - 1].state : null;
-    
+
     const stateLabels: Record<string, string> = {
       registered: 'Registered',
       preparing: 'Preparing',
@@ -50,19 +50,19 @@ const SampleTable = ({ samples, onSelectSample, isAdmin = false, onDeleteSample,
       recorded: 'Recorded',
       completed: 'Completed',
     };
-    
+
     const colorMap: Record<string, { bg: string; text: string }> = {
       registered: { bg: 'bg-slate-200', text: 'text-slate-800' },
-      preparing: { bg: 'bg-amber-200', text: 'text-amber-800' },
-      prepared: { bg: 'bg-cyan-200', text: 'text-cyan-800' },
-      analyzing: { bg: 'bg-blue-200', text: 'text-blue-800' },
-      recorded: { bg: 'bg-teal-200', text: 'text-teal-800' },
-      completed: { bg: 'bg-green-200', text: 'text-green-800' },
+      preparing: { bg: 'bg-amber-100', text: 'text-amber-700' },
+      prepared: { bg: 'bg-cyan-100', text: 'text-cyan-700' },
+      analyzing: { bg: 'bg-blue-100', text: 'text-blue-700' },
+      recorded: { bg: 'bg-emerald-100', text: 'text-emerald-700' },
+      completed: { bg: 'bg-success/20', text: 'text-success' },
     };
-    
+
     const label = latestState ? stateLabels[latestState] : 'Not Started';
     const colors = latestState ? colorMap[latestState] : { bg: 'bg-slate-200', text: 'text-slate-800' };
-    
+
     return (
       <Badge className={`${colors.bg} ${colors.text} border-0`}>
         {label}
@@ -178,14 +178,14 @@ const SampleTable = ({ samples, onSelectSample, isAdmin = false, onDeleteSample,
     }
   };
 
-  const SortableHeader = ({ field, children }: { field: SortField; children: React.ReactNode }) => (
+  const SortableHeader = ({ field, children, className = '' }: { field: SortField; children: React.ReactNode; className?: string }) => (
     <TableHead
-      className="font-semibold cursor-pointer hover:bg-muted/30 transition-colors select-none"
+      className={`font-semibold cursor-pointer hover:bg-muted/30 transition-colors select-none ${className}`}
       onClick={() => handleSort(field)}
     >
       <div className="flex items-center">
         {children}
-        {/* {getSortIcon(field)} */}
+        {getSortIcon(field)}
       </div>
     </TableHead>
   );
@@ -240,22 +240,20 @@ const SampleTable = ({ samples, onSelectSample, isAdmin = false, onDeleteSample,
                   />
                 </TableHead>
               )}
-              <TableHead className="font-semibold w-10">Track</TableHead>
-              <TableHead className="font-semibold">Sample ID</TableHead>
-              <TableHead className="font-semibold">Region</TableHead>
-              <SortableHeader field="province">Province</SortableHeader>
-              <TableHead className="font-semibold">District</TableHead>
-              <SortableHeader field="vegetation_variety">Variety</SortableHeader>
-              <SortableHeader field="collection_date">Date</SortableHeader>
-              <SortableHeader field="status">Status</SortableHeader>
-              <SortableHeader field="risk">Risk</SortableHeader>
-              <TableHead className="font-semibold text-center">Action</TableHead>
+              <TableHead className="font-semibold w-[160px]">Sample ID</TableHead>
+              <TableHead className="font-semibold w-[120px]">Country</TableHead>
+              <SortableHeader field="province" className="w-[160px]">Location</SortableHeader>
+              <SortableHeader field="vegetation_variety" className="min-w-[150px]">Variety</SortableHeader>
+              <SortableHeader field="collection_date" className="w-[140px]">Date</SortableHeader>
+              <SortableHeader field="status" className="w-[140px]">Status</SortableHeader>
+              <SortableHeader field="risk" className="w-[140px]">Risk</SortableHeader>
+              <TableHead className="font-semibold text-right w-[80px]">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {sortedSamples.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={isAdmin ? 11 : 10} className="h-24 text-center text-muted-foreground">
+                <TableCell colSpan={isAdmin ? 9 : 8} className="h-32 text-center text-muted-foreground bg-muted/5 rounded-b-xl">
                   No samples found matching your filters.
                 </TableCell>
               </TableRow>
@@ -276,33 +274,44 @@ const SampleTable = ({ samples, onSelectSample, isAdmin = false, onDeleteSample,
                     </TableCell>
                   )}
                   <TableCell>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className={`h-8 w-8 ${isWatching(sample.sample_id) ? 'text-primary' : 'text-muted-foreground'}`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toggleWatchlist(sample.sample_id);
-                          }}
-                        >
-                          {isWatching(sample.sample_id) ? (
-                            <Bell className="h-4 w-4 fill-current" />
-                          ) : (
-                            <BellOff className="h-4 w-4" />
-                          )}
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        {isWatching(sample.sample_id) ? 'Remove from watchlist' : 'Add to watchlist'}
-                      </TooltipContent>
-                    </Tooltip>
+                    <div className="flex items-center gap-3">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            className={`p-1.5 rounded-md transition-colors ${isWatching(sample.sample_id) ? 'text-primary bg-primary/10 ring-1 ring-primary/20' : 'text-muted-foreground hover:bg-muted'}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleWatchlist(sample.sample_id);
+                            }}
+                            title={isWatching(sample.sample_id) ? 'Remove from watchlist' : 'Add to watchlist'}
+                          >
+                            {isWatching(sample.sample_id) ? (
+                              <Bell className="h-3.5 w-3.5 fill-current" />
+                            ) : (
+                              <BellOff className="h-3.5 w-3.5" />
+                            )}
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          {isWatching(sample.sample_id) ? 'Remove from watchlist' : 'Add to watchlist'}
+                        </TooltipContent>
+                      </Tooltip>
+                      <span className="font-medium text-foreground">{sample.sample_id}</span>
+                    </div>
                   </TableCell>
-                  <TableCell className="font-medium text-primary">{sample.sample_id}</TableCell>
-                  <TableCell>{sample.region}</TableCell>
-                  <TableCell>{sample.province}</TableCell>
-                  <TableCell>{sample.district}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1.5 font-medium text-foreground">
+                      <span className="text-base" aria-hidden="true">
+                        Thailand
+                      </span>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-col">
+                      <span className="font-medium text-foreground">{sample.district}, {sample.province}</span>
+                      <span className="text-xs text-muted-foreground">{sample.region}</span>
+                    </div>
+                  </TableCell>
                   <TableCell>
                     <Badge variant="secondary">{sample.vegetation_variety}</Badge>
                   </TableCell>
@@ -353,29 +362,44 @@ const SampleTable = ({ samples, onSelectSample, isAdmin = false, onDeleteSample,
                       <span className="text-xs text-muted-foreground">Pending</span>
                     )}
                   </TableCell>
-                  <TableCell className="text-center">
-                    <div className="flex items-center justify-center gap-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => onSelectSample(sample)}
-                        className="h-8"
-                      >
-                        <Eye className="mr-1 h-4 w-4" />
-                        View
-                      </Button>
+                  <TableCell className="text-right">
+                    <div className="flex items-center justify-end gap-1">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onSelectSample(sample);
+                            }}
+                            className="h-8 w-8 text-muted-foreground hover:text-primary transition-colors"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>View Details</TooltipContent>
+                      </Tooltip>
+
                       {isAdmin && onDeleteSample && (
                         <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </AlertDialogTrigger>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div>
+                                <AlertDialogTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent>Delete Sample</TooltipContent>
+                          </Tooltip>
                           <AlertDialogContent>
                             <AlertDialogHeader>
                               <AlertDialogTitle>Delete Sample</AlertDialogTitle>
