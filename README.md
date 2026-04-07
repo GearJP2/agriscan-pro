@@ -36,7 +36,7 @@ The production environment is hosted on AWS using a highly available and scalabl
 
 | Service | Component | Details |
 | :--- | :--- | :--- |
-| **Elastic Beanstalk**| Web/API Tier | Python 3.12 running on AL2023 (`Agriscan-Backend-env`) |
+| **Elastic Beanstalk**| Web/API Tier | Python 3.12 running on AL2023 (`agriscan-backend-v2`) |
 | **Aurora Postgres** | Database Tier | Serverless v2 (v16.1) |
 | **ElastiCache** | Cache/Queue | Redis OSS v7 with TLS/Encryption enabled |
 | **Amazon S3** | Storage Tier | Managed via IAM Instance Profile (no keys in code) |
@@ -51,7 +51,7 @@ Set these in the **Elastic Beanstalk Console** (Configuration > Updates, monitor
 - `DB_NAME`: `agriscan_db`
 - `REDIS_URL`: `rediss://[ElastiCache-Endpoint]:6379/0` (Note the `rediss://` for TLS)
 - `AWS_STORAGE_BUCKET_NAME`: *[Your-S3-Bucket]*
-- `ALLOWED_HOSTS`: `api.yourdomain.com,Agriscan-Backend-env.ap-southeast-1.elasticbeanstalk.com`
+- `ALLOWED_HOSTS`: `api.yourdomain.com,agriscan-backend-v2.ap-southeast-1.elasticbeanstalk.com`
 - `CORS_ALLOWED_ORIGINS`: `https://yourdomain.com`
 
 ---
@@ -70,7 +70,7 @@ The project uses **GitHub Actions** for automated deployment to AWS Elastic Bean
 If needed, you can deploy manually from the `backend` folder:
 ```bash
 cd backend
-eb deploy Agriscan-Backend-env
+eb deploy agriscan-backend-v2
 ```
 
 ---
