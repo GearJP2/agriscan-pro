@@ -235,10 +235,13 @@ AUTH_USER_MODEL = 'accounts.User'
 # In production, set CORS_ALLOWED_ORIGINS to comma-separated list of allowed frontend URLs
 # e.g. "https://agriscan-pro.pages.dev,https://agriscan.yourdomain.com"
 _CORS_ORIGINS = os.environ.get('CORS_ALLOWED_ORIGINS', '')
-if _CORS_ORIGINS:
+if _CORS_ORIGINS == '*':
+    CORS_ALLOW_ALL_ORIGINS = True
+elif _CORS_ORIGINS:
     CORS_ALLOWED_ORIGINS = [o.strip() for o in _CORS_ORIGINS.split(',') if o.strip()]
 else:
-    CORS_ALLOW_ALL_ORIGINS = True  # Development only
+    # Default to False in production, True in development
+    CORS_ALLOW_ALL_ORIGINS = DEBUG
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
