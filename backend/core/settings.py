@@ -111,7 +111,6 @@ if _DB_ENGINE == 'postgresql':
             'PORT': os.environ.get('DB_PORT', '5432'),
             'OPTIONS': {
                 'connect_timeout': 10,  # fail fast if DB unreachable (prevents long EB deploy hang)
-                'sslmode': 'require',   # Aurora PostgreSQL requires SSL; without this Django retries indefinitely
             },
         }
     }
