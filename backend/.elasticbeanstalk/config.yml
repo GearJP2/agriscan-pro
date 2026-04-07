@@ -1,10 +1,10 @@
 branch-defaults:
   main:
-    environment: agriscan-backend-v2
+    environment: Agriscanpro-backend-env
     group_suffix: null
 
 global:
-  application_name: agriscan-pro
+  application_name: agriscan-backend-v2
   # Change to the AWS region where your RDS and ElastiCache are provisioned
   default_region: ap-southeast-1
   default_platform: Python 3.12
