@@ -328,8 +328,11 @@ _handlers = {
     },
 }
 
-# Add file handlers only if not testing
-if not IS_TESTING:
+# Add file handlers only if not testing AND if we're not for sure on EB/Production to avoid permission errors
+# In production, we rely on console logging which EB/CloudWatch captures automatically.
+_ENABLE_FILE_LOGGING = not IS_TESTING and (DEBUG or os.environ.get('ENABLE_FILE_LOGGING') == 'True')
+
+if _ENABLE_FILE_LOGGING:
     _logs_dir = BASE_DIR / 'logs'
     _logs_dir.mkdir(exist_ok=True)
 
@@ -371,22 +374,22 @@ LOGGING = {
     'handlers': _handlers,
     'loggers': {
         'agriscan.samples': {
-            'handlers': ['console'] + (['app_file', 'error_file'] if not IS_TESTING else []),
+            'handlers': ['console'] + (['app_file', 'error_file'] if _ENABLE_FILE_LOGGING else []),
             'level': 'INFO',
             'propagate': False,
         },
         'agriscan.accounts': {
-            'handlers': ['console'] + (['app_file', 'error_file'] if not IS_TESTING else []),
+            'handlers': ['console'] + (['app_file', 'error_file'] if _ENABLE_FILE_LOGGING else []),
             'level': 'INFO',
             'propagate': False,
         },
         'agriscan.middleware': {
-            'handlers': ['console'] + (['app_file', 'error_file'] if not IS_TESTING else []),
+            'handlers': ['console'] + (['app_file', 'error_file'] if _ENABLE_FILE_LOGGING else []),
             'level': 'INFO',
             'propagate': False,
         },
         'agriscan.audit': {
-            'handlers': ['console'] + (['audit_file'] if not IS_TESTING else []),
+            'handlers': ['console'] + (['audit_file'] if _ENABLE_FILE_LOGGING else []),
             'level': 'INFO',
             'propagate': False,
         },
