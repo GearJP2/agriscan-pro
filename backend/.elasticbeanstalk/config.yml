@@ -1,6 +1,6 @@
 branch-defaults:
   main:
-    environment: agriscan-pro-prod
+    environment: Agriscan-Backend-env
     group_suffix: null
 
 global:
