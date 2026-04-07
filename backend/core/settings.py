@@ -31,9 +31,16 @@ SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-very-long-secret-key-
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 
-# Comma-separated list of allowed hosts, e.g. "mybackend.up.railway.app,api.mydomain.com"
+# Comma-separated list of allowed hosts
 _ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '')
-ALLOWED_HOSTS = [h.strip() for h in _ALLOWED_HOSTS.split(',') if h.strip()] if _ALLOWED_HOSTS else ['localhost', '127.0.0.1']
+if _ALLOWED_HOSTS:
+    ALLOWED_HOSTS = [h.strip() for h in _ALLOWED_HOSTS.split(',') if h.strip()]
+    if '*' not in ALLOWED_HOSTS:
+        # Add a default local allow list alongside the provided env var
+        ALLOWED_HOSTS.extend(['localhost', '127.0.0.1'])
+else:
+    # If not set in environment, allow all in non-debug mode for EB health checks or standard local defaults
+    ALLOWED_HOSTS = ['*'] if not DEBUG else ['localhost', '127.0.0.1']
 
 
 # Application definition
