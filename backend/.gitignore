@@ -1,1 +1,3 @@
 *.zip
+.elasticbeanstalk/app_versions/
+.elasticbeanstalk/logs/
