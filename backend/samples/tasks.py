@@ -50,12 +50,18 @@ def process_sample_file(self, key: str, uploaded_by_username: str):
     created = 0
     errors = []
 
+    # Fetch all existing sample_ids in one query to avoid N+1 in loop
+    incoming_ids = [str(row.get('sample_id', '')).strip() for row in rows if row.get('sample_id')]
+    existing_ids = set(
+        Sample.objects.filter(sample_id__in=incoming_ids).values_list('sample_id', flat=True)
+    )
+
     for i, row in enumerate(rows):
         sample_id = str(row.get('sample_id', '')).strip()
         if not sample_id:
             errors.append({'row': i + 2, 'detail': 'sample_id ว่างเปล่า'})
             continue
-        if Sample.objects.filter(sample_id=sample_id).exists():
+        if sample_id in existing_ids:
             errors.append({'row': i + 2, 'detail': f"sample_id '{sample_id}' มีอยู่แล้ว"})
             continue
 
@@ -63,6 +69,8 @@ def process_sample_file(self, key: str, uploaded_by_username: str):
             sample = Sample.objects.create(
                 sample_id=sample_id,
                 region=str(row.get('region', '')).strip(),
+                province=str(row.get('province', '')).strip(),
+                district=str(row.get('district', '')).strip(),
                 vegetation_variety=str(row.get('vegetation_variety', '')).strip(),
                 status=str(row.get('status', 'pending')).strip() or 'pending',
                 collection_date=row.get('collection_date') or None,

@@ -25,7 +25,8 @@ def generate_upload_url(username: str, filename: str, content_type: str) -> dict
         raise ValueError(f"ไฟล์ประเภท '{ext}' ไม่รองรับ ใช้: {', '.join(_ALLOWED_EXTENSIONS)}")
 
     s3 = get_s3_client()
-    key = f"mycotoxin-sample/{username}/{filename}"
+    safe_filename = os.path.basename(filename)
+    key = f"mycotoxin-sample/{username}/{safe_filename}"
 
     url = s3.generate_presigned_url(
         'put_object',

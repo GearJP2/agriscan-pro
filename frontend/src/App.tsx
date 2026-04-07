@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
 import { AuthProvider } from "@/contexts/AuthContext";
 import Dashboard from "@/components/surveillance/SurveillanceDashboard";
+import Footer from "@/components/Footer";
 import NotFound from "./pages/NotFound";
 
 import Homepage from "./pages/Homepage";
@@ -35,27 +36,32 @@ const App = () => (
               v7_relativeSplatPath: true,
             }}
           >
-            <Routes>
-              {/* Public Routes */}
-              <Route path="/" element={<Homepage />} />
-              <Route path="/doc" element={<Doc />} />
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/samples" element={<SampleList />} />
-              <Route path="/prediction" element={<Prediction />} />
+            <div className="flex flex-col min-h-screen">
+              <div className="flex-1 flex flex-col">
+                <Routes>
+                  {/* Public Routes */}
+                  <Route path="/" element={<Homepage />} />
+                  <Route path="/doc" element={<Doc />} />
+                  <Route path="/dashboard" element={<Dashboard />} />
+                  <Route path="/samples" element={<SampleList />} />
+                  <Route path="/prediction" element={<Prediction />} />
 
 
-              {/* Protected Routes */}
-              <Route element={<ProtectedRoute />}>
-                <Route path="/users" element={<UserManagement />} />
-                <Route path="/profile" element={<Profile />} />
-                <Route path="/settings" element={<Settings />} />
-                <Route path="/activity" element={<Activity />} />
-                <Route path="/notifications" element={<Notifications />} />
-              </Route>
+                  {/* Protected Routes */}
+                  <Route element={<ProtectedRoute />}>
+                    <Route path="/users" element={<UserManagement />} />
+                    <Route path="/profile" element={<Profile />} />
+                    <Route path="/settings" element={<Settings />} />
+                    <Route path="/activity" element={<Activity />} />
+                    <Route path="/notifications" element={<Notifications />} />
+                  </Route>
 
-              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-              <Route path="*" element={<NotFound />} />
-            </Routes>
+                  {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </div>
+              <Footer />
+            </div>
           </BrowserRouter>
         </TooltipProvider>
       </AuthProvider>

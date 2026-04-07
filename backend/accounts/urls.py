@@ -1,6 +1,7 @@
 from django.urls import path
 from rest_framework_simplejwt.views import TokenRefreshView
 from .views import RegisterView, UserListView, UserDetailView, CustomTokenObtainPairView
+from .oauth import google_oauth_callback, google_auth_url
 
 urlpatterns = [
     path('register/', RegisterView.as_view(), name='register'),
@@ -8,4 +9,8 @@ urlpatterns = [
     path('login/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('users/', UserListView.as_view(), name='user-list'),
     path('users/<int:pk>/', UserDetailView.as_view(), name='user-detail'),
+    
+    # Google OAuth routes
+    path('google-auth/', google_auth_url, name='google-auth-url'),
+    path('google-callback/', google_oauth_callback, name='google-oauth-callback'),
 ]

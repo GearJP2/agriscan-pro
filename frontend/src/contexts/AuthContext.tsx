@@ -31,6 +31,7 @@ interface AuthContextType {
   isAdmin: boolean;
   isAuthenticated: boolean;
   login: (username: string, password: string) => Promise<void>;
+  loginWithToken: (accessToken: string, refreshToken?: string) => Promise<void>;
   logout: () => void;
   switchRole: (role: UserRole) => void;
   setUserName: (name: string) => void;
@@ -154,6 +155,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const loginWithToken = async (accessToken: string, refreshToken?: string) => {
+    try {
+      // Store tokens
+      setTokens(accessToken, refreshToken || '');
+
+      const decoded: TokenPayload = jwtDecode(accessToken);
+
+      // Fetch user details
+      await fetchAndSetUser(accessToken, decoded.user_id);
+    } catch (error) {
+      clearTokens();
+      throw error;
+    }
+  };
+
   const logout = () => {
     clearTokens();
     setIsAuthenticated(false);
@@ -170,7 +186,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user: currentUser, role, isAdmin, isAuthenticated, login, logout, switchRole, setUserName }}>
+    <AuthContext.Provider value={{ user: currentUser, role, isAdmin, isAuthenticated, login, loginWithToken, logout, switchRole, setUserName }}>
       {children}
     </AuthContext.Provider>
   );

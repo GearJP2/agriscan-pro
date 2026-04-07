@@ -118,7 +118,7 @@ export default function SurveillanceDashboard() {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-background dashboard-wrapper">
         <Header />
         <main className="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="rounded-xl border border-dashed border-border bg-card p-12 text-center text-muted-foreground">
@@ -131,7 +131,7 @@ export default function SurveillanceDashboard() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-background dashboard-wrapper">
         <Header />
         <main className="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="rounded-xl border border-danger/30 bg-danger/5 p-12 text-center">
@@ -146,7 +146,7 @@ export default function SurveillanceDashboard() {
 
   if (isLoading || (!filters.dateRange.from && samples.length > 0)) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-background dashboard-wrapper">
         <Header />
         <main className="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex min-h-[50vh] items-center justify-center">
@@ -159,7 +159,7 @@ export default function SurveillanceDashboard() {
 
   if (samples.length === 0) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-background dashboard-wrapper">
         <Header />
         <main className="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="rounded-xl border border-dashed border-border bg-card p-12 text-center text-muted-foreground">
@@ -171,7 +171,7 @@ export default function SurveillanceDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background dashboard-wrapper">
       <Header />
 
       <main className="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">

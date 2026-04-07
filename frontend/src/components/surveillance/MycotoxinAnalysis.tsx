@@ -30,12 +30,12 @@ function barColor(pct: number) {
   return '#22c55e';
 }
 
-function intensityColor(value: number): string {
+function intensityColor(value: number, isDark: boolean): string {
   if (value > 75) return '#991b1b';
   if (value > 50) return '#ef4444';
   if (value > 30) return '#f59e0b';
   if (value > 15) return '#fbbf24';
-  return '#374151';
+  return isDark ? '#1e293b' : '#e5e7eb';
 }
 
 interface MycotoxinAnalysisProps {
@@ -69,13 +69,10 @@ export default function MycotoxinAnalysis({
   const gridStroke = isDark ? '#374151' : '#e5e7eb';
   const tickFill = isDark ? '#9ca3af' : '#6b7280';
   const labelFill = isDark ? '#d1d5db' : '#374151';
-  const tooltipBg = isDark ? '#1f2937' : '#ffffff';
-  const tooltipBorder = isDark ? '#374151' : '#e5e7eb';
-  const tooltipColor = isDark ? '#f3f4f6' : '#1f2937';
   const centerTextFill = isDark ? '#f3f4f6' : '#1f2937';
   const subTextFill = isDark ? '#9ca3af' : '#6b7280';
 
-  const tooltipStyle = { backgroundColor: tooltipBg, border: `1px solid ${tooltipBorder}`, borderRadius: 8, color: tooltipColor };
+  const tooltipStyle = { backgroundColor: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 8, color: '#111827' };
 
   return (
     <section aria-label="Mycotoxin and Commodity Analysis">
@@ -88,7 +85,7 @@ export default function MycotoxinAnalysis({
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
             {/* Top-left: Top Mycotoxins by Public Health Concern */}
-            <div className="rounded-lg bg-muted/50 p-4">
+            <div className="rounded-lg bg-black/5 dark:bg-muted/50 p-4">
               <h3 className="text-sm font-medium text-muted-foreground mb-3">Top Mycotoxins by Public Health Concern</h3>
               <div className="h-64" aria-label="Horizontal bar chart of mycotoxin risk scores">
                 <ResponsiveContainer width="100%" height="100%">
@@ -108,7 +105,7 @@ export default function MycotoxinAnalysis({
             </div>
 
             {/* Top-right: Share of Affected Commodities (Donut) */}
-            <div className="rounded-lg bg-muted/50 p-4">
+            <div className="rounded-lg bg-black/5 dark:bg-muted/50 p-4">
               <h3 className="text-sm font-medium text-muted-foreground mb-3">Share of Affected Commodities</h3>
               <div className="h-64" aria-label="Donut chart showing share of affected commodities">
                 <ResponsiveContainer width="100%" height="100%">
@@ -143,7 +140,7 @@ export default function MycotoxinAnalysis({
             </div>
 
             {/* Bottom-left: % Above Threshold by Commodity */}
-            <div className="rounded-lg bg-muted/50 p-4">
+            <div className="rounded-lg bg-black/5 dark:bg-muted/50 p-4">
               <h3 className="text-sm font-medium text-muted-foreground mb-3">% Above Threshold by Commodity</h3>
               <div className="h-64" aria-label="Bar chart showing percentage above safety threshold by commodity">
                 <ResponsiveContainer width="100%" height="100%">
@@ -164,7 +161,7 @@ export default function MycotoxinAnalysis({
             </div>
 
             {/* Bottom-right: Region × Commodity Risk Intensity Heatmap */}
-            <div className="rounded-lg bg-muted/50 p-4">
+            <div className="rounded-lg bg-black/5 dark:bg-muted/50 p-4">
               <h3 className="text-sm font-medium text-muted-foreground mb-3">Region × Commodity Risk Intensity</h3>
               <div className="overflow-x-auto" aria-label="Heatmap of risk intensity by region and commodity">
                 <table className="w-full">
@@ -189,12 +186,9 @@ export default function MycotoxinAnalysis({
                           return (
                             <td key={key} className="p-1">
                               <div
-                                className={cn(
-                                  'rounded text-center text-xs font-medium py-2',
-                                  isTop3 && 'ring-2 ring-warning'
-                                )}
+                                className="rounded text-center text-xs font-medium py-2 border border-black dark:border-[#ffd700]"
                                 style={{
-                                  backgroundColor: intensityColor(value),
+                                  backgroundColor: intensityColor(value, isDark),
                                   color: value > 30 ? '#fef2f2' : (isDark ? '#d1d5db' : '#4b5563'),
                                 }}
                               >
@@ -214,7 +208,7 @@ export default function MycotoxinAnalysis({
                 <div className="flex gap-1">
                   {[15, 30, 50, 75, 95].map((v) => (
                     <div key={v} className="flex items-center gap-1">
-                      <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: intensityColor(v) }} />
+                      <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: intensityColor(v, isDark) }} />
                       <span className="text-xs text-muted-foreground/60">{v}</span>
                     </div>
                   ))}
