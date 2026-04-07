@@ -10,6 +10,7 @@ import SampleTable from './SampleTable';
 import SampleDetailModal from './SampleDetailModal';
 import AddSampleForm from './AddSampleForm';
 import RequestInvestigationForm from './RequestInvestigationForm';
+import ImportResultsForm from './ImportResultsForm';
 import { Button } from '@/components/ui/button';
 import {
     DropdownMenu,
@@ -328,6 +329,11 @@ const SampleList = () => {
         queryClient.invalidateQueries({ queryKey: ['samples-dashboard'] });
     };
 
+    const handleImportResultsSuccess = () => {
+        queryClient.invalidateQueries({ queryKey: ['samples-list'] });
+        queryClient.invalidateQueries({ queryKey: ['samples-dashboard'] });
+    };
+
     return (
         <div className="min-h-screen bg-background">
             <Header />
@@ -380,6 +386,10 @@ const SampleList = () => {
                                 </DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>
+                        <ImportResultsForm
+                            sampleIds={filteredSamples.map((sample) => sample.sample_id)}
+                            onSuccess={handleImportResultsSuccess}
+                        />
                         <RequestInvestigationForm />
                         {isAuthenticated && USER_ROLE_WEIGHT[role as keyof typeof USER_ROLE_WEIGHT] >= USER_ROLE_WEIGHT['research_assistant'] && (
                             <AddSampleForm

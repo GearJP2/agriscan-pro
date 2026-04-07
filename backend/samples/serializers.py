@@ -7,7 +7,7 @@ class MycotoxinResultSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = MycotoxinResult
-        fields = ('id', 'name', 'intensity', 'dangerous', 'threshold', 'unit', 'test_method', 'sop_link', 'method', 'created_at')
+        fields = ('id', 'name', 'intensity', 'is_detected', 'dangerous', 'threshold', 'unit', 'test_method', 'sop_link', 'method', 'created_at')
         read_only_fields = ('id', 'created_at', 'method')
 
     def get_method(self, obj):

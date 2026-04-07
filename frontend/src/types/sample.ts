@@ -42,6 +42,7 @@ export interface TestMethod {
 export interface MycotoxinResult {
   name: string;
   intensity: number; // Exact measured concentration from lab
+  is_detected?: boolean;
   dangerous: boolean;
   threshold: number;
   unit: string;

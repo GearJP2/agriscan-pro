@@ -38,7 +38,7 @@ const SampleDetailModal = ({ sample, open, onOpenChange, onUpdateSample }: Sampl
     flagged: 'Flagged',
   };
 
-  const hasDangerousResults = sample.mycotoxin_results?.some(r => r.dangerous) ?? false;
+  const hasPositiveResults = sample.mycotoxin_results?.some(r => (r.is_detected ?? r.intensity > 0)) ?? false;
   const hasResults = (sample.mycotoxin_results?.length ?? 0) > 0;
 
   const handleStatusUpdate = (sampleId: string, newLog: ProcessLog) => {
@@ -155,7 +155,7 @@ const SampleDetailModal = ({ sample, open, onOpenChange, onUpdateSample }: Sampl
 
                 {/* Risk Status */}
                 <div className="flex items-start gap-3">
-                  {hasDangerousResults ? (
+                  {hasPositiveResults ? (
                     <AlertTriangle className="h-5 w-5 text-danger shrink-0 mt-0.5" />
                   ) : hasResults ? (
                     <CheckCircle2 className="h-5 w-5 text-success shrink-0 mt-0.5" />
@@ -164,8 +164,8 @@ const SampleDetailModal = ({ sample, open, onOpenChange, onUpdateSample }: Sampl
                   )}
                   <div>
                     <p className="text-xs text-muted-foreground">Risk Level</p>
-                    <p className={`font-medium ${hasDangerousResults ? 'text-danger' : hasResults ? 'text-success' : 'text-muted-foreground'}`}>
-                      {hasDangerousResults ? 'High Risk' : hasResults ? 'Safe' : 'Pending Analysis'}
+                    <p className={`font-medium ${hasPositiveResults ? 'text-danger' : hasResults ? 'text-success' : 'text-muted-foreground'}`}>
+                      {hasPositiveResults ? 'Positive' : hasResults ? 'Negative (LOD)' : 'Pending Analysis'}
                     </p>
                   </div>
                 </div>
@@ -179,9 +179,9 @@ const SampleDetailModal = ({ sample, open, onOpenChange, onUpdateSample }: Sampl
                 icon={Beaker}
                 isOpen={showResults}
                 onToggle={() => setShowResults(!showResults)}
-                isDangerous={hasDangerousResults}
+                isDangerous={hasPositiveResults}
                 badge={
-                  hasDangerousResults ? (
+                  hasPositiveResults ? (
                     <Badge variant="destructive" className="ml-2">Positive</Badge>
                   ) : (
                     <Badge variant="secondary" className="ml-2 bg-success/10 text-success">Negative</Badge>

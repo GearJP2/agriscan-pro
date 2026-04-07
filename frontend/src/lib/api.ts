@@ -288,6 +288,18 @@ export const sampleAPI = {
   },
 
   /**
+   * Import mycotoxin results by sample_id from CSV file
+   */
+  async bulkImportResults(file: File) {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await apiClient.post('/samples/bulk_import_results/', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  },
+
+  /**
    * Bulk create samples
    */
   async bulkCreateSamples(data: Partial<Sample>[]) {

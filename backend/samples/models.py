@@ -34,6 +34,7 @@ class Sample(models.Model):
     )
 
     sample_id = models.CharField(max_length=50, unique=True, db_index=True)
+    sequence_number = models.IntegerField(default=0, db_index=True)
     region = models.CharField(max_length=100)
     province = models.CharField(max_length=100)
     district = models.CharField(max_length=100)
@@ -89,6 +90,7 @@ class MycotoxinResult(models.Model):
     sample = models.ForeignKey(Sample, on_delete=models.CASCADE, related_name='mycotoxin_results')
     name = models.CharField(max_length=100)
     intensity = models.FloatField(validators=[MinValueValidator(0)])
+    is_detected = models.BooleanField(default=True)
     dangerous = models.BooleanField(default=False)
     threshold = models.FloatField()
     unit = models.CharField(max_length=50)

@@ -28,7 +28,7 @@ interface SampleTableProps {
   onBulkDeleteSamples?: (sampleIds: string[]) => void;
 }
 
-type SortField = 'province' | 'collection_date' | 'status' | 'risk' | 'vegetation_variety';
+type SortField = 'region' | 'province' | 'district' | 'collection_date' | 'status' | 'risk' | 'vegetation_variety';
 type SortDirection = 'asc' | 'desc' | null;
 
 const SampleTable = ({ samples, onSelectSample, isAdmin = false, onDeleteSample, onBulkDeleteSamples }: SampleTableProps) => {
@@ -70,11 +70,11 @@ const SampleTable = ({ samples, onSelectSample, isAdmin = false, onDeleteSample,
     );
   };
 
-  const hasDangerousResults = (sample: Sample) => {
+  const hasPositiveResults = (sample: Sample) => {
     if (sample.mycotoxin_results && sample.mycotoxin_results.length > 0) {
-      return sample.mycotoxin_results.some(r => r.dangerous);
+      return sample.mycotoxin_results.some(r => (r.is_detected ?? r.intensity > 0));
     }
-    return sample.risk_level === 'high';
+    return ['high', 'medium', 'low'].includes(sample.risk_level || '');
   };
 
   const hasRecordedResults = (sample: Sample) => {
@@ -95,7 +95,7 @@ const SampleTable = ({ samples, onSelectSample, isAdmin = false, onDeleteSample,
   const getRiskScore = (sample: Sample) => {
     if (!hasRecordedResults(sample)) return -1;
     const maxIntensity = getMaxIntensity(sample);
-    if (hasDangerousResults(sample)) return 100 + (maxIntensity ?? 1);
+    if (hasPositiveResults(sample)) return 100 + (maxIntensity ?? 1);
     if (sample.mycotoxin_results && sample.mycotoxin_results.length > 0) {
       return maxIntensity ?? 1;
     }
@@ -133,8 +133,14 @@ const SampleTable = ({ samples, onSelectSample, isAdmin = false, onDeleteSample,
 
     let comparison = 0;
     switch (sortField) {
+      case 'region':
+        comparison = a.region.localeCompare(b.region);
+        break;
       case 'province':
         comparison = a.province.localeCompare(b.province);
+        break;
+      case 'district':
+        comparison = a.district.localeCompare(b.district);
         break;
       case 'collection_date':
         comparison = new Date(a.collection_date).getTime() - new Date(b.collection_date).getTime();
@@ -241,8 +247,9 @@ const SampleTable = ({ samples, onSelectSample, isAdmin = false, onDeleteSample,
                 </TableHead>
               )}
               <TableHead className="font-semibold w-[160px]">Sample ID</TableHead>
-              <TableHead className="font-semibold w-[120px]">Country</TableHead>
-              <SortableHeader field="province" className="w-[160px]">Location</SortableHeader>
+              <SortableHeader field="region" className="w-[130px]">Region</SortableHeader>
+              <SortableHeader field="province" className="w-[160px]">Province</SortableHeader>
+              <SortableHeader field="district" className="w-[160px]">District</SortableHeader>
               <SortableHeader field="vegetation_variety" className="min-w-[150px]">Variety</SortableHeader>
               <SortableHeader field="collection_date" className="w-[140px]">Date</SortableHeader>
               <SortableHeader field="status" className="w-[140px]">Status</SortableHeader>
@@ -253,7 +260,7 @@ const SampleTable = ({ samples, onSelectSample, isAdmin = false, onDeleteSample,
           <TableBody>
             {sortedSamples.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={isAdmin ? 9 : 8} className="h-32 text-center text-muted-foreground bg-muted/5 rounded-b-xl">
+                <TableCell colSpan={isAdmin ? 10 : 9} className="h-32 text-center text-muted-foreground bg-muted/5 rounded-b-xl">
                   No samples found matching your filters.
                 </TableCell>
               </TableRow>
@@ -299,19 +306,9 @@ const SampleTable = ({ samples, onSelectSample, isAdmin = false, onDeleteSample,
                       <span className="font-medium text-foreground">{sample.sample_id}</span>
                     </div>
                   </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1.5 font-medium text-foreground">
-                      <span className="text-base" aria-hidden="true">
-                        Thailand
-                      </span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-col">
-                      <span className="font-medium text-foreground">{sample.district}, {sample.province}</span>
-                      <span className="text-xs text-muted-foreground">{sample.region}</span>
-                    </div>
-                  </TableCell>
+                  <TableCell>{sample.region}</TableCell>
+                  <TableCell>{sample.province}</TableCell>
+                  <TableCell>{sample.district}</TableCell>
                   <TableCell>
                     <Badge variant="secondary">{sample.vegetation_variety}</Badge>
                   </TableCell>
@@ -320,7 +317,7 @@ const SampleTable = ({ samples, onSelectSample, isAdmin = false, onDeleteSample,
                   </TableCell>
                   <TableCell>{getStatusBadge(sample)}</TableCell>
                   <TableCell>
-                    {hasDangerousResults(sample) ? (
+                    {hasPositiveResults(sample) ? (
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <div className="flex items-center gap-1.5 text-danger cursor-help">
@@ -330,8 +327,8 @@ const SampleTable = ({ samples, onSelectSample, isAdmin = false, onDeleteSample,
                         </TooltipTrigger>
                         <TooltipContent className="max-w-xs">
                           <div className="space-y-1">
-                            <p className="font-semibold text-danger">Positive - Exceeds threshold</p>
-                            {sample.mycotoxin_results?.filter(r => r.dangerous).map((r, i) => (
+                            <p className="font-semibold text-danger">Positive - Mycotoxin detected</p>
+                            {sample.mycotoxin_results?.filter(r => (r.is_detected ?? r.intensity > 0)).map((r, i) => (
                               <p key={i} className="text-xs">
                                 {r.name}: <span className="font-medium">{r.intensity} {r.unit}</span>
                               </p>
@@ -349,10 +346,10 @@ const SampleTable = ({ samples, onSelectSample, isAdmin = false, onDeleteSample,
                         </TooltipTrigger>
                         <TooltipContent className="max-w-xs">
                           <div className="space-y-1">
-                            <p className="font-semibold text-success">Negative - No result exceeded threshold</p>
+                            <p className="font-semibold text-success">Negative - All results are LOD</p>
                             {sample.mycotoxin_results?.map((r, i) => (
                               <p key={i} className="text-xs">
-                                {r.name}: <span className="font-medium">{r.intensity} {r.unit}</span>
+                                {r.name}: <span className="font-medium">{(r.is_detected ?? r.intensity > 0) ? `${r.intensity} ${r.unit}` : 'LOD'}</span>
                               </p>
                             ))}
                           </div>

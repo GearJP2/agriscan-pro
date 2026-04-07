@@ -21,11 +21,14 @@ const MycotoxinResults = ({ results }: MycotoxinResultsProps) => {
       <h3 className="text-sm font-semibold text-foreground">Mycotoxin Analysis</h3>
       <div className="space-y-3">
         {results.map((result, index) => (
+          (() => {
+            const isDetected = result.is_detected ?? result.intensity > 0;
+            return (
           <div 
             key={index} 
             className={cn(
               'rounded-lg border p-4 transition-all',
-              result.dangerous 
+              isDetected 
                 ? 'border-danger/30 bg-danger/5' 
                 : 'border-border bg-card'
             )}
@@ -34,7 +37,7 @@ const MycotoxinResults = ({ results }: MycotoxinResultsProps) => {
               <div className="flex-1">
                 <div className="flex items-center gap-2">
                   <h4 className="font-medium text-foreground">{result.name}</h4>
-                  {result.dangerous ? (
+                  {isDetected ? (
                     <div className="flex items-center gap-1 rounded-full bg-danger/10 px-2 py-0.5 text-xs font-medium text-danger">
                       <AlertTriangle className="h-3 w-3" />
                       Positive
@@ -46,9 +49,6 @@ const MycotoxinResults = ({ results }: MycotoxinResultsProps) => {
                     </div>
                   )}
                 </div>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Threshold: {result.threshold} {result.unit}
-                </p>
                 {result.method && (
                   <div className="mt-2 flex items-center gap-2">
                     <span className="text-xs text-muted-foreground flex items-center gap-1">
@@ -74,32 +74,15 @@ const MycotoxinResults = ({ results }: MycotoxinResultsProps) => {
                 <span className="text-muted-foreground">Measured Concentration</span>
                 <span className={cn(
                   'font-semibold',
-                  result.dangerous ? 'text-danger' : 'text-foreground'
+                  isDetected ? 'text-danger' : 'text-foreground'
                 )}>
-                  {result.intensity} {result.unit}
+                  {isDetected ? `${result.intensity} ${result.unit}` : 'LOD'}
                 </span>
-              </div>
-              <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
-                <span>Threshold</span>
-                <span>{result.threshold} {result.unit}</span>
-              </div>
-              <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted">
-                {(() => {
-                  const ratio = result.threshold > 0 ? (result.intensity / result.threshold) : 0;
-                  const progress = Math.max(0, Math.min(100, ratio * 100));
-                  return (
-                <div 
-                  className={cn(
-                    'h-full rounded-full transition-all duration-500',
-                    result.dangerous ? 'gradient-danger' : 'gradient-primary'
-                  )}
-                  style={{ width: `${progress}%` }}
-                />
-                  );
-                })()}
               </div>
             </div>
           </div>
+            );
+          })()
         ))}
       </div>
     </div>
