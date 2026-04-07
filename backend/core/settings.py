@@ -113,11 +113,12 @@ else:
     }
 
 # ─── AWS S3 Storage ───────────────────────────────────────────────────────────
+# If running on EB with an Instance Profile, set these to None or leave unset in environment.
 AWS_ACCESS_KEY_ID       = os.environ.get('AWS_ACCESS_KEY_ID')
 AWS_SECRET_ACCESS_KEY   = os.environ.get('AWS_SECRET_ACCESS_KEY')
 AWS_STORAGE_BUCKET_NAME = os.environ.get('AWS_STORAGE_BUCKET_NAME')
 AWS_S3_REGION_NAME      = os.environ.get('AWS_S3_REGION_NAME', 'ap-southeast-1')
-AWS_S3_FILE_OVERWRITE   = False   # ชื่อซ้ำ → เพิ่ม suffix อัตโนมัติ
+AWS_S3_FILE_OVERWRITE   = False   # ชื่อง้ำ → เพิ่ม suffix อัตโนมัติ
 AWS_DEFAULT_ACL         = None    # ไม่ใช้ ACL ใช้ bucket policy แทน
 AWS_S3_SIGNATURE_VERSION = 's3v4'
 
@@ -129,6 +130,8 @@ STORAGES = {
             "region_name": AWS_S3_REGION_NAME,
             "location": "uploads/raw",
             "file_overwrite": False,
+            "access_key": AWS_ACCESS_KEY_ID,           # Will be None if not provided
+            "secret_key": AWS_SECRET_ACCESS_KEY,       # Will be None if not provided
         },
     },
     # WhiteNoise serves static files (Django admin CSS/JS) with gzip + cache headers
@@ -143,7 +146,7 @@ STORAGES = {
 # Celery will also point its broker/result-backend at the same Redis URL.
 # Set REDIS_URL in .env, e.g.:
 #   REDIS_URL=redis://localhost:6379/0   (local)
-#   REDIS_URL=redis://:password@host:6379/0  (production)
+#   REDIS_URL=rediss://host:6379/0      (AWS ElastiCache with TLS)
 
 REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
 

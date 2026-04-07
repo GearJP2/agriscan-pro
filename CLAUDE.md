@@ -8,8 +8,11 @@ This file helps Claude (Claude Code and other Claude instances) understand the p
 
 ### Tech Stack
 - **Frontend**: React + TypeScript (Vite)
-- **Backend**: Django REST Framework (Python)
-- **Database**: PostgreSQL (managed via Django ORM)
+- **Backend**: Django REST Framework (Python 3.12)
+- **Database**: Amazon Aurora PostgreSQL Serverless v2 (v16.1)
+- **Cache/Broker**: Amazon ElastiCache (Redis OSS v7) with TLS
+- **Storage**: Amazon S3 (via IAM Instance Profile)
+- **Hosting**: AWS Elastic Beanstalk (AL2023)
 - **Agent System**: Node.js orchestrator (in development - local only)
 - **Auth**: JWT (via rest_framework_simplejwt)
 
@@ -39,9 +42,11 @@ agriscan-pro/
 │   ├── manage.py
 │   ├── requirements.txt
 │   ├── core/
-│   │   ├── settings.py       # Django configuration
+│   │   ├── settings.py       # Django configuration (AWS RDS/Redis/S3)
 │   │   ├── urls.py           # Main URL routing
 │   │   └── wsgi.py
+│   ├── .ebextensions/        # AWS EB configuration (migrate, collectstatic)
+│   ├── .platform/             # AWS AL2023 hooks (Celery worker startup)
 │   ├── accounts/             # User authentication
 │   │   ├── models.py         # User model
 │   │   ├── views.py          # Auth endpoints (login, register)
@@ -169,6 +174,11 @@ python manage.py migrate
 python manage.py runserver
 ```
 
+#### Production Connection (AWS)
+- **Database**: Uses Aurora Serverless v2 endpoint.
+- **Cache**: ElastiCache requires `rediss://` for TLS and `ssl_cert_reqs=required`.
+- **S3**: Files are stored in S3; IAM Instance Profile handles auth on EB.
+
 #### Creating Models
 1. Define in `backend/samples/models.py`
 2. Create serializer in `backend/samples/serializers.py`
@@ -294,20 +304,16 @@ node agents-orchestrator/examples/simple-task.js
 ### ✅ Completed
 - User authentication (JWT + Google OAuth 2.0)
 - Redesigned auth UI with Material Design 3 aesthetic (Clinical Orchard theme)
-- Sample CRUD operations
-- Process logging
-- Mycotoxin result tracking
-- Dashboard statistics
-- Bulk sample import
+- **AWS Migration**: Aurora Postgres, ElastiCache Redis (TLS), S3 Storage
+- **GitHub Actions**: Automated CI/CD for backend to Elastic Beanstalk
+- **Celery & Background Tasks**: Fully integrated with ElastiCache broker
+- Sample CRUD operations and Bulk Import
+- Process logging & Mycotoxin result tracking
 - Django admin integration
-- AWS S3 storage integration with presigned URL upload service
-- Celery async task queue (broker: Redis)
-- Background file processing via Celery tasks (`backend/samples/tasks.py`)
 
-### 🚧 In Development (Local Only - Not in Cloud)
+### 🚧 In Development (Local Only)
 - **Agent Orchestrator** (`agents-orchestrator/`) - Multi-agent task execution system
 - **MCP Servers** (`.mcp/`) - External service integrations
-- **Agent Integration** - Connecting agents to Django backend
 
 These are NOT yet committed to production and are for local development only. See `ORCHESTRATOR_SUMMARY.md` for details.
 
@@ -505,9 +511,16 @@ git commit -m "message"              # Commit with message
 git push origin main                 # Push to GitHub
 ```
 
+**Deployment (AWS)**
+```bash
+eb deploy agriscan-pro-prod          # Deploy backend via EB CLI
+eb logs                              # View production logs
+eb status                            # Check environment health
+```
+
 ---
 
 ## Last Updated
-- Date: 2026-04-04
-- By: Claude Code
-- Status: AWS S3 + Celery integration added
+- Date: 2026-04-07
+- By: Claude Code (Migrated by AgriScan Team)
+- Status: Full AWS Production Migration (EB + Aurora + ElastiCache) 완료
