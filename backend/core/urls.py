@@ -16,9 +16,17 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
+from django.http import JsonResponse
+
+
+def health_check(request):
+    """Elastic Beanstalk health check endpoint."""
+    return JsonResponse({'status': 'healthy'})
+
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('health/', health_check, name='health-check'),
     path('api/accounts/', include('accounts.urls')),
     path('api/', include('samples.urls')),
 ]

@@ -15,6 +15,11 @@ backend/__pycache__/
 backend/db.sqlite3
 backend/.env
 backend/logs/
+backend/staticfiles/
+
+# Elastic Beanstalk (EB CLI writes credentials here — never commit)
+backend/.elasticbeanstalk/credentials
+backend/.elasticbeanstalk/.gitignore
 
 # OS
 .DS_Store

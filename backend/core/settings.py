@@ -55,6 +55,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',  # Serve static files (Django admin, etc.)
     'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -130,8 +131,9 @@ STORAGES = {
             "file_overwrite": False,
         },
     },
+    # WhiteNoise serves static files (Django admin CSS/JS) with gzip + cache headers
     "staticfiles": {
-        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
     },
 }
 
@@ -145,14 +147,23 @@ STORAGES = {
 
 REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
 
+# ElastiCache (and any TLS Redis) use rediss:// scheme — auto-enable SSL options.
+# Set REDIS_SSL_CERT_REQS=required (default) for ACM-signed certs (AWS ElastiCache);
+# set to 'none' only if using self-signed or dev certs.
+_REDIS_USE_SSL = REDIS_URL.startswith('rediss://')
+_REDIS_SSL_CERT_REQS = os.environ.get('REDIS_SSL_CERT_REQS', 'required') if _REDIS_USE_SSL else None
+
+_redis_pool_kwargs = {'max_connections': 50}
+if _REDIS_SSL_CERT_REQS is not None:
+    _redis_pool_kwargs['ssl_cert_reqs'] = _REDIS_SSL_CERT_REQS
+
 CACHES = {
     'default': {
         'BACKEND': 'django_redis.cache.RedisCache',
         'LOCATION': REDIS_URL,
         'OPTIONS': {
             'CLIENT_CLASS': 'django_redis.client.DefaultClient',
-            # Connection pool: reuse connections across requests
-            'CONNECTION_POOL_KWARGS': {'max_connections': 50},
+            'CONNECTION_POOL_KWARGS': _redis_pool_kwargs,
         },
         'KEY_PREFIX': 'agriscan',   # Namespace to avoid key collisions
         'TIMEOUT': 300,            # Default TTL: 5 minutes
@@ -170,6 +181,12 @@ CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = 'UTC'
+
+# ElastiCache TLS — pass SSL options to Celery broker and result backend
+if _REDIS_USE_SSL:
+    _celery_ssl_opts = {'ssl_cert_reqs': _REDIS_SSL_CERT_REQS}
+    CELERY_BROKER_USE_SSL = _celery_ssl_opts
+    CELERY_REDIS_BACKEND_USE_SSL = _celery_ssl_opts
 # ─────────────────────────────────────────────────────────────────────────────
 
 
@@ -208,6 +225,7 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'  # collectstatic output directory for EB/nginx
 
 AUTH_USER_MODEL = 'accounts.User'
 

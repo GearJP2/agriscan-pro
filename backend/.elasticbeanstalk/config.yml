@@ -1,0 +1,17 @@
+branch-defaults:
+  main:
+    environment: agriscan-pro-prod
+    group_suffix: null
+
+global:
+  application_name: agriscan-pro
+  # Change to the AWS region where your RDS and ElastiCache are provisioned
+  default_region: ap-southeast-1
+  default_platform: Python 3.12
+  # Deploy source bundle from the backend/ directory
+  workspace_type: Application
+  sc: git
+
+# Deployment policy: rolling with batch to minimize downtime
+deploy:
+  artifact: null

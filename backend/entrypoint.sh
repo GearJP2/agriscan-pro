@@ -5,6 +5,9 @@ echo "=== PORT: $PORT ==="
 echo "=== DB_ENGINE: $DB_ENGINE ==="
 echo "=== ALLOWED_HOSTS: $ALLOWED_HOSTS ==="
 
+echo "=== Collecting static files ==="
+python manage.py collectstatic --noinput
+
 echo "=== Running migrate ==="
 python manage.py migrate --noinput
 
