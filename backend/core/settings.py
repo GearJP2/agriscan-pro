@@ -109,9 +109,6 @@ if _DB_ENGINE == 'postgresql':
             'PASSWORD': os.environ.get('DB_PASSWORD', 'postgres'),
             'HOST': os.environ.get('DB_HOST', 'localhost'),
             'PORT': os.environ.get('DB_PORT', '5432'),
-            'OPTIONS': {
-                'connect_timeout': 10,  # fail fast if DB unreachable (prevents long EB deploy hang)
-            },
         }
     }
 else:
