@@ -1,21 +1,30 @@
 #!/bin/bash
 
-# Extract the virtualenv path
-VENV_PATH=$(ls -d /var/app/venv/*/bin/activate | head -1)
-source $VENV_PATH
+# On Amazon Linux 2023, the virtualenv is usually at /var/app/venv/staging-compute-with-python-3.12
+VENV_ACTIVATE=$(ls /var/app/venv/*/bin/activate 2>/dev/null | head -1)
 
-# Kill existing celery processes (if any) to prevent duplicates
+if [ -z "$VENV_ACTIVATE" ]; then
+    echo "Virtual environment not found. Skipping Celery startup."
+    exit 0
+fi
+
+# Activate the venv
+source "$VENV_ACTIVATE"
+
+# Ensure we have a logs directory
+mkdir -p /var/app/current/logs
+touch /var/app/current/logs/celery.log
+chmod 666 /var/app/current/logs/celery.log
+
+# Kill existing celery processes to prevent duplicates
 pkill -f "celery worker" || true
 pkill -f "celery beat" || true
 
-# Start Celery Worker in the background
-# Output logs to /var/log/celery.log
-nohup celery -A core worker -l info > /var/log/celery.log 2>&1 &
+# Start Celery Worker in the background and DISOWN it
+# This ensures Beanstalk doesn't wait for the child process
+nohup celery -A core worker -l info --logfile=/var/app/current/logs/celery.log --detach > /dev/null 2>&1 &
+disown
 
-# Start Celery Beat in the background (if needed)
-# Ensure only one instance runs beat (using leader_only or a single instance env)
-# For shared instances, we might want to check if this is the leader
-# But for now, we'll assume a single instance or manually manage beat
-# nohup celery -A core beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler > /var/log/celery-beat.log 2>&1 &
+echo "Celery worker started and disowned successfully."
+exit 0
 
-echo "Celery worker started successfully."
