@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import Sample, ProcessLog, MycotoxinResult
+from .utils import generate_sequential_sample_id, extract_sequence_from_sample_id
 
 
 class MycotoxinResultSerializer(serializers.ModelSerializer):
@@ -68,6 +69,9 @@ class SampleCreateUpdateSerializer(serializers.ModelSerializer):
             'collected_by',
             'additional_info',
         )
+        extra_kwargs = {
+            'sample_id': {'required': False, 'allow_blank': True},
+        }
     
     def validate_collection_date(self, value):
         """Validate and normalize collection date"""
@@ -85,8 +89,10 @@ class SampleCreateUpdateSerializer(serializers.ModelSerializer):
     
     def validate_sample_id(self, value):
         """Validate sample ID format"""
-        if not value or not isinstance(value, str):
-            raise serializers.ValidationError("Sample ID is required and must be a string")
+        if value in (None, ''):
+            return ''
+        if not isinstance(value, str):
+            raise serializers.ValidationError("Sample ID must be a string")
         return value.strip()
     
     def validate_province(self, value):
@@ -130,6 +136,17 @@ class SampleCreateUpdateSerializer(serializers.ModelSerializer):
         return value if value else None  # Return None if empty, which allows the create() method to set default
     
     def create(self, validated_data):
+        sample_id = (validated_data.get('sample_id') or '').strip()
+        collection_date = validated_data.get('collection_date')
+        if not sample_id:
+            generated_id, sequence_number = generate_sequential_sample_id(collection_date)
+            validated_data['sample_id'] = generated_id
+            validated_data['sequence_number'] = sequence_number
+        else:
+            parsed_seq = extract_sequence_from_sample_id(sample_id, collection_date.year if collection_date else None)
+            if parsed_seq > 0:
+                validated_data['sequence_number'] = parsed_seq
+
         # Set defaults for empty/null fields
         if not validated_data.get('purpose'):
             validated_data['purpose'] = 'routine'

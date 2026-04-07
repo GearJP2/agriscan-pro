@@ -76,6 +76,20 @@ class SampleCRUDTests(SampleTestMixin, TestCase):
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
         self.assertFalse(Sample.objects.filter(sample_id='TEST-001').exists())
 
+    def test_create_without_sample_id_auto_generates_sequential_id(self):
+        """When sample_id is omitted, API should generate SAM-YYYY-XXX sequential IDs."""
+        url = reverse('sample-list')
+        payload = {k: v for k, v in self.sample_data.items() if k != 'sample_id'}
+
+        first = self.client.post(url, payload, format='json')
+        second = self.client.post(url, payload, format='json')
+
+        self.assertEqual(first.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(second.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(first.data['sample_id'].startswith('SAM-2026-'))
+        self.assertEqual(first.data['sample_id'], 'SAM-2026-001')
+        self.assertEqual(second.data['sample_id'], 'SAM-2026-002')
+
 
 class SampleBulkImportTests(SampleTestMixin, TestCase):
     """Tests for the bulk_create endpoint."""

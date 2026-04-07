@@ -20,6 +20,7 @@ from .serializers import (
 from core.exceptions import SampleAlreadyExists
 from .services.s3_service import generate_upload_url
 from .tasks import process_sample_file
+from .utils import generate_sequential_sample_id, extract_sequence_from_sample_id
 
 logger = logging.getLogger('agriscan.samples')
 
@@ -448,6 +449,17 @@ class SampleViewSet(viewsets.ModelViewSet):
         
         samples = []
         for validated_item in serializer.validated_data:
+            sample_id = (validated_item.get('sample_id') or '').strip()
+            collection_date = validated_item.get('collection_date')
+            if not sample_id:
+                generated_id, seq = generate_sequential_sample_id(collection_date)
+                validated_item['sample_id'] = generated_id
+                validated_item['sequence_number'] = seq
+            else:
+                seq = extract_sequence_from_sample_id(sample_id, collection_date.year if collection_date else None)
+                if seq > 0:
+                    validated_item['sequence_number'] = seq
+
             # Create sample using the serializer's create method to apply defaults
             # Set defaults for empty/null fields
             if not validated_item.get('purpose'):

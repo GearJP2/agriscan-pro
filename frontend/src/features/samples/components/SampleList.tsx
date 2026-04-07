@@ -124,10 +124,11 @@ const SampleList = () => {
 
     const handleAddSample = (sample: Sample) => {
         createSampleMutation.mutate(sample, {
-            onSuccess: () => {
+            onSuccess: (createdSample) => {
+                const createdId = createdSample?.sample_id || sample.sample_id || '(generated)';
                 toast({
                     title: 'Sample Registered',
-                    description: `Sample ${sample.sample_id} added successfully.`,
+                    description: `Sample ${createdId} added successfully.`,
                 });
             },
             onError: () => {
@@ -213,7 +214,11 @@ const SampleList = () => {
     const getExportData = () => {
         const headers = ['Sample ID', 'Region', 'Province', 'District', 'Variety', 'Collection Date', 'Status', 'Risk Level', 'Purpose', 'Type', 'Collected By', 'Additional Info', 'Last Updated By'];
 
-        const rows = filteredSamples.map(sample => {
+        const sortedForExport = [...filteredSamples].sort((a, b) =>
+            a.sample_id.localeCompare(b.sample_id, undefined, { numeric: true, sensitivity: 'base' })
+        );
+
+        const rows = sortedForExport.map(sample => {
             const logs = sample.process_logs ?? [];
             const lastLog = logs.length > 0 ? logs[logs.length - 1] : null;
             return [

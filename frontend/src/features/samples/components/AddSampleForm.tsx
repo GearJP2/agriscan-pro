@@ -97,12 +97,6 @@ interface FailedRowDetail {
   error: string;
 }
 
-const generateSampleId = () => {
-  const year = new Date().getFullYear();
-  const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
-  return `SAM-${year}-${random}`;
-};
-
 const generateImportSampleId = (rowNumber: number) => {
   const year = new Date().getFullYear();
   const stamp = Date.now().toString().slice(-6);
@@ -379,7 +373,6 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
   }, [selectedProvince, form]);
 
   const onSubmit = (values: FormValues) => {
-    const sampleId = generateSampleId();
     const logId = generateLogId();
     const timestamp = new Date().toISOString();
 
@@ -397,7 +390,7 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
     };
 
     const newSample: Sample = {
-      sample_id: sampleId,
+      sample_id: '',
       region,
       province: values.province,
       district: values.district,

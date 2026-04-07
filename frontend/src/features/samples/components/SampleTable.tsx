@@ -28,7 +28,7 @@ interface SampleTableProps {
   onBulkDeleteSamples?: (sampleIds: string[]) => void;
 }
 
-type SortField = 'region' | 'province' | 'district' | 'collection_date' | 'status' | 'risk' | 'vegetation_variety';
+type SortField = 'sample_id' | 'region' | 'province' | 'district' | 'collection_date' | 'status' | 'risk' | 'vegetation_variety';
 type SortDirection = 'asc' | 'desc' | null;
 
 const SampleTable = ({ samples, onSelectSample, isAdmin = false, onDeleteSample, onBulkDeleteSamples }: SampleTableProps) => {
@@ -133,6 +133,9 @@ const SampleTable = ({ samples, onSelectSample, isAdmin = false, onDeleteSample,
 
     let comparison = 0;
     switch (sortField) {
+      case 'sample_id':
+        comparison = a.sample_id.localeCompare(b.sample_id, undefined, { numeric: true, sensitivity: 'base' });
+        break;
       case 'region':
         comparison = a.region.localeCompare(b.region);
         break;
@@ -246,7 +249,7 @@ const SampleTable = ({ samples, onSelectSample, isAdmin = false, onDeleteSample,
                   />
                 </TableHead>
               )}
-              <TableHead className="font-semibold w-[160px]">Sample ID</TableHead>
+              <SortableHeader field="sample_id" className="w-[160px]">Sample ID</SortableHeader>
               <SortableHeader field="region" className="w-[130px]">Region</SortableHeader>
               <SortableHeader field="province" className="w-[160px]">Province</SortableHeader>
               <SortableHeader field="district" className="w-[160px]">District</SortableHeader>
