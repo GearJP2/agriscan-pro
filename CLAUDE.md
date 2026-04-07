@@ -12,7 +12,7 @@ This file helps Claude (Claude Code and other Claude instances) understand the p
 - **Database**: Amazon Aurora PostgreSQL Serverless v2 (v16.1)
 - **Cache/Broker**: Amazon ElastiCache (Redis OSS v7) with TLS
 - **Storage**: Amazon S3 (via IAM Instance Profile)
-- **Hosting**: AWS Elastic Beanstalk (AL2023) - `agriscan-backend-v2`
+- **Hosting**: AWS Elastic Beanstalk (AL2023) - `Agriscanpro-backend-env`
 - **Agent System**: Node.js orchestrator (in development - local only)
 - **Auth**: JWT (via rest_framework_simplejwt)
 
@@ -513,7 +513,7 @@ git push origin main                 # Push to GitHub
 
 **Deployment (AWS)**
 ```bash
-eb deploy agriscan-backend-v2       # Deploy backend via EB CLI
+eb deploy Agriscanpro-backend-env       # Deploy backend via EB CLI
 eb logs                              # View production logs
 eb status                            # Check environment health
 ```

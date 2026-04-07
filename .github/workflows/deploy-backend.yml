@@ -36,4 +36,4 @@ jobs:
       - name: Deploy to Elastic Beanstalk
         run: |
           cd backend
-          eb deploy agriscan-backend-v2
+          eb deploy Agriscanpro-backend-env
