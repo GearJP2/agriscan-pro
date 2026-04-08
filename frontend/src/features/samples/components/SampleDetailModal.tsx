@@ -91,24 +91,32 @@ const SampleDetailModal = ({ sample, open, onOpenChange, onUpdateSample }: Sampl
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
-        <DialogHeader>
-          <div className="flex items-center gap-3">
-            <DialogTitle className="text-xl font-bold text-primary">
-              {sample.sample_id}
-            </DialogTitle>
-            <Badge variant={sample.status}>{statusLabels[sample.status]}</Badge>
+      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto sm:rounded-2xl duration-200 ease-[cubic-bezier(0.4,0,0.2,1)] border-primary/10">
+        <DialogHeader className="relative overflow-hidden pt-8 pb-4 animate-in fade-in slide-in-from-top-1 duration-200">
+          <div className="absolute top-0 right-0 p-4 opacity-10 pointer-events-none">
+            <Leaf className="h-24 w-24 -rotate-12" />
+          </div>
+          <div className="flex flex-col gap-1 relative z-10">
+            <div className="flex items-center gap-3">
+              <DialogTitle className="text-3xl font-black tracking-tight text-primary">
+                {sample.sample_id}
+              </DialogTitle>
+              <Badge variant={sample.status} className="rounded-full px-3 py-0.5 font-bold uppercase tracking-wider text-[10px]">
+                {statusLabels[sample.status]}
+              </Badge>
+            </div>
+            <p className="text-sm text-primary/60 font-medium">Research Sample Unit • AgriScan Pro</p>
           </div>
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-4">
-          <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-2' : 'grid-cols-1'}`}>
-            <TabsTrigger value="details" className="flex items-center gap-2">
+          <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-2' : 'grid-cols-1'} bg-muted/50 p-1 rounded-xl`}>
+            <TabsTrigger value="details" className="flex items-center gap-2 rounded-lg transition-all duration-300">
               <ClipboardList className="h-4 w-4" />
               Details
             </TabsTrigger>
             {isAdmin && (
-              <TabsTrigger value="update" className="flex items-center gap-2">
+              <TabsTrigger value="update" className="flex items-center gap-2 rounded-lg transition-all duration-300">
                 <ArrowRight className="h-4 w-4" />
                 Approve Status
               </TabsTrigger>
@@ -118,57 +126,67 @@ const SampleDetailModal = ({ sample, open, onOpenChange, onUpdateSample }: Sampl
           <TabsContent value="details" className="mt-4 space-y-4">
             {/* Key Information - Always Visible */}
             <div className="rounded-lg border border-border bg-card p-4 space-y-4">
-              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Key Information</h3>
+              <h3 className="text-lg font-semibold text-primary uppercase tracking-wide">Key Information</h3>
               
               <div className="grid gap-3 sm:grid-cols-2">
                 {/* Location */}
-                <div className="flex items-start gap-3">
-                  <MapPin className="h-5 w-5 text-primary shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-xs text-muted-foreground">Location</p>
-                    <p className="font-medium text-foreground">
-                      {sample.district}, {sample.province}
-                    </p>
-                    <p className="text-sm text-muted-foreground">{sample.region}</p>
+                <div className="flex flex-col gap-1 p-3 rounded-xl bg-background border border-border/40 shadow-sm transition-all hover:border-primary/20">
+                  <div className="flex items-center gap-2 mb-1">
+                    <MapPin className="h-4 w-4 text-primary opacity-70" />
+                    <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-tighter">Origin & Location</span>
                   </div>
+                  <p className="font-bold text-foreground text-sm">
+                    {sample.district}, {sample.province}
+                  </p>
+                  <p className="text-xs text-muted-foreground font-medium">{sample.region}</p>
                 </div>
 
                 {/* Variety */}
-                <div className="flex items-start gap-3">
-                  <Leaf className="h-5 w-5 text-primary shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-xs text-muted-foreground">Variety</p>
-                    <p className="font-medium text-foreground">{sample.vegetation_variety}</p>
+                <div className="flex flex-col gap-1 p-3 rounded-xl bg-background border border-border/40 shadow-sm transition-all hover:border-primary/20">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Leaf className="h-4 w-4 text-primary opacity-70" />
+                    <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-tighter">Vegetation Species</span>
                   </div>
+                  <p className="font-bold text-foreground text-sm">{sample.vegetation_variety}</p>
+                  <p className="text-xs text-primary/60 font-medium">Standard Variety</p>
                 </div>
 
                 {/* Collection Date */}
-                <div className="flex items-start gap-3">
-                  <Calendar className="h-5 w-5 text-primary shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-xs text-muted-foreground">Collection Date</p>
-                    <p className="font-medium text-foreground">
-                      {format(new Date(sample.collection_date), 'MMM dd, yyyy')}
-                    </p>
+                <div className="flex flex-col gap-1 p-3 rounded-xl bg-background border border-border/40 shadow-sm transition-all hover:border-primary/20">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Calendar className="h-4 w-4 text-primary opacity-70" />
+                    <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-tighter">Registry Date</span>
                   </div>
+                  <p className="font-bold text-foreground text-sm">
+                    {format(new Date(sample.collection_date), 'MMM dd, yyyy')}
+                  </p>
+                  <p className="text-xs text-muted-foreground font-medium italic">Archive Entry</p>
                 </div>
 
                 {/* Risk Status */}
-                <div className="flex items-start gap-3">
-                  {hasPositiveResults ? (
-                    <AlertTriangle className="h-5 w-5 text-danger shrink-0 mt-0.5" />
-                  ) : hasResults ? (
-                    <CheckCircle2 className="h-5 w-5 text-success shrink-0 mt-0.5" />
-                  ) : (
-                    <Beaker className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
-                  )}
-                  <div>
-                    <p className="text-xs text-muted-foreground">Risk Level</p>
-                    <p className={`font-medium ${hasPositiveResults ? 'text-danger' : hasResults ? 'text-success' : 'text-muted-foreground'}`}>
-                      {hasPositiveResults ? 'Positive' : hasResults ? 'Negative (LOD)' : 'Pending Analysis'}
-                    </p>
+                <div className={cn(
+                  "flex flex-col gap-1 p-3 rounded-xl border shadow-sm transition-all",
+                  hasPositiveResults ? "bg-danger/[0.03] border-danger/20" : hasResults ? "bg-success/[0.03] border-success/20" : "bg-background border-border"
+                )}>
+                  <div className="flex items-center gap-2 mb-1">
+                    {hasPositiveResults ? (
+                      <AlertTriangle className="h-4 w-4 text-danger animate-pulse" />
+                    ) : hasResults ? (
+                      <CheckCircle2 className="h-4 w-4 text-success" />
+                    ) : (
+                      <Beaker className="h-4 w-4 text-muted-foreground opacity-70" />
+                    )}
+                    <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-tighter">Mycotoxin Status</span>
                   </div>
+                  <p className={cn(
+                    "font-bold text-sm",
+                    hasPositiveResults ? "text-danger" : hasResults ? "text-success" : "text-muted-foreground"
+                  )}>
+                    {hasPositiveResults ? 'Positive (Detected)' : hasResults ? 'Stable (LOD)' : 'Awaiting Test'}
+                  </p>
                 </div>
+
+
               </div>
             </div>
 
@@ -242,17 +260,6 @@ const SampleDetailModal = ({ sample, open, onOpenChange, onUpdateSample }: Sampl
                   </div>
                 </div>
 
-                {sample.processing_type && (
-                  <div className="flex items-start gap-3">
-                    <Beaker className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-xs text-muted-foreground">Processing Type</p>
-                      <p className="font-medium text-foreground text-sm">
-                        {PROCESSING_TYPE_LABELS[sample.processing_type as ProcessingType] || sample.processing_type}
-                      </p>
-                    </div>
-                  </div>
-                )}
 
                 <div className="flex items-start gap-3">
                   <User className="h-4 w-4 text-primary shrink-0 mt-0.5" />

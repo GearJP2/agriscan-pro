@@ -6,26 +6,26 @@
 
 @layer base {
   :root {
-    --background: 210 20% 98%;
-    --foreground: 200 50% 10%;
+    --background: 210 30% 98%;
+    --foreground: 210 50% 12%;
 
     --card: 0 0% 100%;
-    --card-foreground: 200 50% 10%;
+    --card-foreground: 210 50% 12%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 200 50% 10%;
+    --popover-foreground: 210 50% 12%;
 
-    --primary: 174 62% 30%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 162 62% 20%; /* Deep Forest Emerald */
+    --primary-foreground: 162 20% 98%;
 
-    --secondary: 174 30% 94%;
-    --secondary-foreground: 174 62% 25%;
+    --secondary: 195 40% 96%; /* Soft Sky Blue */
+    --secondary-foreground: 162 62% 20%;
 
-    --muted: 210 20% 96%;
-    --muted-foreground: 200 10% 45%;
+    --muted: 210 20% 94%;
+    --muted-foreground: 210 10% 45%;
 
-    --accent: 174 30% 90%;
-    --accent-foreground: 174 62% 20%;
+    --accent: 145 30% 92%; /* Nature Tint */
+    --accent-foreground: 162 62% 15%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
@@ -33,18 +33,18 @@
     --warning: 38 92% 50%;
     --warning-foreground: 38 92% 15%;
 
-    --success: 142 72% 35%;
+    --success: 150 60% 35%; /* Lush Green */
     --success-foreground: 0 0% 100%;
 
     --danger: 0 72% 51%;
     --danger-foreground: 0 0% 100%;
 
-    --info: 199 89% 48%;
+    --info: 195 90% 45%; /* Deep Sky Blue */
     --info-foreground: 0 0% 100%;
 
-    --border: 210 20% 90%;
-    --input: 210 20% 90%;
-    --ring: 174 62% 30%;
+    --border: 210 20% 88%;
+    --input: 210 20% 88%;
+    --ring: 162 62% 20%;
 
     --radius: 0.75rem;
 
@@ -138,10 +138,6 @@
     animation: fadeIn 0.5s ease-out forwards;
   }
 
-  .animate-slide-up {
-    animation: slideUp 0.4s ease-out forwards;
-  }
-
   .font-serif {
     font-family: 'Playfair Display', serif;
   }
@@ -154,17 +150,5 @@
 
   to {
     opacity: 1;
-  }
-}
-
-@keyframes slideUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
   }
 }

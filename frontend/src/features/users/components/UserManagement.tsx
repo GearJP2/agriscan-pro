@@ -2,7 +2,6 @@ import { useState, useMemo, useEffect } from 'react';
 import { Users, UserPlus, Search, Shield, UserCheck, UserX } from 'lucide-react';
 import API_BASE_URL from '@/config/api';
 import { getAccessToken } from '@/lib/tokenStorage';
-import Header from '@/components/Header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -201,8 +200,6 @@ const UserManagement = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header />
-
       <main className="container py-8">
         {/* Page Header */}
         <div className="mb-8">

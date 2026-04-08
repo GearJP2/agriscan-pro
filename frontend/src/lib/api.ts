@@ -5,12 +5,9 @@ import {
   getRefreshToken,
   setTokens,
   clearTokens,
-  migrateFromLocalStorage,
 } from '@/lib/tokenStorage';
 import { logger } from '@/lib/logger';
 
-// Migrate any tokens left in localStorage by the previous implementation
-migrateFromLocalStorage();
 
 // Configure base URL for API
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV
@@ -330,4 +327,43 @@ export const sampleAPI = {
   },
 };
 
+/**
+ * User & Security API Service
+ */
+export const userAPI = {
+  /**
+   * Update user profile (name/email).
+   * Email change requires current_password.
+   */
+  async updateProfile(data: { name?: string; email?: string; current_password?: string }) {
+    const response = await apiClient.patch('/accounts/profile/', data);
+    return response.data;
+  },
+
+  /**
+   * Request an OTP for password reset.
+   */
+  async requestPasswordResetOTP(email: string) {
+    const response = await apiClient.post('/accounts/password-reset/request/', { email });
+    return response.data;
+  },
+
+  /**
+   * Confirm password reset using OTP.
+   */
+  async confirmPasswordResetOTP(data: any) {
+    const response = await apiClient.post('/accounts/password-reset/confirm/', data);
+    return response.data;
+  },
+
+  /**
+   * Confirm email change using token.
+   */
+  async confirmEmailChange(token: string) {
+    const response = await apiClient.post('/accounts/email-change/confirm/', { token });
+    return response.data;
+  },
+};
+
 export default apiClient;
+

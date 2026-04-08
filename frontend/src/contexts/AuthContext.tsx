@@ -6,7 +6,6 @@ import {
   getRefreshToken,
   setTokens,
   clearTokens,
-  migrateFromLocalStorage,
 } from '@/lib/tokenStorage';
 
 export type UserRole = 'user' | 'admin' | 'researcher' | 'research_assistant' | 'head_researcher' | 'guest';
@@ -35,7 +34,9 @@ interface AuthContextType {
   logout: () => void;
   switchRole: (role: UserRole) => void;
   setUserName: (name: string) => void;
+  refreshUser: () => Promise<void>;
 }
+
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -57,9 +58,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const isAdmin = isAuthenticated && (role === 'admin' || role === 'head_researcher');
 
   useEffect(() => {
-    // Migrate any tokens left in localStorage by the old implementation
-    migrateFromLocalStorage();
-
     const checkAuth = async () => {
       const token = getAccessToken();
       if (token) {
@@ -185,10 +183,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const refreshUser = async () => {
+    const token = getAccessToken();
+    if (token) {
+      const decoded: TokenPayload = jwtDecode(token);
+      await fetchAndSetUser(token, decoded.user_id);
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user: currentUser, role, isAdmin, isAuthenticated, login, loginWithToken, logout, switchRole, setUserName }}>
+    <AuthContext.Provider value={{ user: currentUser, role, isAdmin, isAuthenticated, login, loginWithToken, logout, switchRole, setUserName, refreshUser }}>
       {children}
     </AuthContext.Provider>
+
   );
 };
 

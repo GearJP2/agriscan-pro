@@ -53,11 +53,16 @@ agriscan-pro/
 │   │   ├── serializers.py    # Auth serializers
 │   │   └── urls.py
 │   ├── samples/              # Core business logic
-│   │   ├── models.py         # Sample, ProcessLog, MycotoxinResult
-│   │   ├── views.py          # CRUD viewsets
-│   │   ├── serializers.py    # Data serialization
+│   │   ├── models.py         # Sample, ProcessLog, MycotoxinResult (composite indexes)
+│   │   ├── views.py          # CRUD viewsets (thin views)
+│   │   ├── serializers.py    # Data serialization (N+1 optimized)
 │   │   ├── urls.py
-│   │   └── admin.py          # Django admin config
+│   │   ├── admin.py          # Django admin config
+│   │   └── services/
+│   │       ├── ingestion_service.py  # CSV import logic (decoupled)
+│   │       └── s3_service.py         # S3 presigned URL generation
+│   ├── core/
+│   │   └── permissions.py    # IsOwnerOrAdmin permission class
 │   └── venv/                 # Python virtual environment
 │
 ├── .claude/                  # Claude Code configuration
@@ -118,9 +123,12 @@ agriscan-pro/
 - `frontend/src/lib/oauth.ts` - OAuth utilities (token exchange, CSRF protection)
 
 #### Core Business Logic (Samples)
-- `backend/samples/models.py` - Sample, ProcessLog, MycotoxinResult models
-- `backend/samples/views.py` - CRUD operations and custom actions
-- `backend/samples/serializers.py` - Data serialization for API
+- `backend/samples/models.py` - Sample, ProcessLog, MycotoxinResult models (with composite DB indexes)
+- `backend/samples/views.py` - CRUD operations and custom actions (thin views)
+- `backend/samples/serializers.py` - Data serialization (N+1 optimized via prefetch)
+- `backend/samples/services/ingestion_service.py` - CSV bulk import logic (decoupled from views)
+- `backend/samples/services/s3_service.py` - S3 presigned URL generation
+- `backend/core/permissions.py` - `IsOwnerOrAdmin` — role-based object-level permission
 
 ---
 
@@ -133,6 +141,11 @@ POST /api/accounts/register/           # Register (email, password, name)
 POST /api/accounts/login/refresh/      # Refresh JWT token
 POST /api/accounts/google-callback/    # Exchange Google auth code for JWT
 GET  /api/accounts/google-auth/        # Get Google OAuth authorization URL
+POST /api/accounts/password-reset/request/    # Request password reset OTP
+POST /api/accounts/password-reset/confirm/    # Confirm OTP and reset password
+PATCH /api/accounts/profile/           # Update profile (name, email w/ verification)
+POST /api/accounts/email-change/confirm/      # Verify email change via token
+
 ```
 
 ### Samples (Core Business)
@@ -141,13 +154,23 @@ GET    /api/samples/            # List samples (with filters)
 POST   /api/samples/            # Create new sample
 GET    /api/samples/{id}/       # Get sample details
 PUT    /api/samples/{id}/       # Update sample
-DELETE /api/samples/{id}/       # Delete sample
+DELETE /api/samples/{id}/       # Delete sample (admin only)
 
-GET    /api/samples/statistics/ # Dashboard stats
-GET    /api/samples/recent_alerts/ # Flagged samples
-POST   /api/samples/{id}/add_process_log/    # Add process log
-POST   /api/samples/{id}/add_mycotoxin_result/ # Add test result
-POST   /api/samples/bulk_create/ # Bulk import samples
+GET    /api/samples/statistics/                    # Dashboard stats
+GET    /api/samples/recent_alerts/                 # Flagged samples
+POST   /api/samples/{id}/add_process_log/          # Add process log
+POST   /api/samples/{id}/add_mycotoxin_result/     # Add test result
+POST   /api/samples/bulk_create/                   # Bulk import samples (JSON)
+POST   /api/samples/bulk_import_results/           # Bulk import mycotoxin results (CSV)
+POST   /api/samples/bulk_delete/                   # Bulk delete (admin only)
+POST   /api/samples/request_upload/                # Get S3 presigned upload URL
+POST   /api/samples/confirm_upload/                # Enqueue Celery task after S3 upload
+GET    /api/samples/task_status/{task_id}/         # Poll Celery task status
+```
+
+### System
+```
+GET /health/    # SRE health check — DB latency, Redis latency, system metrics (auth required for metrics)
 ```
 
 ### Filtering Examples
@@ -310,6 +333,16 @@ node agents-orchestrator/examples/simple-task.js
 - Sample CRUD operations and Bulk Import
 - Process logging & Mycotoxin result tracking
 - Django admin integration
+- **Backend Performance**: Composite DB indexes on (region,status), (region,collection_date), (status,collection_date); N+1 fix in SampleListSerializer using prefetch_related; `results_count` uses `len()` on prefetch cache
+- **Clean Architecture**: CSV ingestion logic in `SampleIngestionService` — thin views; ingestion filters by CSV display IDs (no full table scan)
+- **Security**: `IsOwnerOrAdmin` permission class — role-based object-level access control (admin/head_researcher/researcher full access; others owner-only write)
+- **Production Hardening**: HSTS (1yr), SSL redirect, Secure/HttpOnly cookies, `SECURE_PROXY_SSL_HEADER` for EB ALB — all gated on `DEBUG=False`
+- **SRE Health Check**: `GET /health/` reports DB+Redis latency and system saturation; system metrics gated on `SRE_MONITOR_KEY` env var
+- **Agent Gateway Security**: `GATEWAY_API_KEY` required (fail-fast on startup if unset); path traversal closed with alphanumeric sanitization on workflow names
+- **Secure Profile Management**: Hardened password reset via hashed OTPs; 2-step email verification; JWT session blacklisting after security events; Redis-based rate/attempt limiting.
+- **Role-Based Route Protection**: `ProtectedRoute` supports `minRole`/`allowedRoles` props; `/samples` restricted to `research_assistant` and above; `user` role blocked at both frontend route and backend `IsOwnerOrAdmin.has_permission`
+- **Profile Page Redesign**: Clinical registry-style UI — hero card, Registry Metadata, Output Analytics (live stats), inline email editing with password confirmation; email backend auto-detects dev (console) vs prod (SMTP)
+
 
 ### 🚧 In Development (Local Only)
 - **Agent Orchestrator** (`agents-orchestrator/`) - Multi-agent task execution system
@@ -330,10 +363,26 @@ These are NOT yet committed to production and are for local development only. Se
 ## 🔐 Security Notes
 
 ### Current Implementation
-- JWT tokens for authentication
-- User permission checks in viewsets
-- CORS enabled for localhost dev
-- Django CSRF protection enabled
+- JWT tokens for authentication (15 min access, 7 day refresh with rotation + blacklist)
+- `IsOwnerOrAdmin` object-level permissions — role-based (admin/head_researcher/researcher vs owner-only)
+- CORS: `CORS_ALLOW_ALL_ORIGINS = DEBUG` — locked down in production via `CORS_ALLOWED_ORIGINS` env var
+- Production security headers active when `DEBUG=False`: HSTS, SSL redirect, Secure/HttpOnly cookies, `SECURE_PROXY_SSL_HEADER`
+- Role escalation protection in `UserSerializer.validate_role` — Researcher+ only, no self-promotion
+- Agent gateway requires `GATEWAY_API_KEY` header; workflow path traversal blocked by alphanumeric sanitization
+
+### Required Environment Variables (Production)
+```
+SECRET_KEY              # Django secret key
+DB_ENGINE=postgresql    # Switch from SQLite to Aurora
+DB_HOST / DB_NAME / DB_USER / DB_PASSWORD
+REDIS_URL               # rediss:// for ElastiCache TLS
+CORS_ALLOWED_ORIGINS    # Comma-separated frontend URLs
+GATEWAY_API_KEY         # Agent orchestrator auth — REQUIRED (fails to start without it)
+SRE_MONITOR_KEY         # Protects system metrics on /health/ endpoint
+EMAIL_HOST_USER         # SMTP user — if unset, falls back to console backend (OTP prints to terminal)
+EMAIL_HOST_PASSWORD     # SMTP password / App Password
+DEFAULT_FROM_EMAIL      # Sender display name + address
+```
 
 ### Best Practices
 - Never commit `.env` files with real credentials
@@ -521,6 +570,13 @@ eb status                            # Check environment health
 ---
 
 ## Last Updated
-- Date: 2026-04-07
-- By: Claude Code (Migrated by AgriScan Team)
-- Status: Full AWS Production Migration (EB + Aurora + ElastiCache) 완료
+- Date: 2026-04-08
+- By: Claude Code
+- Status: Profile page redesign + role-based route protection + email backend auto-detect
+
+
+## ⚠️ Pending Actions
+- Run `python manage.py makemigrations && python manage.py migrate` to apply new composite indexes to DB
+- Set `GATEWAY_API_KEY` env var before starting agent orchestrator (will refuse to start without it)
+- Set `EMAIL_HOST_USER` + `EMAIL_HOST_PASSWORD` in `.env` for real email delivery (see `.env.example`); without them OTP prints to terminal only
+- Set `SRE_MONITOR_KEY` env var to protect system metrics on `/health/` endpoint

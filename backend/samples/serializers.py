@@ -187,13 +187,17 @@ class SampleListSerializer(serializers.ModelSerializer):
         )
 
     def get_risk_level(self, obj):
-        if not obj.mycotoxin_results.exists():
+        # Optimization: Use pre-fetched data to avoid DB hits per row (Django Expert)
+        results = list(obj.mycotoxin_results.all())
+        if not results:
             return 'safe'
-        has_dangerous = obj.mycotoxin_results.filter(dangerous=True).exists()
+            
+        has_dangerous = any(r.dangerous for r in results)
         if has_dangerous:
             return 'high'
+            
         max_ratio = 0.0
-        for result in obj.mycotoxin_results.all():
+        for result in results:
             if result.threshold and result.threshold > 0:
                 max_ratio = max(max_ratio, float(result.intensity) / float(result.threshold))
 
@@ -204,4 +208,5 @@ class SampleListSerializer(serializers.ModelSerializer):
         return 'safe'
 
     def get_results_count(self, obj):
-        return obj.mycotoxin_results.count()
+        # Optimization: Use pre-fetched list to avoid DB hit (Django Expert)
+        return len(obj.mycotoxin_results.all())

@@ -1,9 +1,9 @@
 import { useState, useMemo } from 'react';
+import { cn } from '@/lib/utils';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, Download, ChevronDown, Loader2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import Header from '@/components/Header';
 import StatsCard from '@/components/StatsCard';
 import FilterBar from '@/components/FilterBar';
 import SampleTable from './SampleTable';
@@ -25,10 +25,14 @@ import { useWatchlist } from '@/hooks/useWatchlist';
 import { USER_ROLE_WEIGHT } from '@/types/user';
 import { sampleAPI } from '@/lib/api';
 
+import { useDeferredMount } from '@/hooks/useDeferredMount';
+
 const SampleList = () => {
     const { isAdmin, isAuthenticated, role } = useAuth();
+    const isDeferredMounted = useDeferredMount(200); // Sample list is lighter than dashboard, so 200ms is enough
     const navigate = useNavigate();
     const { isWatching } = useWatchlist();
+    const [isSelectionMode, setIsSelectionMode] = useState(false);
     const [exportOpen, setExportOpen] = useState(false);
     const [filters, setFilters] = useState<FilterState>({
         region: [],
@@ -341,8 +345,6 @@ const SampleList = () => {
 
     return (
         <div className="min-h-screen bg-background">
-            <Header />
-
             <main className="container py-8">
                 {/* Page Title */}
                 <div className="mb-8">
@@ -365,6 +367,17 @@ const SampleList = () => {
                         {isLoading && <Loader2 className="ml-2 h-4 w-4 animate-spin inline" />}
                     </p>
                     <div className="flex items-center gap-2">
+                        <Button
+                            variant={isSelectionMode ? "default" : "outline"}
+                            className={cn(
+                                "gap-2 transition-all duration-200",
+                                isSelectionMode ? "bg-primary text-primary-foreground shadow-md ring-2 ring-primary/20" : ""
+                            )}
+                            onClick={() => setIsSelectionMode(!isSelectionMode)}
+                        >
+                            <ChevronDown className={cn("h-4 w-4 transition-transform duration-300", isSelectionMode ? "rotate-180" : "")} />
+                            {isSelectionMode ? 'Exit Selection' : 'Select Samples'}
+                        </Button>
                         <DropdownMenu open={exportOpen} onOpenChange={(open) => {
                             if (open && !isAuthenticated) {
                                 window.dispatchEvent(new CustomEvent('open-login-modal'));
@@ -413,12 +426,20 @@ const SampleList = () => {
                             <h2 className="text-2xl font-bold text-red-900">Error loading samples</h2>
                             <p className="mt-2 text-red-800">Failed to fetch samples from the server. Please try again later.</p>
                         </div>
-                    ) : isLoading ? (
-                        <div className="flex items-center justify-center h-96">
+                    ) : (isLoading || !isDeferredMounted) ? (
+                        <div className="flex flex-col items-center justify-center h-96 space-y-4">
                             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                            <p className="text-sm text-muted-foreground animate-pulse font-medium">Loading sample records...</p>
                         </div>
                     ) : (
-                        <SampleTable samples={filteredSamples} onSelectSample={handleSelectSample} isAdmin={isAdmin} onDeleteSample={(sampleId) => deleteSampleMutation.mutate(sampleId)} onBulkDeleteSamples={(sampleIds) => bulkDeleteSamplesMutation.mutate(sampleIds)} />
+                        <SampleTable 
+                            samples={filteredSamples} 
+                            onSelectSample={handleSelectSample} 
+                            isAdmin={isAdmin} 
+                            isSelectionMode={isSelectionMode}
+                            onDeleteSample={(sampleId) => deleteSampleMutation.mutate(sampleId)} 
+                            onBulkDeleteSamples={(sampleIds) => bulkDeleteSamplesMutation.mutate(sampleIds)} 
+                        />
                     )}
 
                     {/* Sample Detail Modal */}

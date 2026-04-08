@@ -1,7 +1,4 @@
 import logging
-import csv
-import re
-from io import TextIOWrapper
 from django.db import IntegrityError
 from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
@@ -21,57 +18,10 @@ from core.exceptions import SampleAlreadyExists
 from .services.s3_service import generate_upload_url
 from .tasks import process_sample_file
 from .utils import generate_sequential_sample_id, extract_sequence_from_sample_id
+from .services.ingestion_service import SampleIngestionService
+from core.permissions import IsOwnerOrAdmin
 
 logger = logging.getLogger('agriscan.samples')
-
-TOXIN_DEFAULTS = {
-    'AFB1': {'threshold': 5.0, 'unit': 'ppb'},
-    'AFB2': {'threshold': 5.0, 'unit': 'ppb'},
-    'AFG1': {'threshold': 5.0, 'unit': 'ppb'},
-    'AFG2': {'threshold': 5.0, 'unit': 'ppb'},
-    'AFM1': {'threshold': 0.5, 'unit': 'ppb'},
-    'AF': {'threshold': 5.0, 'unit': 'ppb'},
-    'DON': {'threshold': 1000.0, 'unit': 'ppb'},
-    'FB1': {'threshold': 2000.0, 'unit': 'ppb'},
-    'T-2': {'threshold': 100.0, 'unit': 'ppb'},
-    'ZEA': {'threshold': 200.0, 'unit': 'ppb'},
-    'OTA': {'threshold': 5.0, 'unit': 'ppb'},
-}
-
-TOXIN_ALIASES = {
-    'don': 'DON',
-    'deoxynivalenol': 'DON',
-    'afb1': 'AFB1',
-    'aflatoxinb1': 'AFB1',
-    'aflatoxin b1': 'AFB1',
-    'afb2': 'AFB2',
-    'aflatoxinb2': 'AFB2',
-    'aflatoxin b2': 'AFB2',
-    'afg1': 'AFG1',
-    'aflatoxing1': 'AFG1',
-    'aflatoxin g1': 'AFG1',
-    'afg2': 'AFG2',
-    'aflatoxing2': 'AFG2',
-    'aflatoxin g2': 'AFG2',
-    'afm1': 'AFM1',
-    'aflatoxinm1': 'AFM1',
-    'aflatoxin m1': 'AFM1',
-    'af': 'AF',
-    'aflatoxin': 'AF',
-    'fb1': 'FB1',
-    'fumonisinb1': 'FB1',
-    'fumonisin b1': 'FB1',
-    't2': 'T-2',
-    't-2': 'T-2',
-    't 2': 'T-2',
-    't2toxin': 'T-2',
-    't-2 toxin': 'T-2',
-    'zea': 'ZEA',
-    'zearalenone': 'ZEA',
-    'ota': 'OTA',
-    'ochratoxina': 'OTA',
-    'ochratoxin a': 'OTA',
-}
 
 
 class SampleViewSet(viewsets.ModelViewSet):
@@ -79,242 +29,13 @@ class SampleViewSet(viewsets.ModelViewSet):
     ViewSet for managing samples.
     Provides CRUD operations and filtering capabilities.
     """
-    queryset = Sample.objects.prefetch_related('process_logs', 'mycotoxin_results').all()
-    permission_classes = [IsAuthenticated]
+    queryset = Sample.objects.select_related('updated_by').prefetch_related('process_logs', 'mycotoxin_results').all()
+    permission_classes = [IsAuthenticated, IsOwnerOrAdmin]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['sample_id', 'region', 'vegetation_variety']
     ordering_fields = ['collection_date', 'created_at', 'status']
     ordering = ['-collection_date']
     lookup_field = 'sample_id'
-
-    @staticmethod
-    def _normalize_token(value):
-        return re.sub(r'[^a-z0-9]+', '', str(value or '').strip().lower())
-
-    @classmethod
-    def _row_value(cls, row, candidate_keys):
-        """Read a CSV row value using normalized header matching."""
-        normalized_map = {}
-        for key, value in (row or {}).items():
-            key_norm = cls._normalize_token(key)
-            if key_norm and key_norm not in normalized_map:
-                normalized_map[key_norm] = value
-
-        for key in candidate_keys:
-            direct = row.get(key)
-            if direct is not None:
-                return direct
-            matched = normalized_map.get(cls._normalize_token(key))
-            if matched is not None:
-                return matched
-        return None
-
-    @staticmethod
-    def _normalize_sample_id(value):
-        if value is None:
-            return ''
-        text = str(value).strip().upper()
-        # Normalize common Unicode dashes to plain hyphen.
-        text = text.replace('\u2010', '-').replace('\u2011', '-').replace('\u2012', '-').replace('\u2013', '-').replace('\u2014', '-')
-        # Remove all internal whitespace that often comes from Excel copy/paste.
-        text = re.sub(r'\s+', '', text)
-
-        # Normalize numeric segments so 073 and 73 are treated the same.
-        parts = text.split('-')
-        normalized_parts = []
-        for part in parts:
-            if part.isdigit():
-                normalized_parts.append(str(int(part)))
-            else:
-                normalized_parts.append(part)
-        text = '-'.join(normalized_parts)
-
-        return text
-
-    @staticmethod
-    def _is_header_like_sample_id(value):
-        token = re.sub(r'[^A-Z0-9]+', '', str(value or '').upper())
-        return token in {
-            '',
-            'NAME',
-            'SAMPLE',
-            'SAMPLEID',
-            'SAMPLECODE',
-            'ACQDATETIME',
-            'DATE',
-            'DATETIME',
-        }
-
-    @staticmethod
-    def _is_datetime_like(value):
-        text = str(value or '').strip()
-        if not text:
-            return False
-        # Common datetime patterns from lab exports: 3/13/26 11:46, 2026-03-13 11:46
-        return bool(
-            re.match(r'^\d{1,4}[-/]\d{1,2}[-/]\d{1,4}(\s+\d{1,2}:\d{2}(:\d{2})?)?$', text)
-            or re.match(r'^\d{1,2}:\d{2}(:\d{2})?$', text)
-        )
-
-    @staticmethod
-    def _looks_like_sample_id(value):
-        text = str(value or '').strip().upper()
-        if not text:
-            return False
-        if SampleViewSet._is_datetime_like(text):
-            return False
-        # Typical IDs have at least one letter and one digit.
-        return bool(re.search(r'[A-Z]', text) and re.search(r'\d', text))
-
-    @classmethod
-    def _extract_row_sample_id(cls, row):
-        candidates = []
-
-        key_groups = [
-            ['sample_id', 'sample id', 'sampleid', 'sample_code', 'sample code'],
-            ['name'],
-            ['sample'],
-            [''],
-        ]
-
-        for keys in key_groups:
-            value = cls._row_value(row, keys)
-            display = str(value or '').strip()
-            if not display:
-                continue
-            normalized = cls._normalize_sample_id(display)
-            if cls._is_header_like_sample_id(normalized):
-                continue
-            candidates.append((display, normalized))
-
-        if not candidates:
-            return '', ''
-
-        for display, normalized in candidates:
-            if cls._looks_like_sample_id(display):
-                return display, normalized
-
-        for display, normalized in candidates:
-            if not cls._is_datetime_like(display):
-                return display, normalized
-
-        return candidates[0]
-
-    @classmethod
-    def _resolve_toxin_name(cls, value):
-        raw = str(value or '').strip()
-        if not raw:
-            return None
-
-        direct = raw.upper()
-        if direct in TOXIN_DEFAULTS:
-            return direct
-
-        normalized = cls._normalize_token(raw)
-        if normalized in TOXIN_ALIASES:
-            return TOXIN_ALIASES[normalized]
-
-        for alias, canonical in TOXIN_ALIASES.items():
-            if alias in normalized:
-                return canonical
-        return None
-
-    @staticmethod
-    def _parse_numeric(value, below_lod_as_zero=False):
-        text = str(value or '').strip()
-        if not text:
-            return None
-
-        lowered = text.lower()
-        if lowered in {'nd', 'bdl', '<lod', 'lod', 'n/a', '-', '#value!'}:
-            return 0.0 if below_lod_as_zero else None
-        if lowered.startswith('<'):
-            return 0.0 if below_lod_as_zero else None
-
-        normalized = text.replace(',', '.') if (',' in text and '.' not in text) else text.replace(',', '')
-        match = re.search(r'[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?', normalized)
-        if not match:
-            return None
-
-        try:
-            return float(match.group(0))
-        except ValueError:
-            return None
-
-    @staticmethod
-    def _parse_bool(value):
-        lowered = str(value or '').strip().lower()
-        if lowered in {'true', 'yes', 'y', '1', 'danger', 'dangerous', 'positive', 'detected'}:
-            return True
-        if lowered in {'false', 'no', 'n', '0', 'safe', 'negative', 'not detected', 'nondetected'}:
-            return False
-        return None
-
-    @classmethod
-    def _extract_results_from_row(cls, row):
-        # Long format: one toxin per row
-        toxin_key = cls._row_value(row, ['mycotoxin', 'mycotoxin_name', 'toxin', 'name'])
-        if toxin_key:
-            toxin_name = cls._resolve_toxin_name(toxin_key) or str(toxin_key).strip().upper()
-            threshold_default = TOXIN_DEFAULTS.get(toxin_name, {}).get('threshold', 0.0)
-            unit_default = TOXIN_DEFAULTS.get(toxin_name, {}).get('unit', 'ppb')
-            intensity = cls._parse_numeric(
-                cls._row_value(row, ['intensity', 'result', 'value', 'concentration']),
-                below_lod_as_zero=True,
-            )
-            if intensity is None:
-                return []
-
-            threshold = cls._parse_numeric(cls._row_value(row, ['threshold', 'limit']))
-            threshold = threshold if threshold is not None else threshold_default
-            dangerous = cls._parse_bool(cls._row_value(row, ['dangerous', 'risk', 'detected', 'is_detected']))
-            if dangerous is None:
-                dangerous = bool(threshold and intensity > threshold)
-            is_detected = intensity > 0
-
-            return [{
-                'name': toxin_name,
-                'intensity': intensity,
-                'is_detected': is_detected,
-                'threshold': threshold,
-                'unit': str(cls._row_value(row, ['unit']) or unit_default or 'ppb').strip() or 'ppb',
-                'dangerous': dangerous,
-                'test_method': str(cls._row_value(row, ['test_method', 'method']) or 'Imported CSV').strip(),
-            }]
-
-        # Wide format: toxin columns in the same row
-        ignored_headers = {
-            'sampleid', 'sample_id', 'sample id',
-            'region', 'province', 'district', 'variety', 'collection date', 'status',
-        }
-        results = []
-        for key, raw_value in row.items():
-            if not key:
-                continue
-            key_clean = key.strip()
-            if cls._normalize_token(key_clean) in {cls._normalize_token(h) for h in ignored_headers}:
-                continue
-
-            toxin_name = cls._resolve_toxin_name(key_clean)
-            if not toxin_name:
-                continue
-
-            intensity = cls._parse_numeric(raw_value, below_lod_as_zero=True)
-            if intensity is None:
-                continue
-
-            threshold = TOXIN_DEFAULTS.get(toxin_name, {}).get('threshold', 0.0)
-            results.append({
-                'name': toxin_name,
-                'intensity': intensity,
-                'is_detected': intensity > 0,
-                'threshold': threshold,
-                'unit': TOXIN_DEFAULTS.get(toxin_name, {}).get('unit', 'ppb'),
-                'dangerous': bool(threshold and intensity > threshold),
-                'test_method': 'Imported CSV',
-            })
-
-        return results
 
     def get_serializer_class(self):
         if self.action == 'list':
@@ -528,123 +249,22 @@ class SampleViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['post'])
     def bulk_import_results(self, request):
-        """Import mycotoxin results from CSV and match rows by sample_id."""
+        """Import mycotoxin results via Service Layer"""
         uploaded_file = request.FILES.get('file')
         if not uploaded_file:
             return Response({'detail': 'file is required (CSV).'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            wrapped = TextIOWrapper(uploaded_file.file, encoding='utf-8-sig')
-            rows = list(csv.DictReader(wrapped))
-        except Exception:
-            return Response({'detail': 'Unable to parse CSV file.'}, status=status.HTTP_400_BAD_REQUEST)
-
-        if not rows:
-            return Response({'detail': 'CSV has no data rows.'}, status=status.HTTP_400_BAD_REQUEST)
-
-        raw_ids_for_exact_lookup = []
-        normalized_ids = set()
-        for row in rows:
-            sid_display, sid = self._extract_row_sample_id(row)
-            if not sid:
-                continue
-            raw_ids_for_exact_lookup.append(sid_display)
-            normalized_ids.add(sid)
-
-        sample_map = {
-            self._normalize_sample_id(sample.sample_id): sample
-            for sample in Sample.objects.filter(sample_id__in=set(raw_ids_for_exact_lookup)).all()
-        }
-
-        # Fallback: if exact lookup misses (e.g., 073 vs 73), match by normalized ID.
-        missing_norm_ids = normalized_ids - set(sample_map.keys())
-        if missing_norm_ids:
-            for sample in Sample.objects.all():
-                norm = self._normalize_sample_id(sample.sample_id)
-                if norm in missing_norm_ids and norm not in sample_map:
-                    sample_map[norm] = sample
-
-        created_count = 0
-        updated_count = 0
-        skipped_rows = 0
-        unmatched_sample_ids = set()
-        touched_samples = set()
-
-        for row in rows:
-            sid_display, sid = self._extract_row_sample_id(row)
-            if not sid:
-                skipped_rows += 1
-                continue
-
-            sample = sample_map.get(sid)
-            if not sample:
-                unmatched_sample_ids.add(sid_display or sid)
-                continue
-
-            results = self._extract_results_from_row(row)
-            if not results:
-                skipped_rows += 1
-                continue
-
-            for payload in results:
-                _, created = MycotoxinResult.objects.update_or_create(
-                    sample=sample,
-                    name=payload['name'],
-                    defaults={
-                        'intensity': payload['intensity'],
-                        'is_detected': payload.get('is_detected', payload['intensity'] > 0),
-                        'dangerous': payload['dangerous'],
-                        'threshold': payload['threshold'],
-                        'unit': payload['unit'],
-                        'test_method': payload.get('test_method') or 'Imported CSV',
-                    },
-                )
-                if created:
-                    created_count += 1
-                else:
-                    updated_count += 1
-                touched_samples.add(sid)
-
-        # Mark matched samples as completed and add completion log where needed.
-        for sample_id in touched_samples:
-            sample = sample_map[sample_id]
-            if sample.status != 'completed':
-                sample.status = 'completed'
-                sample.updated_by = request.user
-                sample.save(update_fields=['status', 'updated_by', 'updated_at'])
-
-            latest_log = sample.process_logs.order_by('-timestamp').first()
-            if not latest_log or latest_log.state != 'completed':
-                ProcessLog.objects.create(
-                    sample=sample,
-                    state='completed',
-                    notes='Mycotoxin results imported from CSV.',
-                    conducted_by=request.user.username or 'System',
-                )
-
-        logger.info(
-            'sample.bulk_import_results.completed',
-            extra={
-                'rows': len(rows),
-                'matched_samples': len(touched_samples),
-                'created_results': created_count,
-                'updated_results': updated_count,
-                'unmatched_count': len(unmatched_sample_ids),
-                'user': request.user.username,
-            },
-        )
-
-        return Response(
-            {
-                'rows_processed': len(rows),
-                'matched_samples': len(touched_samples),
-                'results_created': created_count,
-                'results_updated': updated_count,
-                'skipped_rows': skipped_rows,
-                'unmatched_sample_ids': sorted(unmatched_sample_ids),
-            },
-            status=status.HTTP_200_OK,
-        )
+            results = SampleIngestionService.process_csv_results(uploaded_file, request.user)
+            logger.info('sample.bulk_import_results.completed', extra={
+                'matched': results['samples'],
+                'created': results['created'],
+                'user': request.user.username
+            })
+            return Response(results, status=status.HTTP_200_OK)
+        except Exception as e:
+            logger.error('sample.bulk_import_results.failed', extra={'error': str(e)})
+            return Response({'detail': f'Import failed: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=False, methods=['post'])
     def request_upload(self, request):

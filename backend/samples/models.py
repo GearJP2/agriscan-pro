@@ -56,6 +56,9 @@ class Sample(models.Model):
             models.Index(fields=['status']),
             models.Index(fields=['region']),
             models.Index(fields=['collection_date']),
+            models.Index(fields=['region', 'status']),
+            models.Index(fields=['region', 'collection_date']),
+            models.Index(fields=['status', 'collection_date']),
         ]
 
     def __str__(self):

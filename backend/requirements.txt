@@ -19,3 +19,6 @@ redis>=5.0.0
 # Celery
 celery[redis]>=5.3.0
 openpyxl>=3.1.0
+
+# SRE health check (system metrics)
+psutil>=5.9.0

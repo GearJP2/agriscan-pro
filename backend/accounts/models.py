@@ -1,6 +1,10 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser, UserManager
 from django.utils.translation import gettext_lazy as _
+from django.utils import timezone
+from datetime import timedelta
+import hashlib
+import uuid
 
 class CustomUserManager(UserManager):
     def create_user(self, username, email=None, password=None, **extra_fields):
@@ -32,7 +36,9 @@ class User(AbstractUser):
 
     objects = CustomUserManager()
 
+
 class UserActionLog(models.Model):
+
     actor = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='actions_performed')
     target_user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='actions_received')
     action = models.CharField(max_length=50)
@@ -41,3 +47,35 @@ class UserActionLog(models.Model):
 
     def __str__(self):
         return f"{self.actor} performed {self.action} on {self.target_user} at {self.timestamp}"
+
+class PasswordResetOTP(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='password_otps')
+    otp_hash = models.CharField(max_length=64)
+    expiry = models.DateTimeField()
+    used = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    @staticmethod
+    def hash_otp(otp_code):
+        return hashlib.sha256(otp_code.encode()).hexdigest()
+
+    def is_valid(self):
+        return not self.used and self.expiry > timezone.now()
+
+    def __str__(self):
+        return f"OTP for {self.user.email} (Expires: {self.expiry})"
+
+class EmailChangeRequest(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='email_change_requests')
+    new_email = models.EmailField()
+    token = models.UUIDField(default=uuid.uuid4, unique=True)
+    expiry = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def is_valid(self):
+        return self.expiry > timezone.now()
+
+    def __str__(self):
+        return f"Email change to {self.new_email} for {self.user.email}"
+
+
