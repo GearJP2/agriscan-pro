@@ -151,7 +151,7 @@ const LoginModal = () => {
     return (
         <Dialog open={isOpen} onOpenChange={handleOpenChange}>
             <DialogTrigger asChild>
-                <Button className="rounded-full px-6 font-semibold bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 gradient-primary border-none">
+                <Button className="rounded-full px-6 font-semibold bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm transition-all duration-300 hover:shadow-md gradient-primary border-none">
                     Login / Sign up
                 </Button>
             </DialogTrigger>
@@ -212,7 +212,7 @@ const LoginModal = () => {
                     </DialogHeader>
 
                     {error && (
-                        <div className={`flex items-center gap-3 p-3 mb-6 rounded-xl border animate-slide-up ${error.includes('successful')
+                        <div className={`flex items-center gap-3 p-3 mb-6 rounded-xl border ${error.includes('successful')
                             ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600'
                             : 'bg-destructive/10 border-destructive/20 text-destructive'
                             }`}>

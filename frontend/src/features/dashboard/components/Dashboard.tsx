@@ -1,6 +1,5 @@
-import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import Header from '@/components/Header';
+import { useDeferredMount } from '@/hooks/useDeferredMount';
 import SystemOverview from './SystemOverview';
 import RiskOverview from './RiskOverview';
 import ActionItems from './ActionItems';
@@ -10,6 +9,7 @@ import { Loader2, AlertTriangle } from 'lucide-react';
 
 const Dashboard = () => {
   const { isAdmin, isAuthenticated } = useAuth();
+  const isDeferredMounted = useDeferredMount(300);
 
   // fetch samples for dashboard calculations - use 'samples-dashboard' key for cache isolation
   const { data: samplesData, isLoading, error } = useQuery({
@@ -21,8 +21,6 @@ const Dashboard = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header />
-
       <main className="container py-8">
         {/* Page Title */}
         <div className="mb-8">
@@ -42,9 +40,10 @@ const Dashboard = () => {
               <h2 className="text-2xl font-bold text-red-900">Error loading dashboard data</h2>
               <p className="mt-2 text-red-800">There was a problem fetching samples. Please refresh.</p>
             </div>
-          ) : isLoading ? (
-            <div className="flex items-center justify-center h-64">
+          ) : (isLoading || !isDeferredMounted) ? (
+            <div className="flex flex-col items-center justify-center h-64 space-y-4">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              <p className="text-sm text-muted-foreground animate-pulse font-medium">Preparing dashboard overview...</p>
             </div>
           ) : samples.length === 0 ? (
             <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-12 text-center">

@@ -1,12 +1,9 @@
 import { TrendingUp } from 'lucide-react';
-import Header from '@/components/Header';
 import { Card, CardContent } from '@/components/ui/card';
 
 const Prediction = () => {
   return (
     <div className="min-h-screen bg-background">
-      <Header />
-
       <main className="container py-8 max-w-2xl">
         {/* Page Title */}
         <div className="flex items-center gap-3 mb-6">

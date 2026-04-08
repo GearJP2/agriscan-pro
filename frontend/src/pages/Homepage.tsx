@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, ShieldCheck, Activity, LineChart, Database, Cpu, TrendingUp } from 'lucide-react';
-import Header from '@/components/Header';
 import { Button } from '@/components/ui/button';
 import { Carousel, CarouselContent, CarouselItem, type CarouselApi } from '@/components/ui/carousel';
 
@@ -39,8 +38,6 @@ const Homepage = () => {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <Header />
-
       <main className="flex-1">
 
         {/* Hero + How it works */}
@@ -269,9 +266,9 @@ const Homepage = () => {
                     Contact the research team
                   </p>
                   {[
-                    { label: 'General enquiries', value: 'agriscan@university.ac.th' },
-                    { label: 'Data & methodology', value: 'research.lab@university.ac.th' },
-                    { label: 'Faculty of Agriculture', value: 'Kasetsart University, Bangkok' },
+                    { label: 'General enquiries', value: 'agriscan@tu.ac.th' },
+                    { label: 'Data & methodology', value: 'research.lab@tu.ac.th' },
+                    { label: 'Faculty of Agriculture', value: 'Thammasath University, Bangkok' },
                   ].map(item => (
                     <div key={item.label} className="flex flex-col gap-0.5">
                       <span className="text-xs text-muted-foreground">{item.label}</span>

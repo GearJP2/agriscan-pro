@@ -129,7 +129,7 @@ const FilterBar = ({ filters, onFilterChange }: FilterBarProps) => {
     (filters.dateTo ? 1 : 0);
 
   return (
-    <div className="space-y-4 rounded-xl border border-border bg-card p-4 animate-slide-up">
+    <div className="space-y-4 rounded-xl border border-border bg-card p-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-sm font-medium text-foreground">
           <Filter className="h-4 w-4" />

@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState, Suspense, lazy } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { DashboardFilters } from '@/types/dashboard';
-import Header from '@/components/Header';
 import DashboardFilterBar from './DashboardFilterBar';
 import KPICards from './KPICards';
 import RegionalRiskRanking from './RegionalRiskRanking';
@@ -19,8 +18,21 @@ import {
   getQuarterDateRange,
 } from '@/lib/sampleAnalytics';
 
+import { useDeferredMount } from '@/hooks/useDeferredMount';
+
 // Lazy-load the map (it pulls in Leaflet + GeoJSON which is heavy)
 const RegionalRiskMap = lazy(() => import('./RegionalRiskMap'));
+
+function ChartSkeleton() {
+  return (
+    <div className="w-full h-[300px] bg-card/50 rounded-xl border border-border/50 animate-pulse flex items-center justify-center">
+      <div className="flex flex-col items-center gap-2">
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground/50" />
+        <span className="text-xs text-muted-foreground/50 font-medium">Preparing Analytics...</span>
+      </div>
+    </div>
+  );
+}
 
 function MapSkeleton() {
   return (
@@ -47,6 +59,7 @@ const DEFAULT_FILTERS: DashboardFilters = {
 
 export default function SurveillanceDashboard() {
   const { isAuthenticated } = useAuth();
+  const isDeferredMounted = useDeferredMount(400);
   const [filters, setFilters] = useState<DashboardFilters>(DEFAULT_FILTERS);
   const [selectedProvince, setSelectedProvince] = useState<string | null>(null);
   const { data: samples = [], isLoading, error } = useQuery({
@@ -102,7 +115,10 @@ export default function SurveillanceDashboard() {
     });
   }, [filters.quarter, filterOptions.dateRange]);
 
-  const analytics = useMemo(() => buildSurveillanceAnalytics(samples, filters), [samples, filters]);
+  const analytics = useMemo(() => {
+    if (!isDeferredMounted || samples.length === 0) return null;
+    return buildSurveillanceAnalytics(samples, filters);
+  }, [samples, filters, isDeferredMounted]);
 
   const handleFilterChange = (nextFilters: DashboardFilters) => {
     const currentQuarterRange = getQuarterDateRange(nextFilters.quarter);
@@ -118,8 +134,7 @@ export default function SurveillanceDashboard() {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-background dashboard-wrapper">
-        <Header />
+      <div className="min-h-screen bg-background">
         <main className="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="rounded-xl border border-dashed border-border bg-card p-12 text-center text-muted-foreground">
             Sign in to load live dashboard data from the sample list.
@@ -131,8 +146,7 @@ export default function SurveillanceDashboard() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-background dashboard-wrapper">
-        <Header />
+      <div className="min-h-screen bg-background">
         <main className="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="rounded-xl border border-danger/30 bg-danger/5 p-12 text-center">
             <AlertTriangle className="mx-auto mb-4 h-10 w-10 text-danger" />
@@ -146,8 +160,7 @@ export default function SurveillanceDashboard() {
 
   if (isLoading || (!filters.dateRange.from && samples.length > 0)) {
     return (
-      <div className="min-h-screen bg-background dashboard-wrapper">
-        <Header />
+      <div className="min-h-screen bg-background">
         <main className="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex min-h-[50vh] items-center justify-center">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -159,8 +172,7 @@ export default function SurveillanceDashboard() {
 
   if (samples.length === 0) {
     return (
-      <div className="min-h-screen bg-background dashboard-wrapper">
-        <Header />
+      <div className="min-h-screen bg-background">
         <main className="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="rounded-xl border border-dashed border-border bg-card p-12 text-center text-muted-foreground">
             No samples are available yet. Add records in the sample list to populate this dashboard.
@@ -172,7 +184,6 @@ export default function SurveillanceDashboard() {
 
   return (
     <div className="min-h-screen bg-background dashboard-wrapper">
-      <Header />
 
       <main className="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
         <DashboardFilterBar
@@ -192,7 +203,21 @@ export default function SurveillanceDashboard() {
           </div>
         )}
 
-        {analytics.filteredSamples.length === 0 ? (
+         {/* Deferred Content Area */}
+        {!isDeferredMounted || !analytics ? (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {[1, 2, 3, 4, 5, 6].map(i => (
+                <div key={i} className="h-32 bg-card/50 rounded-xl border border-border/50 animate-pulse" />
+              ))}
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-[65%_35%] gap-4">
+              <MapSkeleton />
+              <div className="h-[480px] bg-card/50 rounded-xl border border-border/50 animate-pulse" />
+            </div>
+            <ChartSkeleton />
+          </div>
+        ) : analytics.filteredSamples.length === 0 ? (
           <div className="rounded-xl border border-dashed border-border bg-card p-12 text-center text-muted-foreground">
             No sample data matched the selected filters.
           </div>
@@ -248,7 +273,7 @@ export default function SurveillanceDashboard() {
         {/* Footer */}
         <footer className="border-t border-border pt-4 pb-8 text-center">
           <p className="text-xs text-muted-foreground">
-            AgriscanPro Mycotoxin Risk Surveillance Dashboard · {analytics.filteredSamples.length.toLocaleString()} samples in view · {filters.quarter === CUSTOM_RANGE_QUARTER ? `${filters.dateRange.from} to ${filters.dateRange.to}` : filters.quarter}
+            AgriscanPro Mycotoxin Risk Surveillance Dashboard · {analytics?.filteredSamples.length.toLocaleString() ?? 0} samples in view · {filters.quarter === CUSTOM_RANGE_QUARTER ? `${filters.dateRange.from} to ${filters.dateRange.to}` : filters.quarter}
           </p>
         </footer>
       </main>
