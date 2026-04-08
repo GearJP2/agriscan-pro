@@ -175,6 +175,8 @@ CACHES = {
         'OPTIONS': {
             'CLIENT_CLASS': 'django_redis.client.DefaultClient',
             'CONNECTION_POOL_KWARGS': _redis_pool_kwargs,
+            'SOCKET_CONNECT_TIMEOUT': 3,   # Fail fast if Redis is unreachable
+            'SOCKET_TIMEOUT': 3,
         },
         'KEY_PREFIX': 'agriscan',   # Namespace to avoid key collisions
         'TIMEOUT': 300,            # Default TTL: 5 minutes
