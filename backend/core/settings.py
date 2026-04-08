@@ -9,7 +9,6 @@ https://docs.djangoproject.com/en/6.0/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
-
 from pathlib import Path
 import os
 from dotenv import load_dotenv
@@ -20,6 +19,9 @@ if not os.environ.get('DB_HOST'):
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Default auto field to avoid models.W042 warnings (Django 3.2+)
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
 # Quick-start development settings - unsuitable for production
@@ -245,6 +247,9 @@ AUTH_USER_MODEL = 'accounts.User'
 # In production, set CORS_ALLOWED_ORIGINS to comma-separated list of allowed frontend URLs
 # e.g. "https://agriscan-pro.pages.dev,https://agriscan.yourdomain.com"
 _CORS_ORIGINS = os.environ.get('CORS_ALLOWED_ORIGINS', '')
+# In production, set CORS_ALLOWED_ORIGINS to comma-separated list of allowed frontend URLs
+# e.g. "https://agriscan-pro.pages.dev,https://agriscan.yourdomain.com"
+_CORS_ORIGINS = os.environ.get('CORS_ALLOWED_ORIGINS', '')
 if _CORS_ORIGINS == '*':
     CORS_ALLOW_ALL_ORIGINS = True
 elif _CORS_ORIGINS:
@@ -252,6 +257,12 @@ elif _CORS_ORIGINS:
 else:
     # Default to False in production, True in development
     CORS_ALLOW_ALL_ORIGINS = DEBUG
+
+# Additional CORS configuration
+from corsheaders.defaults import default_headers
+CORS_ALLOW_HEADERS = list(default_headers) + [
+    "x-api-key",
+]
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
@@ -295,6 +306,17 @@ SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = 'DENY'
 
+# Production Security Enforcements (Enforced when DEBUG=False)
+if not DEBUG:
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = 31536000  # 1 year
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SECURE_REFERRER_POLICY = 'same-origin'
+
 # Structured Logging Configuration
 import json
 import logging.config
@@ -335,9 +357,13 @@ _handlers = {
 _ENABLE_FILE_LOGGING = not IS_TESTING and (DEBUG or os.environ.get('ENABLE_FILE_LOGGING') == 'True')
 
 if _ENABLE_FILE_LOGGING:
-    _logs_dir = BASE_DIR / 'logs'
-    _logs_dir.mkdir(exist_ok=True)
+    _logs_dir = Path(os.environ.get('AGRISCAN_LOG_DIR', str(BASE_DIR / 'logs')))
+    try:
+        _logs_dir.mkdir(exist_ok=True)
+    except PermissionError:
+        _ENABLE_FILE_LOGGING = False
 
+if _ENABLE_FILE_LOGGING:
     _handlers['app_file'] = {
         'class': 'logging.handlers.RotatingFileHandler',
         'filename': os.environ.get('AGRISCAN_LOG_DIR', str(_logs_dir)) + '/app.log',
