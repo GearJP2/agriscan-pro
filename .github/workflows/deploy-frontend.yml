@@ -1,0 +1,72 @@
+name: Frontend Deploy to S3 + CloudFront
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/deploy-frontend.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Dependencies
+        run: npm ci
+        working-directory: frontend
+
+      - name: Build (Static — AWS target)
+        run: npx vite build
+        working-directory: frontend
+        env:
+          DEPLOY_TARGET: aws
+          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
+          NODE_ENV: production
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION || 'ap-southeast-1' }}
+
+      # Upload hashed assets with a 1-year immutable cache
+      - name: Sync Assets to S3
+        run: |
+          aws s3 sync frontend/dist/ s3://${{ secrets.S3_FRONTEND_BUCKET }}/ \
+            --delete \
+            --exclude "index.html" \
+            --cache-control "public, max-age=31536000, immutable"
+
+      # Upload index.html with no-cache so users always get the latest version
+      - name: Upload index.html to S3
+        run: |
+          aws s3 cp frontend/dist/index.html \
+            s3://${{ secrets.S3_FRONTEND_BUCKET }}/index.html \
+            --cache-control "no-cache, no-store, must-revalidate" \
+            --content-type "text/html"
+
+      # Invalidate CloudFront so stale index.html is not served from edge caches
+      - name: Invalidate CloudFront Cache
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} \
+            --paths "/*"
+
+      - name: Deployment Summary
+        run: |
+          echo "Frontend deployed to S3 bucket: ${{ secrets.S3_FRONTEND_BUCKET }}"
+          echo "CloudFront cache invalidated for distribution: ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}"
