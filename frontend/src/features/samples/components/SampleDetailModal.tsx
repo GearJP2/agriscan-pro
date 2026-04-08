@@ -91,7 +91,7 @@ const SampleDetailModal = ({ sample, open, onOpenChange, onUpdateSample }: Sampl
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto sm:rounded-2xl duration-200 ease-[cubic-bezier(0.4,0,0.2,1)] border-primary/10">
+      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto sm:rounded-2xl duration-200 ease-&lsqb;cubic-bezier(0.4,0,0.2,1)&rsqb; border-primary/10">
         <DialogHeader className="relative overflow-hidden pt-8 pb-4 animate-in fade-in slide-in-from-top-1 duration-200">
           <div className="absolute top-0 right-0 p-4 opacity-10 pointer-events-none">
             <Leaf className="h-24 w-24 -rotate-12" />
