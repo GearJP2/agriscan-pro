@@ -257,11 +257,20 @@ class SampleViewSet(viewsets.ModelViewSet):
         try:
             results = SampleIngestionService.process_csv_results(uploaded_file, request.user)
             logger.info('sample.bulk_import_results.completed', extra={
-                'matched': results['samples'],
-                'created': results['created'],
+                'matched_samples': results.get('samples', 0),
+                'created_results': results.get('created', 0),
+                'updated_results': results.get('updated', 0),
                 'user': request.user.username
             })
-            return Response(results, status=status.HTTP_200_OK)
+            payload = {
+                'rows_processed': results.get('rows_processed', 0),
+                'matched_samples': results.get('samples', 0),
+                'results_created': results.get('created', 0),
+                'results_updated': results.get('updated', 0),
+                'skipped_rows': results.get('skipped_rows', 0),
+                'unmatched_sample_ids': results.get('unmatched_sample_ids', []),
+            }
+            return Response(payload, status=status.HTTP_200_OK)
         except Exception as e:
             logger.error('sample.bulk_import_results.failed', extra={'error': str(e)})
             return Response({'detail': f'Import failed: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

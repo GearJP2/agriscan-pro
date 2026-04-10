@@ -586,6 +586,29 @@ class BulkImportResultsTests(SampleTestMixin, TestCase):
         self.assertEqual(response.data['matched_samples'], 1)
         self.assertEqual(response.data['results_created'], 1)
 
+    def test_bulk_import_results_new_layout_first_two_columns(self):
+        """New lab layout: col A sample ID, col B analyzed datetime, col C+ toxin columns by header name."""
+        self.sample.sample_id = 'SAM-2026-001'
+        self.sample.save(update_fields=['sample_id'])
+
+        url = reverse('sample-bulk-import-results')
+        csv_content = (
+            'Sample,,Aflatoxin B1 Results,Deoxynivalenol Results,Fumonisin B1 Results\n'
+            'SAM-2026-001,3/13/2026 11:46,1.209438974,0,4.838378203\n'
+        )
+        upload = SimpleUploadedFile('results_new_layout.csv', csv_content.encode('utf-8'), content_type='text/csv')
+
+        response = self.client.post(url, {'file': upload}, format='multipart')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['matched_samples'], 1)
+        self.assertGreaterEqual(response.data['results_created'], 3)
+
+        sample = Sample.objects.get(sample_id='SAM-2026-001')
+        self.assertTrue(sample.mycotoxin_results.filter(name='Aflatoxin B1').exists())
+        self.assertTrue(sample.mycotoxin_results.filter(name='Deoxynivalenol').exists())
+        self.assertTrue(sample.process_logs.filter(notes__icontains='Analyzed at: 3/13/2026 11:46').exists())
+
 
 class SampleUnauthenticatedTests(TestCase):
     """Verify that unauthenticated requests are rejected."""
