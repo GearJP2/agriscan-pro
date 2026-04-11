@@ -254,9 +254,26 @@ if _CORS_ORIGINS == '*':
     CORS_ALLOW_ALL_ORIGINS = True
 elif _CORS_ORIGINS:
     CORS_ALLOWED_ORIGINS = [o.strip() for o in _CORS_ORIGINS.split(',') if o.strip()]
-else:
-    # Default to False in production, True in development
-    CORS_ALLOW_ALL_ORIGINS = DEBUG
+# Default to False in production, True in development
+# Emergency Fallback: Allow all if CORS_ALLOW_ALL is set in env
+CORS_ALLOW_ALL_ORIGINS = DEBUG or os.environ.get('CORS_ALLOW_ALL') == 'True'
+
+# Ensure CORS_ALLOWED_ORIGINS is always a list
+if 'CORS_ALLOWED_ORIGINS' not in locals():
+    CORS_ALLOWED_ORIGINS = []
+
+# Add common local development and CloudFront origins if not already present
+_EXTRA_ORIGINS = [
+    "https://d27isnumffqap.cloudfront.net",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:3000",
+]
+
+for origin in _EXTRA_ORIGINS:
+    if origin not in CORS_ALLOWED_ORIGINS:
+        CORS_ALLOWED_ORIGINS.append(origin)
+
 
 # Additional CORS configuration
 from corsheaders.defaults import default_headers
@@ -308,14 +325,30 @@ X_FRAME_OPTIONS = 'DENY'
 
 # Production Security Enforcements (Enforced when DEBUG=False)
 if not DEBUG:
-    SECURE_SSL_REDIRECT = True
-    SESSION_COOKIE_SECURE = True
-    CSRF_COOKIE_SECURE = True
-    SECURE_HSTS_SECONDS = 31536000  # 1 year
-    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-    SECURE_HSTS_PRELOAD = True
+    # Set FORCE_SSL environment variable to True to enable HTTPS redirection
+    # IMPORTANT: Only enable this if your Load Balancer or Proxy handles SSL correctly.
+    # On AWS EB direct domains, forcing SSL will break connectivity unless an ALB with a cert is used.
+    SECURE_SSL_REDIRECT = os.environ.get('FORCE_SSL', 'False') == 'True'
+    
+    # If we are not forcing SSL, ensure we don't send HSTS headers either
+    # which would force the browser to use HTTPS even if we don't redirect.
+    if SECURE_SSL_REDIRECT:
+        SECURE_HSTS_SECONDS = 31536000  # 1 year
+        SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+        SECURE_HSTS_PRELOAD = True
+    else:
+        SECURE_HSTS_SECONDS = 0
+    
+    # Trust the X-Forwarded-Proto header from standard proxies like ALB/CloudFront
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    # Support CloudFront-specific header as well
+    USE_X_FORWARDED_PORT = True
     SECURE_REFERRER_POLICY = 'same-origin'
+    # Exempt health check from SSL redirect to allow ALB to verify status over HTTP
+    SECURE_REDIRECT_EXEMPT = [
+        r'^health/$',
+    ]
+
 
 # Structured Logging Configuration
 import json
