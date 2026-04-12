@@ -342,6 +342,7 @@ node agents-orchestrator/examples/simple-task.js
 - **Secure Profile Management**: Hardened password reset via hashed OTPs; 2-step email verification; JWT session blacklisting after security events; Redis-based rate/attempt limiting.
 - **Role-Based Route Protection**: `ProtectedRoute` supports `minRole`/`allowedRoles` props; `/samples` restricted to `research_assistant` and above; `user` role blocked at both frontend route and backend `IsOwnerOrAdmin.has_permission`
 - **Profile Page Redesign**: Clinical registry-style UI — hero card, Registry Metadata, Output Analytics (live stats), inline email editing with password confirmation; email backend auto-detects dev (console) vs prod (SMTP)
+- **Infrastructure Fixes**: Resolved CORS and SSL protocol mismatch for CloudFront/EB; Hardened `SECURE_PROXY_SSL_HEADER` to trust `X-Forwarded-Proto` from CloudFront; Stopped unwanted 301 redirects on the direct EB domain to prevent "null" status connection failures.
 
 
 ### 🚧 In Development (Local Only)
@@ -365,8 +366,8 @@ These are NOT yet committed to production and are for local development only. Se
 ### Current Implementation
 - JWT tokens for authentication (15 min access, 7 day refresh with rotation + blacklist)
 - `IsOwnerOrAdmin` object-level permissions — role-based (admin/head_researcher/researcher vs owner-only)
-- CORS: `CORS_ALLOW_ALL_ORIGINS = DEBUG` — locked down in production via `CORS_ALLOWED_ORIGINS` env var
-- Production security headers active when `DEBUG=False`: HSTS, SSL redirect, Secure/HttpOnly cookies, `SECURE_PROXY_SSL_HEADER`
+- CORS: `CORS_ALLOW_ALL_ORIGINS = DEBUG` — locked down in production via `CORS_ALLOWED_ORIGINS` env var (always includes CloudFront URL)
+- Production security headers active when `DEBUG=False`: HSTS (if SSL enabled), SSL redirect (if `FORCE_SSL=True`), Secure/HttpOnly cookies, `SECURE_PROXY_SSL_HEADER`
 - Role escalation protection in `UserSerializer.validate_role` — Researcher+ only, no self-promotion
 - Agent gateway requires `GATEWAY_API_KEY` header; workflow path traversal blocked by alphanumeric sanitization
 
@@ -570,9 +571,9 @@ eb status                            # Check environment health
 ---
 
 ## Last Updated
-- Date: 2026-04-08
-- By: Claude Code
-- Status: Profile page redesign + role-based route protection + email backend auto-detect
+- Date: 2026-04-11
+- By: Antigravity
+- Status: CORS & SSL/CloudFront Protocol Mismatch Fixes
 
 
 ## ⚠️ Pending Actions
