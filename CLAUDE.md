@@ -9,7 +9,7 @@ This file helps Claude (Claude Code and other Claude instances) understand the p
 ### Tech Stack
 - **Frontend**: React + TypeScript (Vite)
 - **Backend**: Django REST Framework (Python 3.12)
-- **Database**: Amazon Aurora PostgreSQL Serverless v2 (v16.1)
+- **Database**: Amazon RDS PostgreSQL 16.1 (db.t4g.small, Single-AZ) — instance `agriscanpro-db`
 - **Cache/Broker**: Amazon ElastiCache (Redis OSS v7) with TLS
 - **Storage**: Amazon S3 (via IAM Instance Profile)
 - **Hosting**: AWS Elastic Beanstalk (AL2023) - `Agriscanpro-backend-env`
@@ -198,7 +198,7 @@ python manage.py runserver
 ```
 
 #### Production Connection (AWS)
-- **Database**: Uses Aurora Serverless v2 endpoint.
+- **Database**: RDS PostgreSQL 16.1 (`agriscanpro-db`), publicly accessible. DB name: `agriscan`.
 - **Cache**: ElastiCache requires `rediss://` for TLS and `ssl_cert_reqs=required`.
 - **S3**: Files are stored in S3; IAM Instance Profile handles auth on EB.
 
@@ -327,7 +327,7 @@ node agents-orchestrator/examples/simple-task.js
 ### ✅ Completed
 - User authentication (JWT + Google OAuth 2.0)
 - Redesigned auth UI with Material Design 3 aesthetic (Clinical Orchard theme)
-- **AWS Migration**: Aurora Postgres, ElastiCache Redis (TLS), S3 Storage
+- **AWS Migration**: Postgres (migrated from Aurora → RDS PostgreSQL 16.1), ElastiCache Redis (TLS), S3 Storage
 - **GitHub Actions**: Automated CI/CD for backend to Elastic Beanstalk
 - **Celery & Background Tasks**: Fully integrated with ElastiCache broker
 - Sample CRUD operations and Bulk Import
@@ -374,8 +374,10 @@ These are NOT yet committed to production and are for local development only. Se
 ### Required Environment Variables (Production)
 ```
 SECRET_KEY              # Django secret key
-DB_ENGINE=postgresql    # Switch from SQLite to Aurora
-DB_HOST / DB_NAME / DB_USER / DB_PASSWORD
+DB_ENGINE=postgresql
+DB_HOST                 # agriscanpro-db endpoint (ap-southeast-1)
+DB_NAME=agriscan        # initial DB name on the new RDS instance
+DB_USER / DB_PASSWORD
 REDIS_URL               # rediss:// for ElastiCache TLS
 CORS_ALLOWED_ORIGINS    # Comma-separated frontend URLs
 GATEWAY_API_KEY         # Agent orchestrator auth — REQUIRED (fails to start without it)
@@ -571,13 +573,16 @@ eb status                            # Check environment health
 ---
 
 ## Last Updated
-- Date: 2026-04-11
+- Date: 2026-04-12
 - By: Antigravity
-- Status: CORS & SSL/CloudFront Protocol Mismatch Fixes
+- Status: Migrating DB from Aurora → RDS PostgreSQL 16.1
 
 
-## ⚠️ Pending Actions
-- Run `python manage.py makemigrations && python manage.py migrate` to apply new composite indexes to DB
+## Pending Actions
+- **DB Migration**: `pg_dump` from Aurora → `psql` restore into `agriscanpro-db` (RDS PostgreSQL 16.1, DB name: `agriscan`)
+- **EB Env Vars**: Update `DB_HOST`, `DB_NAME=agriscan`, `DB_USER`, `DB_PASSWORD` to point at new RDS instance
+- **Cost**: Downgrade `agriscanpro-db` from `db.t4g.small` → `db.t3.micro` before April 30 (AWS credits expire — otherwise ~$43.64/mo)
+- Run `python manage.py migrate` after DB restore to ensure all migrations are applied on new instance
 - Set `GATEWAY_API_KEY` env var before starting agent orchestrator (will refuse to start without it)
 - Set `EMAIL_HOST_USER` + `EMAIL_HOST_PASSWORD` in `.env` for real email delivery (see `.env.example`); without them OTP prints to terminal only
 - Set `SRE_MONITOR_KEY` env var to protect system metrics on `/health/` endpoint
