@@ -1,0 +1,11 @@
+Regions,Crops,Processing type,Varieties,Provinces,Districts,Sample names,DON,AFB1,FB1,T-2,ZEA,OTA
+Northeast,2026,Dried,Thai Hom Mali,Khon Kaen,Muang,AS-001,150,2.5,ND,ND,45,1.2
+Northeast,2026,Dried,Thai Hom Mali,Udon Thani,Kumphawapi,AS-002,2300,6.1,1500,80,310,4.5
+Central,2026,Milled,White Rice,Pathum Thani,Khlong Luang,AS-003,50,0.5,100,5,10,0.2
+Central,2026,Raw,Corn,Saraburi,Phra Phutthabat,AS-004,850,4.2,2100,120,180,2.8
+North,2026,Raw,Rice,Chiang Mai,Fang,AS-005,120,1.2,50,ND,15,0.5
+South,2026,Milled,Rice,Songkhla,Hat Yai,AS-006,ND,ND,ND,ND,ND,ND
+Northeast,2026,Raw,Corn,Nakhon Ratchasima,Muang,AS-007,1100,7.5,2500,150,400,8.2
+Northeast,2026,Dried,Wheat,Chaiyaphum,Phu Khiao,AS-008,450,3.1,800,45,110,2.1
+Central,2026,Processed,Rice,Ayutthaya,Bang Pa-in,AS-009,20,0.2,ND,ND,5,0.1
+North,2026,Raw,Corn,Nan,Pua,AS-010,2500,12.5,4500,320,650,15.4
