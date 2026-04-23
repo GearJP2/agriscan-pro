@@ -1,10 +1,14 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { MapContainer, TileLayer, GeoJSON, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { ProvinceRisk } from '@/types/dashboard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useTheme } from 'next-themes';
+
+// Normalize province names for matching: lowercase + strip spaces
+// Handles "Maha Sarakham" (GeoJSON) vs "Mahasarakham" (database)
+const normalizeName = (s: string) => s.toLowerCase().replace(/\s+/g, '');
 
 // Risk level color mapping
 const RISK_COLORS: Record<string, string> = {
@@ -21,9 +25,10 @@ function HighlightProvince({ province, geoData }: { province: string | null; geo
   useEffect(() => {
     if (!province || !geoData) return;
     const features = geoData.features || [];
+    const normalize = (s: string) => s.toLowerCase().replace(/\s+/g, '');
     const feature = features.find((f: any) => {
       const name = f.properties?.NAME_1 || f.properties?.name || '';
-      return name === province || name.includes(province) || province.includes(name);
+      return normalizeName(name) === normalizeName(province) || normalizeName(name).includes(normalizeName(province)) || normalizeName(province).includes(normalizeName(name));
     });
     if (feature) {
       const layer = L.geoJSON(feature);
@@ -48,9 +53,11 @@ export default function RegionalRiskMap({ selectedProvince, onSelectProvince, pr
   const geoJsonRef = useRef<L.GeoJSON | null>(null);
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === 'dark';
-  const riskLookup = new Map<string, ProvinceRisk>();
-
-  provinceRiskData.forEach((province) => riskLookup.set(province.name, province));
+  const riskLookup = useMemo(() => {
+    const map = new Map<string, ProvinceRisk>();
+    provinceRiskData.forEach((province) => map.set(province.name, province));
+    return map;
+  }, [provinceRiskData]);
 
   // Pick tile layer based on theme
   const tileUrl = isDark
@@ -75,11 +82,13 @@ export default function RegionalRiskMap({ selectedProvince, onSelectProvince, pr
   // Match GeoJSON feature to our province risk data using fuzzy name matching
   const findProvinceRisk = useCallback((featureName: string): ProvinceRisk | undefined => {
     if (riskLookup.has(featureName)) return riskLookup.get(featureName);
+    const normFeature = normalizeName(featureName);
     for (const [name, data] of riskLookup) {
-      if (featureName.includes(name) || name.includes(featureName)) return data;
+      const normName = normalizeName(name);
+      if (normFeature === normName || normFeature.includes(normName) || normName.includes(normFeature)) return data;
     }
     return undefined;
-  }, []);
+  }, [riskLookup]);
 
   const borderColor = isDark ? '#1f2937' : '#e5e7eb';
 
@@ -87,7 +96,9 @@ export default function RegionalRiskMap({ selectedProvince, onSelectProvince, pr
     const name = feature?.properties?.NAME_1 || feature?.properties?.name || '';
     const risk = findProvinceRisk(name);
     const fillColor = risk ? RISK_COLORS[risk.riskLevel] : (isDark ? '#374151' : '#d1d5db');
-    const isSelected = selectedProvince && (name === selectedProvince || name.includes(selectedProvince));
+    const normName = normalizeName(name);
+    const normSelected = selectedProvince ? normalizeName(selectedProvince) : null;
+    const isSelected = normSelected && (normName === normSelected || normName.includes(normSelected) || normSelected.includes(normName));
 
     return {
       fillColor,
