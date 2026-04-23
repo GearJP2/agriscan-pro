@@ -2,8 +2,6 @@ import secrets
 import string
 import hashlib
 from django.core.cache import cache
-from django.utils import timezone
-from datetime import timedelta
 
 def generate_otp(length=6):
     """Generate a cryptographically secure numeric OTP."""

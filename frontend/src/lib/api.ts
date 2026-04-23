@@ -1,41 +1,42 @@
-import axios from 'axios';
-import { Sample, ProcessLog, RiskLevel } from '@/types/sample';
+import axios, { AxiosError, AxiosHeaders } from "axios";
+import type { Sample, ProcessLog, RiskLevel } from "@/types/sample";
 import {
+  clearAccessToken,
   getAccessToken,
-  getRefreshToken,
-  setTokens,
-  clearTokens,
-} from '@/lib/tokenStorage';
-import { logger } from '@/lib/logger';
+  setAccessToken,
+} from "@/lib/tokenStorage";
+import { refreshSession } from "@/lib/authApi";
+import { logger } from "@/lib/logger";
 
-
-// Configure base URL for API
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV
-  ? 'http://localhost:8080/api'
-  : 'https://agriscan-pro-production.up.railway.app/api');
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL ||
+  (import.meta.env.DEV
+    ? "http://localhost:8080/api"
+    : "https://agriscan-pro-production.up.railway.app/api");
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 30000, // Increased from 10s to 30s for bulk imports
+  timeout: 30000,
+  withCredentials: true,
   headers: {
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
   },
 });
 
-// Add token to requests (reads from secure in-memory storage)
 apiClient.interceptors.request.use(
   (config) => {
     const token = getAccessToken();
+
     if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+      config.headers = config.headers ?? new AxiosHeaders();
+      config.headers.set("Authorization", `Bearer ${token}`);
     }
+
     return config;
   },
-  (error) => Promise.reject(error)
+  (error) => Promise.reject(error),
 );
 
-// ---------- Automatic silent token refresh ----------
-// Prevents multiple concurrent refresh requests.
 let isRefreshing = false;
 let failedQueue: Array<{
   resolve: (token: string) => void;
@@ -43,40 +44,48 @@ let failedQueue: Array<{
 }> = [];
 
 const processQueue = (error: unknown, token: string | null = null) => {
-  failedQueue.forEach((prom) => {
+  failedQueue.forEach((promise) => {
     if (token) {
-      prom.resolve(token);
+      promise.resolve(token);
     } else {
-      prom.reject(error);
+      promise.reject(error);
     }
   });
+
   failedQueue = [];
 };
 
 apiClient.interceptors.response.use(
   (response) => {
-    logger.debug('api.request_success', { url: response.config.url, status: response.status });
+    logger.debug("api.request_success", {
+      url: response.config.url,
+      status: response.status,
+    });
     return response;
   },
   async (error) => {
     const originalRequest = error.config;
-    logger.warn('api.request_failed', { url: originalRequest?.url, status: error.response?.status });
+    logger.warn("api.request_failed", {
+      url: originalRequest?.url,
+      status: error.response?.status,
+    });
 
-    // If we get a 401 and this is NOT the refresh request itself, try to refresh
     if (
       error.response?.status === 401 &&
+      originalRequest &&
       !originalRequest._retry &&
-      !originalRequest.url?.includes('login/refresh')
+      !originalRequest.url?.includes("accounts/login/refresh/")
     ) {
       if (isRefreshing) {
-        // Another refresh is in-flight; queue this request
         return new Promise((resolve, reject) => {
           failedQueue.push({
             resolve: (token: string) => {
-              originalRequest.headers.Authorization = `Bearer ${token}`;
+              originalRequest.headers =
+                originalRequest.headers ?? new AxiosHeaders();
+              originalRequest.headers.set("Authorization", `Bearer ${token}`);
               resolve(apiClient(originalRequest));
             },
-            reject: (err: unknown) => reject(err),
+            reject: (refreshError: unknown) => reject(refreshError),
           });
         });
       }
@@ -84,49 +93,30 @@ apiClient.interceptors.response.use(
       originalRequest._retry = true;
       isRefreshing = true;
 
-      const currentRefreshToken = getRefreshToken();
-      if (!currentRefreshToken) {
-        clearTokens();
-        window.location.href = '/login';
-        return Promise.reject(error);
-      }
-
       try {
-        // Call the Django token refresh endpoint
-        const { data } = await axios.post(`${API_BASE_URL}/accounts/login/refresh/`, {
-          refresh: currentRefreshToken,
-        });
+        const data = await refreshSession();
+        setAccessToken(data.access);
 
-        // Store new tokens (the backend now rotates refresh tokens too)
-        setTokens(data.access, data.refresh || currentRefreshToken);
+        originalRequest.headers = originalRequest.headers ?? new AxiosHeaders();
+        originalRequest.headers.set("Authorization", `Bearer ${data.access}`);
 
-        // Retry the original request with the new access token
-        originalRequest.headers.Authorization = `Bearer ${data.access}`;
         processQueue(null, data.access);
         return apiClient(originalRequest);
       } catch (refreshError) {
         processQueue(refreshError, null);
-        clearTokens();
-        window.location.href = '/login';
+        clearAccessToken();
+        window.location.href = "/";
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;
       }
     }
 
-    // For non-401 errors or if refresh failed, reject normally
     return Promise.reject(error);
-  }
+  },
 );
 
-/**
- * Sample API Service
- * Handles all API calls related to samples
- */
 export const sampleAPI = {
-  /**
-   * Get paginated list of samples with optional filtering
-   */
   async getSamples(
     page?: number,
     pageSize?: number,
@@ -138,28 +128,29 @@ export const sampleAPI = {
       riskLevel?: RiskLevel[];
       dateFrom?: string;
       dateTo?: string;
-    }
+    },
   ) {
     const params = new URLSearchParams();
-    if (page) params.append('page', page.toString());
-    if (pageSize) params.append('page_size', pageSize.toString());
+
+    if (page) params.append("page", page.toString());
+    if (pageSize) params.append("page_size", pageSize.toString());
+
     if (filters) {
-      if (filters.search) params.append('search', filters.search);
-      if (filters.status?.length) params.append('status', filters.status.join(','));
-      if (filters.region) params.append('region', filters.region);
-      if (filters.vegetation) params.append('vegetation', filters.vegetation);
-      if (filters.riskLevel?.length) params.append('risk_level', filters.riskLevel.join(','));
-      if (filters.dateFrom) params.append('date_from', filters.dateFrom);
-      if (filters.dateTo) params.append('date_to', filters.dateTo);
+      if (filters.search) params.append("search", filters.search);
+      if (filters.status?.length)
+        params.append("status", filters.status.join(","));
+      if (filters.region) params.append("region", filters.region);
+      if (filters.vegetation) params.append("vegetation", filters.vegetation);
+      if (filters.riskLevel?.length)
+        params.append("risk_level", filters.riskLevel.join(","));
+      if (filters.dateFrom) params.append("date_from", filters.dateFrom);
+      if (filters.dateTo) params.append("date_to", filters.dateTo);
     }
 
     const response = await apiClient.get(`/samples/?${params.toString()}`);
     return response.data;
   },
 
-  /**
-   * Get all samples by following paginated results.
-   */
   async getAllSamples(filters?: {
     search?: string;
     status?: string[];
@@ -180,7 +171,9 @@ export const sampleAPI = {
         break;
       }
 
-      const pageResults: Sample[] = Array.isArray(data?.results) ? data.results : [];
+      const pageResults: Sample[] = Array.isArray(data?.results)
+        ? data.results
+        : [];
       allSamples.push(...pageResults);
 
       if (!data?.next || pageResults.length === 0) {
@@ -193,177 +186,163 @@ export const sampleAPI = {
     return allSamples;
   },
 
-  /**
-   * Get a single sample by ID
-   */
   async getSample(id: number | string) {
     const response = await apiClient.get(`/samples/${id}/`);
     return response.data;
   },
 
-  /**
-   * Get sample by sample_id (string)
-   */
   async getSampleBySampleId(sampleId: string) {
     const response = await apiClient.get(`/samples/?search=${sampleId}`);
     if (response.data.results && response.data.results.length > 0) {
       return response.data.results[0];
     }
-    throw new Error('Sample not found');
+    throw new Error("Sample not found");
   },
 
-  /**
-   * Get dashboard statistics
-   */
   async getStatistics() {
-    const response = await apiClient.get('/samples/statistics/');
+    const response = await apiClient.get("/samples/statistics/");
     return response.data;
   },
 
-  /**
-   * Get recent flagged/alert samples
-   */
   async getRecentAlerts() {
-    const response = await apiClient.get('/samples/recent_alerts/');
+    const response = await apiClient.get("/samples/recent_alerts/");
     return response.data;
   },
 
-  /**
-   * Create a new sample
-   */
   async createSample(data: Partial<Sample>) {
-    const response = await apiClient.post('/samples/', data);
+    const response = await apiClient.post("/samples/", data);
     return response.data;
   },
 
-  /**
-   * Get a single sample by sample_id
-   */
   async getSampleDetail(sampleId: string) {
     const response = await apiClient.get(`/samples/${sampleId}/`);
     return response.data;
   },
 
-  /**
-   * Update an existing sample
-   */
   async updateSample(id: number | string, data: Partial<Sample>) {
     const response = await apiClient.patch(`/samples/${id}/`, data);
     return response.data;
   },
 
-  /**
-   * Delete a sample
-   */
   async deleteSample(id: number | string) {
     const response = await apiClient.delete(`/samples/${id}/`);
     return response.data;
   },
 
-  /**
-   * Bulk delete samples (admin only)
-   */
   async bulkDeleteSamples(sampleIds: string[]) {
-    const response = await apiClient.post('/samples/bulk_delete/', { sample_ids: sampleIds });
-    return response.data;
-  },
-
-  /**
-   * Add a process log entry to a sample
-   */
-  async addProcessLog(sampleId: number | string, logData: Partial<ProcessLog>) {
-    const response = await apiClient.post(`/samples/${sampleId}/add_process_log/`, logData);
-    return response.data;
-  },
-
-  /**
-   * Add mycotoxin test result to a sample
-   */
-  async addMycotoxinResult(sampleId: number | string, resultData: any) {
-    const response = await apiClient.post(`/samples/${sampleId}/add_mycotoxin_result/`, resultData);
-    return response.data;
-  },
-
-  /**
-   * Import mycotoxin results by sample_id from CSV file
-   */
-  async bulkImportResults(file: File) {
-    const formData = new FormData();
-    formData.append('file', file);
-    const response = await apiClient.post('/samples/bulk_import_results/', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
+    const response = await apiClient.post("/samples/bulk_delete/", {
+      sample_ids: sampleIds,
     });
     return response.data;
   },
 
-  /**
-   * Bulk create samples
-   */
+  async addProcessLog(sampleId: number | string, logData: Partial<ProcessLog>) {
+    const response = await apiClient.post(
+      `/samples/${sampleId}/add_process_log/`,
+      logData,
+    );
+    return response.data;
+  },
+
+  async addMycotoxinResult(
+    sampleId: number | string,
+    resultData: Record<string, unknown>,
+  ) {
+    const response = await apiClient.post(
+      `/samples/${sampleId}/add_mycotoxin_result/`,
+      resultData,
+    );
+    return response.data;
+  },
+
+  async bulkImportResults(file: File) {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const response = await apiClient.post(
+      "/samples/bulk_import_results/",
+      formData,
+      {
+        headers: { "Content-Type": "multipart/form-data" },
+      },
+    );
+
+    return response.data;
+  },
+
   async bulkCreateSamples(data: Partial<Sample>[]) {
     try {
-      const response = await apiClient.post('/samples/bulk_create/', data);
-      logger.info('api.bulk_create.success', { count: data.length });
+      const response = await apiClient.post("/samples/bulk_create/", data);
+      logger.info("api.bulk_create.success", { count: data.length });
       return response.data;
-    } catch (error: any) {
-      logger.error('api.bulk_create.failed', error, { count: data.length, status: error.response?.status });
+    } catch (error: unknown) {
+      const axiosError = error as AxiosError;
+
+      logger.error("api.bulk_create.failed", error, {
+        count: data.length,
+        status: axiosError.response?.status,
+      });
       throw error;
     }
   },
 
-  /**
-   * Get all distinct regions for filtering
-   */
   async getRegions() {
-    const response = await apiClient.get('/samples/?distinct=region');
+    const response = await apiClient.get("/samples/?distinct=region");
     return response.data;
   },
 
-  /**
-   * Get all distinct vegetation varieties for filtering
-   */
   async getVegetationVarieties() {
-    const response = await apiClient.get('/samples/?distinct=vegetation_variety');
+    const response = await apiClient.get(
+      "/samples/?distinct=vegetation_variety",
+    );
     return response.data;
   },
 };
 
-/**
- * User & Security API Service
- */
 export const userAPI = {
-  /**
-   * Update user profile (name/email).
-   * Email change requires current_password.
-   */
-  async updateProfile(data: { name?: string; email?: string; current_password?: string }) {
-    const response = await apiClient.patch('/accounts/profile/', data);
+  async getUsers() {
+    const response = await apiClient.get("/accounts/users/");
     return response.data;
   },
 
-  /**
-   * Request an OTP for password reset.
-   */
+  async updateUser(
+    id: string | number,
+    data: { role?: string; is_active?: boolean },
+  ) {
+    const response = await apiClient.patch(`/accounts/users/${id}/`, data);
+    return response.data;
+  },
+
+  async updateProfile(data: {
+    name?: string;
+    email?: string;
+    current_password?: string;
+  }) {
+    const response = await apiClient.patch("/accounts/profile/", data);
+    return response.data;
+  },
+
   async requestPasswordResetOTP(email: string) {
-    const response = await apiClient.post('/accounts/password-reset/request/', { email });
+    const response = await apiClient.post("/accounts/password-reset/request/", {
+      email,
+    });
     return response.data;
   },
 
-  /**
-   * Confirm password reset using OTP.
-   */
-  async confirmPasswordResetOTP(data: any) {
-    const response = await apiClient.post('/accounts/password-reset/confirm/', data);
+  async confirmPasswordResetOTP(data: Record<string, unknown>) {
+    const response = await apiClient.post(
+      "/accounts/password-reset/confirm/",
+      data,
+    );
     return response.data;
   },
 
-  /**
-   * Confirm email change using token.
-   */
   async confirmEmailChange(token: string) {
-    const response = await apiClient.post('/accounts/email-change/confirm/', { token });
+    const response = await apiClient.post("/accounts/email-change/confirm/", {
+      token,
+    });
     return response.data;
   },
 };
 
 export default apiClient;
-

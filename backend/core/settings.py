@@ -9,128 +9,145 @@ https://docs.djangoproject.com/en/6.0/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
-from pathlib import Path
+
+import json
+import logging
+import logging.config
 import os
+import sys
+from datetime import timedelta
+from importlib.util import find_spec
+from pathlib import Path
+from typing import cast
+
+from corsheaders.defaults import default_headers
 from dotenv import load_dotenv
 
 # Load environment variables from .env file (only for local development if not already provided by host)
-if not os.environ.get('DB_HOST'):
+if not os.environ.get("DB_HOST"):
     load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Default auto field to avoid models.W042 warnings (Django 3.2+)
-DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-very-long-secret-key-for-jwt-tokens-32-chars-minimum!')
+SECRET_KEY = os.environ.get(
+    "SECRET_KEY",
+    "django-insecure-very-long-secret-key-for-jwt-tokens-32-chars-minimum!",
+)
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get('DEBUG', 'True') == 'True'
+DEBUG = os.environ.get("DEBUG", "False") == "True"
 
 # Comma-separated list of allowed hosts
-_ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '')
+_ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "")
 if _ALLOWED_HOSTS:
-    ALLOWED_HOSTS = [h.strip() for h in _ALLOWED_HOSTS.split(',') if h.strip()]
-    if '*' not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS = [h.strip() for h in _ALLOWED_HOSTS.split(",") if h.strip()]
+    if "*" not in ALLOWED_HOSTS:
         # Add a default local allow list alongside the provided env var
-        ALLOWED_HOSTS.extend(['localhost', '127.0.0.1'])
+        ALLOWED_HOSTS.extend(["localhost", "127.0.0.1"])
 else:
     # If not set in environment, allow all in non-debug mode for EB health checks or standard local defaults
-    ALLOWED_HOSTS = ['*'] if not DEBUG else ['localhost', '127.0.0.1']
+    ALLOWED_HOSTS = ["*"] if not DEBUG else ["localhost", "127.0.0.1"]
 
 
 # Application definition
 
 INSTALLED_APPS = [
-    'django.contrib.admin',
-    'django.contrib.auth',
-    'django.contrib.contenttypes',
-    'django.contrib.sessions',
-    'django.contrib.messages',
-    'django.contrib.staticfiles',
-    'rest_framework',
-    'rest_framework_simplejwt',
-    'rest_framework_simplejwt.token_blacklist',
-    'corsheaders',
-    'storages',
-    'accounts',
-    'samples',
+    "django.contrib.admin",
+    "django.contrib.auth",
+    "django.contrib.contenttypes",
+    "django.contrib.sessions",
+    "django.contrib.messages",
+    "django.contrib.staticfiles",
+    "rest_framework",
+    "rest_framework_simplejwt",
+    "rest_framework_simplejwt.token_blacklist",
+    "corsheaders",
+    "storages",
+    "accounts",
+    "samples",
 ]
+
+_HAS_WHITENOISE = find_spec("whitenoise") is not None
 
 MIDDLEWARE = [
-    'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',  # Serve static files (Django admin, etc.)
-    'corsheaders.middleware.CorsMiddleware',
-    'django.contrib.sessions.middleware.SessionMiddleware',
-    'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'django.contrib.messages.middleware.MessageMiddleware',
-    'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'core.middleware.RateLimitMiddleware',
+    "django.middleware.security.SecurityMiddleware",
+    *(
+        ["whitenoise.middleware.WhiteNoiseMiddleware"] if _HAS_WHITENOISE else []
+    ),  # Serve static files (Django admin, etc.) when WhiteNoise is installed
+    "corsheaders.middleware.CorsMiddleware",
+    "django.contrib.sessions.middleware.SessionMiddleware",
+    "django.middleware.common.CommonMiddleware",
+    "django.middleware.csrf.CsrfViewMiddleware",
+    "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "django.contrib.messages.middleware.MessageMiddleware",
+    "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "core.middleware.RateLimitMiddleware",
 ]
 
-ROOT_URLCONF = 'core.urls'
+ROOT_URLCONF = "core.urls"
 
 TEMPLATES = [
     {
-        'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
-        'APP_DIRS': True,
-        'OPTIONS': {
-            'context_processors': [
-                'django.template.context_processors.request',
-                'django.contrib.auth.context_processors.auth',
-                'django.contrib.messages.context_processors.messages',
+        "BACKEND": "django.template.backends.django.DjangoTemplates",
+        "DIRS": [],
+        "APP_DIRS": True,
+        "OPTIONS": {
+            "context_processors": [
+                "django.template.context_processors.request",
+                "django.contrib.auth.context_processors.auth",
+                "django.contrib.messages.context_processors.messages",
             ],
         },
     },
 ]
 
-WSGI_APPLICATION = 'core.wsgi.application'
+WSGI_APPLICATION = "core.wsgi.application"
 
 
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
 # Use SQLite for development (default), PostgreSQL if explicitly configured
-_DB_ENGINE = os.environ.get('DB_ENGINE', 'sqlite')
+_DB_ENGINE = os.environ.get("DB_ENGINE", "sqlite")
 
-if _DB_ENGINE == 'postgresql':
+if _DB_ENGINE == "postgresql":
     DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.postgresql',
-            'NAME': os.environ.get('DB_NAME', 'agriscan_db'),
-            'USER': os.environ.get('DB_USER', 'postgres'),
-            'PASSWORD': os.environ.get('DB_PASSWORD', 'postgres'),
-            'HOST': os.environ.get('DB_HOST', 'localhost'),
-            'PORT': os.environ.get('DB_PORT', '5432'),
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": os.environ.get("DB_NAME", "agriscan_db"),
+            "USER": os.environ.get("DB_USER", "postgres"),
+            "PASSWORD": os.environ.get("DB_PASSWORD", "postgres"),
+            "HOST": os.environ.get("DB_HOST", "localhost"),
+            "PORT": os.environ.get("DB_PORT", "5432"),
         }
     }
 else:
     # SQLite for development
     DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
         }
     }
 
 # ─── AWS S3 Storage ───────────────────────────────────────────────────────────
 # If running on EB with an Instance Profile, set these to None or leave unset in environment.
-AWS_ACCESS_KEY_ID       = os.environ.get('AWS_ACCESS_KEY_ID')
-AWS_SECRET_ACCESS_KEY   = os.environ.get('AWS_SECRET_ACCESS_KEY')
-AWS_STORAGE_BUCKET_NAME = os.environ.get('AWS_STORAGE_BUCKET_NAME')
-AWS_S3_REGION_NAME      = os.environ.get('AWS_S3_REGION_NAME', 'ap-southeast-1')
-AWS_S3_FILE_OVERWRITE   = False   # ชื่อง้ำ → เพิ่ม suffix อัตโนมัติ
-AWS_DEFAULT_ACL         = None    # ไม่ใช้ ACL ใช้ bucket policy แทน
-AWS_S3_SIGNATURE_VERSION = 's3v4'
+AWS_ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID")
+AWS_SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY")
+AWS_STORAGE_BUCKET_NAME = os.environ.get("AWS_STORAGE_BUCKET_NAME")
+AWS_S3_REGION_NAME = os.environ.get("AWS_S3_REGION_NAME", "ap-southeast-1")
+AWS_S3_FILE_OVERWRITE = False  # ชื่อง้ำ → เพิ่ม suffix อัตโนมัติ
+AWS_DEFAULT_ACL = None  # ไม่ใช้ ACL ใช้ bucket policy แทน
+AWS_S3_SIGNATURE_VERSION = "s3v4"
 
 STORAGES = {
     "default": {
@@ -140,8 +157,8 @@ STORAGES = {
             "region_name": AWS_S3_REGION_NAME,
             "location": "uploads/raw",
             "file_overwrite": False,
-            "access_key": AWS_ACCESS_KEY_ID,           # Will be None if not provided
-            "secret_key": AWS_SECRET_ACCESS_KEY,       # Will be None if not provided
+            "access_key": AWS_ACCESS_KEY_ID,  # Will be None if not provided
+            "secret_key": AWS_SECRET_ACCESS_KEY,  # Will be None if not provided
         },
     },
     # WhiteNoise serves static files (Django admin CSS/JS) with gzip + cache headers
@@ -151,39 +168,56 @@ STORAGES = {
 }
 
 
-# ─── Redis ────────────────────────────────────────────────────────────────────
-# django-redis is used as the cache backend.
+# ─── Redis / Cache ────────────────────────────────────────────────────────────
+# django-redis is used as the default cache backend.
 # Celery will also point its broker/result-backend at the same Redis URL.
 # Set REDIS_URL in .env, e.g.:
 #   REDIS_URL=redis://localhost:6379/0   (local)
 #   REDIS_URL=rediss://host:6379/0      (AWS ElastiCache with TLS)
 
-REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
+IS_TESTING = "test" in sys.argv or "pytest" in sys.argv[0]
+USE_LOCAL_MEMORY_CACHE = (
+    IS_TESTING or os.environ.get("USE_LOCAL_MEMORY_CACHE", "False") == "True"
+)
+
+REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
 
 # ElastiCache (and any TLS Redis) use rediss:// scheme — auto-enable SSL options.
 # Set REDIS_SSL_CERT_REQS=required (default) for ACM-signed certs (AWS ElastiCache);
 # set to 'none' only if using self-signed or dev certs.
-_REDIS_USE_SSL = REDIS_URL.startswith('rediss://')
-_REDIS_SSL_CERT_REQS = os.environ.get('REDIS_SSL_CERT_REQS', 'required') if _REDIS_USE_SSL else None
+_REDIS_USE_SSL = REDIS_URL.startswith("rediss://")
+_REDIS_SSL_CERT_REQS = (
+    os.environ.get("REDIS_SSL_CERT_REQS", "required") if _REDIS_USE_SSL else None
+)
 
-_redis_pool_kwargs = {'max_connections': 50}
+_redis_pool_kwargs: dict[str, object] = {"max_connections": 50}
 if _REDIS_SSL_CERT_REQS is not None:
-    _redis_pool_kwargs['ssl_cert_reqs'] = _REDIS_SSL_CERT_REQS
+    _redis_pool_kwargs["ssl_cert_reqs"] = _REDIS_SSL_CERT_REQS
 
-CACHES = {
-    'default': {
-        'BACKEND': 'django_redis.cache.RedisCache',
-        'LOCATION': REDIS_URL,
-        'OPTIONS': {
-            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
-            'CONNECTION_POOL_KWARGS': _redis_pool_kwargs,
-            'SOCKET_CONNECT_TIMEOUT': 3,   # Fail fast if Redis is unreachable
-            'SOCKET_TIMEOUT': 3,
-        },
-        'KEY_PREFIX': 'agriscan',   # Namespace to avoid key collisions
-        'TIMEOUT': 300,            # Default TTL: 5 minutes
+if USE_LOCAL_MEMORY_CACHE:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "agriscan-local-cache",
+            "KEY_PREFIX": "agriscan",
+            "TIMEOUT": 300,
+        }
     }
-}
+else:
+    CACHES = {
+        "default": {
+            "BACKEND": "django_redis.cache.RedisCache",
+            "LOCATION": REDIS_URL,
+            "OPTIONS": {
+                "CLIENT_CLASS": "django_redis.client.DefaultClient",
+                "CONNECTION_POOL_KWARGS": _redis_pool_kwargs,
+                "SOCKET_CONNECT_TIMEOUT": 3,  # Fail fast if Redis is unreachable
+                "SOCKET_TIMEOUT": 3,
+            },
+            "KEY_PREFIX": "agriscan",  # Namespace to avoid key collisions
+            "TIMEOUT": 300,  # Default TTL: 5 minutes
+        }
+    }
 
 # Session storage in Redis (optional — falls back to DB if Redis is down)
 # SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
@@ -192,14 +226,14 @@ CACHES = {
 # ─── Celery ───────────────────────────────────────────────────────────────────
 CELERY_BROKER_URL = REDIS_URL
 CELERY_RESULT_BACKEND = REDIS_URL
-CELERY_ACCEPT_CONTENT = ['json']
-CELERY_TASK_SERIALIZER = 'json'
-CELERY_RESULT_SERIALIZER = 'json'
-CELERY_TIMEZONE = 'UTC'
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
+CELERY_TIMEZONE = "UTC"
 
 # ElastiCache TLS — pass SSL options to Celery broker and result backend
 if _REDIS_USE_SSL:
-    _celery_ssl_opts = {'ssl_cert_reqs': _REDIS_SSL_CERT_REQS}
+    _celery_ssl_opts = {"ssl_cert_reqs": _REDIS_SSL_CERT_REQS}
     CELERY_BROKER_USE_SSL = _celery_ssl_opts
     CELERY_REDIS_BACKEND_USE_SSL = _celery_ssl_opts
 # ─────────────────────────────────────────────────────────────────────────────
@@ -210,16 +244,16 @@ if _REDIS_USE_SSL:
 
 AUTH_PASSWORD_VALIDATORS = [
     {
-        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
+        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+        "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
+        "NAME": "django.contrib.auth.password_validation.CommonPasswordValidator",
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
+        "NAME": "django.contrib.auth.password_validation.NumericPasswordValidator",
     },
 ]
 
@@ -227,9 +261,9 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/6.0/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = "en-us"
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = "UTC"
 
 USE_I18N = True
 
@@ -239,28 +273,21 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
-STATIC_URL = 'static/'
-STATIC_ROOT = BASE_DIR / 'staticfiles'  # collectstatic output directory for EB/nginx
+STATIC_URL = "static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"  # collectstatic output directory for EB/nginx
 
-AUTH_USER_MODEL = 'accounts.User'
+AUTH_USER_MODEL = "accounts.User"
 
 # In production, set CORS_ALLOWED_ORIGINS to comma-separated list of allowed frontend URLs
 # e.g. "https://agriscan-pro.pages.dev,https://agriscan.yourdomain.com"
-_CORS_ORIGINS = os.environ.get('CORS_ALLOWED_ORIGINS', '')
-# In production, set CORS_ALLOWED_ORIGINS to comma-separated list of allowed frontend URLs
-# e.g. "https://agriscan-pro.pages.dev,https://agriscan.yourdomain.com"
-_CORS_ORIGINS = os.environ.get('CORS_ALLOWED_ORIGINS', '')
-if _CORS_ORIGINS == '*':
-    CORS_ALLOW_ALL_ORIGINS = True
-elif _CORS_ORIGINS:
-    CORS_ALLOWED_ORIGINS = [o.strip() for o in _CORS_ORIGINS.split(',') if o.strip()]
-# Default to False in production, True in development
-# Emergency Fallback: Allow all if CORS_ALLOW_ALL is set in env
-CORS_ALLOW_ALL_ORIGINS = DEBUG or os.environ.get('CORS_ALLOW_ALL') == 'True'
+_CORS_ORIGINS = os.environ.get("CORS_ALLOWED_ORIGINS", "")
+CORS_ALLOWED_ORIGINS = []
+CORS_ALLOW_ALL_ORIGINS = DEBUG or os.environ.get("CORS_ALLOW_ALL") == "True"
 
-# Ensure CORS_ALLOWED_ORIGINS is always a list
-if 'CORS_ALLOWED_ORIGINS' not in locals():
-    CORS_ALLOWED_ORIGINS = []
+if not CORS_ALLOW_ALL_ORIGINS and _CORS_ORIGINS:
+    CORS_ALLOWED_ORIGINS = [o.strip() for o in _CORS_ORIGINS.split(",") if o.strip()]
+
+CORS_ALLOW_CREDENTIALS = True
 
 # Add common local development and CloudFront origins if not already present
 _EXTRA_ORIGINS = [
@@ -276,60 +303,72 @@ for origin in _EXTRA_ORIGINS:
 
 
 # Additional CORS configuration
-from corsheaders.defaults import default_headers
 CORS_ALLOW_HEADERS = list(default_headers) + [
     "x-api-key",
 ]
 
+JWT_USE_HTTPONLY_REFRESH_COOKIE = (
+    os.environ.get("JWT_USE_HTTPONLY_REFRESH_COOKIE", "True") == "True"
+)
+JWT_REFRESH_COOKIE_NAME = os.environ.get("JWT_REFRESH_COOKIE_NAME", "refresh_token")
+JWT_REFRESH_COOKIE_PATH = os.environ.get("JWT_REFRESH_COOKIE_PATH", "/api/accounts/")
+JWT_REFRESH_COOKIE_MAX_AGE = int(
+    os.environ.get("JWT_REFRESH_COOKIE_MAX_AGE", str(7 * 24 * 60 * 60))
+)
+JWT_REFRESH_COOKIE_SECURE = (
+    os.environ.get("JWT_REFRESH_COOKIE_SECURE", "False" if DEBUG else "True") == "True"
+)
+JWT_REFRESH_COOKIE_SAMESITE = os.environ.get(
+    "JWT_REFRESH_COOKIE_SAMESITE", "Lax" if DEBUG else "None"
+)
+GOOGLE_OAUTH_STATE_TTL_SECONDS = int(
+    os.environ.get("GOOGLE_OAUTH_STATE_TTL_SECONDS", "300")
+)
+
 REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    "DEFAULT_AUTHENTICATION_CLASSES": (
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
     ),
-    'EXCEPTION_HANDLER': 'core.exceptions.agriscan_exception_handler',
+    "EXCEPTION_HANDLER": "core.exceptions.agriscan_exception_handler",
 }
 
-from datetime import timedelta
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=15),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
-    'ROTATE_REFRESH_TOKENS': True,
-    'BLACKLIST_AFTER_ROTATION': True,
-    'UPDATE_LAST_LOGIN': True,
-
-    'ALGORITHM': 'HS256',
-    'SIGNING_KEY': SECRET_KEY,
-    'VERIFYING_KEY': "",
-    'AUDIENCE': None,
-    'ISSUER': None,
-    'JSON_ENCODER': None,
-    'JWK_URL': None,
-    'LEEWAY': 0,
-
-    'AUTH_HEADER_TYPES': ('Bearer',),
-    'AUTH_HEADER_NAME': 'HTTP_AUTHORIZATION',
-    'USER_ID_FIELD': 'id',
-    'USER_ID_CLAIM': 'user_id',
-    'USER_AUTHENTICATION_RULE': 'rest_framework_simplejwt.authentication.default_user_authentication_rule',
-
-    'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
-    'TOKEN_TYPE_CLAIM': 'token_type',
-    'TOKEN_USER_CLASS': 'rest_framework_simplejwt.models.TokenUser',
-
-    'JTI_CLAIM': 'jti',
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True,
+    "UPDATE_LAST_LOGIN": True,
+    "ALGORITHM": "HS256",
+    "SIGNING_KEY": SECRET_KEY,
+    "VERIFYING_KEY": "",
+    "AUDIENCE": None,
+    "ISSUER": None,
+    "JSON_ENCODER": None,
+    "JWK_URL": None,
+    "LEEWAY": 0,
+    "AUTH_HEADER_TYPES": ("Bearer",),
+    "AUTH_HEADER_NAME": "HTTP_AUTHORIZATION",
+    "USER_ID_FIELD": "id",
+    "USER_ID_CLAIM": "user_id",
+    "USER_AUTHENTICATION_RULE": "rest_framework_simplejwt.authentication.default_user_authentication_rule",
+    "AUTH_TOKEN_CLASSES": ("rest_framework_simplejwt.tokens.AccessToken",),
+    "TOKEN_TYPE_CLAIM": "token_type",
+    "TOKEN_USER_CLASS": "rest_framework_simplejwt.models.TokenUser",
+    "JTI_CLAIM": "jti",
 }
 
 # Security Headers
 SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
-X_FRAME_OPTIONS = 'DENY'
+X_FRAME_OPTIONS = "DENY"
 
 # Production Security Enforcements (Enforced when DEBUG=False)
 if not DEBUG:
     # Set FORCE_SSL environment variable to True to enable HTTPS redirection
     # IMPORTANT: Only enable this if your Load Balancer or Proxy handles SSL correctly.
     # On AWS EB direct domains, forcing SSL will break connectivity unless an ALB with a cert is used.
-    SECURE_SSL_REDIRECT = os.environ.get('FORCE_SSL', 'False') == 'True'
-    
+    SECURE_SSL_REDIRECT = os.environ.get("FORCE_SSL", "False") == "True"
+
     # If we are not forcing SSL, ensure we don't send HSTS headers either
     # which would force the browser to use HTTPS even if we don't redirect.
     if SECURE_SSL_REDIRECT:
@@ -338,121 +377,161 @@ if not DEBUG:
         SECURE_HSTS_PRELOAD = True
     else:
         SECURE_HSTS_SECONDS = 0
-    
+
     # Trust the X-Forwarded-Proto header from standard proxies like ALB/CloudFront
-    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
     # Support CloudFront-specific header as well
     USE_X_FORWARDED_PORT = True
-    SECURE_REFERRER_POLICY = 'same-origin'
+    SECURE_REFERRER_POLICY = "same-origin"
     # Exempt health check from SSL redirect to allow ALB to verify status over HTTP
     SECURE_REDIRECT_EXEMPT = [
-        r'^health/$',
+        r"^health/$",
     ]
 
 
 # Structured Logging Configuration
-import json
-import logging.config
-import sys
+
 
 class StructuredFormatter(logging.Formatter):
     """JSON-structured logging formatter"""
+
     def format(self, record):
         log_obj = {
-            'timestamp': self.formatTime(record),
-            'level': record.levelname,
-            'logger': record.name,
-            'message': record.getMessage(),
+            "timestamp": self.formatTime(record),
+            "level": record.levelname,
+            "logger": record.name,
+            "message": record.getMessage(),
         }
-        if hasattr(record, 'request_id'):
-            log_obj['request_id'] = record.request_id
+        request_id = record.__dict__.get("request_id")
+        if request_id is not None:
+            log_obj["request_id"] = request_id
         if record.exc_info:
-            log_obj['exc_info'] = self.formatException(record.exc_info)
-        if hasattr(record, '__dict__'):
+            log_obj["exc_info"] = self.formatException(record.exc_info)
+        if hasattr(record, "__dict__"):
             for key, value in record.__dict__.items():
-                if key not in ('name', 'msg', 'args', 'created', 'filename', 'funcName', 'levelname', 'levelno', 'lineno', 'module', 'msecs', 'message', 'pathname', 'process', 'processName', 'relativeCreated', 'thread', 'threadName', 'exc_info', 'exc_text', 'stack_info', 'request_id'):
+                if key not in (
+                    "name",
+                    "msg",
+                    "args",
+                    "created",
+                    "filename",
+                    "funcName",
+                    "levelname",
+                    "levelno",
+                    "lineno",
+                    "module",
+                    "msecs",
+                    "message",
+                    "pathname",
+                    "process",
+                    "processName",
+                    "relativeCreated",
+                    "thread",
+                    "threadName",
+                    "exc_info",
+                    "exc_text",
+                    "stack_info",
+                    "request_id",
+                ):
                     log_obj[key] = value
         return json.dumps(log_obj)
 
+
 # Check if we're running tests
-IS_TESTING = 'test' in sys.argv or 'pytest' in sys.argv[0]
 
 # Build handlers dictionary - only include file handlers in production
-_handlers = {
-    'console': {
-        'class': 'logging.StreamHandler',
-        'formatter': 'verbose' if DEBUG else 'structured',
+_handlers: dict[str, dict[str, object]] = {
+    "console": {
+        "class": "logging.StreamHandler",
+        "formatter": "verbose" if DEBUG else "structured",
     },
 }
 
 # Add file handlers only if not testing AND if we're not for sure on EB/Production to avoid permission errors
 # In production, we rely on console logging which EB/CloudWatch captures automatically.
-_ENABLE_FILE_LOGGING = not IS_TESTING and (DEBUG or os.environ.get('ENABLE_FILE_LOGGING') == 'True')
+_ENABLE_FILE_LOGGING = not IS_TESTING and (
+    DEBUG or os.environ.get("ENABLE_FILE_LOGGING") == "True"
+)
+
+_logs_dir = Path(os.environ.get("AGRISCAN_LOG_DIR", str(BASE_DIR / "logs")))
 
 if _ENABLE_FILE_LOGGING:
-    _logs_dir = Path(os.environ.get('AGRISCAN_LOG_DIR', str(BASE_DIR / 'logs')))
     try:
         _logs_dir.mkdir(exist_ok=True)
     except PermissionError:
         _ENABLE_FILE_LOGGING = False
 
 if _ENABLE_FILE_LOGGING:
-    _handlers['app_file'] = {
-        'class': 'logging.handlers.RotatingFileHandler',
-        'filename': os.environ.get('AGRISCAN_LOG_DIR', str(_logs_dir)) + '/app.log',
-        'maxBytes': 10485760,  # 10MB
-        'backupCount': 5,
-        'formatter': 'structured',
-    }
-    _handlers['error_file'] = {
-        'class': 'logging.handlers.RotatingFileHandler',
-        'filename': os.environ.get('AGRISCAN_LOG_DIR', str(_logs_dir)) + '/error.log',
-        'maxBytes': 10485760,  # 10MB
-        'backupCount': 5,
-        'formatter': 'structured',
-        'level': 'ERROR',
-    }
-    _handlers['audit_file'] = {
-        'class': 'logging.handlers.RotatingFileHandler',
-        'filename': os.environ.get('AGRISCAN_LOG_DIR', str(_logs_dir)) + '/audit.log',
-        'maxBytes': 10485760,  # 10MB
-        'backupCount': 5,
-        'formatter': 'structured',
-    }
+    _handlers["app_file"] = cast(
+        dict[str, object],
+        {
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": os.environ.get("AGRISCAN_LOG_DIR", str(_logs_dir)) + "/app.log",
+            "maxBytes": 10485760,  # 10MB
+            "backupCount": 5,
+            "formatter": "structured",
+        },
+    )
+    _handlers["error_file"] = cast(
+        dict[str, object],
+        {
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": os.environ.get("AGRISCAN_LOG_DIR", str(_logs_dir))
+            + "/error.log",
+            "maxBytes": 10485760,  # 10MB
+            "backupCount": 5,
+            "formatter": "structured",
+            "level": "ERROR",
+        },
+    )
+    _handlers["audit_file"] = cast(
+        dict[str, object],
+        {
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": os.environ.get("AGRISCAN_LOG_DIR", str(_logs_dir))
+            + "/audit.log",
+            "maxBytes": 10485760,  # 10MB
+            "backupCount": 5,
+            "formatter": "structured",
+        },
+    )
 
 LOGGING = {
-    'version': 1,
-    'disable_existing_loggers': False,
-    'formatters': {
-        'structured': {
-            '()': StructuredFormatter,
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "structured": {
+            "()": StructuredFormatter,
         },
-        'verbose': {
-            'format': '[{levelname}] {asctime} {name} {message}',
-            'style': '{',
+        "verbose": {
+            "format": "[{levelname}] {asctime} {name} {message}",
+            "style": "{",
         },
     },
-    'handlers': _handlers,
-    'loggers': {
-        'agriscan.samples': {
-            'handlers': ['console'] + (['app_file', 'error_file'] if _ENABLE_FILE_LOGGING else []),
-            'level': 'INFO',
-            'propagate': False,
+    "handlers": _handlers,
+    "loggers": {
+        "agriscan.samples": {
+            "handlers": ["console"]
+            + (["app_file", "error_file"] if _ENABLE_FILE_LOGGING else []),
+            "level": "INFO",
+            "propagate": False,
         },
-        'agriscan.accounts': {
-            'handlers': ['console'] + (['app_file', 'error_file'] if _ENABLE_FILE_LOGGING else []),
-            'level': 'INFO',
-            'propagate': False,
+        "agriscan.accounts": {
+            "handlers": ["console"]
+            + (["app_file", "error_file"] if _ENABLE_FILE_LOGGING else []),
+            "level": "INFO",
+            "propagate": False,
         },
-        'agriscan.middleware': {
-            'handlers': ['console'] + (['app_file', 'error_file'] if _ENABLE_FILE_LOGGING else []),
-            'level': 'INFO',
-            'propagate': False,
+        "agriscan.middleware": {
+            "handlers": ["console"]
+            + (["app_file", "error_file"] if _ENABLE_FILE_LOGGING else []),
+            "level": "INFO",
+            "propagate": False,
         },
-        'agriscan.audit': {
-            'handlers': ['console'] + (['audit_file'] if _ENABLE_FILE_LOGGING else []),
-            'level': 'INFO',
-            'propagate': False,
+        "agriscan.audit": {
+            "handlers": ["console"] + (["audit_file"] if _ENABLE_FILE_LOGGING else []),
+            "level": "INFO",
+            "propagate": False,
         },
     },
 }
@@ -461,15 +540,16 @@ LOGGING = {
 # Using environment variables for sensitive credentials.
 # In production, set these in your hosting environment (e.g., EB, Railway, etc.)
 EMAIL_BACKEND = os.environ.get(
-    'EMAIL_BACKEND',
-    'django.core.mail.backends.smtp.EmailBackend'
-    if os.environ.get('EMAIL_HOST_USER')
-    else 'django.core.mail.backends.console.EmailBackend'
+    "EMAIL_BACKEND",
+    "django.core.mail.backends.smtp.EmailBackend"
+    if os.environ.get("EMAIL_HOST_USER")
+    else "django.core.mail.backends.console.EmailBackend",
 )
-EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
-EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 587))
-EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True') == 'True'
-EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
-EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
-DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', f'AgriScan Pro <{EMAIL_HOST_USER}>')
-
+EMAIL_HOST = os.environ.get("EMAIL_HOST", "smtp.gmail.com")
+EMAIL_PORT = int(os.environ.get("EMAIL_PORT", 587))
+EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "True") == "True"
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
+DEFAULT_FROM_EMAIL = os.environ.get(
+    "DEFAULT_FROM_EMAIL", f"AgriScan Pro <{EMAIL_HOST_USER}>"
+)

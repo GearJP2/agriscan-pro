@@ -1,6 +1,12 @@
-export type UserRole = 'user' | 'researcher' | 'research_assistant' | 'head_researcher' | 'admin';
+export type UserRole =
+  | "guest"
+  | "user"
+  | "researcher"
+  | "research_assistant"
+  | "head_researcher"
+  | "admin";
 
-export type UserStatus = 'active' | 'inactive';
+export type UserStatus = "active" | "inactive";
 
 export interface User {
   id: string;
@@ -12,28 +18,30 @@ export interface User {
   created_at: string;
   date_joined: string;
   last_active?: string;
-  online_status: 'online' | 'offline';
+  online_status: "online" | "offline";
 }
 
 export const USER_ROLE_LABELS: Record<UserRole, string> = {
-  user: 'User',
-  researcher: 'Researcher',
-  research_assistant: 'Research Assistant',
-  head_researcher: 'Head Researcher',
-  admin: 'Admin',
+  guest: "Guest",
+  user: "User",
+  researcher: "Researcher",
+  research_assistant: "Research Assistant",
+  head_researcher: "Head Researcher",
+  admin: "Admin",
 };
 
 export const USER_ROLE_COLORS: Record<UserRole, string> = {
-  user: 'bg-secondary text-secondary-foreground',
-  researcher: 'bg-info/20 text-info',
-  research_assistant: 'bg-warning/20 text-warning-foreground',
-  head_researcher: 'bg-primary/20 text-primary',
-  admin: 'bg-danger/20 text-danger',
+  guest: "bg-muted text-muted-foreground",
+  user: "bg-secondary text-secondary-foreground",
+  researcher: "bg-info/20 text-info",
+  research_assistant: "bg-warning/20 text-warning-foreground",
+  head_researcher: "bg-primary/20 text-primary",
+  admin: "bg-danger/20 text-danger",
 };
 
 export const USER_STATUS_COLORS: Record<UserStatus, string> = {
-  active: 'bg-success/20 text-success',
-  inactive: 'bg-muted text-muted-foreground',
+  active: "bg-success/20 text-success",
+  inactive: "bg-muted text-muted-foreground",
 };
 
 export const USER_ROLE_WEIGHT: Record<UserRole, number> = {
@@ -42,4 +50,5 @@ export const USER_ROLE_WEIGHT: Record<UserRole, number> = {
   researcher: 3,
   research_assistant: 2,
   user: 1,
+  guest: 0,
 };

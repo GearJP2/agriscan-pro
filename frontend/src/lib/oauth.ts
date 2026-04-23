@@ -1,16 +1,40 @@
 /**
- * OAuth utility functions for handling authentication flows
- * Supports Google OAuth 2.0 and other OAuth providers
+ * Legacy OAuth compatibility wrappers.
+ *
+ * This module no longer stores tokens in browser storage.
+ * Refresh tokens are managed by the backend via secure httpOnly cookies.
+ * The helpers below delegate to the cookie-backed auth API so older imports
+ * continue to work without reintroducing localStorage-based auth.
  */
 
-import API_BASE_URL from '@/config/api';
-import { jwtDecode } from 'jwt-decode';
+import {
+  AxiosHeaders,
+  type AxiosError,
+  type AxiosInstance,
+  type AxiosResponse,
+} from "axios";
+import { jwtDecode } from "jwt-decode";
+
+import {
+  beginGoogleOAuth,
+  clearOAuthState,
+  exchangeGoogleAuthCode,
+  refreshSession,
+  verifyOAuthState,
+  type AuthenticatedUser,
+  type GoogleOAuthCallbackResponse,
+} from "@/lib/authApi";
+import {
+  clearAccessToken,
+  getAccessToken as getStoredAccessToken,
+  setAccessToken,
+} from "@/lib/tokenStorage";
 
 export interface OAuthTokenResponse {
   access_token: string;
-  refresh_token?: string;
   expires_in: number;
   token_type: string;
+  user?: AuthenticatedUser;
 }
 
 export interface GoogleAuthResponse {
@@ -19,241 +43,163 @@ export interface GoogleAuthResponse {
   state?: string;
 }
 
-/**
- * Store auth tokens in localStorage
- * @param tokens - OAuth token response
- */
 export const storeAuthTokens = (tokens: OAuthTokenResponse): void => {
-  localStorage.setItem('access_token', tokens.access_token);
-  if (tokens.refresh_token) {
-    localStorage.setItem('refresh_token', tokens.refresh_token);
-  }
-  localStorage.setItem('token_expires_at', (Date.now() + tokens.expires_in * 1000).toString());
+  setAccessToken(tokens.access_token);
 };
 
-/**
- * Retrieve access token from storage
- */
 export const getAccessToken = (): string | null => {
-  return localStorage.getItem('access_token');
+  return getStoredAccessToken();
 };
 
-/**
- * Retrieve refresh token from storage
- */
-export const getRefreshToken = (): string | null => {
-  return localStorage.getItem('refresh_token');
+export const getRefreshToken = (): null => {
+  return null;
 };
 
-/**
- * Check if token is expired
- */
 export const isTokenExpired = (): boolean => {
-  const expiresAt = localStorage.getItem('token_expires_at');
-  if (!expiresAt) return true;
-  return Date.now() > parseInt(expiresAt);
+  const token = getStoredAccessToken();
+
+  if (!token) {
+    return true;
+  }
+
+  try {
+    const decoded = jwtDecode<{ exp?: number }>(token);
+    if (!decoded.exp) {
+      return true;
+    }
+
+    return decoded.exp * 1000 <= Date.now();
+  } catch {
+    return true;
+  }
 };
 
-/**
- * Decode JWT token to extract user info
- */
-export const decodeToken = (token: string): Record<string, any> => {
+export const decodeToken = (token: string): Record<string, unknown> => {
   try {
-    return jwtDecode(token);
-  } catch (error) {
-    console.error('Failed to decode token:', error);
+    return jwtDecode<Record<string, unknown>>(token);
+  } catch {
     return {};
   }
 };
 
-/**
- * Clear all auth tokens from storage
- */
 export const clearAuthTokens = (): void => {
-  localStorage.removeItem('access_token');
-  localStorage.removeItem('refresh_token');
-  localStorage.removeItem('token_expires_at');
+  clearAccessToken();
 };
 
-/**
- * Generate Google OAuth authorization URL
- * @param state - CSRF protection state parameter (should be random)
- */
-export const generateGoogleAuthURL = (state: string): string => {
-  const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
-  const redirectUri = `${window.location.origin}/auth/google/callback`;
-  
-  if (!clientId) {
-    throw new Error('Google Client ID not configured. See setup guide.');
-  }
-
-  const params = new URLSearchParams({
-    client_id: clientId,
-    redirect_uri: redirectUri,
-    response_type: 'code',
-    scope: 'openid profile email',
-    state: state,
-    access_type: 'offline',
-    prompt: 'consent',
-  });
-
-  return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
-};
-
-/**
- * Generate random state parameter for CSRF protection
- */
 export const generateRandomState = (): string => {
-  const array = new Uint8Array(32);
-  crypto.getRandomValues(array);
-  return Array.from(array, (byte) => byte.toString(16).padStart(2, '0')).join('');
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join(
+    "",
+  );
 };
 
-/**
- * Exchange authorization code for tokens via backend
- */
-export const exchangeAuthCode = async (code: string, state: string): Promise<OAuthTokenResponse> => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/accounts/google-callback/`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ code, state }),
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || 'Authentication failed');
-    }
-
-    const tokens: OAuthTokenResponse = await response.json();
-    return tokens;
-  } catch (error) {
-    console.error('Token exchange failed:', error);
-    throw error;
-  }
+export const generateGoogleAuthURL = (_state: string): string => {
+  throw new Error(
+    "Direct Google auth URL generation is disabled. Use initGoogleOAuth() instead.",
+  );
 };
 
-/**
- * Refresh access token using refresh token
- */
+export const exchangeAuthCode = async (
+  code: string,
+  state: string,
+): Promise<OAuthTokenResponse> => {
+  const response = await exchangeGoogleAuthCode(code, state);
+  return {
+    access_token: response.access_token,
+    expires_in: response.expires_in,
+    token_type: response.token_type,
+    user: response.user,
+  };
+};
+
 export const refreshAccessToken = async (): Promise<OAuthTokenResponse> => {
-  const refreshToken = getRefreshToken();
-  if (!refreshToken) {
-    throw new Error('No refresh token available');
-  }
+  const response = await refreshSession();
+  const payload: OAuthTokenResponse = {
+    access_token: response.access,
+    expires_in: 15 * 60,
+    token_type: "Bearer",
+  };
 
-  try {
-    const response = await fetch(`${API_BASE_URL}/auth/token/refresh/`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ refresh: refreshToken }),
-    });
-
-    if (!response.ok) {
-      throw new Error('Token refresh failed');
-    }
-
-    const data = await response.json();
-    return {
-      access_token: data.access,
-      expires_in: 3600, // 1 hour default
-      token_type: 'Bearer',
-    };
-  } catch (error) {
-    console.error('Refresh token failed:', error);
-    clearAuthTokens();
-    throw error;
-  }
+  storeAuthTokens(payload);
+  return payload;
 };
 
-/**
- * Initialize Google OAuth flow
- * Stores state in sessionStorage and redirects to Google
- */
-export const initGoogleOAuth = (): void => {
-  try {
-    const state = generateRandomState();
-    sessionStorage.setItem('oauth_state', state);
-    const authURL = generateGoogleAuthURL(state);
-    window.location.href = authURL;
-  } catch (error) {
-    console.error('Failed to initialize Google OAuth:', error);
-    alert('Google authentication is not configured. Please contact support.');
-  }
+export const initGoogleOAuth = async (): Promise<void> => {
+  const { auth_url } = await beginGoogleOAuth();
+  window.location.href = auth_url;
 };
 
-/**
- * Verify CSRF state parameter
- */
 export const verifyState = (returnedState: string): boolean => {
-  const storedState = sessionStorage.getItem('oauth_state');
-  return storedState === returnedState;
+  return verifyOAuthState(returnedState);
 };
 
-/**
- * Handle OAuth callback from redirect
- * Returns tokens or null if error
- */
 export const handleOAuthCallback = async (
   code: string,
-  state: string
+  state: string,
 ): Promise<OAuthTokenResponse | null> => {
   try {
-    // Verify CSRF state
-    if (!verifyState(state)) {
-      throw new Error('Invalid state parameter - CSRF attack detected');
+    if (!verifyOAuthState(state)) {
+      throw new Error("Invalid OAuth state.");
     }
 
-    // Exchange code for tokens
-    const tokens = await exchangeAuthCode(code, state);
+    const response: GoogleOAuthCallbackResponse = await exchangeGoogleAuthCode(
+      code,
+      state,
+    );
 
-    // Store tokens
-    storeAuthTokens(tokens);
+    const payload: OAuthTokenResponse = {
+      access_token: response.access_token,
+      expires_in: response.expires_in,
+      token_type: response.token_type,
+      user: response.user,
+    };
 
-    // Clear temporary state
-    sessionStorage.removeItem('oauth_state');
+    storeAuthTokens(payload);
+    clearOAuthState();
 
-    return tokens;
-  } catch (error) {
-    console.error('OAuth callback failed:', error);
-    sessionStorage.removeItem('oauth_state');
+    return payload;
+  } catch {
+    clearOAuthState();
     return null;
   }
 };
 
-/**
- * Configure axios interceptor to handle token refresh
- * Should be called during app initialization
- */
-export const setupOAuthInterceptor = (axiosInstance: any): void => {
+type RetryableRequestConfig = {
+  _retry?: boolean;
+  headers?: AxiosHeaders;
+};
+
+export const setupOAuthInterceptor = (axiosInstance: AxiosInstance): void => {
   axiosInstance.interceptors.response.use(
-    (response: any) => response,
-    async (error: any) => {
+    (response: AxiosResponse) => response,
+    async (error: AxiosError & { config?: RetryableRequestConfig }) => {
       const originalRequest = error.config;
 
-      // If 401 and we have a refresh token, try to refresh
-      if (error.response?.status === 401 && !originalRequest._retry) {
+      if (
+        error.response?.status === 401 &&
+        originalRequest &&
+        !originalRequest._retry
+      ) {
         originalRequest._retry = true;
 
         try {
-          const tokens = await refreshAccessToken();
-          storeAuthTokens(tokens);
-          
-          // Retry original request with new token
-          originalRequest.headers.Authorization = `Bearer ${tokens.access_token}`;
+          const refreshed = await refreshAccessToken();
+          originalRequest.headers =
+            originalRequest.headers ?? new AxiosHeaders();
+          originalRequest.headers.set(
+            "Authorization",
+            `Bearer ${refreshed.access_token}`,
+          );
           return axiosInstance(originalRequest);
         } catch (refreshError) {
           clearAuthTokens();
-          window.location.href = '/auth/login';
+          window.location.href = "/";
           return Promise.reject(refreshError);
         }
       }
 
       return Promise.reject(error);
-    }
+    },
   );
 };

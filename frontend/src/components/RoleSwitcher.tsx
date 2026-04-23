@@ -1,13 +1,13 @@
-import { useAuth, UserRole } from '@/contexts/AuthContext';
-import { USER_ROLE_LABELS } from '@/types/user';
-import { Button } from '@/components/ui/button';
+import { useAuth } from "@/contexts/AuthContext";
+import { USER_ROLE_LABELS, type UserRole } from "@/types/user";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Shield, User, ChevronDown, Check } from 'lucide-react';
+} from "@/components/ui/dropdown-menu";
+import { Shield, User, ChevronDown, Check } from "lucide-react";
 
 const RoleSwitcher = () => {
   const { user, role, switchRole } = useAuth();
@@ -15,16 +15,18 @@ const RoleSwitcher = () => {
   if (!user) return null;
 
   const originalRole = user.role;
-  const originalLabel = USER_ROLE_LABELS[originalRole as keyof typeof USER_ROLE_LABELS] || 'Admin';
+  const originalLabel =
+    USER_ROLE_LABELS[originalRole as keyof typeof USER_ROLE_LABELS] || "Admin";
 
   const roles = [
     { value: originalRole, label: originalLabel, icon: Shield },
-    { value: 'user' as UserRole, label: 'Viewer', icon: User },
+    { value: "user" as UserRole, label: "Viewer", icon: User },
   ];
 
-  const uniqueRoles = originalRole === 'user' ? [roles[1]] : roles;
+  const uniqueRoles = originalRole === "user" ? [roles[1]] : roles;
 
-  const currentRole = uniqueRoles.find(r => r.value === role) || uniqueRoles[0];
+  const currentRole =
+    uniqueRoles.find((r) => r.value === role) || uniqueRoles[0];
   const CurrentIcon = currentRole.icon;
 
   return (

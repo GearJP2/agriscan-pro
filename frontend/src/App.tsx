@@ -19,10 +19,9 @@ import Settings from "./pages/Settings";
 import Activity from "./pages/Activity";
 import Notifications from "./pages/Notifications";
 import VerifyEmail from "./pages/VerifyEmail";
+import GoogleAuthCallback from "./pages/GoogleAuthCallback";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Header from "@/components/Header";
-
-
 
 const queryClient = new QueryClient();
 
@@ -47,17 +46,20 @@ const App = () => (
                   <Route path="/" element={<Homepage />} />
                   <Route path="/doc" element={<Doc />} />
                   <Route path="/dashboard" element={<Dashboard />} />
-                  <Route element={<ProtectedRoute minRole="research_assistant" />}>
-                    <Route path="/samples" element={<SampleList />} />
-                  </Route>
+                  <Route
+                    path="/auth/google/callback"
+                    element={<GoogleAuthCallback />}
+                  />
                   <Route path="/prediction" element={<Prediction />} />
                   <Route path="/verify-email" element={<VerifyEmail />} />
 
-
-
                   {/* Protected Routes */}
-                  <Route element={<ProtectedRoute />}>
+                  <Route element={<ProtectedRoute minRole="research_assistant" />}>
+                    <Route path="/samples" element={<SampleList />} />
                     <Route path="/users" element={<UserManagement />} />
+                  </Route>
+
+                  <Route element={<ProtectedRoute />}>
                     <Route path="/profile" element={<Profile />} />
                     <Route path="/settings" element={<Settings />} />
                     <Route path="/activity" element={<Activity />} />

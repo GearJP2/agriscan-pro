@@ -1,7 +1,15 @@
-import { Link, useNavigate } from 'react-router-dom';
-import { User as UserIcon, Settings, FolderOpen, Bell, Users, LogOut, ChevronRight } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Link, useNavigate } from "react-router-dom";
+import {
+  User as UserIcon,
+  Settings,
+  FolderOpen,
+  Bell,
+  Users,
+  LogOut,
+  ChevronRight,
+} from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -9,26 +17,30 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Button } from '@/components/ui/button';
+} from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
+import { USER_ROLE_WEIGHT } from "@/types/user";
 
 const UserDropdown = () => {
-  const { user, isAdmin, logout } = useAuth();
+  const { user, role, logout } = useAuth();
   const navigate = useNavigate();
+  const canManageUsers = role === "admin";
 
   const handleLogout = () => {
-    navigate('/');
+    navigate("/");
     setTimeout(() => {
-      logout();
+      void logout();
     }, 0);
   };
 
   const menuItems = [
-    { to: '/profile', label: 'My Profile', icon: UserIcon },
-    { to: '/settings', label: 'Settings', icon: Settings },
-    { to: '/activity', label: 'Activity', icon: FolderOpen },
-    { to: '/notifications', label: 'Notification', icon: Bell },
-    ...(isAdmin ? [{ to: '/users', label: 'Users', icon: Users }] : []),
+    { to: "/profile", label: "My Profile", icon: UserIcon },
+    { to: "/settings", label: "Settings", icon: Settings },
+    { to: "/activity", label: "Activity", icon: FolderOpen },
+    { to: "/notifications", label: "Notification", icon: Bell },
+    ...(USER_ROLE_WEIGHT[(role as keyof typeof USER_ROLE_WEIGHT) || "guest"] >= USER_ROLE_WEIGHT.research_assistant
+      ? [{ to: "/users", label: "Users", icon: Users }]
+      : []),
   ];
 
   return (
@@ -38,7 +50,7 @@ const UserDropdown = () => {
           <Avatar className="h-10 w-10 border-2 border-primary/20">
             <AvatarImage src="" alt={user?.name} />
             <AvatarFallback className="bg-primary/10 text-primary">
-              {user?.name?.charAt(0) || 'U'}
+              {user?.name?.charAt(0) || "U"}
             </AvatarFallback>
           </Avatar>
         </Button>
@@ -49,11 +61,13 @@ const UserDropdown = () => {
           <Avatar className="h-12 w-12 border-2 border-primary/20">
             <AvatarImage src="" alt={user?.name} />
             <AvatarFallback className="bg-primary/10 text-primary text-lg">
-              {user?.name?.charAt(0) || 'U'}
+              {user?.name?.charAt(0) || "U"}
             </AvatarFallback>
           </Avatar>
           <div className="flex flex-col">
-            <p className="text-sm font-semibold text-foreground">{user?.name || 'Your name'}</p>
+            <p className="text-sm font-semibold text-foreground">
+              {user?.name || "Your name"}
+            </p>
             <p className="text-xs text-muted-foreground">yourname@gmail.com</p>
           </div>
         </div>

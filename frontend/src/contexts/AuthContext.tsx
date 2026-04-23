@@ -1,208 +1,209 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { jwtDecode } from 'jwt-decode';
-import API_BASE_URL from '@/config/api';
 import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+  type ReactNode,
+} from "react";
+import { jwtDecode } from "jwt-decode";
+
+import {
+  fetchCurrentUser,
+  login as loginRequest,
+  logoutSession,
+  refreshSession,
+  type AuthenticatedUser,
+} from "@/lib/authApi";
+import {
+  clearAccessToken,
   getAccessToken,
-  getRefreshToken,
-  setTokens,
-  clearTokens,
-} from '@/lib/tokenStorage';
-
-export type UserRole = 'user' | 'admin' | 'researcher' | 'research_assistant' | 'head_researcher' | 'guest';
-
-interface User {
-  id: string | number;
-  name: string;
-  email?: string;
-  role: UserRole;
-  username?: string;
-  is_active?: boolean;
-}
+  setAccessToken,
+} from "@/lib/tokenStorage";
+import type { UserRole } from "@/types/user";
 
 interface TokenPayload {
-  user_id: number;
+  user_id: string | number;
   exp: number;
 }
 
 interface AuthContextType {
-  user: User | null;
-  role: UserRole;
+  user: AuthenticatedUser | null;
+  role: UserRole | "guest";
   isAdmin: boolean;
   isAuthenticated: boolean;
+  isInitializing: boolean;
   login: (username: string, password: string) => Promise<void>;
-  loginWithToken: (accessToken: string, refreshToken?: string) => Promise<void>;
-  logout: () => void;
+  loginWithToken: (
+    accessToken: string,
+    user?: AuthenticatedUser,
+  ) => Promise<void>;
+  logout: () => Promise<void>;
   switchRole: (role: UserRole) => void;
   setUserName: (name: string) => void;
   refreshUser: () => Promise<void>;
 }
 
-
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Mock users for demo
-const createUser = (role: UserRole, name: string, username?: string, email?: string): User => ({
-  id: `${role}-${Date.now()}`,
-  name,
-  role,
-  username,
-  email,
-});
+function isTokenExpired(token: string): boolean {
+  try {
+    const decoded: TokenPayload = jwtDecode(token);
+    return decoded.exp * 1000 <= Date.now();
+  } catch {
+    return true;
+  }
+}
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [role, setRole] = useState<UserRole>('admin');
-  const [userName, setUserName] = useState('Admin User');
+  const [user, setUser] = useState<AuthenticatedUser | null>(null);
+  const [role, setRole] = useState<UserRole | "guest">("guest");
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isInitializing, setIsInitializing] = useState(true);
 
-  const isAdmin = isAuthenticated && (role === 'admin' || role === 'head_researcher');
+  const isAdmin =
+    isAuthenticated && (role === "admin" || role === "head_researcher");
+
+  const clearAuthState = useCallback(() => {
+    clearAccessToken();
+    setUser(null);
+    setRole("guest");
+    setIsAuthenticated(false);
+  }, []);
+
+  const applyAuthenticatedUser = useCallback((nextUser: AuthenticatedUser) => {
+    setUser(nextUser);
+    setRole(nextUser.role);
+    setIsAuthenticated(true);
+  }, []);
+
+  const hydrateSession = useCallback(
+    async (accessToken: string, knownUser?: AuthenticatedUser) => {
+      setAccessToken(accessToken);
+
+      if (knownUser) {
+        applyAuthenticatedUser(knownUser);
+        return;
+      }
+
+      const decoded: TokenPayload = jwtDecode(accessToken);
+      const fetchedUser = await fetchCurrentUser(accessToken, decoded.user_id);
+      applyAuthenticatedUser(fetchedUser);
+    },
+    [applyAuthenticatedUser],
+  );
 
   useEffect(() => {
-    const checkAuth = async () => {
-      const token = getAccessToken();
-      if (token) {
-        try {
-          const decoded: TokenPayload = jwtDecode(token);
-          if (decoded.exp * 1000 < Date.now()) {
-            // Access token expired -- try silent refresh
-            const refreshToken = getRefreshToken();
-            if (refreshToken) {
-              try {
-                const refreshRes = await fetch(`${API_BASE_URL}/accounts/login/refresh/`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ refresh: refreshToken }),
-                });
-                if (refreshRes.ok) {
-                  const refreshData = await refreshRes.json();
-                  setTokens(refreshData.access, refreshData.refresh || refreshToken);
-                  // Continue with the new access token
-                  const newDecoded: TokenPayload = jwtDecode(refreshData.access);
-                  await fetchAndSetUser(refreshData.access, newDecoded.user_id);
-                  return;
-                }
-              } catch {
-                // Refresh failed, fall through to logout
-              }
-            }
-            logout();
-            return;
-          }
+    let isMounted = true;
 
-          await fetchAndSetUser(token, decoded.user_id);
-        } catch (e) {
-          logout();
+    const initializeAuth = async () => {
+      try {
+        const existingToken = getAccessToken();
+
+        if (existingToken && !isTokenExpired(existingToken)) {
+          await hydrateSession(existingToken);
+        } else {
+          clearAccessToken();
+          const refreshed = await refreshSession();
+          await hydrateSession(refreshed.access);
+        }
+      } catch {
+        if (isMounted) {
+          clearAuthState();
+        }
+      } finally {
+        if (isMounted) {
+          setIsInitializing(false);
         }
       }
     };
-    checkAuth();
+
+    void initializeAuth();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [clearAuthState, hydrateSession]);
+
+  const login = useCallback(
+    async (username: string, password: string) => {
+      const response = await loginRequest(username, password);
+      await hydrateSession(response.access, response.user);
+    },
+    [hydrateSession],
+  );
+
+  const loginWithToken = useCallback(
+    async (accessToken: string, authenticatedUser?: AuthenticatedUser) => {
+      await hydrateSession(accessToken, authenticatedUser);
+    },
+    [hydrateSession],
+  );
+
+  const logout = useCallback(async () => {
+    try {
+      await logoutSession();
+    } catch {
+      // Always clear local auth state even if the server-side logout fails.
+    } finally {
+      clearAuthState();
+    }
+  }, [clearAuthState]);
+
+  const switchRole = useCallback((nextRole: UserRole) => {
+    setRole(nextRole);
   }, []);
 
-  const fetchAndSetUser = async (token: string, userId: number) => {
-    const userRes = await fetch(`${API_BASE_URL}/accounts/users/${userId}/`, {
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
-    });
-    if (userRes.ok) {
-      const userData = await userRes.json();
-      setIsAuthenticated(true);
-      setCurrentUser(userData);
-      setRole(userData.role);
-      setUserName(userData.name);
-    } else {
-      logout();
+  const setUserName = useCallback((name: string) => {
+    setUser((currentUser) =>
+      currentUser
+        ? {
+            ...currentUser,
+            name,
+          }
+        : currentUser,
+    );
+  }, []);
+
+  const refreshUser = useCallback(async () => {
+    const currentToken = getAccessToken();
+
+    if (currentToken && !isTokenExpired(currentToken)) {
+      await hydrateSession(currentToken);
+      return;
     }
-  };
 
-  const login = async (username: string, password: string) => {
-    try {
-      // Note: API_BASE_URL already includes the `/api` prefix (configured via env var)
-      const response = await fetch(`${API_BASE_URL}/accounts/login/`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Invalid username or password');
-      }
-
-      const data = await response.json();
-
-      // Store tokens in secure in-memory storage (NOT localStorage)
-      setTokens(data.access, data.refresh);
-
-      const decoded: TokenPayload = jwtDecode(data.access);
-
-      const userRes = await fetch(`${API_BASE_URL}/accounts/users/${decoded.user_id}/`, {
-        headers: {
-          'Authorization': `Bearer ${data.access}`
-        }
-      });
-      if (!userRes.ok) throw new Error('Failed to fetch user details');
-
-      const userData = await userRes.json();
-
-      setIsAuthenticated(true);
-      setCurrentUser(userData);
-      setRole(userData.role);
-      setUserName(userData.name);
-    } catch (error) {
-      throw error;
-    }
-  };
-
-  const loginWithToken = async (accessToken: string, refreshToken?: string) => {
-    try {
-      // Store tokens
-      setTokens(accessToken, refreshToken || '');
-
-      const decoded: TokenPayload = jwtDecode(accessToken);
-
-      // Fetch user details
-      await fetchAndSetUser(accessToken, decoded.user_id);
-    } catch (error) {
-      clearTokens();
-      throw error;
-    }
-  };
-
-  const logout = () => {
-    clearTokens();
-    setIsAuthenticated(false);
-    setCurrentUser(null);
-  };
-
-  const switchRole = (newRole: UserRole) => {
-    setRole(newRole);
-    if (newRole === 'user') {
-      setUserName('Viewer');
-    } else {
-      setUserName(currentUser?.name || 'User');
-    }
-  };
-
-  const refreshUser = async () => {
-    const token = getAccessToken();
-    if (token) {
-      const decoded: TokenPayload = jwtDecode(token);
-      await fetchAndSetUser(token, decoded.user_id);
-    }
-  };
+    const refreshed = await refreshSession();
+    await hydrateSession(refreshed.access);
+  }, [hydrateSession]);
 
   return (
-    <AuthContext.Provider value={{ user: currentUser, role, isAdmin, isAuthenticated, login, loginWithToken, logout, switchRole, setUserName, refreshUser }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        role,
+        isAdmin,
+        isAuthenticated,
+        isInitializing,
+        login,
+        loginWithToken,
+        logout,
+        switchRole,
+        setUserName,
+        refreshUser,
+      }}
+    >
       {children}
     </AuthContext.Provider>
-
   );
 };
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
+
   if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error("useAuth must be used within an AuthProvider");
   }
+
   return context;
 };

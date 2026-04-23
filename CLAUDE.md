@@ -32,8 +32,8 @@ agriscan-pro/
 │   │   ├── components/       # Reusable UI components
 │   │   ├── pages/            # Page components
 │   │   ├── hooks/            # Custom React hooks
-│   │   ├── services/         # API clients and utilities
-│   │   ├── store/            # State management (Zustand/Context)
+│   │   ├── lib/              # API clients, auth, and utilities
+│   │   ├── contexts/         # React context providers (AuthContext, etc.)
 │   │   └── main.tsx          # Entry point
 │   ├── vite.config.ts        # Vite configuration
 │   └── package.json
@@ -118,9 +118,12 @@ agriscan-pro/
 - `backend/accounts/serializers.py` - User serialization
 - `backend/accounts/views.py` - Login/register endpoints
 - `backend/accounts/oauth.py` - Google OAuth 2.0 implementation
+- `backend/accounts/auth_helpers.py` - Centralized OAuth state, token cookies, blacklist, permission gates
 - `frontend/src/components/AuthDialog.tsx` - Redesigned login/register modal
 - `frontend/src/pages/GoogleAuthCallback.tsx` - OAuth callback handler
 - `frontend/src/lib/oauth.ts` - OAuth utilities (token exchange, CSRF protection)
+- `frontend/src/lib/tokenStorage.ts` - Memory-only access token storage (no localStorage)
+- `frontend/src/lib/authApi.ts` - Cookie-backed auth API wrappers (login, refresh, logout, Google OAuth)
 
 #### Core Business Logic (Samples)
 - `backend/samples/models.py` - Sample, ProcessLog, MycotoxinResult models (with composite DB indexes)
@@ -234,13 +237,13 @@ npm run dev
 
 #### Adding Features
 1. Create component in `src/components/`
-2. Add service/API call in `src/services/`
+2. Add service/API call in `src/lib/`
 3. Add route in main router config
 4. Use hooks for state management
 
 #### API Calls
 ```typescript
-// In src/services/api.ts
+// In src/lib/api.ts
 const api = axios.create({
   baseURL: 'http://localhost:8000/api',
   headers: {
@@ -339,10 +342,18 @@ node agents-orchestrator/examples/simple-task.js
 - **Production Hardening**: HSTS (1yr), SSL redirect, Secure/HttpOnly cookies, `SECURE_PROXY_SSL_HEADER` for EB ALB — all gated on `DEBUG=False`
 - **SRE Health Check**: `GET /health/` reports DB+Redis latency and system saturation; system metrics gated on `SRE_MONITOR_KEY` env var
 - **Agent Gateway Security**: `GATEWAY_API_KEY` required (fail-fast on startup if unset); path traversal closed with alphanumeric sanitization on workflow names
-- **Secure Profile Management**: Hardened password reset via hashed OTPs; 2-step email verification; JWT session blacklisting after security events; Redis-based rate/attempt limiting.
+- **Secure Profile Management**: Hardened password reset via hashed OTPs; 2-step email verification; JWT session blacklisting after security events; Redis-based rate/attempt limiting; OTP invalidation on new password reset requests prevents replay attacks.
 - **Role-Based Route Protection**: `ProtectedRoute` supports `minRole`/`allowedRoles` props; `/samples` restricted to `research_assistant` and above; `user` role blocked at both frontend route and backend `IsOwnerOrAdmin.has_permission`
 - **Profile Page Redesign**: Clinical registry-style UI — hero card, Registry Metadata, Output Analytics (live stats), inline email editing with password confirmation; email backend auto-detects dev (console) vs prod (SMTP)
 - **Infrastructure Fixes**: Resolved CORS and SSL protocol mismatch for CloudFront/EB; Hardened `SECURE_PROXY_SSL_HEADER` to trust `X-Forwarded-Proto` from CloudFront; Stopped unwanted 301 redirects on the direct EB domain to prevent "null" status connection failures.
+- **Week 1 Auth Hardening**:
+  - **Token Storage Migration**: Access tokens stored in memory only (`frontend/src/lib/tokenStorage.ts`); refresh tokens managed via httpOnly cookie-backed flow (`frontend/src/lib/authApi.ts`); refresh token rotation enforced with blacklist invalidation.
+  - **OAuth State Validation**: Google OAuth uses server-side state persistence (`backend/accounts/auth_helpers.py`) with cache-backed TTL, validation, and one-time consumption — eliminating client-side state vulnerabilities.
+  - **Role Update Permission Gate**: Explicit view-level permission checks for sensitive user updates; frontend `isAdmin` flag and backend `admin`/`staff` checks aligned for consistent access control.
+  - **DEBUG Safety**: `DEBUG` defaults to `False` unless explicitly opted into via environment variable.
+  - **Project Cleanup**: `.venv/` untracked; orphan docs (`Requirement.md`) removed; `DB/DB.sql` retained as schema artifact; `.gitignore` audited for stale tracked files; generated migration files excluded from static analysis.
+- **Graceful Dependency Handling**: Optional dependencies (`psutil`, Redis) handled gracefully in local/test environments without hard failures.
+- **Logger Migration in OAuth**: OAuth backend code migrated from `print()` to structured `logging.getLogger("agriscan.accounts")` calls.
 
 
 ### 🚧 In Development (Local Only)
@@ -365,7 +376,17 @@ These are NOT yet committed to production and are for local development only. Se
 
 ### Current Implementation
 - JWT tokens for authentication (15 min access, 7 day refresh with rotation + blacklist)
-- `IsOwnerOrAdmin` object-level permissions — role-based (admin/head_researcher/researcher vs owner-only)
+- **Refresh token flow**: Cookie-only. `get_refresh_token_from_request()` reads exclusively from the httpOnly cookie; body-token support has been removed. The refresh view has no fallback — if rotation produces no new token, the request fails rather than re-issuing a blacklisted old token.
+- **OAuth state validation**: The server is authoritative. `validate_and_consume_oauth_state()` in `auth_helpers.py` performs cache-backed TTL validation, one-time consumption, and replay rejection. Client-side state checks (e.g., `sessionStorage`) are advisory only and not relied upon for security decisions.
+- **Role permissions** — granular access control:
+  | Role | User Directory | Manage Roles/Status | Self-Service |
+  |------|---------------|-------------------|-------------|
+  | `admin` | ✅ Full access | ✅ Full access | ✅ |
+  | `head_researcher` | ✅ Full access | ✅ Full access | ✅ |
+  | `researcher` | ✅ Full access | ✅ Full access | ✅ |
+  | `research_assistant` | ❌ Own record only | ❌ | ✅ |
+  | `user` | ❌ Own record only | ❌ | ✅ (no self-promotion) |
+- `IsOwnerOrAdmin` object-level permissions — role-based (admin/head_researcher/researcher full access; others owner-only write)
 - CORS: `CORS_ALLOW_ALL_ORIGINS = DEBUG` — locked down in production via `CORS_ALLOWED_ORIGINS` env var (always includes CloudFront URL)
 - Production security headers active when `DEBUG=False`: HSTS (if SSL enabled), SSL redirect (if `FORCE_SSL=True`), Secure/HttpOnly cookies, `SECURE_PROXY_SSL_HEADER`
 - Role escalation protection in `UserSerializer.validate_role` — Researcher+ only, no self-promotion
@@ -450,7 +471,7 @@ timestamp: DateTime (auto)
 1. Create method in viewset (with `@action` decorator)
 2. Implement logic
 3. Add test in `backend/tests/`
-4. Call from frontend via `src/services/api.ts`
+4. Call from frontend via `src/lib/api.ts`
 
 ### Debug API Issues
 ```bash
@@ -573,9 +594,9 @@ eb status                            # Check environment health
 ---
 
 ## Last Updated
-- Date: 2026-04-12
+- Date: 2026-04-13
 - By: Antigravity
-- Status: Migrating DB from Aurora → RDS PostgreSQL 16.1
+- Status: Week 1 Auth Hardening complete; backend environment blockers (psutil, SQLite migration) pending resolution
 
 
 ## Pending Actions
@@ -586,3 +607,5 @@ eb status                            # Check environment health
 - Set `GATEWAY_API_KEY` env var before starting agent orchestrator (will refuse to start without it)
 - Set `EMAIL_HOST_USER` + `EMAIL_HOST_PASSWORD` in `.env` for real email delivery (see `.env.example`); without them OTP prints to terminal only
 - Set `SRE_MONITOR_KEY` env var to protect system metrics on `/health/` endpoint
+- **Local environment**: Install `psutil` (`pip install psutil`) and resolve SQLite migration compatibility to unblock backend tests
+- **Week 2 backlog**: CI lint/test gates, TypeScript `strict: true`, frontend `ErrorBoundary`s, frontend smoke tests

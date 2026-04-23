@@ -1,12 +1,9 @@
-import { useState, useMemo, useEffect } from 'react';
-import { Users, UserPlus, Search, Shield, UserCheck, UserX } from 'lucide-react';
-import API_BASE_URL from '@/config/api';
-import { getAccessToken } from '@/lib/tokenStorage';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Switch } from '@/components/ui/switch';
+import { useState, useMemo, useEffect } from "react";
+import { Users, UserCheck, UserX } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -14,14 +11,14 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
+} from "@/components/ui/table";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -29,54 +26,83 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
+} from "@/components/ui/dialog";
+import {
+  User,
+  UserRole,
+  UserStatus,
+  USER_ROLE_LABELS,
+  USER_ROLE_COLORS,
+  USER_ROLE_WEIGHT,
+  USER_STATUS_COLORS,
+} from "@/types/user";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "@/hooks/use-toast";
+import { Navigate } from "react-router-dom";
+import { userAPI } from "@/lib/api";
+import { logger } from "@/lib/logger";
 
-import { User, UserRole, UserStatus, USER_ROLE_LABELS, USER_ROLE_COLORS, USER_ROLE_WEIGHT, USER_STATUS_COLORS } from '@/types/user';
-import { useAuth } from '@/contexts/AuthContext';
-import { toast } from '@/hooks/use-toast';
-import { Navigate } from 'react-router-dom';
+type BackendUser = {
+  id: string | number;
+  name: string;
+  email: string;
+  role: UserRole;
+  is_active: boolean;
+  date_joined?: string;
+  created_at?: string;
+  online_status?: "online" | "offline";
+  department?: string;
+  last_active?: string;
+};
+
+const mapBackendUserToFrontendUser = (user: BackendUser): User => ({
+  ...user,
+  id: String(user.id),
+  status: user.is_active ? "active" : "inactive",
+  created_at: user.created_at || user.date_joined || new Date().toISOString(),
+  date_joined: user.date_joined
+    ? new Date(user.date_joined).toLocaleDateString("en-GB", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      })
+    : "—",
+  online_status: user.online_status || "offline",
+});
 
 const UserManagement = () => {
-  const { isAdmin, role: currentUserRole } = useAuth();
+  const { role: currentUserRole, isInitializing, user: currentUser } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [roleFilter, setRoleFilter] = useState<string>('all');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState("");
+  const [roleFilter, setRoleFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [isRoleDialogOpen, setIsRoleDialogOpen] = useState(false);
-  const [newRole, setNewRole] = useState<UserRole>('user');
+  const [newRole, setNewRole] = useState<UserRole>("user");
+  const [isStatusDialogOpen, setIsStatusDialogOpen] = useState(false);
+  const [pendingStatusUser, setPendingStatusUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   const currentUserWeight = USER_ROLE_WEIGHT[currentUserRole] || 0;
+  const canManageUsers = currentUserRole === "admin";
 
-  // Fetch users from backend
   const fetchUsers = async () => {
     try {
-      const token = getAccessToken();
-      const response = await fetch(`${API_BASE_URL}/accounts/users/`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      if (!response.ok) throw new Error('Failed to fetch users');
-
-      const data = await response.json();
-
-      // Map Django's 'is_active' boolean to our frontend 'status' string
-      const mappedUsers: User[] = data.map((u: any) => ({
-        ...u,
-        status: u.is_active ? 'active' : 'inactive',
-        date_joined: new Date(u.date_joined).toLocaleDateString('en-GB', {
-          day: '2-digit', month: '2-digit', year: 'numeric'
-        })
-      }));
+      setIsLoading(true);
+      const data = await userAPI.getUsers();
+      const mappedUsers: User[] = Array.isArray(data)
+        ? data.map((user) => mapBackendUserToFrontendUser(user as BackendUser))
+        : [];
 
       setUsers(mappedUsers);
+      logger.info("users.fetch.success", { count: mappedUsers.length });
     } catch (error) {
+      logger.error("users.fetch.failed", error);
       toast({
-        title: 'Error loading users',
-        description: error instanceof Error ? error.message : 'Unknown error occurred',
-        variant: 'destructive',
+        title: "Error loading users",
+        description:
+          error instanceof Error ? error.message : "Unknown error occurred",
+        variant: "destructive",
       });
     } finally {
       setIsLoading(false);
@@ -84,19 +110,22 @@ const UserManagement = () => {
   };
 
   useEffect(() => {
-    if (currentUserWeight >= USER_ROLE_WEIGHT['research_assistant']) {
-      fetchUsers();
+    if (!isInitializing) {
+      void fetchUsers();
     }
-  }, [currentUserWeight]);
+  }, [isInitializing]);
 
   const filteredUsers = useMemo(() => {
     return users.filter((user) => {
-      if (user.role === 'admin') return false; // Hide admins from user management completely
+
       const matchesSearch =
         user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         user.email.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesRole = roleFilter === 'all' || user.role === roleFilter;
-      const matchesStatus = statusFilter === 'all' || user.status === statusFilter;
+
+      const matchesRole = roleFilter === "all" || user.role === roleFilter;
+      const matchesStatus =
+        statusFilter === "all" || user.status === statusFilter;
+
       return matchesSearch && matchesRole && matchesStatus;
     });
   }, [users, searchQuery, roleFilter, statusFilter]);
@@ -104,48 +133,48 @@ const UserManagement = () => {
   const stats = useMemo(() => {
     return {
       total: users.length,
-      active: users.filter((u) => u.status === 'active').length,
-      inactive: users.filter((u) => u.status === 'inactive').length,
-      admins: users.filter((u) => u.role === 'admin').length,
+      active: users.filter((u) => u.status === "active").length,
+      inactive: users.filter((u) => u.status === "inactive").length,
+      admins: users.filter((u) => u.role === "admin").length,
     };
   }, [users]);
 
-  // Redirect users with lower than research_assistant access
-  if (currentUserWeight < USER_ROLE_WEIGHT['research_assistant']) {
-    return <Navigate to="/dashboard" replace />;
-  }
+  // Removed strict page block so all staff can view the page. Action controls are still protected by role weights.
 
   const handleRoleChange = async () => {
     if (!selectedUser) return;
 
     try {
-      const token = getAccessToken();
-      const response = await fetch(`${API_BASE_URL}/accounts/users/${selectedUser.id}/`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ role: newRole }),
-      });
-
-      if (!response.ok) throw new Error('Failed to update role');
+      await userAPI.updateUser(selectedUser.id, { role: newRole });
 
       setUsers((prev) =>
-        prev.map((u) =>
-          u.id === selectedUser.id ? { ...u, role: newRole } : u
-        )
+        prev.map((user) =>
+          user.id === selectedUser.id ? { ...user, role: newRole } : user,
+        ),
       );
 
       toast({
-        title: 'Role Updated',
+        title: "Role Updated",
         description: `${selectedUser.name}'s role has been changed to ${USER_ROLE_LABELS[newRole]}.`,
       });
-    } catch (err) {
+
+      logger.info("users.role_updated", {
+        userId: selectedUser.id,
+        newRole,
+      });
+    } catch (error) {
+      logger.error("users.role_update_failed", error, {
+        userId: selectedUser.id,
+        newRole,
+      });
+
       toast({
-        title: 'Update failed',
-        description: 'Could not change user role.',
-        variant: 'destructive',
+        title: "Update failed",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Could not change user role.",
+        variant: "destructive",
       });
     } finally {
       setIsRoleDialogOpen(false);
@@ -154,39 +183,57 @@ const UserManagement = () => {
   };
 
   const handleStatusToggle = async (user: User) => {
-    const newStatus: UserStatus = user.status === 'active' ? 'inactive' : 'active';
-    const newIsActive = newStatus === 'active';
+    const newStatus: UserStatus =
+      user.status === "active" ? "inactive" : "active";
+    const newIsActive = newStatus === "active";
 
     try {
-      const token = getAccessToken();
-      const response = await fetch(`${API_BASE_URL}/accounts/users/${user.id}/`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ is_active: newIsActive }),
-      });
-
-      if (!response.ok) throw new Error('Failed to update status');
+      await userAPI.updateUser(user.id, { is_active: newIsActive });
 
       setUsers((prev) =>
-        prev.map((u) =>
-          u.id === user.id ? { ...u, status: newStatus } : u
-        )
+        prev.map((existingUser) =>
+          existingUser.id === user.id
+            ? { ...existingUser, status: newStatus }
+            : existingUser,
+        ),
       );
 
       toast({
-        title: 'Status Updated',
+        title: "Status Updated",
         description: `${user.name} is now ${newStatus}.`,
       });
-    } catch (err) {
+
+      logger.info("users.status_updated", {
+        userId: user.id,
+        isActive: newIsActive,
+      });
+    } catch (error) {
+      logger.error("users.status_update_failed", error, {
+        userId: user.id,
+        isActive: newIsActive,
+      });
+
       toast({
-        title: 'Update failed',
-        description: 'Could not change user status.',
-        variant: 'destructive',
+        title: "Update failed",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Could not change user status.",
+        variant: "destructive",
       });
     }
+  };
+
+  const openStatusDialog = (user: User) => {
+    setPendingStatusUser(user);
+    setIsStatusDialogOpen(true);
+  };
+
+  const handleStatusConfirm = async () => {
+    if (!pendingStatusUser) return;
+    await handleStatusToggle(pendingStatusUser);
+    setIsStatusDialogOpen(false);
+    setPendingStatusUser(null);
   };
 
   const openRoleDialog = (user: User) => {
@@ -195,28 +242,42 @@ const UserManagement = () => {
     setIsRoleDialogOpen(true);
   };
 
-  const availableRoles: UserRole[] = ['user', 'research_assistant', 'researcher', 'head_researcher', 'admin'];
-  const allowedRolesToAssign = availableRoles.filter(r => USER_ROLE_WEIGHT[r] <= currentUserWeight);
+  const availableRoles: UserRole[] = [
+    "guest",
+    "user",
+    "research_assistant",
+    "researcher",
+    "head_researcher",
+    "admin",
+  ];
+
+  const allowedRolesToAssign = availableRoles.filter(
+    (role) => USER_ROLE_WEIGHT[role] <= currentUserWeight,
+  );
 
   return (
     <div className="min-h-screen bg-background">
       <main className="container py-8">
-        {/* Page Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-foreground">User Management</h1>
+          <h1 className="text-3xl font-bold text-foreground">
+            User Management
+          </h1>
           <p className="mt-2 text-muted-foreground">
             Manage user accounts, roles, and permissions
           </p>
         </div>
 
-        {/* Stats Cards */}
         <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Card className="glass-card">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Total Users</p>
-                  <p className="mt-2 text-3xl font-bold text-foreground">{stats.total}</p>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Total Users
+                  </p>
+                  <p className="mt-2 text-3xl font-bold text-foreground">
+                    {stats.total}
+                  </p>
                 </div>
                 <div className="rounded-lg bg-primary/10 p-3 text-primary">
                   <Users className="h-6 w-6" />
@@ -229,8 +290,12 @@ const UserManagement = () => {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Active Users</p>
-                  <p className="mt-2 text-3xl font-bold text-foreground">{stats.active}</p>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Active Users
+                  </p>
+                  <p className="mt-2 text-3xl font-bold text-foreground">
+                    {stats.active}
+                  </p>
                 </div>
                 <div className="rounded-lg bg-success/10 p-3 text-success">
                   <UserCheck className="h-6 w-6" />
@@ -243,8 +308,12 @@ const UserManagement = () => {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Inactive Users</p>
-                  <p className="mt-2 text-3xl font-bold text-foreground">{stats.inactive}</p>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Inactive Users
+                  </p>
+                  <p className="mt-2 text-3xl font-bold text-foreground">
+                    {stats.inactive}
+                  </p>
                 </div>
                 <div className="rounded-lg bg-muted p-3 text-muted-foreground">
                   <UserX className="h-6 w-6" />
@@ -257,207 +326,293 @@ const UserManagement = () => {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Administrators</p>
-                  <p className="mt-2 text-3xl font-bold text-foreground">{stats.admins}</p>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Administrators
+                  </p>
+                  <p className="mt-2 text-3xl font-bold text-foreground">
+                    {stats.admins}
+                  </p>
                 </div>
                 <div className="rounded-lg bg-danger/10 p-3 text-danger">
-                  <Shield className="h-6 w-6" />
+                  <Users className="h-6 w-6" />
                 </div>
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Filters */}
-        <Card className="glass-card mb-6">
-          <CardContent className="p-4">
-            <div className="flex flex-wrap items-center gap-4">
-              <div className="relative flex-1 min-w-[200px]">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Card className="glass-card">
+          <CardContent className="p-6">
+            <div className="mb-6 flex flex-col gap-4 md:flex-row">
+              <div className="flex-1">
                 <Input
-                  placeholder="Search by name or email..."
+                  placeholder="Search users by name or email..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9"
                 />
               </div>
 
-              <Select value={roleFilter} onValueChange={setRoleFilter}>
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Filter by role" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Roles</SelectItem>
-                  <SelectItem value="user">User</SelectItem>
-                  <SelectItem value="researcher">Researcher</SelectItem>
-                  <SelectItem value="research_assistant">Research Assistant</SelectItem>
-                  <SelectItem value="head_researcher">Head Researcher</SelectItem>
-                  <SelectItem value="admin">Admin</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:w-[320px]">
+                <Select value={roleFilter} onValueChange={setRoleFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Filter by role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Roles</SelectItem>
+                    {availableRoles.map((role) => (
+                      <SelectItem key={role} value={role}>
+                        {USER_ROLE_LABELS[role]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
 
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-[150px]">
-                  <SelectValue placeholder="Filter by status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="inactive">Inactive</SelectItem>
-                </SelectContent>
-              </Select>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Filter by status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Statuses</SelectItem>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="inactive">Inactive</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
 
-              <Button className="gap-2">
-                <UserPlus className="h-4 w-4" />
-                Add User
-              </Button>
+            <div className="rounded-lg border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Member Since</TableHead>
+                    <TableHead className="text-right">Promote</TableHead>
+                  </TableRow>
+                </TableHeader>
+
+                <TableBody>
+                  {isLoading ? (
+                    <TableRow>
+                      <TableCell
+                        colSpan={6}
+                        className="py-10 text-center text-muted-foreground"
+                      >
+                        Loading users...
+                      </TableCell>
+                    </TableRow>
+                  ) : filteredUsers.length === 0 ? (
+                    <TableRow>
+                      <TableCell
+                        colSpan={6}
+                        className="py-10 text-center text-muted-foreground"
+                      >
+                        No users found.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredUsers.map((user) => {
+                      const isSelf = String(currentUser?.id) === String(user.id);
+                      const isAdminTarget = user.role === "admin";
+                      const targetUserWeight = USER_ROLE_WEIGHT[user.role as UserRole] || 0;
+                      // Admins can manage anyone (except themselves)
+                      // Non-admins can manage users with EQUAL or LOWER ranks, but never admins
+                      const outRanksTarget = currentUserRole === "admin" || currentUserWeight >= targetUserWeight;
+                      const preventEdit = isSelf || isAdminTarget || !outRanksTarget;
+                      const rolesToShow = Array.from(new Set([...allowedRolesToAssign, user.role as UserRole]));
+
+                      return (
+                        <TableRow key={user.id}>
+                          <TableCell className="font-medium">
+                            {user.name} {isSelf && <span className="text-xs text-muted-foreground ml-2">(You)</span>}
+                          </TableCell>
+                          <TableCell>{user.email}</TableCell>
+                          <TableCell>
+                            <Badge className={USER_ROLE_COLORS[user.role]}>
+                              {USER_ROLE_LABELS[user.role]}
+                            </Badge>
+                          </TableCell>
+                          {/* Status — pill toggle */}
+                          <TableCell>
+                            <div className={cn("inline-flex items-center p-1 bg-secondary/40 rounded-lg border border-border/50 backdrop-blur-sm", preventEdit && "opacity-50 pointer-events-none")}>
+                            <button
+                              type="button"
+                              onClick={() => !preventEdit && user.status !== "active" && openStatusDialog(user)}
+                              disabled={preventEdit}
+                              className={cn(
+                                "flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-300",
+                                user.status === "active"
+                                  ? "bg-primary shadow-md text-primary-foreground"
+                                  : "text-muted-foreground hover:text-foreground hover:bg-background/50",
+                              )}
+                            >
+                              <UserCheck className="h-4 w-4" />
+                              Active
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => !preventEdit && user.status !== "inactive" && openStatusDialog(user)}
+                              disabled={preventEdit}
+                              className={cn(
+                                "flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-300",
+                                user.status === "inactive"
+                                  ? "bg-primary shadow-md text-primary-foreground"
+                                  : "text-muted-foreground hover:text-foreground hover:bg-background/50",
+                              )}
+                            >
+                              <UserX className="h-4 w-4" />
+                              Inactive
+                            </button>
+                          </div>
+                        </TableCell>
+                        <TableCell>{user.date_joined}</TableCell>
+                        {/* Promote — role selector */}
+                        <TableCell className="text-right">
+                          <div className="flex justify-end">
+                            <Select
+                              value={user.role}
+                              disabled={preventEdit}
+                              onValueChange={(value) => {
+                                setSelectedUser(user);
+                                setNewRole(value as UserRole);
+                                setIsRoleDialogOpen(true);
+                              }}
+                            >
+                              <SelectTrigger className="w-[190px]">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent align="end">
+                                {rolesToShow.map((role) => (
+                                  <SelectItem key={role} value={role}>
+                                    {USER_ROLE_LABELS[role as UserRole] || role}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                  )}
+                </TableBody>
+              </Table>
             </div>
           </CardContent>
         </Card>
 
-        {/* Users Table */}
-        <Card className="glass-card">
-          <CardHeader>
-            <CardTitle className="text-lg">
-              Users ({filteredUsers.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <div className="flex flex-col items-center justify-center p-8 space-y-4">
-                <div className="w-8 h-8 rounded-full border-4 border-primary border-t-transparent animate-spin" />
-                <p className="text-muted-foreground text-sm font-medium">Loading users...</p>
-              </div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="text-left">Name</TableHead>
-                    <TableHead className="text-left">Email</TableHead>
-                    <TableHead className="text-left">Role</TableHead>
-                    {/* <TableHead className="text-center">Online Status</TableHead> */}
-                    <TableHead className="text-left">Account Status</TableHead>
-                    <TableHead className="text-left">Member Since</TableHead>
-                    {/* <TableHead className="text-center">Last Online</TableHead> */}
-                    <TableHead className="text-center">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredUsers.map((user) => {
-                    const canMutate = USER_ROLE_WEIGHT[user.role] <= currentUserWeight;
-                    const canToggleStatus = currentUserRole === 'admin' || currentUserRole === 'head_researcher';
+        {/* Role Change Dialog */}
+        <Dialog
+          open={isRoleDialogOpen}
+          onOpenChange={(open) => {
+            setIsRoleDialogOpen(open);
+            if (!open) {
+              setSelectedUser(null);
+            }
+          }}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Confirm Role Change</DialogTitle>
+              <DialogDescription>
+                {selectedUser ? (
+                  <>
+                    Change <strong>{selectedUser.name}</strong>
+                    {"'s"} role to <strong>{USER_ROLE_LABELS[newRole]}</strong>?
+                  </>
+                ) : (
+                  "Confirm the selected role change."
+                )}
+              </DialogDescription>
+            </DialogHeader>
 
-                    return (
-                      <TableRow key={user.id}>
-                        <TableCell className="font-medium text-left">{user.name}</TableCell>
-                        <TableCell className="text-muted-foreground text-left">{user.email}</TableCell>
-                        <TableCell className="text-left">
-                          <Badge className={USER_ROLE_COLORS[user.role]}>
-                            {USER_ROLE_LABELS[user.role]}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-left">
-                          {(!canMutate || !canToggleStatus) ? (
-                            <div className="flex items-center">
-                              <span className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${user.status === 'active'
-                                ? 'bg-success/10 text-success border-success/20'
-                                : 'bg-muted text-muted-foreground border-border/50'
-                                }`}>
-                                {user.status === 'active' ? (
-                                  <span className="relative flex h-2 w-2">
-                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-75"></span>
-                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-success"></span>
-                                  </span>
-                                ) : (
-                                  <span className="relative inline-flex rounded-full h-2 w-2 bg-muted-foreground/50"></span>
-                                )}
-                                <span className="capitalize">{user.status}</span>
-                              </span>
-                            </div>
-                          ) : (
-                            <div className="inline-flex items-center p-1 bg-secondary/40 rounded-lg border border-border/50 backdrop-blur-sm">
-                              <button
-                                onClick={() => user.status !== 'active' && handleStatusToggle(user)}
-                                className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-300 ${user.status === 'active'
-                                  ? 'bg-primary shadow-md text-primary-foreground'
-                                  : 'text-muted-foreground hover:text-foreground hover:bg-background/50'
-                                  }`}
-                              >
-                                <UserCheck className="h-3.5 w-3.5" />
-                                Active
-                              </button>
-                              <button
-                                onClick={() => user.status === 'active' && handleStatusToggle(user)}
-                                className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-300 ${user.status === 'inactive'
-                                  ? 'bg-primary shadow-md text-primary-foreground'
-                                  : 'text-muted-foreground hover:text-foreground hover:bg-background/50'
-                                  }`}
-                              >
-                                <UserX className="h-3.5 w-3.5" />
-                                Inactive
-                              </button>
-                            </div>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-left text-muted-foreground">
-                          {user.date_joined || '-'}
-                        </TableCell>
-                        {/* <TableCell className="text-center text-muted-foreground">
-                      {user.last_active || '-'}
-                    </TableCell> */}
-                        <TableCell className="text-center">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            disabled={!canMutate}
-                            onClick={() => openRoleDialog(user)}
-                          >
-                            Change Role
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    )
-                  })}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
+            <DialogFooter>
+              <button
+                type="button"
+                className="inline-flex items-center justify-center rounded-md border px-4 py-2 text-sm font-medium"
+                onClick={() => {
+                  setIsRoleDialogOpen(false);
+                  setSelectedUser(null);
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
+                onClick={() => void handleRoleChange()}
+              >
+                Confirm
+              </button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Status Toggle Dialog */}
+        <Dialog
+          open={isStatusDialogOpen}
+          onOpenChange={(open) => {
+            setIsStatusDialogOpen(open);
+            if (!open) setPendingStatusUser(null);
+          }}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>
+                {pendingStatusUser?.status === "active"
+                  ? "Deactivate Account?"
+                  : "Activate Account?"}
+              </DialogTitle>
+              <DialogDescription>
+                {pendingStatusUser ? (
+                  pendingStatusUser.status === "active" ? (
+                    <>
+                      <strong>{pendingStatusUser.name}</strong> will lose access
+                      to the system immediately. You can reactivate their account
+                      at any time.
+                    </>
+                  ) : (
+                    <>
+                      <strong>{pendingStatusUser.name}</strong> will regain full
+                      access based on their current role. Make sure this is
+                      intentional.
+                    </>
+                  )
+                ) : (
+                  "Confirm the status change."
+                )}
+              </DialogDescription>
+            </DialogHeader>
+
+            <DialogFooter>
+              <button
+                type="button"
+                className="inline-flex items-center justify-center rounded-md border px-4 py-2 text-sm font-medium"
+                onClick={() => {
+                  setIsStatusDialogOpen(false);
+                  setPendingStatusUser(null);
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className={cn(
+                  "inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium text-white",
+                  pendingStatusUser?.status === "active"
+                    ? "bg-destructive hover:bg-destructive/90"
+                    : "bg-primary hover:bg-primary/90",
+                )}
+                onClick={() => void handleStatusConfirm()}
+              >
+                {pendingStatusUser?.status === "active" ? "Deactivate" : "Activate"}
+              </button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </main>
-
-      {/* Role Change Dialog */}
-      <Dialog open={isRoleDialogOpen} onOpenChange={setIsRoleDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Change User Role</DialogTitle>
-            <DialogDescription>
-              Update the role for {selectedUser?.name}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="py-4">
-            <Select value={newRole} onValueChange={(value) => setNewRole(value as UserRole)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select role" />
-              </SelectTrigger>
-              <SelectContent>
-                {allowedRolesToAssign.map(userRole => (
-                  <SelectItem key={userRole} value={userRole}>{USER_ROLE_LABELS[userRole]}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsRoleDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleRoleChange}>
-              Save Changes
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };

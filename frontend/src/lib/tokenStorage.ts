@@ -1,39 +1,53 @@
 /**
- * Persistent token storage using localStorage.
+ * In-memory access token storage.
  *
- * Tokens are stored in localStorage to ensure they persist across page refreshes.
+ * This module intentionally does not persist tokens in localStorage/sessionStorage.
+ * The refresh token is expected to live in a secure httpOnly cookie managed by the backend.
  */
 
-const ACCESS_TOKEN_KEY = 'access_token';
-const REFRESH_TOKEN_KEY = 'refresh_token';
+let accessToken: string | null = null;
 
 /**
- * Returns the access token from localStorage.
+ * Returns the current in-memory access token.
  */
 export function getAccessToken(): string | null {
-  return localStorage.getItem(ACCESS_TOKEN_KEY);
+  return accessToken;
 }
 
 /**
- * Returns the refresh token from localStorage.
+ * Sets the current in-memory access token.
  */
-export function getRefreshToken(): string | null {
-  return localStorage.getItem(REFRESH_TOKEN_KEY);
+export function setAccessToken(token: string | null): void {
+  accessToken = token;
 }
 
 /**
- * Stores tokens in localStorage.
+ * Legacy compatibility helper.
+ * Stores only the access token and ignores the refresh token.
  */
-export function setTokens(access: string, refresh: string): void {
-  localStorage.setItem(ACCESS_TOKEN_KEY, access);
-  localStorage.setItem(REFRESH_TOKEN_KEY, refresh);
+export function setTokens(access: string, _refresh?: string): void {
+  accessToken = access;
 }
 
 /**
- * Removes tokens from localStorage.
+ * Refresh tokens are no longer accessible from JavaScript.
+ * They are stored in an httpOnly cookie on the backend.
+ */
+export function getRefreshToken(): null {
+  return null;
+}
+
+/**
+ * Clears the in-memory access token.
+ */
+export function clearAccessToken(): void {
+  accessToken = null;
+}
+
+/**
+ * Legacy compatibility helper.
+ * Clears the in-memory access token.
  */
 export function clearTokens(): void {
-  localStorage.removeItem(ACCESS_TOKEN_KEY);
-  localStorage.removeItem(REFRESH_TOKEN_KEY);
+  accessToken = null;
 }
-
