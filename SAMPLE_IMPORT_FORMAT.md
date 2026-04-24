@@ -11,6 +11,7 @@ Click the **"Import Samples"** button in the Sample List to import your data. Th
 Your import file should have the following columns (column names are flexible with aliases):
 
 ### Required Columns:
+- **region** (aliases: regions) - Geographic region
 - **province** - Province/State name
 - **district** - District name  
 - **vegetation_variety** (aliases: variety, varieties, crops) - Crop/plant variety
