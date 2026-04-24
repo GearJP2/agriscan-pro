@@ -462,15 +462,21 @@ class MycotoxinResultTests(SampleTestMixin, TestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data['name'], 'Aflatoxin B1')
 
-    def test_add_mycotoxin_result_intensity_too_high_returns_400(self):
-        """Intensity value > 10 must be rejected with 400."""
+    def test_add_mycotoxin_result_intensity_high_lab_value_returns_201(self):
+        """Intensity value > 10 is a valid real lab concentration and must be accepted."""
         payload = {**self.valid_payload, 'intensity': 11}
         response = self.client.post(self.mycotoxin_url, payload, format='json')
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-    def test_add_mycotoxin_result_intensity_too_low_returns_400(self):
-        """Intensity value < 1 must be rejected with 400."""
+    def test_add_mycotoxin_result_intensity_zero_returns_201(self):
+        """Intensity value of 0 (not detected) is valid and must be accepted."""
         payload = {**self.valid_payload, 'intensity': 0}
+        response = self.client.post(self.mycotoxin_url, payload, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_add_mycotoxin_result_intensity_negative_returns_400(self):
+        """Negative intensity value must be rejected with 400."""
+        payload = {**self.valid_payload, 'intensity': -1}
         response = self.client.post(self.mycotoxin_url, payload, format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
