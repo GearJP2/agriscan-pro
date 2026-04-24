@@ -204,10 +204,7 @@ class UserDetailView(generics.RetrieveUpdateDestroyAPIView):
                     "You do not have permission to modify this user's rank or status hierarchy."
                 )
 
-        # Remove the target_user != request.user block for strict admin check, as it's now covered by the hierarchy check.
-        # But wait, can users update their own status/role?
-        # The frontend blocks self-editing (`preventEdit = isSelf`).
-        # To be safe, the backend should also block self-editing of `is_active` and `role`.
+        # Block self-modification of privileged fields.
         if target_user == request.user and requested_sensitive_fields:
             raise PermissionDenied("You cannot modify your own role or account status.")
 

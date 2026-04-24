@@ -29,6 +29,7 @@ logger = logging.getLogger('agriscan.samples')
 
 # ─── Tunable constants ────────────────────────────────────────────────────────
 BULK_DELETE_LIMIT = 500
+RECENT_ALERTS_LIMIT = 10
 
 
 class SampleViewSet(viewsets.ModelViewSet):
@@ -36,7 +37,12 @@ class SampleViewSet(viewsets.ModelViewSet):
     ViewSet for managing samples.
     Provides CRUD operations and filtering capabilities.
     """
-    queryset = Sample.objects.select_related('updated_by').prefetch_related('process_logs', 'mycotoxin_results').all()
+    queryset = (
+        Sample.objects
+        .select_related('updated_by')
+        .prefetch_related('process_logs', 'mycotoxin_results')
+        .all()
+    )
     permission_classes = [IsAuthenticated, IsOwnerOrAdmin]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['sample_id', 'region', 'vegetation_variety']
@@ -88,7 +94,10 @@ class SampleViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         sample = serializer.save(updated_by=self.request.user)
-        logger.info('sample.created', extra={'sample_id': sample.sample_id, 'user': self.request.user.username})
+        logger.info(
+            'sample.created',
+            extra={'sample_id': sample.sample_id, 'user': self.request.user.username},
+        )
         # Create initial process log for new samples
         if not sample.process_logs.exists():
             ProcessLog.objects.create(
@@ -100,7 +109,10 @@ class SampleViewSet(viewsets.ModelViewSet):
 
     def perform_update(self, serializer):
         sample = serializer.save(updated_by=self.request.user)
-        logger.info('sample.updated', extra={'sample_id': sample.sample_id, 'user': self.request.user.username})
+        logger.info(
+            'sample.updated',
+            extra={'sample_id': sample.sample_id, 'user': self.request.user.username},
+        )
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -138,8 +150,6 @@ class SampleViewSet(viewsets.ModelViewSet):
         self.perform_destroy(instance)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
-    RECENT_ALERTS_LIMIT = 10
-
     @action(detail=False, methods=['get'])
     def statistics(self, request):
         """Get dashboard statistics"""
@@ -157,7 +167,7 @@ class SampleViewSet(viewsets.ModelViewSet):
         """Get recently flagged samples"""
         recent = Sample.objects.filter(
             status='flagged'
-        ).order_by('-updated_at')[:self.RECENT_ALERTS_LIMIT]
+        ).order_by('-updated_at')[:RECENT_ALERTS_LIMIT]
         serializer = SampleListSerializer(recent, many=True)
         return Response(serializer.data)
 
@@ -168,7 +178,10 @@ class SampleViewSet(viewsets.ModelViewSet):
         serializer = ProcessLogSerializer(data=request.data)
         if serializer.is_valid():
             process_log = serializer.save(sample=sample)
-            logger.info('sample.process_log.added', extra={'sample_id': sample.sample_id, 'state': process_log.state})
+            logger.info(
+                'sample.process_log.added',
+                extra={'sample_id': sample.sample_id, 'state': process_log.state},
+            )
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -240,9 +253,23 @@ class SampleViewSet(viewsets.ModelViewSet):
                         conducted_by=request.user.username or 'System',
                     )
 
-            logger.info('sample.mycotoxin_result.added', extra={'sample_id': sample.sample_id, 'test_method': result.test_method, 'dangerous': result.dangerous})
+            logger.info(
+                'sample.mycotoxin_result.added',
+                extra={
+                    'sample_id': sample.sample_id,
+                    'test_method': result.test_method,
+                    'dangerous': result.dangerous,
+                },
+            )
             if result.dangerous:
-                logger.warning('sample.dangerous_result', extra={'sample_id': sample.sample_id, 'test_method': result.test_method, 'intensity': result.intensity})
+                logger.warning(
+                    'sample.dangerous_result',
+                    extra={
+                        'sample_id': sample.sample_id,
+                        'test_method': result.test_method,
+                        'intensity': result.intensity,
+                    },
+                )
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
