@@ -75,10 +75,10 @@ const Homepage = () => {
   }, [api]);
 
   return (
-    <div className="min-h-screen bg-white dark:bg-slate-950 flex flex-col pt-[50px]">
+    <div className="min-h-screen bg-white dark:bg-background flex flex-col pt-[50px]">
       <main className="flex-grow flex flex-col">
         {/* Hero Section */}
-        <section className="relative w-full max-w-container-max mx-auto px-gutter pt-[60px] pb-[80px] flex flex-col lg:flex-row items-center gap-gutter">
+        <section className="relative w-full max-w-container-max mx-auto px-gutter pt-[60px] pb-[80px] flex flex-col lg:flex-row items-center lg:gap-32">
           <div className="w-full lg:w-1/2 flex flex-col gap-[32px] z-10 text-left">
             <h1 className="font-display-xl text-display-xl text-slate-900 dark:text-white">
               Is your food{" "}
@@ -121,8 +121,8 @@ const Homepage = () => {
             <div className="absolute inset-0 bg-gradient-to-tr from-primary/20 to-secondary/20 rounded-full blur-3xl opacity-50"></div>
             <img
               alt="Bio-intelligence visualization"
-              className="w-full h-auto object-cover rounded-2xl glass-panel relative z-10 mix-blend-multiply dark:mix-blend-normal opacity-90 transition-all duration-500"
-              src="https://lh3.googleusercontent.com/aida-public/AB6AXuB9DKisNFUxC0h2Frc7GZ3gCu7h6LElGom_c6cB7ONTwjSv1sGkaMfQBtfNAk0HrV0mGAuMI21FYzeCUfQaC5jPtLXtLrTWnjuK264jH9Axdmt4oSAXxoB61NF17_TA2dF-F37ayEXci8sSVBo0s3y6JqAGGWFxyXG9iBHAp30eq96QFl7Ju7RM-Ci4NRRFkqvRlw2x8EU31BOjLgJCCoLf2pXV2Hl2TvdZW0pKLqKSFWCBn7VDMkXcPaZkWZCSlKkxCNXVAlPlvw"
+              className="w-full h-auto object-cover rounded-2xl glass-panel relative z-10 mix-blend-multiply dark:mix-blend-normal opacity-90 transition-all duration-500 lg:ml-12"
+              src="/assets/images/hero-visualization.png"
             />
             {/* Floating Data Cards */}
             <div className="absolute top-[10%] -left-[10%] glass-panel p-[16px] rounded-xl z-20 shadow-lg border border-white/40 hidden md:block text-left">
@@ -138,7 +138,7 @@ const Homepage = () => {
         {/* Insights / Blog Section */}
         <section className="relative w-full max-w-container-max mx-auto px-gutter pt-24 pb-0 overflow-hidden font-['Plus_Jakarta_Sans']">
           <div className="mb-10 text-left">
-            <p className="font-label-sm text-label-sm text-blue-600 mb-2 uppercase tracking-widest">Insights</p>
+            <p className="font-label-sm text-label-sm text-slate-900 dark:text-white mb-2 uppercase tracking-widest">Insights</p>
             <div className="flex justify-between items-end border-b border-slate-100 dark:border-slate-800 pb-4">
               <h2 className="font-headline-lg text-headline-lg text-slate-900 dark:text-white">From our latest blog</h2>
             </div>
@@ -200,17 +200,21 @@ const Homepage = () => {
                 onClick={() => api?.scrollTo(i)}
                 className={cn(
                   "glass-panel rounded-2xl overflow-hidden group cursor-pointer flex flex-col hover:shadow-xl transition-all duration-500",
-                  current === i && "border-blue-600 bg-slate-50 dark:bg-slate-950/20 shadow-md"
+                  current === i && "border-blue-600 bg-slate-50 dark:bg-card/40 shadow-md"
                 )}
               >
                 <div className="h-[220px] overflow-hidden relative">
                   <img alt={b.title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" src={b.image} />
                 </div>
                 <div className="p-6 flex flex-col flex-grow text-left">
-                  <span className={cn("font-label-sm text-[10px] font-bold mb-3 block uppercase tracking-widest", current === i ? "text-blue-600" : "text-slate-400")}>
+                  <span className={cn("font-label-sm text-[10px] font-bold mb-3 block uppercase tracking-widest", current === i ? "text-slate-900 dark:text-white" : "text-slate-400")}>
                     {b.category}
                   </span>
-                  <h3 className={cn("text-[14px] font-semibold mb-2 transition-colors", current === i ? "text-blue-600" : "text-slate-900 dark:text-white")}>
+                  <h3 className={cn("font-semibold mb-2 transition-all duration-300", 
+                    current === i 
+                      ? "text-[16px] underline underline-offset-4 text-slate-900 dark:text-white" 
+                      : "text-[14px] text-slate-900 dark:text-white"
+                  )}>
                     {b.title}
                   </h3>
                   <p className="font-body-md text-[13px] text-slate-500 dark:text-slate-400 leading-relaxed mt-auto">
@@ -239,11 +243,11 @@ const Homepage = () => {
             <p className="font-body-md text-slate-500 dark:text-slate-400 max-w-2xl mx-auto">A streamlined, bio-intelligence workflow designed for high-throughput, clinical laboratory environments.</p>
           </div>
           <div className="grid grid-cols-1 gap-8">
-            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-blue-600/20 p-10 flex flex-col md:flex-row justify-between items-center relative overflow-hidden group">
+            <div className="bg-white dark:bg-card rounded-2xl border border-blue-600/20 p-10 flex flex-col md:flex-row justify-between items-center relative overflow-hidden group">
               <div className="absolute left-0 top-0 w-full h-1 bg-gradient-to-r from-emerald-400 to-emerald-600"></div>
               <div className="absolute right-0 bottom-0 w-[400px] h-[400px] bg-gradient-to-br from-emerald-500/10 to-transparent rounded-tl-full blur-3xl -z-10 transition-colors group-hover:from-emerald-500/20"></div>
               <div className="max-w-2xl text-left">
-                <span className="font-label-sm text-label-sm text-blue-600 mb-4 block uppercase tracking-widest">01 Collection</span>
+                <span className="font-label-sm text-label-sm text-slate-900 dark:text-white mb-4 block uppercase tracking-widest">01 Collection</span>
                 <h3 className="font-headline-md text-headline-md text-slate-900 dark:text-white mb-2">Import Data</h3>
                 <p className="font-body-md text-body-md text-slate-500 dark:text-slate-400 leading-relaxed">Seamlessly integrate sample logs from your existing LIMS or upload raw sequencing files securely through our encrypted portal. Scalable ingestion for high-throughput labs.</p>
               </div>
@@ -260,7 +264,7 @@ const Homepage = () => {
               <div className="absolute left-0 top-0 w-full h-1 bg-gradient-to-r from-sky-400 to-sky-600"></div>
               <div className="absolute left-0 bottom-0 w-[400px] h-[400px] bg-gradient-to-tr from-sky-500/10 to-transparent rounded-tr-full blur-3xl -z-10 transition-colors group-hover:from-sky-500/20"></div>
               <div className="max-w-2xl text-left">
-                <span className="font-label-sm text-label-sm text-blue-600 mb-4 block uppercase tracking-widest">02 Calibration</span>
+                <span className="font-label-sm text-label-sm text-slate-900 dark:text-white mb-4 block uppercase tracking-widest">02 Calibration</span>
                 <h3 className="font-headline-md text-headline-md text-slate-900 dark:text-white mb-2">Set Thresholds</h3>
                 <p className="font-body-md text-body-md text-slate-500 dark:text-slate-400 leading-relaxed">Define critical boundaries for Aflatoxins and DON based on global compliance standards. Automated alerts trigger if any sample breaches your safety indices.</p>
               </div>
@@ -277,7 +281,7 @@ const Homepage = () => {
               <div className="absolute left-0 top-0 w-full h-1 bg-gradient-to-r from-blue-500 to-blue-700"></div>
               <div className="absolute right-0 bottom-0 w-[400px] h-[400px] bg-gradient-to-tl from-blue-500/10 to-transparent rounded-tr-full blur-3xl -z-10 transition-colors group-hover:from-blue-500/20"></div>
               <div className="max-w-2xl text-left">
-                <span className="font-label-sm text-label-sm text-blue-600 mb-4 block uppercase tracking-widest">03 Intelligence</span>
+                <span className="font-label-sm text-label-sm text-slate-900 dark:text-white mb-4 block uppercase tracking-widest">03 Intelligence</span>
                 <h3 className="font-headline-md text-headline-md text-slate-900 dark:text-white mb-2">AI Trend Analysis</h3>
                 <p className="font-body-md text-body-md text-slate-500 dark:text-slate-400 leading-relaxed">Our bioinformatics engine models historical data against real-time climate inputs to predict fungal bloom likelihood weeks in advance. Proactive intervention at scale.</p>
               </div>
@@ -294,7 +298,7 @@ const Homepage = () => {
         </section>
 
         {/* Research Access Section */}
-        <section className="w-full py-24 bg-white dark:bg-slate-950 relative overflow-hidden border-t border-slate-100 dark:border-slate-800">
+        <section className="w-full py-24 bg-white dark:bg-background relative overflow-hidden border-t border-slate-100 dark:border-slate-800">
           <div className="max-w-container-max mx-auto px-gutter">
             <div className="flex flex-col lg:flex-row items-center gap-16 mb-16">
               <div className="w-full lg:w-1/2">
@@ -308,7 +312,7 @@ const Homepage = () => {
                 </div>
               </div>
               <div className="w-full lg:w-1/2 text-left">
-                <span className="font-label-sm text-label-sm text-blue-600 font-bold mb-4 block uppercase tracking-[0.3em]">RESEARCH ACCESS</span>
+                <span className="font-label-sm text-label-sm text-slate-900 dark:text-white font-bold mb-4 block uppercase tracking-[0.3em]">RESEARCH ACCESS</span>
                 <h2 className="font-headline-md text-headline-md text-slate-900 dark:text-white mb-6">Open to researchers and collaborators.</h2>
                 <p className="text-lg text-slate-600 dark:text-slate-400 leading-relaxed mb-8">
                   AgriScan Pro is developed and maintained by the Faculty of Agriculture. Access is available to enrolled students, affiliated researchers, and partner institutions working in food safety and mycotoxin science.
@@ -323,7 +327,7 @@ const Homepage = () => {
                   </Link>
                   <Link 
                     to="/doc" 
-                    className="w-full sm:w-auto glass-panel border border-slate-200 text-slate-900 dark:text-white font-bold text-[13px] px-8 py-4 rounded-full flex items-center justify-center gap-2 hover:bg-slate-50 transition-all shadow-sm"
+                    className="w-full sm:w-auto border-2 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-bold text-[13px] px-8 py-4 rounded-full flex items-center justify-center gap-2 hover:bg-slate-100 dark:hover:bg-slate-900 transition-all"
                   >
                     Documentation
                   </Link>
@@ -332,7 +336,7 @@ const Homepage = () => {
             </div>
 
             <div className="pt-12 border-t border-slate-100 dark:border-slate-800">
-              <div className="grid grid-cols-2 md:grid-cols-4 bg-slate-50/50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-800 overflow-hidden shadow-sm">
+              <div className="grid grid-cols-2 md:grid-cols-4 bg-slate-50/50 dark:bg-card/50 rounded-2xl border border-slate-100 dark:border-slate-800 overflow-hidden shadow-sm">
                 {[
                   { val: "12,400+", label: "Samples in database" },
                   { val: "8", label: "Mycotoxin types tracked" },
@@ -349,7 +353,7 @@ const Homepage = () => {
           </div>
         </section>
 
-        <section className="w-full py-20 border-t-2 border-blue-600/20 bg-slate-50/20 dark:bg-slate-950/40 backdrop-blur-sm">
+        <section className="w-full py-20 border-t-2 border-blue-600/20 bg-slate-50/20 dark:bg-background/40 backdrop-blur-sm">
           <div className="max-w-container-max mx-auto px-gutter flex flex-col md:flex-row items-center justify-center gap-12 text-center md:text-left">
             <div className="relative group">
               <div className="absolute inset-0 bg-primary/20 rounded-full blur-2xl group-hover:bg-primary/30 transition-colors"></div>
@@ -358,7 +362,7 @@ const Homepage = () => {
               </div>
             </div>
             <div className="max-w-xl">
-              <span className="font-label-sm text-label-sm text-blue-600 font-bold uppercase tracking-[0.3em] block mb-3">DEVELOPED BY</span>
+              <span className="font-label-sm text-label-sm text-slate-900 dark:text-white font-bold uppercase tracking-[0.3em] block mb-3">DEVELOPED BY</span>
               <h2 className="text-3xl font-bold text-slate-900 dark:text-white mb-4">Thammasat University</h2>
               <div className="flex flex-wrap items-center justify-center md:justify-start gap-x-8 gap-y-4 text-slate-500">
                 <p className="text-sm flex items-center gap-2">

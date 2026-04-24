@@ -1,9 +1,9 @@
-/*
 import { useState, FormEvent } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Eye, EyeOff, Leaf, AlertCircle, Loader2 } from 'lucide-react';
-import loginBg from '@/assets/Login-Regis.jpg';
+
+const loginBg = "/assets/images/Login-Regis.jpg";
 
 const Login = () => {
     const [username, setUsername] = useState('');
@@ -56,18 +56,18 @@ const Login = () => {
                 </div>
             </div>
 
-            // Right side - Login Form
+            {/* Right side - Login Form */}
             <div className="w-full lg:w-1/2 flex items-center justify-center bg-background p-6 sm:p-12">
                 <div className="w-full max-w-md space-y-8 animate-fade-in">
-                    // Mobile Logo
+                    {/* Mobile Logo */}
                     <div className="lg:hidden flex items-center gap-3 justify-center mb-4">
-                        <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center">
+                        <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
                             <Leaf className="w-6 h-6 text-white" />
                         </div>
                         <span className="text-xl font-bold text-foreground tracking-tight">AgriScan Pro</span>
                     </div>
 
-                    // Header
+                    {/* Header */}
                     <div className="text-center lg:text-left">
                         <h1 className="text-3xl font-bold text-foreground tracking-tight">
                             Welcome back
@@ -77,7 +77,7 @@ const Login = () => {
                         </p>
                     </div>
 
-                    // Error Message
+                    {/* Error Message */}
                     {error && (
                         <div className="flex items-center gap-3 p-4 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive">
                             <AlertCircle className="w-5 h-5 shrink-0" />
@@ -85,9 +85,9 @@ const Login = () => {
                         </div>
                     )}
 
-                    // Form
+                    {/* Form */}
                     <form onSubmit={handleSubmit} className="space-y-6">
-                        // Username Field
+                        {/* Username Field */}
                         <div className="space-y-2">
                             <label htmlFor="username" className="block text-sm font-semibold text-foreground">
                                 Username
@@ -109,7 +109,7 @@ const Login = () => {
                             </div>
                         </div>
 
-                        // Password Field
+                        {/* Password Field */}
                         <div className="space-y-2">
                             <div className="flex items-center justify-between">
                                 <label htmlFor="password" className="block text-sm font-semibold text-foreground">
@@ -146,11 +146,11 @@ const Login = () => {
                             </div>
                         </div>
 
-                        // Submit Button
+                        {/* Submit Button */}
                         <button
                             type="submit"
                             disabled={isSubmitting}
-                            className="w-full h-12 rounded-xl gradient-primary text-white font-semibold text-sm
+                            className="w-full h-12 rounded-xl bg-primary text-white font-semibold text-sm
                 hover:opacity-90 active:scale-[0.98] 
                 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background
                 disabled:opacity-60 disabled:cursor-not-allowed disabled:active:scale-100
@@ -168,7 +168,7 @@ const Login = () => {
                         </button>
                     </form>
 
-                    // Divider
+                    {/* Divider */}
                     <div className="relative">
                         <div className="absolute inset-0 flex items-center">
                             <div className="w-full border-t border-border" />
@@ -180,7 +180,7 @@ const Login = () => {
                         </div>
                     </div>
 
-                    // Footer / Register Link
+                    {/* Footer / Register Link */}
                     <div className="text-center pt-2">
                         <Link
                             to="/register"
@@ -196,4 +196,3 @@ const Login = () => {
 };
 
 export default Login;
-*/
