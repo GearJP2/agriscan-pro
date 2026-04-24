@@ -140,13 +140,10 @@ export async function beginGoogleOAuth(): Promise<GoogleOAuthStartResponse> {
     credentials: 'include',
   });
 
-  const data = await parseJsonResponse<GoogleOAuthStartResponse>(
+  return parseJsonResponse<GoogleOAuthStartResponse>(
     response,
     'Failed to initialize Google authentication.'
   );
-
-  sessionStorage.setItem('oauth_state', data.state);
-  return data;
 }
 
 export async function exchangeGoogleAuthCode(
@@ -164,13 +161,4 @@ export async function exchangeGoogleAuthCode(
     response,
     'Google authentication failed.',
   );
-}
-
-export function verifyOAuthState(returnedState: string): boolean {
-  const storedState = sessionStorage.getItem('oauth_state');
-  return Boolean(storedState) && storedState === returnedState;
-}
-
-export function clearOAuthState(): void {
-  sessionStorage.removeItem('oauth_state');
 }

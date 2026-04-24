@@ -56,6 +56,9 @@ const App = () => (
                   {/* Protected Routes */}
                   <Route element={<ProtectedRoute minRole="research_assistant" />}>
                     <Route path="/samples" element={<SampleList />} />
+                  </Route>
+
+                  <Route element={<ProtectedRoute minRole="researcher" />}>
                     <Route path="/users" element={<UserManagement />} />
                   </Route>
 

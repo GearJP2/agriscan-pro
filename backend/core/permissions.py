@@ -1,6 +1,37 @@
 from rest_framework import permissions
 
-SAMPLE_ACCESS_ROLES = {'admin', 'head_researcher', 'researcher', 'research_assistant'}
+ADMIN_ROLES = {"admin"}
+ADMIN_OR_RESEARCH_ROLES = {"admin", "head_researcher", "researcher"}
+SAMPLE_ACCESS_ROLES = {"admin", "head_researcher", "researcher", "research_assistant"}
+
+
+def _is_authenticated_with_role(user, allowed_roles: set[str]) -> bool:
+    """Return whether the user is authenticated and matches one of the allowed roles."""
+    if not user or not user.is_authenticated:
+        return False
+
+    if user.is_superuser or user.is_staff:
+        return True
+
+    return getattr(user, "role", None) in allowed_roles
+
+
+class IsAdmin(permissions.BasePermission):
+    """Allow access only to admin users."""
+
+    message = "Only admin users can perform this action."
+
+    def has_permission(self, request, _view):
+        return _is_authenticated_with_role(request.user, ADMIN_ROLES)
+
+
+class IsAdminOrResearchRole(permissions.BasePermission):
+    """Allow access only to admin, head_researcher, and researcher roles."""
+
+    message = "You do not have permission to view the user directory."
+
+    def has_permission(self, request, _view):
+        return _is_authenticated_with_role(request.user, ADMIN_OR_RESEARCH_ROLES)
 
 
 class IsOwnerOrAdmin(permissions.BasePermission):
@@ -13,15 +44,11 @@ class IsOwnerOrAdmin(permissions.BasePermission):
     """
 
     def has_permission(self, request, _view):
-        return (
-            request.user
-            and request.user.is_authenticated
-            and request.user.role in SAMPLE_ACCESS_ROLES
-        )
+        return _is_authenticated_with_role(request.user, SAMPLE_ACCESS_ROLES)
 
     def has_object_permission(self, request, view, obj):
         # Admin, Head Researcher, and Researcher have full access to any lab work
-        if request.user.role in ['admin', 'head_researcher', 'researcher']:
+        if request.user.role in ["admin", "head_researcher", "researcher"]:
             return True
 
         # Read permissions are allowed to any authenticated user

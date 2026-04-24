@@ -4,12 +4,14 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core import mail
 from django.core.cache import cache
-from django.test import TestCase
+from django.core.exceptions import ImproperlyConfigured
+from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
 
 from .models import EmailChangeRequest, PasswordResetOTP
+from .oauth import validate_google_oauth_config
 
 User = get_user_model()
 
@@ -181,26 +183,28 @@ class TokenRefreshTests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("access", response.data)
         self.assertNotIn("refresh", response.data)
+        self.assertIn(self.refresh_cookie_name, response.cookies)
+        self.assertNotEqual(
+            response.cookies[self.refresh_cookie_name].value,
+            self.initial_refresh_token,
+        )
 
-    def test_refresh_accepts_body_token_for_backward_compatibility(self):
-        """The refresh endpoint should still accept a body refresh token."""
-        response = self.client.post(
+    def test_body_only_refresh_token_rejected(self):
+        """The refresh endpoint should reject body tokens without a cookie."""
+        client = APIClient()
+        response = client.post(
             self.refresh_url,
             {"refresh": self.initial_refresh_token},
             format="json",
         )
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn("access", response.data)
-        self.assertNotIn("refresh", response.data)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    def test_invalid_refresh_token_rejected(self):
-        """An invalid refresh token should return 401."""
-        response = self.client.post(
-            self.refresh_url,
-            {"refresh": "not.a.valid.token"},
-            format="json",
-        )
+    def test_invalid_refresh_cookie_rejected(self):
+        """An invalid refresh cookie should return 401."""
+        client = APIClient()
+        client.cookies[self.refresh_cookie_name] = "not.a.valid.token"
+        response = client.post(self.refresh_url, {}, format="json")
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
@@ -217,11 +221,8 @@ class TokenRefreshTests(TestCase):
         self.assertEqual(first_response.status_code, status.HTTP_200_OK)
 
         second_client = APIClient()
-        second_response = second_client.post(
-            self.refresh_url,
-            {"refresh": self.initial_refresh_token},
-            format="json",
-        )
+        second_client.cookies[self.refresh_cookie_name] = self.initial_refresh_token
+        second_response = second_client.post(self.refresh_url, {}, format="json")
 
         self.assertEqual(second_response.status_code, status.HTTP_401_UNAUTHORIZED)
 
@@ -285,6 +286,28 @@ class UserSecurityFieldPermissionTests(TestCase):
             password="StrongPass123!",
             role="researcher",
         )
+        self.head_researcher_user = User.objects.create_user(
+            username="headresearcher",
+            email="headresearcher@example.com",
+            name="Head Researcher User",
+            password="StrongPass123!",
+            role="head_researcher",
+        )
+        self.peer_researcher_user = User.objects.create_user(
+            username="peerresearcher",
+            email="peerresearcher@example.com",
+            name="Peer Researcher User",
+            password="StrongPass123!",
+            role="researcher",
+        )
+        self.admin_target = User.objects.create_user(
+            username="admintarget",
+            email="admintarget@example.com",
+            name="Admin Target",
+            password="StrongPass123!",
+            role="admin",
+            is_staff=True,
+        )
         self.target_user = User.objects.create_user(
             username="targetuser",
             email="target@example.com",
@@ -293,8 +316,8 @@ class UserSecurityFieldPermissionTests(TestCase):
             role="user",
         )
 
-    def test_non_staff_cannot_change_another_users_role(self):
-        """Non-staff users must receive 403 when changing another user's role."""
+    def test_researcher_can_change_lower_rank_users_role(self):
+        """Researchers can change roles for lower-rank non-admin users."""
         client = APIClient()
         client.force_authenticate(user=self.researcher_user)
 
@@ -304,10 +327,10 @@ class UserSecurityFieldPermissionTests(TestCase):
             format="json",
         )
 
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         self.target_user.refresh_from_db()
-        self.assertEqual(self.target_user.role, "user")
+        self.assertEqual(self.target_user.role, "research_assistant")
 
     def test_staff_can_change_another_users_role(self):
         """Staff users should be allowed to change another user's role."""
@@ -325,8 +348,8 @@ class UserSecurityFieldPermissionTests(TestCase):
         self.target_user.refresh_from_db()
         self.assertEqual(self.target_user.role, "research_assistant")
 
-    def test_non_staff_cannot_change_account_status(self):
-        """Non-staff users must receive 403 when changing account status."""
+    def test_researcher_can_change_lower_rank_account_status(self):
+        """Researchers can update account status for lower-rank non-admin users."""
         client = APIClient()
         client.force_authenticate(user=self.researcher_user)
 
@@ -336,10 +359,10 @@ class UserSecurityFieldPermissionTests(TestCase):
             format="json",
         )
 
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         self.target_user.refresh_from_db()
-        self.assertTrue(self.target_user.is_active)
+        self.assertFalse(self.target_user.is_active)
 
     def test_staff_can_change_account_status(self):
         """Staff users should be allowed to activate/deactivate accounts."""
@@ -356,6 +379,50 @@ class UserSecurityFieldPermissionTests(TestCase):
 
         self.target_user.refresh_from_db()
         self.assertFalse(self.target_user.is_active)
+
+    def test_head_researcher_can_change_peer_researcher_role(self):
+        """Head researchers can manage equal-rank or lower non-admin users."""
+        client = APIClient()
+        client.force_authenticate(user=self.head_researcher_user)
+
+        response = client.patch(
+            reverse(self.url_name, kwargs={"pk": self.peer_researcher_user.pk}),
+            {"role": "research_assistant"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.peer_researcher_user.refresh_from_db()
+        self.assertEqual(self.peer_researcher_user.role, "research_assistant")
+
+    def test_researcher_cannot_change_admin_account(self):
+        """Researchers cannot manage admin targets."""
+        client = APIClient()
+        client.force_authenticate(user=self.researcher_user)
+
+        response = client.patch(
+            reverse(self.url_name, kwargs={"pk": self.admin_target.pk}),
+            {"is_active": False},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+        self.admin_target.refresh_from_db()
+        self.assertTrue(self.admin_target.is_active)
+
+    def test_researcher_cannot_delete_user_account(self):
+        """Only admin users can delete accounts."""
+        client = APIClient()
+        client.force_authenticate(user=self.researcher_user)
+
+        response = client.delete(
+            reverse(self.url_name, kwargs={"pk": self.target_user.pk})
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertTrue(User.objects.filter(pk=self.target_user.pk).exists())
 
 
 class UserAccessPermissionTests(TestCase):
@@ -377,6 +444,27 @@ class UserAccessPermissionTests(TestCase):
             password="StrongPass123!",
             role="user",
         )
+        self.researcher_user = User.objects.create_user(
+            username="researcherviewer",
+            email="researcherviewer@example.com",
+            name="Researcher Viewer",
+            password="StrongPass123!",
+            role="researcher",
+        )
+        self.head_researcher_user = User.objects.create_user(
+            username="headview",
+            email="headview@example.com",
+            name="Head Viewer",
+            password="StrongPass123!",
+            role="head_researcher",
+        )
+        self.research_assistant_user = User.objects.create_user(
+            username="assistantviewer",
+            email="assistantviewer@example.com",
+            name="Assistant Viewer",
+            password="StrongPass123!",
+            role="research_assistant",
+        )
         self.other_user = User.objects.create_user(
             username="otheruser",
             email="other@example.com",
@@ -393,6 +481,33 @@ class UserAccessPermissionTests(TestCase):
         response = client.get(reverse("user-list"))
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_research_assistant_cannot_list_users(self):
+        """Research assistants should not be able to view the full user directory."""
+        client = APIClient()
+        client.force_authenticate(user=self.research_assistant_user)
+
+        response = client.get(reverse("user-list"))
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_researcher_can_list_users(self):
+        """Researchers should be able to view the full user directory."""
+        client = APIClient()
+        client.force_authenticate(user=self.researcher_user)
+
+        response = client.get(reverse("user-list"))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_head_researcher_can_list_users(self):
+        """Head researchers should be able to view the full user directory."""
+        client = APIClient()
+        client.force_authenticate(user=self.head_researcher_user)
+
+        response = client.get(reverse("user-list"))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_non_staff_can_retrieve_own_user_record(self):
         """A user should still be able to fetch their own user record."""
@@ -414,6 +529,25 @@ class UserAccessPermissionTests(TestCase):
         response = client.get(reverse("user-detail", kwargs={"pk": self.other_user.pk}))
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_research_assistant_cannot_retrieve_another_user_record(self):
+        """Research assistants should not be able to fetch other users' records."""
+        client = APIClient()
+        client.force_authenticate(user=self.research_assistant_user)
+
+        response = client.get(reverse("user-detail", kwargs={"pk": self.other_user.pk}))
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_head_researcher_can_retrieve_another_user_record(self):
+        """Head researchers should be able to fetch other users' records."""
+        client = APIClient()
+        client.force_authenticate(user=self.head_researcher_user)
+
+        response = client.get(reverse("user-detail", kwargs={"pk": self.other_user.pk}))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["id"], self.other_user.id)
 
     def test_non_staff_cannot_update_another_users_name(self):
         """A user must not be able to update another user's generic account fields."""
@@ -738,6 +872,38 @@ class GoogleOAuthTests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertNotIn("access_token", response.data)
         self.assertNotIn(self.refresh_cookie_name, response.cookies)
+
+
+class GoogleOAuthConfigValidationTests(SimpleTestCase):
+    """Tests for Google OAuth environment validation."""
+
+    def test_allows_missing_credentials_in_debug(self):
+        """Debug mode should allow missing OAuth credentials."""
+        validate_google_oauth_config(
+            client_id="",
+            client_secret="",
+            debug=True,
+            is_testing=False,
+        )
+
+    def test_allows_missing_credentials_while_testing(self):
+        """Tests should be able to import OAuth code without real credentials."""
+        validate_google_oauth_config(
+            client_id="",
+            client_secret="",
+            debug=False,
+            is_testing=True,
+        )
+
+    def test_rejects_missing_credentials_in_production(self):
+        """Production should fail fast when OAuth credentials are missing."""
+        with self.assertRaises(ImproperlyConfigured):
+            validate_google_oauth_config(
+                client_id="",
+                client_secret="",
+                debug=False,
+                is_testing=False,
+            )
 
 
 class AuthorizationTests(TestCase):

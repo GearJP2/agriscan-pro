@@ -1,5 +1,6 @@
 import axios, { AxiosError, AxiosHeaders } from "axios";
 import type { Sample, ProcessLog, RiskLevel } from "@/types/sample";
+import API_BASE_URL from "@/config/api";
 import {
   clearAccessToken,
   getAccessToken,
@@ -7,12 +8,6 @@ import {
 } from "@/lib/tokenStorage";
 import { refreshSession } from "@/lib/authApi";
 import { logger } from "@/lib/logger";
-
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL ||
-  (import.meta.env.DEV
-    ? "http://localhost:8080/api"
-    : "https://agriscan-pro-production.up.railway.app/api");
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,

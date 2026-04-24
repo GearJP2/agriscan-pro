@@ -7,6 +7,7 @@ from typing import Any
 
 from django.conf import settings
 from django.core.cache import cache
+from django.db import transaction
 from rest_framework_simplejwt.token_blacklist.models import (
     BlacklistedToken,
     OutstandingToken,
@@ -16,8 +17,8 @@ logger = logging.getLogger("agriscan.accounts")
 
 OAUTH_STATE_CACHE_PREFIX = "google_oauth_state"
 DEFAULT_OAUTH_STATE_TTL_SECONDS = 300
-USER_SECURITY_FIELD_ROLES = {"admin"}
-USER_DIRECTORY_VIEW_ROLES = {"admin", "head_researcher", "researcher", "research_assistant"}
+USER_SECURITY_FIELD_ROLES = {"admin", "head_researcher", "researcher"}
+USER_DIRECTORY_VIEW_ROLES = {"admin", "head_researcher", "researcher"}
 
 ROLE_WEIGHTS = {
     "guest": 0,
@@ -40,12 +41,23 @@ def build_user_payload(user: Any) -> dict[str, Any]:
     }
 
 
+def is_admin_user(user: Any) -> bool:
+    """Return whether the actor should be treated as a full admin."""
+    if not user or not getattr(user, "is_authenticated", False):
+        return False
+
+    if getattr(user, "is_superuser", False) or getattr(user, "is_staff", False):
+        return True
+
+    return getattr(user, "role", None) == "admin"
+
+
 def can_manage_user_security_fields(user: Any) -> bool:
     """Return whether the actor has generic admin security field privileges."""
     if not user or not getattr(user, "is_authenticated", False):
         return False
 
-    if getattr(user, "is_superuser", False) or getattr(user, "is_staff", False):
+    if is_admin_user(user):
         return True
 
     return getattr(user, "role", None) in USER_SECURITY_FIELD_ROLES
@@ -55,14 +67,17 @@ def can_manage_target_in_hierarchy(actor: Any, target_user: Any, new_role: str |
     """Check if actor can modify the target user based on role weights."""
     if not actor or not target_user:
         return False
-        
+
     actor_weight = ROLE_WEIGHTS.get(getattr(actor, "role", "guest"), 0)
     target_weight = ROLE_WEIGHTS.get(getattr(target_user, "role", "guest"), 0)
-    
+
     # Admins can do anything
-    if can_manage_user_security_fields(actor):
+    if is_admin_user(actor):
         return True
-        
+
+    if not can_manage_user_security_fields(actor):
+        return False
+
     # Can't edit admins if you aren't one
     if getattr(target_user, "role", None) == "admin":
         return False
@@ -70,11 +85,11 @@ def can_manage_target_in_hierarchy(actor: Any, target_user: Any, new_role: str |
     # Actor must be equal or higher rank than the target's current rank
     if actor_weight < target_weight:
         return False
-        
+
     # If proposing a new role, the new role cannot be higher than actor's rank
     if new_role and ROLE_WEIGHTS.get(new_role, 0) > actor_weight:
         return False
-        
+
     return True
 
 
@@ -83,7 +98,7 @@ def can_view_user_directory(user: Any) -> bool:
     if not user or not getattr(user, "is_authenticated", False):
         return False
 
-    if getattr(user, "is_superuser", False) or getattr(user, "is_staff", False):
+    if is_admin_user(user):
         return True
 
     return getattr(user, "role", None) in USER_DIRECTORY_VIEW_ROLES
@@ -117,13 +132,26 @@ def blacklist_all_user_tokens(user: Any) -> int:
     if not user:
         return 0
 
-    blacklisted_count = 0
-    for outstanding_token in OutstandingToken.objects.filter(user=user):  # type: ignore[attr-defined]
-        _, created = BlacklistedToken.objects.get_or_create(token=outstanding_token)  # type: ignore[attr-defined]
-        if created:
-            blacklisted_count += 1
+    with transaction.atomic():
+        outstanding_tokens = list(
+            OutstandingToken.objects.select_for_update().filter(user=user)  # type: ignore[attr-defined]
+        )
+        existing_blacklisted_ids = set(
+            BlacklistedToken.objects.filter(token__in=outstanding_tokens)  # type: ignore[attr-defined]
+            .values_list("token_id", flat=True)
+        )
+        tokens_to_blacklist = [
+            BlacklistedToken(token=outstanding_token)
+            for outstanding_token in outstanding_tokens
+            if outstanding_token.id not in existing_blacklisted_ids
+        ]
+        if tokens_to_blacklist:
+            BlacklistedToken.objects.bulk_create(  # type: ignore[attr-defined]
+                tokens_to_blacklist,
+                ignore_conflicts=True,
+            )
 
-    return blacklisted_count
+    return len(tokens_to_blacklist)
 
 
 def get_refresh_cookie_name() -> str:
@@ -182,18 +210,8 @@ def clear_refresh_cookie(response: Any) -> None:
 
 
 def get_refresh_token_from_request(request: Any) -> str | None:
-    """Read a refresh token from the request body first, then cookies."""
-    request_data = getattr(request, "data", None)
-    if isinstance(request_data, dict):
-        body_token = request_data.get("refresh")
-        if body_token:
-            return body_token
-
-    cookie_token = request.COOKIES.get(get_refresh_cookie_name())
-    if cookie_token:
-        return cookie_token
-
-    return None
+    """Read a refresh token from the configured httpOnly cookie."""
+    return request.COOKIES.get(get_refresh_cookie_name())
 
 
 def get_oauth_state_ttl_seconds() -> int:

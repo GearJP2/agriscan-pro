@@ -22,6 +22,7 @@ from typing import cast
 
 from corsheaders.defaults import default_headers
 from dotenv import load_dotenv
+from django.core.exceptions import ImproperlyConfigured
 
 # Load environment variables from .env file (only for local development if not already provided by host)
 if not os.environ.get("DB_HOST"):
@@ -145,8 +146,8 @@ AWS_ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID")
 AWS_SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY")
 AWS_STORAGE_BUCKET_NAME = os.environ.get("AWS_STORAGE_BUCKET_NAME")
 AWS_S3_REGION_NAME = os.environ.get("AWS_S3_REGION_NAME", "ap-southeast-1")
-AWS_S3_FILE_OVERWRITE = False  # ชื่อง้ำ → เพิ่ม suffix อัตโนมัติ
-AWS_DEFAULT_ACL = None  # ไม่ใช้ ACL ใช้ bucket policy แทน
+AWS_S3_FILE_OVERWRITE = False  # Auto-append suffix if name collision
+AWS_DEFAULT_ACL = None  # Use bucket policy instead of ACL
 AWS_S3_SIGNATURE_VERSION = "s3v4"
 
 STORAGES = {
@@ -307,6 +308,8 @@ CORS_ALLOW_HEADERS = list(default_headers) + [
     "x-api-key",
 ]
 
+FORCE_SSL = os.environ.get("FORCE_SSL", "False") == "True"
+
 JWT_USE_HTTPONLY_REFRESH_COOKIE = (
     os.environ.get("JWT_USE_HTTPONLY_REFRESH_COOKIE", "True") == "True"
 )
@@ -323,6 +326,40 @@ JWT_REFRESH_COOKIE_SAMESITE = os.environ.get(
 )
 GOOGLE_OAUTH_STATE_TTL_SECONDS = int(
     os.environ.get("GOOGLE_OAUTH_STATE_TTL_SECONDS", "300")
+)
+
+
+def validate_refresh_cookie_security_config(
+    *,
+    debug: bool,
+    refresh_cookie_samesite: str,
+    refresh_cookie_secure: bool,
+    force_ssl: bool,
+) -> None:
+    """
+    Reject direct-HTTP development combinations that cannot support SameSite=None cookies.
+
+    Production is allowed to keep Secure cookies with FORCE_SSL disabled because
+    CloudFront terminates browser-facing HTTPS before forwarding to EB over HTTP.
+    """
+    if (
+        debug
+        and refresh_cookie_samesite.lower() == "none"
+        and refresh_cookie_secure
+        and not force_ssl
+    ):
+        raise ImproperlyConfigured(
+            "JWT refresh cookies cannot use SameSite=None with Secure=True while "
+            "DEBUG=True and FORCE_SSL=False. Use HTTPS locally, enable FORCE_SSL, "
+            "or switch SameSite/Secure to a local-safe combination."
+        )
+
+
+validate_refresh_cookie_security_config(
+    debug=DEBUG,
+    refresh_cookie_samesite=JWT_REFRESH_COOKIE_SAMESITE,
+    refresh_cookie_secure=JWT_REFRESH_COOKIE_SECURE,
+    force_ssl=FORCE_SSL,
 )
 
 REST_FRAMEWORK = {
@@ -367,7 +404,7 @@ if not DEBUG:
     # Set FORCE_SSL environment variable to True to enable HTTPS redirection
     # IMPORTANT: Only enable this if your Load Balancer or Proxy handles SSL correctly.
     # On AWS EB direct domains, forcing SSL will break connectivity unless an ALB with a cert is used.
-    SECURE_SSL_REDIRECT = os.environ.get("FORCE_SSL", "False") == "True"
+    SECURE_SSL_REDIRECT = FORCE_SSL
 
     # If we are not forcing SSL, ensure we don't send HSTS headers either
     # which would force the browser to use HTTPS even if we don't redirect.

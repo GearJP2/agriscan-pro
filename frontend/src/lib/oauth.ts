@@ -17,10 +17,8 @@ import { jwtDecode } from "jwt-decode";
 
 import {
   beginGoogleOAuth,
-  clearOAuthState,
   exchangeGoogleAuthCode,
   refreshSession,
-  verifyOAuthState,
   type AuthenticatedUser,
   type GoogleOAuthCallbackResponse,
 } from "@/lib/authApi";
@@ -94,12 +92,6 @@ export const generateRandomState = (): string => {
   );
 };
 
-export const generateGoogleAuthURL = (_state: string): string => {
-  throw new Error(
-    "Direct Google auth URL generation is disabled. Use initGoogleOAuth() instead.",
-  );
-};
-
 export const exchangeAuthCode = async (
   code: string,
   state: string,
@@ -131,7 +123,7 @@ export const initGoogleOAuth = async (): Promise<void> => {
 };
 
 export const verifyState = (returnedState: string): boolean => {
-  return verifyOAuthState(returnedState);
+  return Boolean(returnedState);
 };
 
 export const handleOAuthCallback = async (
@@ -139,8 +131,8 @@ export const handleOAuthCallback = async (
   state: string,
 ): Promise<OAuthTokenResponse | null> => {
   try {
-    if (!verifyOAuthState(state)) {
-      throw new Error("Invalid OAuth state.");
+    if (!state) {
+      throw new Error("Missing OAuth state.");
     }
 
     const response: GoogleOAuthCallbackResponse = await exchangeGoogleAuthCode(
@@ -156,11 +148,9 @@ export const handleOAuthCallback = async (
     };
 
     storeAuthTokens(payload);
-    clearOAuthState();
 
     return payload;
   } catch {
-    clearOAuthState();
     return null;
   }
 };

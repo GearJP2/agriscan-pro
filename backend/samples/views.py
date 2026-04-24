@@ -1,25 +1,28 @@
 import logging
-from django.db import IntegrityError
-from rest_framework import viewsets, status, filters
-from rest_framework.decorators import action
-from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
-from django.db.models import Q, Count
+
 from celery.result import AsyncResult
-from .models import Sample, ProcessLog, MycotoxinResult
-from .serializers import (
-    SampleSerializer,
-    SampleListSerializer,
-    SampleCreateUpdateSerializer,
-    ProcessLogSerializer,
-    MycotoxinResultSerializer,
-)
+from django.db import IntegrityError
+from django.db.models import Count, Q
+from rest_framework.decorators import action
+from rest_framework import filters, status, viewsets
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+
 from core.exceptions import SampleAlreadyExists
-from .services.s3_service import generate_upload_url
-from .tasks import process_sample_file
-from .utils import generate_sequential_sample_id, extract_sequence_from_sample_id
+from core.permissions import IsAdmin, IsOwnerOrAdmin
+
+from .models import MycotoxinResult, ProcessLog, Sample
 from .services.ingestion_service import SampleIngestionService
-from core.permissions import IsOwnerOrAdmin
+from .services.s3_service import generate_upload_url
+from .serializers import (
+    MycotoxinResultSerializer,
+    ProcessLogSerializer,
+    SampleCreateUpdateSerializer,
+    SampleListSerializer,
+    SampleSerializer,
+)
+from .tasks import process_sample_file
+from .utils import extract_sequence_from_sample_id, generate_sequential_sample_id
 
 logger = logging.getLogger('agriscan.samples')
 
@@ -36,6 +39,11 @@ class SampleViewSet(viewsets.ModelViewSet):
     ordering_fields = ['collection_date', 'created_at', 'status']
     ordering = ['-collection_date']
     lookup_field = 'sample_id'
+
+    def get_permissions(self):
+        if self.action == 'destroy':
+            return [IsAuthenticated(), IsAdmin()]
+        return [permission() for permission in self.permission_classes]
 
     def get_serializer_class(self):
         if self.action == 'list':
@@ -91,11 +99,6 @@ class SampleViewSet(viewsets.ModelViewSet):
         logger.info('sample.updated', extra={'sample_id': sample.sample_id, 'user': self.request.user.username})
 
     def destroy(self, request, *args, **kwargs):
-        if not (request.user.is_superuser or getattr(request.user, 'role', None) == 'admin'):
-            return Response(
-                {'detail': 'You do not have permission to delete samples. Admin access required.'},
-                status=status.HTTP_403_FORBIDDEN,
-            )
         instance = self.get_object()
         # Collect audit data before CASCADE deletion removes related records
         process_log_count = instance.process_logs.count()
@@ -363,4 +366,3 @@ class SampleViewSet(viewsets.ModelViewSet):
         )
         samples_qs.delete()
         return Response({'deleted': count, 'not_found': not_found}, status=status.HTTP_200_OK)
-

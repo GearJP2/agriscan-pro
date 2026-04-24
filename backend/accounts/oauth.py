@@ -6,10 +6,12 @@ import logging
 import os
 import secrets
 from typing import Any
+from urllib.parse import urlencode
 
 import requests
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ImproperlyConfigured
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
@@ -38,6 +40,38 @@ class GoogleOAuthConfig:
     )
     TOKEN_URL = "https://oauth2.googleapis.com/token"
     USERINFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo"
+
+
+def validate_google_oauth_config(
+    *,
+    client_id: str,
+    client_secret: str,
+    debug: bool,
+    is_testing: bool,
+) -> None:
+    """Require Google OAuth credentials outside debug and test environments."""
+    if debug or is_testing:
+        return
+
+    missing_settings = []
+    if not client_id:
+        missing_settings.append("GOOGLE_CLIENT_ID")
+    if not client_secret:
+        missing_settings.append("GOOGLE_CLIENT_SECRET")
+
+    if missing_settings:
+        raise ImproperlyConfigured(
+            "Missing required Google OAuth settings: "
+            + ", ".join(missing_settings)
+        )
+
+
+validate_google_oauth_config(
+    client_id=GoogleOAuthConfig.CLIENT_ID,
+    client_secret=GoogleOAuthConfig.CLIENT_SECRET,
+    debug=settings.DEBUG,
+    is_testing=bool(getattr(settings, "IS_TESTING", False)),
+)
 
 
 def _access_token_lifetime_seconds() -> int:
@@ -259,8 +293,6 @@ def google_auth_url(request):
     try:
         state = secrets.token_urlsafe(32)
         store_oauth_state(state)
-
-        from urllib.parse import urlencode
 
         params = {
             "client_id": GoogleOAuthConfig.CLIENT_ID,

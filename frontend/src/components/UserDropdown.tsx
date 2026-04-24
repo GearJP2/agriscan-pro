@@ -38,7 +38,7 @@ const UserDropdown = () => {
     { to: "/settings", label: "Settings", icon: Settings },
     { to: "/activity", label: "Activity", icon: FolderOpen },
     { to: "/notifications", label: "Notification", icon: Bell },
-    ...(USER_ROLE_WEIGHT[(role as keyof typeof USER_ROLE_WEIGHT) || "guest"] >= USER_ROLE_WEIGHT.research_assistant
+    ...(USER_ROLE_WEIGHT[(role as keyof typeof USER_ROLE_WEIGHT) || "guest"] >= USER_ROLE_WEIGHT.researcher
       ? [{ to: "/users", label: "Users", icon: Users }]
       : []),
   ];

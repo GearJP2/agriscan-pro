@@ -594,12 +594,28 @@ eb status                            # Check environment health
 ---
 
 ## Last Updated
-- Date: 2026-04-13
-- By: Antigravity
-- Status: Week 1 Auth Hardening complete; backend environment blockers (psutil, SQLite migration) pending resolution
+- Date: 2026-04-24
+- By: Claude Code (Week 1 Security Hardening follow-up review)
+- Status: Week 1 roadmap fixes landed (B1/B2/B3/B7) and follow-up items 21–32 in `task.md` are now complete. Remaining focus is Week 2 quality gates plus the outstanding backend/sample cleanup backlog.
 
 
 ## Pending Actions
+
+### Follow-up from 2026-04-24 review (see [CODE_REVIEW.md](CODE_REVIEW.md))
+- Role policy restored for `admin`, `head_researcher`, and `researcher`; refresh flow is cookie-only and token blacklisting is atomic.
+- Frontend API config now uses CloudFront-routed `/api` in production; stale Railway fallbacks are removed.
+- Shared `IsAdmin` / `IsAdminOrResearchRole` permissions are in place, the OAuth client-side state shim is gone, and Google OAuth credentials now fail fast outside debug/test.
+
+### Cookie / OAuth environment variables (new in this release)
+- `JWT_USE_HTTPONLY_REFRESH_COOKIE` (default `True`) — toggles the httpOnly refresh cookie flow
+- `JWT_REFRESH_COOKIE_NAME` (default `refresh_token`)
+- `JWT_REFRESH_COOKIE_PATH` (default `/api/accounts/`)
+- `JWT_REFRESH_COOKIE_MAX_AGE` (default 7 days)
+- `JWT_REFRESH_COOKIE_SECURE` (default matches `not DEBUG`)
+- `JWT_REFRESH_COOKIE_SAMESITE` (default `Lax` in DEBUG, `None` in production)
+- `GOOGLE_OAUTH_STATE_TTL_SECONDS` (default `300`) — TTL for cached Google OAuth state tokens
+
+### Infra / ops (still open)
 - **DB Migration**: `pg_dump` from Aurora → `psql` restore into `agriscanpro-db` (RDS PostgreSQL 16.1, DB name: `agriscan`)
 - **EB Env Vars**: Update `DB_HOST`, `DB_NAME=agriscan`, `DB_USER`, `DB_PASSWORD` to point at new RDS instance
 - **Cost**: Downgrade `agriscanpro-db` from `db.t4g.small` → `db.t3.micro` before April 30 (AWS credits expire — otherwise ~$43.64/mo)

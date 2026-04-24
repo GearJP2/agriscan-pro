@@ -19,6 +19,15 @@ class SampleTestMixin:
             email='sample@example.com',
             name='Sample User',
             password='StrongPass123!',
+            role='research_assistant',
+        )
+        self.admin_user = User.objects.create_user(
+            username='sampleadmin',
+            email='sampleadmin@example.com',
+            name='Sample Admin',
+            password='StrongPass123!',
+            role='admin',
+            is_staff=True,
         )
         self.client.force_authenticate(user=self.user)
 
@@ -68,11 +77,21 @@ class SampleCRUDTests(SampleTestMixin, TestCase):
             Sample.objects.get(sample_id='TEST-001').status, 'in_progress'
         )
 
-    def test_delete_sample(self):
-        """Deleting a sample should return 204 and remove the record."""
+    def test_non_admin_cannot_delete_sample(self):
+        """Deleting a sample should require admin permissions."""
         Sample.objects.create(**self.sample_data, updated_by=self.user)
         url = reverse('sample-detail', kwargs={'sample_id': 'TEST-001'})
         response = self.client.delete(url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertTrue(Sample.objects.filter(sample_id='TEST-001').exists())
+
+    def test_admin_can_delete_sample(self):
+        """Admins should be able to delete samples."""
+        Sample.objects.create(**self.sample_data, updated_by=self.user)
+        admin_client = APIClient()
+        admin_client.force_authenticate(user=self.admin_user)
+        url = reverse('sample-detail', kwargs={'sample_id': 'TEST-001'})
+        response = admin_client.delete(url)
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
         self.assertFalse(Sample.objects.filter(sample_id='TEST-001').exists())
 
@@ -248,9 +267,11 @@ class SampleCRUDEdgeCaseTests(SampleTestMixin, TestCase):
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_delete_nonexistent_sample_returns_404(self):
-        """DELETE on a sample_id that does not exist should return 404."""
+        """Admins should receive 404 when deleting a sample_id that does not exist."""
         url = reverse('sample-detail', kwargs={'sample_id': 'DOES-NOT-EXIST'})
-        response = self.client.delete(url)
+        admin_client = APIClient()
+        admin_client.force_authenticate(user=self.admin_user)
+        response = admin_client.delete(url)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_create_sample_auto_creates_initial_process_log(self):

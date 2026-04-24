@@ -16,13 +16,13 @@ from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 
+from core.permissions import IsAdmin, IsAdminOrResearchRole
+
 from .auth_helpers import (
     blacklist_all_user_tokens,
     blacklist_refresh_token,
     can_access_user_record,
     can_manage_target_in_hierarchy,
-    can_manage_user_security_fields,
-    can_view_user_directory,
     clear_refresh_cookie,
     get_refresh_token_from_request,
     set_refresh_cookie,
@@ -114,22 +114,17 @@ class CustomTokenRefreshView(generics.GenericAPIView):
         response_data = cast(object, dict(serializer.validated_data))
 
         rotated_refresh_token = _get_mapping_value(response_data, "refresh")
-        if rotated_refresh_token:
-            if should_set_httponly_refresh_cookie():
-                _pop_mutable_mapping_value(response_data, "refresh", None)
-            set_refresh_cookie(
-                response := Response(
-                    cast(dict[str, Any], response_data),
-                    status=status.HTTP_200_OK,
-                ),
-                rotated_refresh_token,
-            )
-        else:
-            response = Response(
-                cast(dict[str, Any], response_data),
-                status=status.HTTP_200_OK,
-            )
-            set_refresh_cookie(response, refresh_token)
+        if not rotated_refresh_token:
+            raise AuthenticationFailed("Token rotation failed.")
+
+        if should_set_httponly_refresh_cookie():
+            _pop_mutable_mapping_value(response_data, "refresh", None)
+
+        response = Response(
+            cast(dict[str, Any], response_data),
+            status=status.HTTP_200_OK,
+        )
+        set_refresh_cookie(response, cast(str, rotated_refresh_token))
 
         logger.info("user.token_refreshed")
         return response
@@ -174,18 +169,21 @@ class RegisterView(generics.CreateAPIView):
 
 
 class UserListView(generics.ListAPIView):
-    permission_classes = (permissions.IsAuthenticated,)
+    permission_classes = (permissions.IsAuthenticated, IsAdminOrResearchRole)
     serializer_class = UserSerializer
 
     def get_queryset(self):
-        if not can_view_user_directory(self.request.user):
-            raise PermissionDenied("Only staff users can view the user directory.")
         return UserRepository.get_all_users()
 
 
 class UserDetailView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = (permissions.IsAuthenticated,)
     serializer_class = UserSerializer
+
+    def get_permissions(self):
+        if self.request.method == "DELETE":
+            return [permissions.IsAuthenticated(), IsAdmin()]
+        return super().get_permissions()
 
     def get_queryset(self):
         return UserRepository.get_all_users()
@@ -244,12 +242,6 @@ class UserDetailView(generics.RetrieveUpdateDestroyAPIView):
                 action="CHANGED_STATUS",
                 details=f"{status_text} user account",
             )
-
-    def destroy(self, request, *args, **kwargs):
-        if not can_manage_user_security_fields(request.user):
-            raise PermissionDenied("Only staff users can delete user accounts.")
-        return super().destroy(request, *args, **kwargs)
-
 
 class RequestOTPView(generics.GenericAPIView):
     permission_classes = (permissions.AllowAny,)

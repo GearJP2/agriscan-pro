@@ -40,7 +40,7 @@ const Header = () => {
     {
       to: "/users",
       label: "Users",
-      minWeight: USER_ROLE_WEIGHT.research_assistant,
+      minWeight: USER_ROLE_WEIGHT.researcher,
     },
   ].filter((link) => {
     const currentWeight = isAuthenticated

@@ -11,11 +11,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 
 import { useAuth } from "@/contexts/AuthContext";
-import {
-  clearOAuthState,
-  exchangeGoogleAuthCode,
-  verifyOAuthState,
-} from "@/lib/authApi";
+import { exchangeGoogleAuthCode } from "@/lib/authApi";
 
 const GoogleAuthCallback = () => {
   const [searchParams] = useSearchParams();
@@ -41,20 +37,12 @@ const GoogleAuthCallback = () => {
           throw new Error("Missing authorization code or state parameter.");
         }
 
-        if (!verifyOAuthState(state)) {
-          throw new Error("Invalid OAuth state. Please try signing in again.");
-        }
-
         const authResponse = await exchangeGoogleAuthCode(code, state);
-
-        clearOAuthState();
 
         await loginWithToken(authResponse.access_token, authResponse.user);
 
         navigate("/", { replace: true });
       } catch (err) {
-        clearOAuthState();
-
         const message =
           err instanceof Error
             ? err.message
