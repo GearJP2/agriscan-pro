@@ -2,6 +2,7 @@ import csv
 import logging
 import re
 from io import TextIOWrapper
+from typing import Iterator
 
 from ..models import MycotoxinResult, ProcessLog, Sample
 
@@ -25,13 +26,19 @@ TOXIN_ALIASES = {
     "don": "DON",
     "deoxynivalenol": "DON",
     "afb1": "AFB1",
+    "aflatoxinb1": "AFB1",
     "afb2": "AFB2",
+    "aflatoxinb2": "AFB2",
     "afg1": "AFG1",
+    "aflatoxing1": "AFG1",
     "afg2": "AFG2",
+    "aflatoxing2": "AFG2",
     "afm1": "AFM1",
+    "aflatoxinm1": "AFM1",
     "af": "AF",
     "aflatoxin": "AF",
     "fb1": "FB1",
+    "fumonisinb1": "FB1",
     "t2": "T-2",
     "t-2": "T-2",
     "zea": "ZEA",
@@ -52,6 +59,22 @@ def get_toxin_unit(canonical: str | None) -> str:
 
 
 class SampleIngestionService:
+    RESULT_METADATA_HEADERS = {
+        "",
+        "sample",
+        "sampleid",
+        "samplecode",
+        "name",
+        "datetime",
+        "analysisdatetime",
+        "analyzedat",
+        "acqdatetime",
+        "acqdate",
+        "time",
+        "date",
+        "finalconc",
+    }
+
     @staticmethod
     def normalize_token(value):
         return re.sub(r"[^a-z0-9]+", "", str(value or "").strip().lower())
@@ -122,12 +145,18 @@ class SampleIngestionService:
             if not val:
                 continue
             norm = cls.normalize_sample_id(val)
-            if not norm or norm in {
-                "NAME",
-                "SAMPLE",
-                "DATE",
-                "DATETIME",
-                "ACQDATETIME",
+            if not norm:
+                continue
+            normalized_token = cls.normalize_token(val)
+            if normalized_token in {
+                "name",
+                "sample",
+                "date",
+                "time",
+                "datetime",
+                "acqdatetime",
+                "acqdate",
+                "finalconc",
             }:
                 continue
             candidates.append((str(val).strip(), norm))
@@ -240,6 +269,21 @@ class SampleIngestionService:
         match = re.search(r"[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?", normalized)
         return float(match.group(0)) if match else None
 
+    @staticmethod
+    def iter_csv_rows(uploaded_file) -> Iterator[dict[str, str]]:
+        """
+        Iterate CSV rows without materializing the entire file in memory.
+
+        The uploaded file is rewound for each pass so callers can do a cheap
+        ID-discovery pass followed by a processing pass.
+        """
+        uploaded_file.file.seek(0)
+        wrapped = TextIOWrapper(uploaded_file.file, encoding="utf-8-sig", newline="")
+        try:
+            yield from csv.DictReader(wrapped)
+        finally:
+            wrapped.detach()
+
     @classmethod
     def extract_results_from_row(cls, row):
         # Backward compatible long format
@@ -270,21 +314,23 @@ class SampleIngestionService:
                 }
             ]
 
-        # New wide format: A sample, B analyzed datetime, C+ result columns
+        # Wide format: include any column whose header resolves to a toxin name.
         results = []
-        items = list((row or {}).items())
-        data_columns = items[2:] if len(items) > 2 else []
-
-        for header, raw_value in data_columns:
+        for header, raw_value in (row or {}).items():
             header_text = str(header or "").strip()
             if not header_text:
+                continue
+            if cls.normalize_token(header_text) in cls.RESULT_METADATA_HEADERS:
+                continue
+
+            canonical = cls.resolve_toxin_name(header_text)
+            if canonical is None:
                 continue
 
             intensity = cls.parse_numeric(raw_value)
             if intensity is None:
                 continue
 
-            canonical = cls.resolve_toxin_name(header_text)
             threshold = get_toxin_threshold(canonical)
             unit = get_toxin_unit(canonical)
             results.append(
@@ -303,12 +349,11 @@ class SampleIngestionService:
 
     @classmethod
     def process_csv_results(cls, uploaded_file, user):
-        wrapped = TextIOWrapper(uploaded_file.file, encoding="utf-8-sig")
-        rows = list(csv.DictReader(wrapped))
-
         csv_display_ids = set()
         normalized_ids = set()
-        for row in rows:
+        rows_processed = 0
+        for row in cls.iter_csv_rows(uploaded_file):
+            rows_processed += 1
             display_id, _ = cls.extract_row_sample_id(row)
             if display_id:
                 csv_display_ids.add(display_id.strip())
@@ -331,7 +376,7 @@ class SampleIngestionService:
         unmatched = set()
         skipped = 0
 
-        for row in rows:
+        for row in cls.iter_csv_rows(uploaded_file):
             display_id, sid = cls.extract_row_sample_id(row)
             if not sid:
                 skipped += 1
@@ -397,7 +442,7 @@ class SampleIngestionService:
             "created": created,
             "updated": updated,
             "samples": len({sample.sample_id for sample, _ in touched_samples}),
-            "rows_processed": len(rows),
+            "rows_processed": rows_processed,
             "skipped_rows": skipped,
             "unmatched_sample_ids": sorted(unmatched),
         }

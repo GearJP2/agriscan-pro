@@ -17,6 +17,16 @@ class MycotoxinResultSerializer(serializers.ModelSerializer):
             'sopLink': obj.sop_link
         } if obj.test_method else None
 
+    def validate_intensity(self, value):
+        """
+        Manual result entry still uses the legacy 1..10 scoring band.
+
+        CSV imports bypass this serializer because they store exact lab values.
+        """
+        if value < 1 or value > 10:
+            raise serializers.ValidationError("Intensity must be between 1 and 10.")
+        return value
+
 
 class ProcessLogSerializer(serializers.ModelSerializer):
     class Meta:
@@ -195,15 +205,11 @@ class SampleListSerializer(serializers.ModelSerializer):
         has_dangerous = any(r.dangerous for r in results)
         if has_dangerous:
             return 'high'
-            
-        max_ratio = 0.0
-        for result in results:
-            if result.threshold and result.threshold > 0:
-                max_ratio = max(max_ratio, float(result.intensity) / float(result.threshold))
 
-        if max_ratio >= 0.75:
+        max_intensity = max(float(result.intensity) for result in results)
+        if max_intensity >= 7:
             return 'medium'
-        if max_ratio > 0:
+        if max_intensity >= 4:
             return 'low'
         return 'safe'
 

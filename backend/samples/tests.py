@@ -1,10 +1,12 @@
 from django.test import TestCase
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.core.files.uploadedfile import SimpleUploadedFile
 from rest_framework.test import APIClient
 from rest_framework import status
 from django.contrib.auth import get_user_model
-from .models import Sample
+from .models import MycotoxinResult, ProcessLog, Sample
 
 User = get_user_model()
 
@@ -224,6 +226,45 @@ class SampleFilteringTests(SampleTestMixin, TestCase):
         results = self._get_results(response.data)
         sample_ids = [s['sample_id'] for s in results]
         self.assertIn('FILTER-001', sample_ids)
+
+    def test_list_endpoint_avoids_n_plus_one_queries(self):
+        """Sample list should stay bounded thanks to select_related/prefetch_related."""
+        for index in range(3, 8):
+            sample = Sample.objects.create(
+                sample_id=f'FILTER-00{index}',
+                region='Central',
+                province='Bangkok',
+                district='Chatuchak',
+                vegetation_variety='Rice',
+                collection_date='2026-02-01',
+                status='completed',
+                updated_by=self.user,
+            )
+            ProcessLog.objects.create(
+                sample=sample,
+                state='completed',
+                notes='Completed',
+                conducted_by=self.user.username,
+            )
+            MycotoxinResult.objects.create(
+                sample=sample,
+                name='Aflatoxin B1',
+                intensity=5,
+                dangerous=False,
+                threshold=4.0,
+                unit='ppb',
+            )
+
+        url = reverse('sample-list')
+        with CaptureQueriesContext(connection) as queries:
+            response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertLessEqual(
+            len(queries),
+            6,
+            msg=f"Expected bounded query count, saw {len(queries)} queries.",
+        )
 
     def test_ordering_by_collection_date_desc(self):
         """Default ordering should place the most recent collection_date first."""

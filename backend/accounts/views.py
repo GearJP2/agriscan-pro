@@ -1,7 +1,6 @@
 import datetime
 import logging
 import os
-from collections.abc import Mapping, MutableMapping
 from typing import Any, cast
 
 from django.conf import settings
@@ -44,24 +43,6 @@ from .utils import AttemptLimiter, RateLimiter, generate_otp
 logger = logging.getLogger("agriscan.accounts")
 
 
-def _get_mapping_value(mapping: object, key: str, default: Any = None) -> Any:
-    """Safely read a value from request/response payload-like objects."""
-    if isinstance(mapping, Mapping):
-        return mapping.get(key, default)
-    return default
-
-
-def _pop_mutable_mapping_value(
-    mapping: object,
-    key: str,
-    default: Any = None,
-) -> Any:
-    """Safely pop a value from mutable payload-like objects."""
-    if isinstance(mapping, MutableMapping):
-        return mapping.pop(key, default)
-    return default
-
-
 class CustomTokenObtainPairView(TokenObtainPairView):
     """Issue an access token in the response and store the refresh token in an httpOnly cookie."""
 
@@ -70,12 +51,7 @@ class CustomTokenObtainPairView(TokenObtainPairView):
     def post(self, request, *args, **kwargs):
         response = super().post(request, *args, **kwargs)
 
-        request_data = cast(object, getattr(request, "data", None))
-        username = _get_mapping_value(request_data, "username") or _get_mapping_value(
-            request_data,
-            "email",
-            "unknown",
-        )
+        username = request.data.get("username") or request.data.get("email", "unknown")
 
         if response.status_code != status.HTTP_200_OK:
             logger.warning(
@@ -84,10 +60,10 @@ class CustomTokenObtainPairView(TokenObtainPairView):
             )
             return response
 
-        response_data = cast(object, getattr(response, "data", None))
-        refresh_token = _get_mapping_value(response_data, "refresh")
+        response_data = cast(dict[str, Any], response.data)
+        refresh_token = response_data.get("refresh")
         if refresh_token and should_set_httponly_refresh_cookie():
-            _pop_mutable_mapping_value(response_data, "refresh", None)
+            response_data.pop("refresh", None)
             set_refresh_cookie(response, refresh_token)
 
         logger.info("user.login.success", extra={"username": username})
@@ -111,14 +87,13 @@ class CustomTokenRefreshView(generics.GenericAPIView):
         except TokenError as exc:
             raise AuthenticationFailed(str(exc)) from exc
 
-        response_data = cast(object, dict(serializer.validated_data))
-
-        rotated_refresh_token = _get_mapping_value(response_data, "refresh")
+        response_data = cast(dict[str, Any], dict(serializer.validated_data))
+        rotated_refresh_token = response_data.get("refresh")
         if not rotated_refresh_token:
             raise AuthenticationFailed("Token rotation failed.")
 
         if should_set_httponly_refresh_cookie():
-            _pop_mutable_mapping_value(response_data, "refresh", None)
+            response_data.pop("refresh", None)
 
         response = Response(
             cast(dict[str, Any], response_data),
