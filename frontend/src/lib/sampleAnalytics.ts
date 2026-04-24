@@ -295,7 +295,7 @@ function buildProvinceRiskData(samples: Sample[]) {
 
   return [...groups.entries()].map(([province, provinceSamples]) => {
     const sampleCount = provinceSamples.length;
-    const aboveThresholdCount = provinceSamples.filter((sample) => getRiskLevel(sample) === 'high').length;
+    const aboveThresholdCount = provinceSamples.filter((sample) => getRiskLevel(sample) !== 'safe').length;
     const aboveThresholdPct = toPercent(aboveThresholdCount, sampleCount);
     const toxinCounts = new Map<string, number>();
     const commodityCounts = new Map<string, number>();

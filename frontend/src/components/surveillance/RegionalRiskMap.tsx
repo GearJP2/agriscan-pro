@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { MapContainer, TileLayer, GeoJSON, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { Maximize2, X } from 'lucide-react';
 import type { ProvinceRisk } from '@/types/dashboard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useTheme } from 'next-themes';
@@ -50,7 +52,9 @@ export default function RegionalRiskMap({ selectedProvince, onSelectProvince, pr
   const [geoData, setGeoData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
   const geoJsonRef = useRef<L.GeoJSON | null>(null);
+  const geoJsonFullscreenRef = useRef<L.GeoJSON | null>(null);
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === 'dark';
   const riskLookup = useMemo(() => {
@@ -78,6 +82,14 @@ export default function RegionalRiskMap({ selectedProvince, onSelectProvince, pr
         setLoading(false);
       });
   }, []);
+
+  // Close fullscreen on Escape
+  useEffect(() => {
+    if (!fullscreen) return;
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setFullscreen(false); };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [fullscreen]);
 
   // Match GeoJSON feature to our province risk data using fuzzy name matching
   const findProvinceRisk = useCallback((featureName: string): ProvinceRisk | undefined => {
@@ -160,49 +172,95 @@ export default function RegionalRiskMap({ selectedProvince, onSelectProvince, pr
     );
   }
 
+  const mapContent = (ref: React.MutableRefObject<L.GeoJSON | null>) => (
+    <MapContainer
+      center={[13.7, 100.5]}
+      zoom={6}
+      minZoom={3}
+      maxZoom={10}
+      maxBounds={[[-90, -180], [90, 180]]}
+      maxBoundsViscosity={1.0}
+      style={{ height: '100%', width: '100%', background: isDark ? '#111827' : '#d4dadc' }}
+      zoomControl={false}
+      attributionControl={false}
+    >
+      <TileLayer key={tileUrl} url={tileUrl} attribution="" noWrap />
+      {geoData && (
+        <GeoJSON
+          ref={(r) => { ref.current = r as L.GeoJSON; }}
+          key={`${selectedProvince || 'default'}-${isDark}`}
+          data={geoData}
+          style={style}
+          onEachFeature={onEachFeature}
+        />
+      )}
+      <HighlightProvince province={selectedProvince} geoData={geoData} />
+    </MapContainer>
+  );
+
+  const legend = (
+    <div className="flex items-center gap-4">
+      {Object.entries(RISK_COLORS).map(([level, color]) => (
+        <div key={level} className="flex items-center gap-1.5">
+          <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: color }} />
+          <span className="text-xs text-muted-foreground capitalize">{level}</span>
+        </div>
+      ))}
+    </div>
+  );
+
   return (
-    <Card className="glass-card h-full flex flex-col">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-lg">Regional Risk Map</CardTitle>
-      </CardHeader>
+    <>
+      <Card className="glass-card h-full flex flex-col">
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg">Regional Risk Map</CardTitle>
+            <button
+              onClick={() => setFullscreen(true)}
+              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              title="Fullscreen"
+            >
+              <Maximize2 className="w-4 h-4" />
+            </button>
+          </div>
+        </CardHeader>
 
-      <CardContent className="flex-1 flex flex-col">
-        <div className="flex-1 rounded-lg overflow-hidden relative min-h-[400px]" aria-label="Thailand regional risk choropleth map">
-          <MapContainer
-            center={[13.7, 100.5]}
-            zoom={6}
-            style={{ height: '100%', width: '100%', background: isDark ? '#030712' : '#f8fafc' }}
-            zoomControl={false}
-            attributionControl={false}
-          >
-            <TileLayer
-              key={tileUrl}
-              url={tileUrl}
-              attribution=""
-            />
-            {geoData && (
-              <GeoJSON
-                ref={(ref) => { geoJsonRef.current = ref as L.GeoJSON; }}
-                key={`${selectedProvince || 'default'}-${isDark}`}
-                data={geoData}
-                style={style}
-                onEachFeature={onEachFeature}
-              />
-            )}
-            <HighlightProvince province={selectedProvince} geoData={geoData} />
-          </MapContainer>
-        </div>
+        <CardContent className="flex-1 flex flex-col">
+          <div className="flex-1 rounded-lg overflow-hidden relative min-h-[400px]" aria-label="Thailand regional risk choropleth map">
+            {mapContent(geoJsonRef)}
+          </div>
+          <div className="flex items-center gap-4 mt-3 pt-3 border-t border-border">
+            {legend}
+          </div>
+        </CardContent>
+      </Card>
 
-        {/* Legend */}
-        <div className="flex items-center gap-4 mt-3 pt-3 border-t border-border">
-          {Object.entries(RISK_COLORS).map(([level, color]) => (
-            <div key={level} className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: color }} />
-              <span className="text-xs text-muted-foreground capitalize">{level}</span>
+      {fullscreen && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] flex flex-col"
+          style={{ background: isDark ? '#111827' : '#d4dadc' }}
+        >
+          {/* Fullscreen header */}
+          <div className={`flex items-center justify-between px-4 py-2 ${isDark ? 'bg-gray-900' : 'bg-white'} border-b border-border`}>
+            <span className="font-semibold text-foreground">Regional Risk Map</span>
+            <div className="flex items-center gap-4">
+              {legend}
+              <button
+                onClick={() => setFullscreen(false)}
+                className="ml-4 p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                title="Close (Esc)"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
+          </div>
+          {/* Fullscreen map */}
+          <div className="flex-1">
+            {mapContent(geoJsonFullscreenRef)}
+          </div>
+        </div>,
+        document.body
+      )}
+    </>
   );
 }

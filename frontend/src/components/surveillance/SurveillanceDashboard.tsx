@@ -240,6 +240,7 @@ export default function SurveillanceDashboard() {
                   selectedProvince={selectedProvince}
                   onSelectProvince={setSelectedProvince}
                   provinces={analytics.topProvinces}
+                  allProvinces={analytics.provinceRiskData}
                   toxinColors={analytics.toxinColors}
                 />
               </div>
