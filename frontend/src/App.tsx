@@ -1,85 +1,123 @@
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
+import { lazy, Suspense, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { Loader2 } from "lucide-react";
 import { ThemeProvider } from "next-themes";
-import { AuthProvider } from "@/contexts/AuthContext";
-import Dashboard from "@/components/surveillance/SurveillanceDashboard";
-import Footer from "@/components/Footer";
-import NotFound from "./pages/NotFound";
+import { BrowserRouter, Route, Routes } from "react-router-dom";
 
-import Homepage from "./pages/Homepage";
-import SampleList from "@/features/samples/components/SampleList";
-import Prediction from "./pages/Prediction";
-import Doc from "./pages/Doc";
-import UserManagement from "@/features/users/components/UserManagement";
-import Profile from "./pages/Profile";
-import Settings from "./pages/Settings";
-import Activity from "./pages/Activity";
-import Notifications from "./pages/Notifications";
-import VerifyEmail from "./pages/VerifyEmail";
-import GoogleAuthCallback from "./pages/GoogleAuthCallback";
-import ProtectedRoute from "./components/ProtectedRoute";
+import Footer from "@/components/Footer";
 import Header from "@/components/Header";
+import ProtectedRoute from "@/components/ProtectedRoute";
+import { RouteErrorBoundary } from "@/components/ErrorBoundary";
+import { Toaster as Sonner } from "@/components/ui/sonner";
+import { Toaster } from "@/components/ui/toaster";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { AuthProvider } from "@/contexts/AuthContext";
 
 const queryClient = new QueryClient();
 
-const App = () => (
+const Dashboard = lazy(
+  () => import("@/components/surveillance/SurveillanceDashboard"),
+);
+const Homepage = lazy(() => import("./pages/Homepage"));
+const Doc = lazy(() => import("./pages/Doc"));
+const Prediction = lazy(() => import("./pages/Prediction"));
+const SampleList = lazy(
+  () => import("@/features/samples/components/SampleList"),
+);
+const UserManagement = lazy(
+  () => import("@/features/users/components/UserManagement"),
+);
+const Profile = lazy(() => import("./pages/Profile"));
+const Settings = lazy(() => import("./pages/Settings"));
+const Activity = lazy(() => import("./pages/Activity"));
+const Notifications = lazy(() => import("./pages/Notifications"));
+const VerifyEmail = lazy(() => import("./pages/VerifyEmail"));
+const GoogleAuthCallback = lazy(() => import("./pages/GoogleAuthCallback"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+
+export const RouteLoadingFallback = () => (
+  <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3 bg-background px-6 text-center">
+    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+    <div className="space-y-1">
+      <p className="text-sm font-medium text-foreground">Loading page</p>
+      <p className="text-sm text-muted-foreground">
+        Pulling the next view into place.
+      </p>
+    </div>
+  </div>
+);
+
+export const AppProviders = ({ children }: { children: ReactNode }) => (
   <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <TooltipProvider>
           <Toaster />
           <Sonner />
-          <BrowserRouter
-            future={{
-              v7_startTransition: true,
-              v7_relativeSplatPath: true,
-            }}
-          >
-            <div className="flex flex-col min-h-screen">
-              <Header />
-              <div className="flex-1 flex flex-col">
-                <Routes>
-                  {/* Public Routes */}
-                  <Route path="/" element={<Homepage />} />
-                  <Route path="/doc" element={<Doc />} />
-                  <Route path="/dashboard" element={<Dashboard />} />
-                  <Route
-                    path="/auth/google/callback"
-                    element={<GoogleAuthCallback />}
-                  />
-                  <Route path="/prediction" element={<Prediction />} />
-                  <Route path="/verify-email" element={<VerifyEmail />} />
-
-                  {/* Protected Routes */}
-                  <Route element={<ProtectedRoute minRole="research_assistant" />}>
-                    <Route path="/samples" element={<SampleList />} />
-                  </Route>
-
-                  <Route element={<ProtectedRoute minRole="researcher" />}>
-                    <Route path="/users" element={<UserManagement />} />
-                  </Route>
-
-                  <Route element={<ProtectedRoute />}>
-                    <Route path="/profile" element={<Profile />} />
-                    <Route path="/settings" element={<Settings />} />
-                    <Route path="/activity" element={<Activity />} />
-                    <Route path="/notifications" element={<Notifications />} />
-                  </Route>
-
-                  {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-                  <Route path="*" element={<NotFound />} />
-                </Routes>
-              </div>
-              <Footer />
-            </div>
-          </BrowserRouter>
+          {children}
         </TooltipProvider>
       </AuthProvider>
     </QueryClientProvider>
   </ThemeProvider>
+);
+
+export const AppRoutes = () => (
+  <Routes>
+    <Route path="/" element={<Homepage />} />
+    <Route path="/doc" element={<Doc />} />
+    <Route path="/dashboard" element={<Dashboard />} />
+    <Route path="/auth/google/callback" element={<GoogleAuthCallback />} />
+    <Route path="/prediction" element={<Prediction />} />
+    <Route path="/verify-email" element={<VerifyEmail />} />
+
+    <Route element={<ProtectedRoute minRole="research_assistant" />}>
+      <Route path="/samples" element={<SampleList />} />
+    </Route>
+
+    <Route element={<ProtectedRoute minRole="researcher" />}>
+      <Route path="/users" element={<UserManagement />} />
+    </Route>
+
+    <Route element={<ProtectedRoute />}>
+      <Route path="/profile" element={<Profile />} />
+      <Route path="/settings" element={<Settings />} />
+      <Route path="/activity" element={<Activity />} />
+      <Route path="/notifications" element={<Notifications />} />
+    </Route>
+
+    <Route path="*" element={<NotFound />} />
+  </Routes>
+);
+
+export const AppLayout = () => (
+  <div className="flex min-h-screen flex-col">
+    <Header />
+    <div className="flex flex-1 flex-col">
+      <RouteErrorBoundary>
+        <Suspense fallback={<RouteLoadingFallback />}>
+          <AppRoutes />
+        </Suspense>
+      </RouteErrorBoundary>
+    </div>
+    <Footer />
+  </div>
+);
+
+const AppRouter = () => (
+  <BrowserRouter
+    future={{
+      v7_startTransition: true,
+      v7_relativeSplatPath: true,
+    }}
+  >
+    <AppLayout />
+  </BrowserRouter>
+);
+
+const App = () => (
+  <AppProviders>
+    <AppRouter />
+  </AppProviders>
 );
 
 export default App;

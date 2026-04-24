@@ -17,8 +17,11 @@ import {
 } from "@/lib/authApi";
 import {
   clearAccessToken,
+  clearSessionHint,
   getAccessToken,
+  hasSessionHint,
   setAccessToken,
+  setSessionHint,
 } from "@/lib/tokenStorage";
 import type { UserRole } from "@/types/user";
 
@@ -64,12 +67,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const isAdmin =
     isAuthenticated && (role === "admin" || role === "head_researcher");
 
-  const clearAuthState = useCallback(() => {
-    clearAccessToken();
+  const clearLocalUserState = useCallback(() => {
     setUser(null);
     setRole("guest");
     setIsAuthenticated(false);
   }, []);
+
+  const clearAuthState = useCallback(() => {
+    clearAccessToken();
+    clearSessionHint();
+    clearLocalUserState();
+  }, [clearLocalUserState]);
 
   const applyAuthenticatedUser = useCallback((nextUser: AuthenticatedUser) => {
     setUser(nextUser);
@@ -80,6 +88,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const hydrateSession = useCallback(
     async (accessToken: string, knownUser?: AuthenticatedUser) => {
       setAccessToken(accessToken);
+      setSessionHint();
 
       if (knownUser) {
         applyAuthenticatedUser(knownUser);
@@ -104,6 +113,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           await hydrateSession(existingToken);
         } else {
           clearAccessToken();
+
+          if (!hasSessionHint()) {
+            if (isMounted) {
+              clearLocalUserState();
+            }
+            return;
+          }
+
           const refreshed = await refreshSession();
           await hydrateSession(refreshed.access);
         }
@@ -123,7 +140,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return () => {
       isMounted = false;
     };
-  }, [clearAuthState, hydrateSession]);
+  }, [clearAuthState, clearLocalUserState, hydrateSession]);
 
   const login = useCallback(
     async (username: string, password: string) => {
@@ -173,9 +190,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
+    clearAccessToken();
+    if (!hasSessionHint()) {
+      clearLocalUserState();
+      return;
+    }
+
     const refreshed = await refreshSession();
     await hydrateSession(refreshed.access);
-  }, [hydrateSession]);
+  }, [clearLocalUserState, hydrateSession]);
 
   return (
     <AuthContext.Provider

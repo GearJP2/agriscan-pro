@@ -69,10 +69,10 @@ const SampleList = () => {
                 vegetation_variety: sample.vegetation_variety,
                 collection_date: sample.collection_date,
                 status: sample.status || 'pending',
-                purpose: sample.purpose || null,  // Let backend default to 'routine'
-                sample_type: sample.sample_type || null,  // Let backend default to 'field'
-                processing_type: sample.processing_type || null,  // Let backend default to 'raw'
-                collected_by: sample.collected_by || null,  // Let backend default to 'Imported'
+                purpose: sample.purpose || undefined,
+                sample_type: sample.sample_type || undefined,
+                processing_type: sample.processing_type || undefined,
+                collected_by: sample.collected_by || undefined,
                 additional_info: sample.additional_info || '',
             }));
             return sampleAPI.bulkCreateSamples(cleanedSamples);
@@ -80,26 +80,6 @@ const SampleList = () => {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['samples-list'] });
             queryClient.invalidateQueries({ queryKey: ['samples-dashboard'] });
-        },
-    });
-
-    const deleteSampleMutation = useMutation({
-        mutationFn: (sampleId: string) => sampleAPI.deleteSample(sampleId),
-        onSuccess: (_data, sampleId) => {
-            queryClient.invalidateQueries({ queryKey: ['samples-list'] });
-            queryClient.invalidateQueries({ queryKey: ['samples-dashboard'] });
-            toast({
-                title: 'Sample Deleted',
-                description: `Sample ${sampleId} and all related records have been permanently deleted.`,
-            });
-        },
-        onError: (error: any) => {
-            const detail = error?.response?.data?.detail || 'Failed to delete sample.';
-            toast({
-                title: 'Delete Failed',
-                description: detail,
-                variant: 'destructive',
-            });
         },
     });
 
@@ -186,20 +166,21 @@ const SampleList = () => {
         staleTime: 30000,
     });
 
-    const samples: Sample[] = samplesData?.results || samplesData || [];
+    const samples = useMemo<Sample[]>(() => {
+        return samplesData?.results || samplesData || [];
+    }, [samplesData]);
 
 
 
     // Calculate risk level for a sample
     const getRiskLevel = (sample: Sample): RiskLevel => {
-        if (!sample.mycotoxin_results || sample.mycotoxin_results.length === 0) return 'safe';
-        const hasDangerous = sample.mycotoxin_results.some(r => r.dangerous);
-        if (hasDangerous) return 'high';
-        const maxRatio = Math.max(
-            ...sample.mycotoxin_results.map(r => (r.threshold > 0 ? r.intensity / r.threshold : 0))
-        );
-        if (maxRatio >= 0.75) return 'medium';
-        if (maxRatio > 0) return 'low';
+        const results = sample.mycotoxin_results ?? [];
+        if (results.length === 0) return sample.risk_level || 'safe';
+        if (results.some((result) => result.dangerous)) return 'high';
+
+        const maxIntensity = Math.max(...results.map((result) => result.intensity));
+        if (maxIntensity >= 7) return 'medium';
+        if (maxIntensity >= 4) return 'low';
         return 'safe';
     };
 
@@ -437,7 +418,6 @@ const SampleList = () => {
                             onSelectSample={handleSelectSample} 
                             isAdmin={isAdmin} 
                             isSelectionMode={isSelectionMode}
-                            onDeleteSample={(sampleId) => deleteSampleMutation.mutate(sampleId)} 
                             onBulkDeleteSamples={(sampleIds) => bulkDeleteSamplesMutation.mutate(sampleIds)} 
                         />
                     )}

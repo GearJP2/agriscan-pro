@@ -1,8 +1,7 @@
 import { useState, FormEvent, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Eye, EyeOff, Leaf, AlertCircle, Loader2 } from "lucide-react";
-import API_BASE_URL from "@/config/api";
-import { beginGoogleOAuth } from "@/lib/authApi";
+import { beginGoogleOAuth, registerAccount } from "@/lib/authApi";
 import {
   Dialog,
   DialogContent,
@@ -109,31 +108,13 @@ const LoginModal = () => {
     setIsSubmitting(true);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/accounts/register/`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          name,
-          username,
-          email,
-          password,
-          verify_password: verifyPassword,
-        }),
+      await registerAccount({
+        name,
+        username,
+        email,
+        password,
+        verify_password: verifyPassword,
       });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        const errorMsg = Object.entries(data)
-          .map(([key, value]) => {
-            const messages = Array.isArray(value) ? value.join(" ") : value;
-            return `${key.charAt(0).toUpperCase() + key.slice(1)}: ${messages}`;
-          })
-          .join("\n");
-        throw new Error(errorMsg || "Registration failed.");
-      }
 
       // Automatic login after successful registration or switch to sign-in modal
       setMode("signin");

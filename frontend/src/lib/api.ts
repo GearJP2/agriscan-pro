@@ -3,27 +3,44 @@ import type { Sample, ProcessLog, RiskLevel } from "@/types/sample";
 import API_BASE_URL from "@/config/api";
 import {
   clearAccessToken,
+  clearSessionHint,
   getAccessToken,
   setAccessToken,
+  setSessionHint,
 } from "@/lib/tokenStorage";
-import { refreshSession } from "@/lib/authApi";
 import { logger } from "@/lib/logger";
 
-const apiClient = axios.create({
+const baseClientConfig = {
   baseURL: API_BASE_URL,
   timeout: 30000,
   withCredentials: true,
   headers: {
     "Content-Type": "application/json",
   },
-});
+} as const;
+
+export const publicApiClient = axios.create(baseClientConfig);
+export const apiClient = axios.create(baseClientConfig);
+
+type RefreshSessionResponse = {
+  access: string;
+};
+
+const requestSessionRefresh = async (): Promise<RefreshSessionResponse> => {
+  const response = await publicApiClient.post<RefreshSessionResponse>(
+    "/accounts/login/refresh/",
+    {},
+  );
+
+  return response.data;
+};
 
 apiClient.interceptors.request.use(
   (config) => {
     const token = getAccessToken();
 
     if (token) {
-      config.headers = config.headers ?? new AxiosHeaders();
+      config.headers = AxiosHeaders.from(config.headers);
       config.headers.set("Authorization", `Bearer ${token}`);
     }
 
@@ -59,7 +76,9 @@ apiClient.interceptors.response.use(
     return response;
   },
   async (error) => {
-    const originalRequest = error.config;
+    const originalRequest = error.config as
+      | (NonNullable<AxiosError["config"]> & { _retry?: boolean })
+      | undefined;
     logger.warn("api.request_failed", {
       url: originalRequest?.url,
       status: error.response?.status,
@@ -75,8 +94,9 @@ apiClient.interceptors.response.use(
         return new Promise((resolve, reject) => {
           failedQueue.push({
             resolve: (token: string) => {
-              originalRequest.headers =
-                originalRequest.headers ?? new AxiosHeaders();
+              originalRequest.headers = AxiosHeaders.from(
+                originalRequest.headers,
+              );
               originalRequest.headers.set("Authorization", `Bearer ${token}`);
               resolve(apiClient(originalRequest));
             },
@@ -89,10 +109,11 @@ apiClient.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        const data = await refreshSession();
+        const data = await requestSessionRefresh();
         setAccessToken(data.access);
+        setSessionHint();
 
-        originalRequest.headers = originalRequest.headers ?? new AxiosHeaders();
+        originalRequest.headers = AxiosHeaders.from(originalRequest.headers);
         originalRequest.headers.set("Authorization", `Bearer ${data.access}`);
 
         processQueue(null, data.access);
@@ -100,6 +121,7 @@ apiClient.interceptors.response.use(
       } catch (refreshError) {
         processQueue(refreshError, null);
         clearAccessToken();
+        clearSessionHint();
         window.location.href = "/";
         return Promise.reject(refreshError);
       } finally {

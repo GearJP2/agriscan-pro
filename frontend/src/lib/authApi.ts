@@ -1,6 +1,8 @@
-import API_BASE_URL from '@/config/api';
-import { logger } from '@/lib/logger';
-import type { UserRole } from '@/types/user';
+import axios from "axios";
+
+import { apiClient, publicApiClient } from "@/lib/api";
+import { logger } from "@/lib/logger";
+import type { UserRole } from "@/types/user";
 
 export interface AuthenticatedUser {
   id: string | number;
@@ -32,7 +34,15 @@ export interface GoogleOAuthCallbackResponse {
   user: AuthenticatedUser;
 }
 
-interface ApiErrorEnvelope {
+export interface RegisterRequest {
+  name: string;
+  username: string;
+  email: string;
+  password: string;
+  verify_password: string;
+}
+
+interface ApiErrorEnvelope extends Record<string, unknown> {
   error?: {
     message?: string;
     details?: Record<string, unknown>;
@@ -40,125 +50,155 @@ interface ApiErrorEnvelope {
   detail?: string;
 }
 
-const JSON_HEADERS = {
-  'Content-Type': 'application/json',
-};
-
 function flattenValidationDetails(details: Record<string, unknown>): string {
   return Object.entries(details)
     .map(([field, value]) => {
-      const message = Array.isArray(value) ? value.join(' ') : String(value);
+      const message = Array.isArray(value) ? value.join(" ") : String(value);
       return `${field}: ${message}`;
     })
-    .join('; ');
+    .join("; ");
 }
 
-async function parseApiError(response: Response, fallbackMessage: string): Promise<Error> {
-  try {
-    const data = (await response.json()) as ApiErrorEnvelope;
+function flattenTopLevelApiErrors(data: ApiErrorEnvelope): string {
+  return Object.entries(data)
+    .filter(
+      ([field]) =>
+        !["error", "detail", "status", "timestamp"].includes(field),
+    )
+    .map(([field, value]) => {
+      const message = Array.isArray(value) ? value.join(" ") : String(value);
+      return `${field}: ${message}`;
+    })
+    .join("; ");
+}
 
-    if (data?.error?.details && typeof data.error.details === 'object') {
+function toApiError(error: unknown, fallbackMessage: string): Error {
+  if (!axios.isAxiosError(error)) {
+    return error instanceof Error ? error : new Error(fallbackMessage);
+  }
+
+  const responseData = error.response?.data;
+  if (typeof responseData === "string" && responseData.trim()) {
+    return new Error(responseData);
+  }
+
+  if (responseData && typeof responseData === "object") {
+    const data = responseData as ApiErrorEnvelope;
+
+    if (data.error?.details && typeof data.error.details === "object") {
       const detailsMessage = flattenValidationDetails(data.error.details);
-      return new Error(detailsMessage || data.error.message || fallbackMessage);
+      if (detailsMessage) {
+        return new Error(detailsMessage);
+      }
     }
 
-    return new Error(
-      data?.error?.message ||
-      data?.detail ||
-      fallbackMessage
+    const topLevelMessage = flattenTopLevelApiErrors(data);
+    if (topLevelMessage) {
+      return new Error(topLevelMessage);
+    }
+
+    if (data.error?.message) {
+      return new Error(data.error.message);
+    }
+
+    if (typeof data.detail === "string" && data.detail.trim()) {
+      return new Error(data.detail);
+    }
+  }
+
+  return new Error(error.message || fallbackMessage);
+}
+
+export async function login(
+  username: string,
+  password: string,
+): Promise<LoginResponse> {
+  try {
+    const response = await publicApiClient.post<LoginResponse>(
+      "/accounts/login/",
+      { username, password },
     );
-  } catch {
-    return new Error(fallbackMessage);
+    return response.data;
+  } catch (error) {
+    throw toApiError(error, "Invalid username or password.");
   }
-}
-
-async function parseJsonResponse<T>(response: Response, fallbackMessage: string): Promise<T> {
-  if (!response.ok) {
-    throw await parseApiError(response, fallbackMessage);
-  }
-
-  return response.json() as Promise<T>;
-}
-
-export async function login(username: string, password: string): Promise<LoginResponse> {
-  const response = await fetch(`${API_BASE_URL}/accounts/login/`, {
-    method: 'POST',
-    headers: JSON_HEADERS,
-    credentials: 'include',
-    body: JSON.stringify({ username, password }),
-  });
-
-  return parseJsonResponse<LoginResponse>(response, 'Invalid username or password.');
 }
 
 export async function refreshSession(): Promise<RefreshResponse> {
-  const response = await fetch(`${API_BASE_URL}/accounts/login/refresh/`, {
-    method: 'POST',
-    headers: JSON_HEADERS,
-    credentials: 'include',
-    body: JSON.stringify({}),
-  });
-
-  return parseJsonResponse<RefreshResponse>(response, 'Unable to refresh session.');
+  try {
+    const response = await publicApiClient.post<RefreshResponse>(
+      "/accounts/login/refresh/",
+      {},
+    );
+    return response.data;
+  } catch (error) {
+    throw toApiError(error, "Unable to refresh session.");
+  }
 }
 
 export async function logoutSession(): Promise<void> {
   try {
-    const response = await fetch(`${API_BASE_URL}/accounts/logout/`, {
-      method: 'POST',
-      headers: JSON_HEADERS,
-      credentials: 'include',
-      body: JSON.stringify({}),
-    });
-
-    if (!response.ok) {
-      throw await parseApiError(response, 'Unable to log out.');
-    }
+    await publicApiClient.post("/accounts/logout/", {});
   } catch (error) {
-    logger.warn('auth.logout.failed', {
-      error: error instanceof Error ? error.message : 'unknown_error',
+    const apiError = toApiError(error, "Unable to log out.");
+    logger.warn("auth.logout.failed", {
+      error: apiError.message,
     });
-    throw error;
+    throw apiError;
   }
 }
 
-export async function fetchCurrentUser(accessToken: string, userId: string | number): Promise<AuthenticatedUser> {
-  const response = await fetch(`${API_BASE_URL}/accounts/users/${userId}/`, {
-    method: 'GET',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-    },
-    credentials: 'include',
-  });
-
-  return parseJsonResponse<AuthenticatedUser>(response, 'Failed to fetch user details.');
+export async function fetchCurrentUser(
+  accessToken: string,
+  userId: string | number,
+): Promise<AuthenticatedUser> {
+  try {
+    const response = await apiClient.get<AuthenticatedUser>(
+      `/accounts/users/${userId}/`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      },
+    );
+    return response.data;
+  } catch (error) {
+    throw toApiError(error, "Failed to fetch user details.");
+  }
 }
 
 export async function beginGoogleOAuth(): Promise<GoogleOAuthStartResponse> {
-  const response = await fetch(`${API_BASE_URL}/accounts/google-auth/`, {
-    method: 'GET',
-    credentials: 'include',
-  });
-
-  return parseJsonResponse<GoogleOAuthStartResponse>(
-    response,
-    'Failed to initialize Google authentication.'
-  );
+  try {
+    const response = await publicApiClient.get<GoogleOAuthStartResponse>(
+      "/accounts/google-auth/",
+    );
+    return response.data;
+  } catch (error) {
+    throw toApiError(error, "Failed to initialize Google authentication.");
+  }
 }
 
 export async function exchangeGoogleAuthCode(
   code: string,
   state: string,
 ): Promise<GoogleOAuthCallbackResponse> {
-  const response = await fetch(`${API_BASE_URL}/accounts/google-callback/`, {
-    method: 'POST',
-    headers: JSON_HEADERS,
-    credentials: 'include',
-    body: JSON.stringify({ code, state }),
-  });
+  try {
+    const response = await publicApiClient.post<GoogleOAuthCallbackResponse>(
+      "/accounts/google-callback/",
+      { code, state },
+    );
+    return response.data;
+  } catch (error) {
+    throw toApiError(error, "Google authentication failed.");
+  }
+}
 
-  return parseJsonResponse<GoogleOAuthCallbackResponse>(
-    response,
-    'Google authentication failed.',
-  );
+export async function registerAccount(
+  payload: RegisterRequest,
+): Promise<void> {
+  try {
+    await publicApiClient.post("/accounts/register/", payload);
+  } catch (error) {
+    throw toApiError(error, "Registration failed.");
+  }
 }

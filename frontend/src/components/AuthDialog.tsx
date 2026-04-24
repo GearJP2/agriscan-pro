@@ -10,8 +10,7 @@
 import { useState, FormEvent, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Eye, EyeOff, Leaf, AlertCircle, Loader2, Check } from "lucide-react";
-import API_BASE_URL from "@/config/api";
-import { beginGoogleOAuth } from "@/lib/authApi";
+import { beginGoogleOAuth, registerAccount } from "@/lib/authApi";
 import {
   Dialog,
   DialogContent,
@@ -178,29 +177,13 @@ const AuthDialog = () => {
     }
 
     try {
-      const response = await fetch(`${API_BASE_URL}/accounts/register/`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: formState.name,
-          username: formState.username,
-          email: formState.email,
-          password: formState.password,
-          verify_password: formState.verifyPassword,
-        }),
+      await registerAccount({
+        name: formState.name,
+        username: formState.username,
+        email: formState.email,
+        password: formState.password,
+        verify_password: formState.verifyPassword,
       });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        const errorMsg = Object.entries(data)
-          .map(([key, value]) => {
-            const messages = Array.isArray(value) ? value.join(" ") : value;
-            return `${key}: ${messages}`;
-          })
-          .join("; ");
-        throw new Error(errorMsg || "Registration failed");
-      }
 
       setUIState((prev) => ({
         ...prev,

@@ -2,8 +2,10 @@
  * Data import utilities for parsing complex research files
  * Handles mycotoxin data and auto-mapping to system fields\n */
 
+import type { ProcessingType, Sample } from '@/types/sample';
+
 // Valid options for dropdowns
-const PROCESSING_TYPES = ['raw', 'dried', 'milled', 'processed', 'fermented'];
+const PROCESSING_TYPES = ['raw', 'dried', 'milled', 'processed', 'fermented'] as const satisfies readonly ProcessingType[];
 
 /**
  * Calculate similarity between two strings (0-1, where 1 is exact match)
@@ -72,8 +74,17 @@ const getEditDistance = (s1: string, s2: string): number => {
 /**
  * Find best matching choice from a list of valid options
  */
-const findBestMatch = (value: string, validChoices: string[]): string => {
-  if (!value || !validChoices.length) return validChoices[0] || '';
+const findBestMatch = <T extends string>(
+  value: string,
+  validChoices: readonly T[],
+): T => {
+  if (!validChoices.length) {
+    throw new Error('validChoices must contain at least one option');
+  }
+
+  if (!value) {
+    return validChoices[0];
+  }
   
   let bestMatch = validChoices[0];
   let bestScore = calculateSimilarity(value, validChoices[0]);
@@ -98,10 +109,10 @@ export interface ParsedSampleWithResults {
     district: string;
     vegetation_variety: string;
     collection_date: string;
-    status?: 'pending' | 'in_progress' | 'completed' | 'flagged';
-    purpose?: string;
-    sample_type: string;
-    processing_type: string;
+    status?: Sample['status'];
+    purpose?: Sample['purpose'];
+    sample_type?: Sample['sample_type'];
+    processing_type?: Sample['processing_type'];
     collected_by?: string;
     additional_info?: string;
   };
