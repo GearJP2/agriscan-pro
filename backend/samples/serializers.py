@@ -17,16 +17,6 @@ class MycotoxinResultSerializer(serializers.ModelSerializer):
             'sopLink': obj.sop_link
         } if obj.test_method else None
 
-    def validate_intensity(self, value):
-        """
-        Manual result entry still uses the legacy 1..10 scoring band.
-
-        CSV imports bypass this serializer because they store exact lab values.
-        """
-        if value < 1 or value > 10:
-            raise serializers.ValidationError("Intensity must be between 1 and 10.")
-        return value
-
 
 class ProcessLogSerializer(serializers.ModelSerializer):
     class Meta:

@@ -391,6 +391,10 @@ class SampleViewSet(viewsets.ModelViewSet):
         found_ids = list(samples_qs.values_list('sample_id', flat=True))
         not_found = [sid for sid in sample_ids if sid not in found_ids]
         count = samples_qs.count()
+
+        # Delete first so the operation succeeds even if audit logging fails
+        samples_qs.delete()
+
         logger.warning(
             'sample.bulk_deleted',
             extra={
@@ -401,17 +405,19 @@ class SampleViewSet(viewsets.ModelViewSet):
             },
         )
 
-        AuditLog.objects.create(
-            actor=request.user,
-            action='bulk_delete',
-            model_name='Sample',
-            object_id=','.join(found_ids),
-            changes={
-                'count': count,
-                'sample_ids': found_ids,
-                'not_found': not_found,
-            },
-        )
+        try:
+            AuditLog.objects.create(
+                actor=request.user,
+                action='bulk_delete',
+                model_name='Sample',
+                object_id=','.join(found_ids),
+                changes={
+                    'count': count,
+                    'sample_ids': found_ids,
+                    'not_found': not_found,
+                },
+            )
+        except Exception as audit_exc:
+            logger.error('auditlog.write_failed', extra={'action': 'bulk_delete', 'error': str(audit_exc)})
 
-        samples_qs.delete()
         return Response({'deleted': count, 'not_found': not_found}, status=status.HTTP_200_OK)
