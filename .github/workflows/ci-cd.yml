@@ -1,0 +1,204 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Check for file changes
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'backend/**'
+              - '.github/workflows/**'
+            frontend:
+              - 'frontend/**'
+              - '.github/workflows/**'
+
+  backend-test:
+    needs: changes
+    # Run if backend files changed, or if manually triggered
+    if: ${{ needs.changes.outputs.backend == 'true' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install backend dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+          pip install pip-audit
+
+      - name: Run dependency scan (backend)
+        working-directory: backend
+        run: |
+          # Continue on error so we don't instantly break the build if vulnerable deps exist.
+          pip-audit || echo "::warning::pip-audit found vulnerabilities"
+
+      - name: Run backend tests
+        working-directory: backend
+        env:
+          DB_ENGINE: sqlite
+          DEBUG: "False"
+          USE_LOCAL_MEMORY_CACHE: "True"
+        run: |
+          python manage.py test accounts.tests core.tests samples.tests
+
+  frontend-test:
+    needs: changes
+    # Run if frontend files changed, or if manually triggered
+    if: ${{ needs.changes.outputs.frontend == 'true' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Run dependency scan (frontend)
+        working-directory: frontend
+        run: npm audit --audit-level=high || echo "::warning::npm audit found vulnerabilities"
+
+      - name: Lint frontend
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Typecheck frontend
+        working-directory: frontend
+        run: npm run typecheck
+
+      - name: Run frontend smoke tests
+        working-directory: frontend
+        env:
+          DEPLOY_TARGET: aws
+        run: npm run smoke
+
+      - name: Build frontend
+        working-directory: frontend
+        env:
+          DEPLOY_TARGET: aws
+          NODE_ENV: production
+          VITE_API_BASE_URL: /api
+        run: npm run build
+
+  deploy-backend:
+    needs: backend-test
+    # Only deploy on pushes to main (not PRs), and only if backend-test was successful
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install EB CLI
+        run: |
+          python -m pip install --upgrade pip
+          pip install awsebcli
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-southeast-1
+
+      - name: Deploy to Elastic Beanstalk
+        run: |
+          cd backend
+          eb deploy Agriscanpro-backend-env
+
+  deploy-frontend:
+    needs: frontend-test
+    # Only deploy on pushes to main (not PRs), and only if frontend-test was successful
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Dependencies
+        run: npm ci
+        working-directory: frontend
+
+      - name: Build (Static — AWS target)
+        run: npx vite build
+        working-directory: frontend
+        env:
+          DEPLOY_TARGET: aws
+          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
+          NODE_ENV: production
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION || 'ap-southeast-1' }}
+
+      - name: Sync Assets to S3
+        run: |
+          aws s3 sync frontend/dist/ s3://${{ secrets.S3_FRONTEND_BUCKET }}/ \
+            --delete \
+            --exclude "index.html" \
+            --cache-control "public, max-age=31536000, immutable"
+
+      - name: Upload index.html to S3
+        run: |
+          aws s3 cp frontend/dist/index.html \
+            s3://${{ secrets.S3_FRONTEND_BUCKET }}/index.html \
+            --cache-control "no-cache, no-store, must-revalidate" \
+            --content-type "text/html"
+
+      - name: Invalidate CloudFront Cache
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} \
+            --paths "/*"
+
+      - name: Deployment Summary
+        run: |
+          echo "Frontend deployed to S3 bucket: ${{ secrets.S3_FRONTEND_BUCKET }}"
+          echo "CloudFront cache invalidated for distribution: ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}"
