@@ -45,6 +45,7 @@ agents-orchestrator/
 
 # Local review/analysis docs (not for repo)
 CODE_REVIEW.md
+task.md
 
 # IDE & Editor
 .vscode/
