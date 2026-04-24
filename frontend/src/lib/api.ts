@@ -1,6 +1,5 @@
 import axios, { AxiosError, AxiosHeaders } from "axios";
 import type { Sample, ProcessLog, RiskLevel } from "@/types/sample";
-import API_BASE_URL from "@/config/api";
 import {
   clearAccessToken,
   clearSessionHint,
@@ -9,6 +8,13 @@ import {
   setSessionHint,
 } from "@/lib/tokenStorage";
 import { logger } from "@/lib/logger";
+
+// API base URL — set VITE_API_BASE_URL to override (e.g. "http://localhost:8080/api").
+// In production builds the frontend is served behind the same CloudFront origin,
+// so a relative "/api" path is the correct default.
+const API_BASE_URL: string =
+  import.meta.env.VITE_API_BASE_URL ||
+  (import.meta.env.DEV ? "http://localhost:8080/api" : "/api");
 
 const baseClientConfig = {
   baseURL: API_BASE_URL,
