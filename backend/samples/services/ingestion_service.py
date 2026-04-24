@@ -4,6 +4,8 @@ import re
 from io import TextIOWrapper
 from typing import Iterator
 
+from django.db import transaction
+
 from ..models import MycotoxinResult, ProcessLog, Sample
 
 logger = logging.getLogger("agriscan.samples")
@@ -376,67 +378,68 @@ class SampleIngestionService:
         unmatched = set()
         skipped = 0
 
-        for row in cls.iter_csv_rows(uploaded_file):
-            display_id, sid = cls.extract_row_sample_id(row)
-            if not sid:
-                skipped += 1
-                continue
+        with transaction.atomic():
+            for row in cls.iter_csv_rows(uploaded_file):
+                display_id, sid = cls.extract_row_sample_id(row)
+                if not sid:
+                    skipped += 1
+                    continue
 
-            sample = sample_map.get(sid)
-            if not sample:
-                unmatched.add(display_id or sid)
-                continue
+                sample = sample_map.get(sid)
+                if not sample:
+                    unmatched.add(display_id or sid)
+                    continue
 
-            results = cls.extract_results_from_row(row)
-            if not results:
-                skipped += 1
-                continue
+                results = cls.extract_results_from_row(row)
+                if not results:
+                    skipped += 1
+                    continue
 
-            for payload in results:
-                existing = cls.find_existing_result(sample, payload["name"])
-                if existing:
-                    existing.name = cls.clean_toxin_display_name(payload["name"])
-                    existing.intensity = payload["intensity"]
-                    existing.threshold = payload["threshold"]
-                    existing.unit = payload["unit"]
-                    existing.is_detected = payload["is_detected"]
-                    existing.dangerous = payload["dangerous"]
-                    existing.test_method = "Imported CSV"
-                    existing.save()
-                    cls.cleanup_legacy_duplicates(sample, payload["name"], existing.id)
-                    updated += 1
-                else:
-                    created_row = MycotoxinResult._default_manager.create(
-                        sample=sample,
-                        name=cls.clean_toxin_display_name(payload["name"]),
-                        intensity=payload["intensity"],
-                        threshold=payload["threshold"],
-                        unit=payload["unit"],
-                        is_detected=payload["is_detected"],
-                        dangerous=payload["dangerous"],
-                        test_method="Imported CSV",
-                    )
-                    cls.cleanup_legacy_duplicates(
-                        sample, payload["name"], created_row.id
-                    )
-                    created += 1
+                for payload in results:
+                    existing = cls.find_existing_result(sample, payload["name"])
+                    if existing:
+                        existing.name = cls.clean_toxin_display_name(payload["name"])
+                        existing.intensity = payload["intensity"]
+                        existing.threshold = payload["threshold"]
+                        existing.unit = payload["unit"]
+                        existing.is_detected = payload["is_detected"]
+                        existing.dangerous = payload["dangerous"]
+                        existing.test_method = "Imported CSV"
+                        existing.save()
+                        cls.cleanup_legacy_duplicates(sample, payload["name"], existing.id)
+                        updated += 1
+                    else:
+                        created_row = MycotoxinResult._default_manager.create(
+                            sample=sample,
+                            name=cls.clean_toxin_display_name(payload["name"]),
+                            intensity=payload["intensity"],
+                            threshold=payload["threshold"],
+                            unit=payload["unit"],
+                            is_detected=payload["is_detected"],
+                            dangerous=payload["dangerous"],
+                            test_method="Imported CSV",
+                        )
+                        cls.cleanup_legacy_duplicates(
+                            sample, payload["name"], created_row.id
+                        )
+                        created += 1
 
-            touched_samples.add((sample, cls.extract_analyzed_datetime(row)))
+                touched_samples.add((sample, cls.extract_analyzed_datetime(row)))
 
-        for sample, analyzed_at in touched_samples:
-            sample.status = "completed"
-            sample.updated_by = user
-            sample.save()
+            for sample, analyzed_at in touched_samples:
+                sample.status = "completed"
+                sample.updated_by = user
+                sample.save()
 
-            notes = "Mycotoxin results imported from CSV."
-            if analyzed_at:
-                notes = f"{notes} Analyzed at: {analyzed_at}"
-            ProcessLog._default_manager.create(
-                sample=sample,
-                state="completed",
-                conducted_by=user.username,
-                notes=notes,
-            )
+                notes = "Mycotoxin results imported from CSV."
+                if analyzed_at:
+                    notes = f"{notes} Analyzed at: {analyzed_at}"
+                ProcessLog._default_manager.create(
+                    sample=sample,
+                    state="completed",
+                    conducted_by=user.username,
+                    notes=notes,
+                )
 
         return {
             "created": created,

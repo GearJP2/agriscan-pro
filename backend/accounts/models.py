@@ -91,3 +91,5 @@ class EmailChangeRequest(models.Model):
     def __str__(self):
         user = cast(User, cast(object, self.user))
         return f"Email change to {self.new_email} for {user.email}"
+
+

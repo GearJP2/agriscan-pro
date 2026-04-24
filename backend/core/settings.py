@@ -20,9 +20,10 @@ from importlib.util import find_spec
 from pathlib import Path
 from typing import cast
 
+from django.core.exceptions import ImproperlyConfigured
+
 from corsheaders.defaults import default_headers
 from dotenv import load_dotenv
-from django.core.exceptions import ImproperlyConfigured
 
 # Load environment variables from .env file (only for local development if not already provided by host)
 if not os.environ.get("DB_HOST"):
@@ -73,6 +74,7 @@ INSTALLED_APPS = [
     "rest_framework_simplejwt.token_blacklist",
     "corsheaders",
     "storages",
+    "core.apps.CoreConfig",
     "accounts",
     "samples",
 ]
@@ -279,31 +281,28 @@ STATIC_ROOT = BASE_DIR / "staticfiles"  # collectstatic output directory for EB/
 
 AUTH_USER_MODEL = "accounts.User"
 
-# In production, set CORS_ALLOWED_ORIGINS to comma-separated list of allowed frontend URLs
-# e.g. "https://agriscan-pro.pages.dev,https://agriscan.yourdomain.com"
-_CORS_ORIGINS = os.environ.get("CORS_ALLOWED_ORIGINS", "")
-CORS_ALLOWED_ORIGINS = []
+# ─── CORS ─────────────────────────────────────────────────────────────────────
+# Set CORS_ALLOWED_ORIGINS to a comma-separated list of allowed frontend URLs in
+# production, e.g. "https://agriscan-pro.pages.dev,https://agriscan.yourdomain.com".
+# Local/CloudFront defaults are always included so that dev environments work
+# out-of-the-box.
+
 CORS_ALLOW_ALL_ORIGINS = DEBUG or os.environ.get("CORS_ALLOW_ALL") == "True"
-
-if not CORS_ALLOW_ALL_ORIGINS and _CORS_ORIGINS:
-    CORS_ALLOWED_ORIGINS = [o.strip() for o in _CORS_ORIGINS.split(",") if o.strip()]
-
 CORS_ALLOW_CREDENTIALS = True
 
-# Add common local development and CloudFront origins if not already present
-_EXTRA_ORIGINS = [
+_LOCAL_ORIGINS = [
     "https://d27isnumffqap.cloudfront.net",
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     "http://localhost:3000",
 ]
+_ENV_ORIGINS = [
+    o.strip()
+    for o in os.environ.get("CORS_ALLOWED_ORIGINS", "").split(",")
+    if o.strip()
+]
+CORS_ALLOWED_ORIGINS = list(dict.fromkeys(_ENV_ORIGINS + _LOCAL_ORIGINS))  # dedupe, order-preserving
 
-for origin in _EXTRA_ORIGINS:
-    if origin not in CORS_ALLOWED_ORIGINS:
-        CORS_ALLOWED_ORIGINS.append(origin)
-
-
-# Additional CORS configuration
 CORS_ALLOW_HEADERS = list(default_headers) + [
     "x-api-key",
 ]
