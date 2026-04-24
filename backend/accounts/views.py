@@ -42,6 +42,14 @@ from .utils import AttemptLimiter, RateLimiter, generate_otp
 
 logger = logging.getLogger("agriscan.accounts")
 
+# ─── Tunable constants ────────────────────────────────────────────────────────
+MAX_OTP_REQUESTS = 3
+OTP_REQUEST_PERIOD_SEC = 3600
+MAX_OTP_VERIFY_ATTEMPTS = 5
+OTP_VERIFY_PERIOD_SEC = 3600
+OTP_EXPIRY_MINUTES = 10
+EMAIL_CHANGE_EXPIRY_HOURS = 24
+
 
 class CustomTokenObtainPairView(TokenObtainPairView):
     """Issue an access token in the response and store the refresh token in an httpOnly cookie."""
@@ -132,6 +140,8 @@ class LogoutView(generics.GenericAPIView):
 
 
 class RegisterView(generics.CreateAPIView):
+    """Create a new user account (public endpoint)."""
+
     permission_classes = (permissions.AllowAny,)
     serializer_class = RegisterSerializer
 
@@ -144,6 +154,8 @@ class RegisterView(generics.CreateAPIView):
 
 
 class UserListView(generics.ListAPIView):
+    """List all users.  Restricted to admins and research-role users."""
+
     permission_classes = (permissions.IsAuthenticated, IsAdminOrResearchRole)
     serializer_class = UserSerializer
 
@@ -152,6 +164,12 @@ class UserListView(generics.ListAPIView):
 
 
 class UserDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """Retrieve, update, or delete a single user.
+
+    Retrieval and updates are allowed for the user themselves or a sufficiently
+    privileged admin.  Deletion is admin-only.
+    """
+
     permission_classes = (permissions.IsAuthenticated,)
     serializer_class = UserSerializer
 
@@ -219,6 +237,8 @@ class UserDetailView(generics.RetrieveUpdateDestroyAPIView):
             )
 
 class RequestOTPView(generics.GenericAPIView):
+    """Send a one-time password to the user's registered email for password reset."""
+
     permission_classes = (permissions.AllowAny,)
     serializer_class = PasswordResetRequestSerializer
 
@@ -236,8 +256,8 @@ class RequestOTPView(generics.GenericAPIView):
 
         if not RateLimiter.is_allowed(
             f"otp_request:{user.id}",
-            max_requests=3,
-            period_seconds=3600,
+            max_requests=MAX_OTP_REQUESTS,
+            period_seconds=OTP_REQUEST_PERIOD_SEC,
         ):
             return Response(
                 {"detail": "Too many requests. Please try again later."},
@@ -249,12 +269,12 @@ class RequestOTPView(generics.GenericAPIView):
         PasswordResetOTP.objects.create(
             user=user,
             otp_hash=PasswordResetOTP.hash_otp(otp_code),
-            expiry=timezone.now() + datetime.timedelta(minutes=10),
+            expiry=timezone.now() + datetime.timedelta(minutes=OTP_EXPIRY_MINUTES),
         )
 
         send_mail(
             "Your AgriScan Pro OTP",
-            f"Your OTP for password reset is: {otp_code}. It will expire in 10 minutes.",
+            f"Your OTP for password reset is: {otp_code}. It will expire in {OTP_EXPIRY_MINUTES} minutes.",
             settings.DEFAULT_FROM_EMAIL,
             [email],
             fail_silently=False,
@@ -268,6 +288,8 @@ class RequestOTPView(generics.GenericAPIView):
 
 
 class ResetPasswordOTPView(generics.GenericAPIView):
+    """Verify an OTP and reset the user's password."""
+
     permission_classes = (permissions.AllowAny,)
     serializer_class = PasswordResetSerializer
 
@@ -288,8 +310,8 @@ class ResetPasswordOTPView(generics.GenericAPIView):
 
         if not AttemptLimiter.is_allowed(
             f"otp_verify:{user.id}",
-            max_attempts=5,
-            period_seconds=3600,
+            max_attempts=MAX_OTP_VERIFY_ATTEMPTS,
+            period_seconds=OTP_VERIFY_PERIOD_SEC,
         ):
             return Response(
                 {"detail": "Too many failed attempts. OTP has been invalidated."},
@@ -336,6 +358,12 @@ class ResetPasswordOTPView(generics.GenericAPIView):
 
 
 class ProfileUpdateView(generics.UpdateAPIView):
+    """Let the authenticated user update their own profile (name, email).
+
+    Email changes trigger a verification flow — the new address must be
+    confirmed before it replaces the old one.
+    """
+
     permission_classes = (permissions.IsAuthenticated,)
     serializer_class = ProfileUpdateSerializer
 
@@ -358,7 +386,7 @@ class ProfileUpdateView(generics.UpdateAPIView):
             req = EmailChangeRequest.objects.create(
                 user=instance,
                 new_email=new_email,
-                expiry=timezone.now() + datetime.timedelta(hours=24),
+                expiry=timezone.now() + datetime.timedelta(hours=EMAIL_CHANGE_EXPIRY_HOURS),
             )
 
             frontend_url = os.environ.get("FRONTEND_URL", "http://localhost:5173")
@@ -402,6 +430,8 @@ class ProfileUpdateView(generics.UpdateAPIView):
 
 
 class ConfirmEmailChangeView(generics.GenericAPIView):
+    """Finalize an email change by validating the verification token."""
+
     permission_classes = (permissions.AllowAny,)
     serializer_class = EmailChangeConfirmSerializer
 

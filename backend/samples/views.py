@@ -1,7 +1,7 @@
 import logging
 
 from celery.result import AsyncResult
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 from django.db.models import Count, Q
 from rest_framework.decorators import action
 from rest_framework import filters, status, viewsets
@@ -9,10 +9,12 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from core.exceptions import SampleAlreadyExists
+from core.models import AuditLog
 from core.permissions import IsAdmin, IsOwnerOrAdmin
 
 from .models import MycotoxinResult, ProcessLog, Sample
 from .services.ingestion_service import SampleIngestionService
+from .services.sample_service import SampleService
 from .services.s3_service import generate_upload_url
 from .serializers import (
     MycotoxinResultSerializer,
@@ -22,9 +24,11 @@ from .serializers import (
     SampleSerializer,
 )
 from .tasks import process_sample_file
-from .utils import extract_sequence_from_sample_id, generate_sequential_sample_id
 
 logger = logging.getLogger('agriscan.samples')
+
+# ─── Tunable constants ────────────────────────────────────────────────────────
+BULK_DELETE_LIMIT = 500
 
 
 class SampleViewSet(viewsets.ModelViewSet):
@@ -117,6 +121,20 @@ class SampleViewSet(viewsets.ModelViewSet):
                 'deleted_by': request.user.username,
             },
         )
+
+        AuditLog.objects.create(
+            actor=request.user,
+            action='delete',
+            model_name='Sample',
+            object_id=sample_id,
+            changes={
+                'region': instance.region,
+                'province': instance.province,
+                'process_logs_deleted': process_log_count,
+                'mycotoxin_results_deleted': mycotoxin_count,
+            },
+        )
+
         self.perform_destroy(instance)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -156,70 +174,47 @@ class SampleViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['post'])
     def bulk_create(self, request):
-        """Bulk create samples"""
+        """Bulk create samples, delegating orchestration to the service layer."""
         data = request.data if isinstance(request.data, list) else [request.data]
 
-        # Check for existing sample_ids before validation (returns 409 instead of 400)
-        incoming_ids = [item.get('sample_id') for item in data if isinstance(item, dict) and item.get('sample_id')]
+        # Pre-flight: reject IDs that already exist (409 instead of 400).
+        incoming_ids = [
+            item.get('sample_id')
+            for item in data
+            if isinstance(item, dict) and item.get('sample_id')
+        ]
         if incoming_ids:
-            existing = list(Sample.objects.filter(sample_id__in=incoming_ids).values_list('sample_id', flat=True))
+            existing = list(
+                Sample.objects.filter(sample_id__in=incoming_ids)
+                .values_list('sample_id', flat=True)
+            )
             if existing:
-                raise SampleAlreadyExists(detail=f"Sample ID(s) already exist: {', '.join(existing)}")
+                raise SampleAlreadyExists(
+                    detail=f"Sample ID(s) already exist: {', '.join(existing)}"
+                )
 
         serializer = SampleCreateUpdateSerializer(data=data, many=True)
         if not serializer.is_valid():
-            logger.error('sample.bulk_create.validation_error', extra={'error_count': len(serializer.errors), 'user': self.request.user.username})
+            logger.error(
+                'sample.bulk_create.validation_error',
+                extra={'error_count': len(serializer.errors), 'user': request.user.username},
+            )
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        
-        samples = []
-        for validated_item in serializer.validated_data:
-            sample_id = (validated_item.get('sample_id') or '').strip()
-            collection_date = validated_item.get('collection_date')
-            if not sample_id:
-                generated_id, seq = generate_sequential_sample_id(collection_date)
-                validated_item['sample_id'] = generated_id
-                validated_item['sequence_number'] = seq
-            else:
-                seq = extract_sequence_from_sample_id(sample_id, collection_date.year if collection_date else None)
-                if seq > 0:
-                    validated_item['sequence_number'] = seq
 
-            # Create sample using the serializer's create method to apply defaults
-            # Set defaults for empty/null fields
-            if not validated_item.get('purpose'):
-                validated_item['purpose'] = 'routine'
-            if not validated_item.get('sample_type'):
-                validated_item['sample_type'] = 'field'
-            if not validated_item.get('processing_type'):
-                validated_item['processing_type'] = 'raw'
-            if not validated_item.get('collected_by'):
-                validated_item['collected_by'] = 'Imported'
-            if not validated_item.get('additional_info'):
-                validated_item['additional_info'] = ''
-            
-            # Create sample with updated_by field
-            try:
-                sample = Sample.objects.create(**validated_item, updated_by=request.user)
-            except IntegrityError:
-                raise SampleAlreadyExists(detail=f"Sample ID '{validated_item.get('sample_id')}' already exists.")
-            samples.append(sample)
+        samples = SampleService.bulk_create_samples(
+            serializer.validated_data,
+            user=request.user,
+            batch_size=len(data),
+        )
 
-            # Create initial process log based on imported status.
-            initial_state = 'completed' if sample.status == 'completed' else 'registered'
-            initial_note = (
-                'Bulk imported with recorded results.'
-                if initial_state == 'completed'
-                else f'Bulk imported - {len(data)} samples'
-            )
-            ProcessLog.objects.create(
-                sample=sample,
-                state=initial_state,
-                notes=initial_note,
-                conducted_by=request.user.username or 'System'
-            )
-
-        logger.info('sample.bulk_created', extra={'count': len(samples), 'user': self.request.user.username})
-        return Response(SampleSerializer(samples, many=True).data, status=status.HTTP_201_CREATED)
+        logger.info(
+            'sample.bulk_created',
+            extra={'count': len(samples), 'user': request.user.username},
+        )
+        return Response(
+            SampleSerializer(samples, many=True).data,
+            status=status.HTTP_201_CREATED,
+        )
 
     @action(detail=True, methods=['post'])
     def add_mycotoxin_result(self, request, sample_id=None):
@@ -227,22 +222,23 @@ class SampleViewSet(viewsets.ModelViewSet):
         sample = self.get_object()
         serializer = MycotoxinResultSerializer(data=request.data)
         if serializer.is_valid():
-            result = serializer.save(sample=sample)
+            with transaction.atomic():
+                result = serializer.save(sample=sample)
 
-            # If results are recorded, mark the sample workflow as completed.
-            if sample.status != 'completed':
-                sample.status = 'completed'
-                sample.updated_by = request.user
-                sample.save(update_fields=['status', 'updated_by', 'updated_at'])
+                # If results are recorded, mark the sample workflow as completed.
+                if sample.status != 'completed':
+                    sample.status = 'completed'
+                    sample.updated_by = request.user
+                    sample.save(update_fields=['status', 'updated_by', 'updated_at'])
 
-            latest_log = sample.process_logs.order_by('-timestamp').first()
-            if not latest_log or latest_log.state != 'completed':
-                ProcessLog.objects.create(
-                    sample=sample,
-                    state='completed',
-                    notes='Mycotoxin result(s) recorded and finalized.',
-                    conducted_by=request.user.username or 'System',
-                )
+                latest_log = sample.process_logs.order_by('-timestamp').first()
+                if not latest_log or latest_log.state != 'completed':
+                    ProcessLog.objects.create(
+                        sample=sample,
+                        state='completed',
+                        notes='Mycotoxin result(s) recorded and finalized.',
+                        conducted_by=request.user.username or 'System',
+                    )
 
             logger.info('sample.mycotoxin_result.added', extra={'sample_id': sample.sample_id, 'test_method': result.test_method, 'dangerous': result.dangerous})
             if result.dangerous:
@@ -259,29 +255,42 @@ class SampleViewSet(viewsets.ModelViewSet):
 
         try:
             results = SampleIngestionService.process_csv_results(uploaded_file, request.user)
-            logger.info('sample.bulk_import_results.completed', extra={
-                'matched_samples': results.get('samples', 0),
-                'created_results': results.get('created', 0),
-                'updated_results': results.get('updated', 0),
-                'user': request.user.username
-            })
-            payload = {
-                'rows_processed': results.get('rows_processed', 0),
-                'matched_samples': results.get('samples', 0),
-                'results_created': results.get('created', 0),
-                'results_updated': results.get('updated', 0),
-                'skipped_rows': results.get('skipped_rows', 0),
-                'unmatched_sample_ids': results.get('unmatched_sample_ids', []),
-            }
-            return Response(payload, status=status.HTTP_200_OK)
-        except Exception as e:
-            logger.error('sample.bulk_import_results.failed', extra={'error': str(e)})
-            return Response({'detail': f'Import failed: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        except (ValueError, IntegrityError) as e:
+            logger.error(
+                'sample.bulk_import_results.failed',
+                extra={'error': str(e), 'user': request.user.username},
+            )
+            return Response(
+                {'detail': f'Import failed: {e}'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except Exception:
+            logger.exception('sample.bulk_import_results.unexpected_error')
+            return Response(
+                {'detail': 'An unexpected error occurred during import processing.'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        logger.info('sample.bulk_import_results.completed', extra={
+            'matched_samples': results.get('samples', 0),
+            'created_results': results.get('created', 0),
+            'updated_results': results.get('updated', 0),
+            'user': request.user.username,
+        })
+        payload = {
+            'rows_processed': results.get('rows_processed', 0),
+            'matched_samples': results.get('samples', 0),
+            'results_created': results.get('created', 0),
+            'results_updated': results.get('updated', 0),
+            'skipped_rows': results.get('skipped_rows', 0),
+            'unmatched_sample_ids': results.get('unmatched_sample_ids', []),
+        }
+        return Response(payload, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=['post'])
     def request_upload(self, request):
         """
-        Step 1: Frontend ขอ presigned URL ก่อน upload
+        Step 1: Request a presigned URL for the frontend to upload directly to S3.
         Body: { "filename": "sample.csv", "content_type": "text/csv" }
         Returns: { "upload_url": "...", "key": "mycotoxin-sample/{user}/{filename}" }
         """
@@ -304,7 +313,7 @@ class SampleViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['post'])
     def confirm_upload(self, request):
         """
-        Step 2: Frontend เรียกหลัง PUT ไฟล์ขึ้น S3 สำเร็จ — enqueue Celery task
+        Step 2: Called after the frontend PUTs the file to S3 — enqueue a Celery task.
         Body: { "key": "mycotoxin-sample/{user}/{filename}" }
         Returns: { "task_id": "...", "status": "queued" }
         """
@@ -346,9 +355,9 @@ class SampleViewSet(viewsets.ModelViewSet):
                 {'detail': 'sample_ids must be a non-empty list.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        if len(sample_ids) > 500:
+        if len(sample_ids) > BULK_DELETE_LIMIT:
             return Response(
-                {'detail': 'Cannot delete more than 500 samples at once.'},
+                {'detail': f'Cannot delete more than {BULK_DELETE_LIMIT} samples at once.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         samples_qs = Sample.objects.filter(sample_id__in=sample_ids)
@@ -364,5 +373,18 @@ class SampleViewSet(viewsets.ModelViewSet):
                 'not_found': not_found,
             },
         )
+
+        AuditLog.objects.create(
+            actor=request.user,
+            action='bulk_delete',
+            model_name='Sample',
+            object_id=','.join(found_ids),
+            changes={
+                'count': count,
+                'sample_ids': found_ids,
+                'not_found': not_found,
+            },
+        )
+
         samples_qs.delete()
         return Response({'deleted': count, 'not_found': not_found}, status=status.HTTP_200_OK)
