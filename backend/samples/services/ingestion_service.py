@@ -6,58 +6,10 @@ from typing import Iterator
 
 from django.db import transaction
 
+from ..constants.mycotoxin_constants import resolve_toxin_type
 from ..models import MycotoxinResult, ProcessLog, Sample
 
 logger = logging.getLogger("agriscan.samples")
-
-TOXIN_DEFAULTS = {
-    "AFB1": {"threshold": 5.0, "unit": "ppb"},
-    "AFB2": {"threshold": 5.0, "unit": "ppb"},
-    "AFG1": {"threshold": 5.0, "unit": "ppb"},
-    "AFG2": {"threshold": 5.0, "unit": "ppb"},
-    "AFM1": {"threshold": 0.5, "unit": "ppb"},
-    "AF": {"threshold": 5.0, "unit": "ppb"},
-    "DON": {"threshold": 1000.0, "unit": "ppb"},
-    "FB1": {"threshold": 2000.0, "unit": "ppb"},
-    "T-2": {"threshold": 100.0, "unit": "ppb"},
-    "ZEA": {"threshold": 200.0, "unit": "ppb"},
-    "OTA": {"threshold": 5.0, "unit": "ppb"},
-}
-
-TOXIN_ALIASES = {
-    "don": "DON",
-    "deoxynivalenol": "DON",
-    "afb1": "AFB1",
-    "aflatoxinb1": "AFB1",
-    "afb2": "AFB2",
-    "aflatoxinb2": "AFB2",
-    "afg1": "AFG1",
-    "aflatoxing1": "AFG1",
-    "afg2": "AFG2",
-    "aflatoxing2": "AFG2",
-    "afm1": "AFM1",
-    "aflatoxinm1": "AFM1",
-    "af": "AF",
-    "aflatoxin": "AF",
-    "fb1": "FB1",
-    "fumonisinb1": "FB1",
-    "t2": "T-2",
-    "t-2": "T-2",
-    "zea": "ZEA",
-    "ota": "OTA",
-}
-
-
-def get_toxin_threshold(canonical: str | None) -> float:
-    toxin_defaults = TOXIN_DEFAULTS.get(canonical or "", {})
-    threshold = toxin_defaults.get("threshold", 0.0)
-    return float(threshold)
-
-
-def get_toxin_unit(canonical: str | None) -> str:
-    toxin_defaults = TOXIN_DEFAULTS.get(canonical or "", {})
-    unit = toxin_defaults.get("unit", "ppb")
-    return str(unit)
 
 
 class SampleIngestionService:
@@ -203,16 +155,7 @@ class SampleIngestionService:
 
     @classmethod
     def resolve_toxin_name(cls, value):
-        raw = str(value or "").strip().upper()
-        if raw in TOXIN_DEFAULTS:
-            return raw
-        norm = cls.normalize_token(raw)
-        if norm in TOXIN_ALIASES:
-            return TOXIN_ALIASES[norm]
-        for alias, canonical in TOXIN_ALIASES.items():
-            if alias in norm:
-                return canonical
-        return None
+        return resolve_toxin_type(value)
 
     @staticmethod
     def clean_toxin_display_name(value):
@@ -225,34 +168,11 @@ class SampleIngestionService:
 
     @classmethod
     def find_existing_result(cls, sample, toxin_name):
-        """Find an existing toxin row, including legacy names ending with 'Result(s)'."""
-        clean_name = cls.clean_toxin_display_name(toxin_name)
-        existing = sample.mycotoxin_results.filter(name__iexact=clean_name).first()
-        if existing:
-            return existing
-
-        legacy_patterns = [
-            f"{clean_name} Result",
-            f"{clean_name} Results",
-            f"{clean_name}-Result",
-            f"{clean_name}-Results",
-            f"{clean_name}: Result",
-            f"{clean_name}: Results",
-        ]
-        for legacy_name in legacy_patterns:
-            existing = sample.mycotoxin_results.filter(name__iexact=legacy_name).first()
-            if existing:
-                return existing
-
-        return None
-
-    @classmethod
-    def cleanup_legacy_duplicates(cls, sample, toxin_name, keep_id):
-        clean_name = cls.clean_toxin_display_name(toxin_name)
-        for result in sample.mycotoxin_results.exclude(id=keep_id):
-            if cls.clean_toxin_display_name(result.name).lower() == clean_name.lower():
-                if result.name.strip().lower() != clean_name.lower():
-                    result.delete()
+        """Find an existing result by canonical toxin type."""
+        toxin_type = cls.resolve_toxin_name(toxin_name)
+        if not toxin_type:
+            return None
+        return sample.mycotoxin_results.filter(toxin_type=toxin_type).first()
 
     @staticmethod
     def parse_numeric(value):
@@ -302,17 +222,15 @@ class SampleIngestionService:
             if intensity is None:
                 return []
 
-            threshold = get_toxin_threshold(canonical)
-            unit = get_toxin_unit(canonical)
-            name = cls.clean_toxin_display_name(toxin_key)
+            if canonical is None:
+                return []
+
             return [
                 {
-                    "name": name,
-                    "intensity": intensity,
-                    "is_detected": intensity > 0,
-                    "threshold": threshold,
-                    "unit": unit,
-                    "dangerous": bool(threshold and intensity > threshold),
+                    "toxin_type": canonical,
+                    "value": intensity,
+                    "unit": "ug_kg",
+                    "notes": "Imported CSV",
                 }
             ]
 
@@ -333,17 +251,12 @@ class SampleIngestionService:
             if intensity is None:
                 continue
 
-            threshold = get_toxin_threshold(canonical)
-            unit = get_toxin_unit(canonical)
             results.append(
                 {
-                    # Keep exact column name per updated requirement.
-                    "name": cls.clean_toxin_display_name(header_text),
-                    "intensity": intensity,
-                    "is_detected": intensity > 0,
-                    "threshold": threshold,
-                    "unit": unit,
-                    "dangerous": bool(threshold and intensity > threshold),
+                    "toxin_type": canonical,
+                    "value": intensity,
+                    "unit": "ug_kg",
+                    "notes": f"Imported CSV column: {header_text}",
                 }
             )
 
@@ -377,75 +290,93 @@ class SampleIngestionService:
         touched_samples = set()
         unmatched = set()
         skipped = 0
+        failed_rows = []
 
-        with transaction.atomic():
-            for row in cls.iter_csv_rows(uploaded_file):
-                display_id, sid = cls.extract_row_sample_id(row)
-                if not sid:
-                    skipped += 1
-                    continue
+        for row_number, row in enumerate(cls.iter_csv_rows(uploaded_file), start=1):
+            display_id, sid = cls.extract_row_sample_id(row)
+            if not sid:
+                skipped += 1
+                continue
 
-                sample = sample_map.get(sid)
-                if not sample:
-                    unmatched.add(display_id or sid)
-                    continue
+            sample = sample_map.get(sid)
+            if not sample:
+                unmatched.add(display_id or sid)
+                continue
 
-                results = cls.extract_results_from_row(row)
-                if not results:
-                    skipped += 1
-                    continue
+            results = cls.extract_results_from_row(row)
+            if not results:
+                skipped += 1
+                continue
 
-                for payload in results:
-                    existing = cls.find_existing_result(sample, payload["name"])
-                    if existing:
-                        existing.name = cls.clean_toxin_display_name(payload["name"])
-                        existing.intensity = payload["intensity"]
-                        existing.threshold = payload["threshold"]
-                        existing.unit = payload["unit"]
-                        existing.is_detected = payload["is_detected"]
-                        existing.dangerous = payload["dangerous"]
-                        existing.test_method = "Imported CSV"
-                        existing.save()
-                        cls.cleanup_legacy_duplicates(sample, payload["name"], existing.id)
-                        updated += 1
-                    else:
-                        created_row = MycotoxinResult._default_manager.create(
-                            sample=sample,
-                            name=cls.clean_toxin_display_name(payload["name"]),
-                            intensity=payload["intensity"],
-                            threshold=payload["threshold"],
-                            unit=payload["unit"],
-                            is_detected=payload["is_detected"],
-                            dangerous=payload["dangerous"],
-                            test_method="Imported CSV",
-                        )
-                        cls.cleanup_legacy_duplicates(
-                            sample, payload["name"], created_row.id
-                        )
-                        created += 1
+            try:
+                with transaction.atomic():
+                    created_for_row, updated_for_row = 0, 0
+                    analyzed_at = cls.extract_analyzed_datetime(row)
 
-                touched_samples.add((sample, cls.extract_analyzed_datetime(row)))
+                    # Keep each source row isolated so one failed row does not
+                    # roll back successfully imported rows from the same file.
+                    # See SAMPLE_IMPORT_FORMAT.md for the response contract.
+                    sample.status = "completed"
+                    sample.updated_by = user
+                    sample.save()
 
-            for sample, analyzed_at in touched_samples:
-                sample.status = "completed"
-                sample.updated_by = user
-                sample.save()
+                    notes = "Mycotoxin results imported from CSV."
+                    if analyzed_at:
+                        notes = f"{notes} Analyzed at: {analyzed_at}"
+                    ProcessLog._default_manager.create(
+                        sample=sample,
+                        state="completed",
+                        conducted_by=user.username,
+                        notes=notes,
+                    )
 
-                notes = "Mycotoxin results imported from CSV."
-                if analyzed_at:
-                    notes = f"{notes} Analyzed at: {analyzed_at}"
-                ProcessLog._default_manager.create(
-                    sample=sample,
-                    state="completed",
-                    conducted_by=user.username,
-                    notes=notes,
+                    for payload in results:
+                        existing = sample.mycotoxin_results.filter(
+                            toxin_type=payload["toxin_type"]
+                        ).first()
+                        if existing:
+                            existing.value = payload["value"]
+                            existing.unit = payload["unit"]
+                            existing.notes = payload["notes"]
+                            existing.save()
+                            updated_for_row += 1
+                        else:
+                            MycotoxinResult._default_manager.create(
+                                sample=sample,
+                                toxin_type=payload["toxin_type"],
+                                value=payload["value"],
+                                unit=payload["unit"],
+                                notes=payload["notes"],
+                            )
+                            created_for_row += 1
+
+                    touched_samples.add(sample.sample_id)
+                    created += created_for_row
+                    updated += updated_for_row
+            except Exception as exc:
+                skipped += 1
+                failed_rows.append(
+                    {
+                        "row": row_number,
+                        "sample_id": display_id or sid,
+                        "error": str(exc),
+                    }
+                )
+                logger.warning(
+                    "sample.bulk_import_results.row_failed",
+                    extra={
+                        "row": row_number,
+                        "sample_id": display_id or sid,
+                        "error": str(exc),
+                    },
                 )
 
         return {
             "created": created,
             "updated": updated,
-            "samples": len({sample.sample_id for sample, _ in touched_samples}),
+            "samples": len(touched_samples),
             "rows_processed": rows_processed,
             "skipped_rows": skipped,
             "unmatched_sample_ids": sorted(unmatched),
+            "failed_rows": failed_rows,
         }

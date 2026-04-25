@@ -1,21 +1,109 @@
 from rest_framework import serializers
+from .constants.mycotoxin_constants import (
+    TOXIN_LABELS,
+    resolve_toxin_type,
+)
 from .models import Sample, ProcessLog, MycotoxinResult
 from .utils import generate_sequential_sample_id, extract_sequence_from_sample_id
 
 
 class MycotoxinResultSerializer(serializers.ModelSerializer):
+    name = serializers.SerializerMethodField()
+    intensity = serializers.SerializerMethodField()
+    is_detected = serializers.SerializerMethodField()
+    dangerous = serializers.SerializerMethodField()
+    threshold = serializers.SerializerMethodField()
     method = serializers.SerializerMethodField()
+    is_flagged = serializers.SerializerMethodField()
+    created_at = serializers.SerializerMethodField()
 
     class Meta:
         model = MycotoxinResult
-        fields = ('id', 'name', 'intensity', 'is_detected', 'dangerous', 'threshold', 'unit', 'test_method', 'sop_link', 'method', 'created_at')
-        read_only_fields = ('id', 'created_at', 'method')
+        fields = (
+            'id',
+            'toxin_type',
+            'value',
+            'unit',
+            'risk_level',
+            'eu_threshold_low',
+            'eu_threshold_high',
+            'is_flagged',
+            'timestamp',
+            'notes',
+            # Transitional response aliases for the current frontend.
+            'name',
+            'intensity',
+            'is_detected',
+            'dangerous',
+            'threshold',
+            'method',
+            'created_at',
+        )
+        read_only_fields = (
+            'id',
+            'risk_level',
+            'eu_threshold_low',
+            'eu_threshold_high',
+            'is_flagged',
+            'timestamp',
+            'name',
+            'intensity',
+            'is_detected',
+            'dangerous',
+            'threshold',
+            'method',
+            'created_at',
+        )
+
+    def to_internal_value(self, data):
+        data = data.copy() if hasattr(data, 'copy') else dict(data)
+
+        if not data.get('toxin_type') and data.get('name'):
+            toxin_type = resolve_toxin_type(data.get('name'))
+            if toxin_type:
+                data['toxin_type'] = toxin_type
+
+        if 'value' not in data and 'intensity' in data:
+            data['value'] = data.get('intensity')
+
+        return super().to_internal_value(data)
+
+    def validate_value(self, value):
+        if value is not None and value < 0:
+            raise serializers.ValidationError('Value must be zero or greater.')
+        return value
+
+    def validate_toxin_type(self, value):
+        toxin_type = resolve_toxin_type(value)
+        if not toxin_type:
+            raise serializers.ValidationError('Unknown toxin type.')
+        return toxin_type
+
+    def get_name(self, obj):
+        return TOXIN_LABELS.get(obj.toxin_type, obj.toxin_type)
+
+    def get_intensity(self, obj):
+        return obj.value
+
+    def get_is_detected(self, obj):
+        return obj.is_detected
+
+    def get_dangerous(self, obj):
+        return obj.dangerous
+
+    def get_threshold(self, obj):
+        return obj.eu_threshold_low
+
+    def get_is_flagged(self, obj):
+        return obj.is_flagged_toxin
 
     def get_method(self, obj):
-        return {
-            'name': obj.test_method,
-            'sopLink': obj.sop_link
-        } if obj.test_method else None
+        # DEPRECATED: retained as a null compatibility alias until the
+        # frontend stops reading legacy method metadata.
+        return None
+
+    def get_created_at(self, obj):
+        return obj.timestamp
 
 
 class ProcessLogSerializer(serializers.ModelSerializer):
@@ -191,15 +279,11 @@ class SampleListSerializer(serializers.ModelSerializer):
         results = list(obj.mycotoxin_results.all())
         if not results:
             return 'safe'
-            
-        has_dangerous = any(r.dangerous for r in results)
-        if has_dangerous:
-            return 'high'
 
-        max_intensity = max(float(result.intensity) for result in results)
-        if max_intensity >= 7:
-            return 'medium'
-        if max_intensity >= 4:
+        risk_levels = {result.risk_level for result in results}
+        if risk_levels.intersection({'critical', 'high'}):
+            return 'high'
+        if 'detected' in risk_levels:
             return 'low'
         return 'safe'
 

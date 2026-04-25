@@ -1,5 +1,9 @@
-from django.test import TestCase
-from django.db import connection
+from datetime import date
+from unittest.mock import patch
+
+from django.test import TestCase, TransactionTestCase
+from django.db import IntegrityError, connection
+from django.db.migrations.executor import MigrationExecutor
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -7,8 +11,101 @@ from rest_framework.test import APIClient
 from rest_framework import status
 from django.contrib.auth import get_user_model
 from .models import MycotoxinResult, ProcessLog, Sample
+from .serializers import MycotoxinResultSerializer
 
 User = get_user_model()
+
+
+class MycotoxinResultMigration0010Tests(TransactionTestCase):
+    """Regression coverage for the legacy-result migration path."""
+
+    migrate_from = [
+        ('samples', '0009_alter_mycotoxinresult_id_alter_processlog_id_and_more'),
+    ]
+    migrate_to = [('samples', '0010_mycotoxin_result_risk_level')]
+
+    def setUp(self):
+        super().setUp()
+        self.migrated_forward = False
+        self.executor = MigrationExecutor(connection)
+        self.executor.migrate(self.migrate_from)
+        self.old_apps = self.executor.loader.project_state(self.migrate_from).apps
+
+    def tearDown(self):
+        if not self.migrated_forward:
+            self.executor.migrate(self.migrate_to)
+        super().tearDown()
+
+    def migrate_forward(self):
+        self.executor.loader.build_graph()
+        self.executor.migrate(self.migrate_to)
+        self.migrated_forward = True
+        return self.executor.loader.project_state(self.migrate_to).apps
+
+    def create_legacy_sample(self, sample_id='MIG-001'):
+        Sample = self.old_apps.get_model('samples', 'Sample')
+        return Sample.objects.create(
+            sample_id=sample_id,
+            sequence_number=1,
+            region='Central',
+            province='Bangkok',
+            district='Chatuchak',
+            vegetation_variety='Rice',
+            collection_date=date(2026, 1, 1),
+            status='pending',
+        )
+
+    def test_unknown_legacy_toxin_migrates_to_unknown(self):
+        """Unknown toxin names should remain reviewable, not become AFB1."""
+        sample = self.create_legacy_sample()
+        LegacyResult = self.old_apps.get_model('samples', 'MycotoxinResult')
+        LegacyResult.objects.create(
+            sample=sample,
+            name='Patulin',
+            intensity=200,
+            dangerous=False,
+            threshold=0,
+            unit='ppb',
+        )
+
+        new_apps = self.migrate_forward()
+        Result = new_apps.get_model('samples', 'MycotoxinResult')
+        result = Result.objects.get(sample__sample_id='MIG-001')
+
+        self.assertEqual(result.toxin_type, 'UNKNOWN')
+        self.assertEqual(result.value, 200)
+        self.assertEqual(result.risk_level, 'unclassified')
+        self.assertIn('Patulin', result.notes)
+
+    def test_duplicate_legacy_toxins_keep_highest_value(self):
+        """Duplicate normalized toxins should collapse before the unique index."""
+        sample = self.create_legacy_sample('MIG-002')
+        LegacyResult = self.old_apps.get_model('samples', 'MycotoxinResult')
+        LegacyResult.objects.create(
+            sample=sample,
+            name='Aflatoxin B1',
+            intensity=5,
+            dangerous=False,
+            threshold=5,
+            unit='ppb',
+        )
+        LegacyResult.objects.create(
+            sample=sample,
+            name='AFB1',
+            intensity=20,
+            dangerous=True,
+            threshold=5,
+            unit='ppb',
+        )
+
+        new_apps = self.migrate_forward()
+        Result = new_apps.get_model('samples', 'MycotoxinResult')
+        result = Result.objects.get(sample__sample_id='MIG-002')
+
+        self.assertEqual(Result.objects.filter(sample__sample_id='MIG-002').count(), 1)
+        self.assertEqual(result.toxin_type, 'AFB1')
+        self.assertEqual(result.value, 20)
+        self.assertEqual(result.risk_level, 'high')
 
 
 class SampleTestMixin:
@@ -248,11 +345,9 @@ class SampleFilteringTests(SampleTestMixin, TestCase):
             )
             MycotoxinResult.objects.create(
                 sample=sample,
-                name='Aflatoxin B1',
-                intensity=5,
-                dangerous=False,
-                threshold=4.0,
-                unit='ppb',
+                toxin_type='AFB1',
+                value=5,
+                unit='ug_kg',
             )
 
         url = reverse('sample-list')
@@ -364,17 +459,15 @@ class SampleStatisticsTests(SampleTestMixin, TestCase):
         self.assertEqual(response.data['flagged'], 1)
         self.assertEqual(response.data['pending'], 1)
 
-    def test_statistics_high_risk_count_with_dangerous_result(self):
-        """high_risk should count samples that have at least one dangerous=True result."""
+    def test_statistics_high_risk_count_with_high_result(self):
+        """high_risk should count samples that have at least one high/critical result."""
         from .models import MycotoxinResult
         flagged_sample = Sample.objects.get(sample_id='STAT-002')
         MycotoxinResult.objects.create(
             sample=flagged_sample,
-            name='Aflatoxin B1',
-            intensity=9,
-            dangerous=True,
-            threshold=4.0,
-            unit='ppb',
+            toxin_type='AFB1',
+            value=25,
+            unit='ug_kg',
         )
         url = reverse('sample-statistics')
         response = self.client.get(url)
@@ -449,11 +542,9 @@ class MycotoxinResultTests(SampleTestMixin, TestCase):
             kwargs={'sample_id': self.sample.sample_id},
         )
         self.valid_payload = {
-            'name': 'Aflatoxin B1',
-            'intensity': 5,
-            'dangerous': False,
-            'threshold': 4.0,
-            'unit': 'ppb',
+            'toxin_type': 'AFB1',
+            'value': 25.0,
+            'unit': 'ug_kg',
         }
 
     def test_add_mycotoxin_result_returns_201(self):
@@ -461,22 +552,86 @@ class MycotoxinResultTests(SampleTestMixin, TestCase):
         response = self.client.post(self.mycotoxin_url, self.valid_payload, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data['name'], 'Aflatoxin B1')
+        self.assertEqual(response.data['toxin_type'], 'AFB1')
+        self.assertEqual(response.data['value'], 25.0)
+        self.assertEqual(response.data['risk_level'], 'critical')
+        self.assertEqual(response.data['eu_threshold_low'], 5)
+        self.assertEqual(response.data['eu_threshold_high'], 20)
 
-    def test_add_mycotoxin_result_intensity_high_lab_value_returns_201(self):
-        """Intensity value > 10 is a valid real lab concentration and must be accepted."""
-        payload = {**self.valid_payload, 'intensity': 11}
+    def test_add_mycotoxin_result_duplicate_toxin_updates_existing(self):
+        """Adding the same toxin twice should update the existing result."""
+        first = self.client.post(self.mycotoxin_url, self.valid_payload, format='json')
+        self.assertEqual(first.status_code, status.HTTP_201_CREATED)
+
+        payload = {**self.valid_payload, 'value': 4.0, 'notes': 'Retest'}
+        response = self.client.post(self.mycotoxin_url, payload, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['toxin_type'], 'AFB1')
+        self.assertEqual(response.data['value'], 4.0)
+        self.assertEqual(response.data['risk_level'], 'detected')
+        self.assertEqual(self.sample.mycotoxin_results.count(), 1)
+
+    def test_add_mycotoxin_result_legacy_alias_payload_returns_201(self):
+        """Legacy name/intensity payloads should map to toxin_type/value during transition."""
+        payload = {
+            'name': 'Aflatoxin B1',
+            'intensity': 11,
+            'dangerous': False,
+            'threshold': 4.0,
+            'unit': 'ppb',
+        }
         response = self.client.post(self.mycotoxin_url, payload, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['toxin_type'], 'AFB1')
+        self.assertEqual(response.data['value'], 11)
+        self.assertEqual(response.data['intensity'], 11)
 
-    def test_add_mycotoxin_result_intensity_zero_returns_201(self):
-        """Intensity value of 0 (not detected) is valid and must be accepted."""
-        payload = {**self.valid_payload, 'intensity': 0}
+    def test_add_mycotoxin_result_value_zero_returns_201(self):
+        """Value of 0 (not detected) is valid and should calculate safe risk."""
+        payload = {**self.valid_payload, 'value': 0}
         response = self.client.post(self.mycotoxin_url, payload, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['risk_level'], 'safe')
 
-    def test_add_mycotoxin_result_intensity_negative_returns_400(self):
-        """Negative intensity value must be rejected with 400."""
-        payload = {**self.valid_payload, 'intensity': -1}
+    def test_mycotoxin_result_save_honors_update_fields(self):
+        """Derived fields should only be saved when their inputs are saved."""
+        result = MycotoxinResult.objects.create(
+            sample=self.sample,
+            toxin_type='AFB1',
+            value=25.0,
+            unit='ug_kg',
+        )
+
+        result.value = 0.0
+        result.notes = 'Notes-only edit'
+        result.save(update_fields=['notes'])
+        result.refresh_from_db()
+        self.assertEqual(result.value, 25.0)
+        self.assertEqual(result.risk_level, 'critical')
+        self.assertEqual(result.notes, 'Notes-only edit')
+
+        result.value = 4.0
+        result.save(update_fields=['value'])
+        result.refresh_from_db()
+        self.assertEqual(result.value, 4.0)
+        self.assertEqual(result.risk_level, 'detected')
+
+    def test_unknown_toxin_result_is_flagged_and_unclassified(self):
+        """Unknown migrated toxins should be visible but excluded from risk scoring."""
+        result = MycotoxinResult.objects.create(
+            sample=self.sample,
+            toxin_type='UNKNOWN',
+            value=25.0,
+            unit='ug_kg',
+        )
+        response = MycotoxinResultSerializer(result).data
+        self.assertEqual(response['risk_level'], 'unclassified')
+        self.assertTrue(response['is_flagged'])
+
+    def test_add_mycotoxin_result_value_negative_returns_400(self):
+        """Negative value must be rejected with 400."""
+        payload = {**self.valid_payload, 'value': -1}
         response = self.client.post(self.mycotoxin_url, payload, format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -495,16 +650,14 @@ class MycotoxinResultTests(SampleTestMixin, TestCase):
         self.assertIsNotNone(sample_entry)
         self.assertEqual(sample_entry['risk_level'], 'safe')
 
-    def test_risk_level_high_with_dangerous_result(self):
-        """A sample with a dangerous=True result should report risk_level='high'."""
+    def test_risk_level_high_with_high_result(self):
+        """A sample with high/critical toxin risk should report risk_level='high'."""
         from .models import MycotoxinResult
         MycotoxinResult.objects.create(
             sample=self.sample,
-            name='Aflatoxin B1',
-            intensity=9,
-            dangerous=True,
-            threshold=4.0,
-            unit='ppb',
+            toxin_type='AFB1',
+            value=25,
+            unit='ug_kg',
         )
         url = reverse('sample-list')
         response = self.client.get(url)
@@ -513,34 +666,14 @@ class MycotoxinResultTests(SampleTestMixin, TestCase):
         self.assertIsNotNone(sample_entry)
         self.assertEqual(sample_entry['risk_level'], 'high')
 
-    def test_risk_level_medium_with_intensity_7(self):
-        """A sample with max intensity >= 7 and dangerous=False should have risk_level='medium'."""
+    def test_risk_level_low_with_detected_result(self):
+        """A sample with detected below-threshold toxin result should report risk_level='low'."""
         from .models import MycotoxinResult
         MycotoxinResult.objects.create(
             sample=self.sample,
-            name='Fumonisin B1',
-            intensity=7,
-            dangerous=False,
-            threshold=4.0,
-            unit='ppb',
-        )
-        url = reverse('sample-list')
-        response = self.client.get(url)
-        results = response.data if not isinstance(response.data, dict) else response.data.get('results', [])
-        sample_entry = next((s for s in results if s['sample_id'] == self.sample.sample_id), None)
-        self.assertIsNotNone(sample_entry)
-        self.assertEqual(sample_entry['risk_level'], 'medium')
-
-    def test_risk_level_low_with_intensity_4(self):
-        """A sample with max intensity in [4, 6] and dangerous=False should have risk_level='low'."""
-        from .models import MycotoxinResult
-        MycotoxinResult.objects.create(
-            sample=self.sample,
-            name='Deoxynivalenol',
-            intensity=4,
-            dangerous=False,
-            threshold=4.0,
-            unit='ppb',
+            toxin_type='AFB1',
+            value=4,
+            unit='ug_kg',
         )
         url = reverse('sample-list')
         response = self.client.get(url)
@@ -548,6 +681,22 @@ class MycotoxinResultTests(SampleTestMixin, TestCase):
         sample_entry = next((s for s in results if s['sample_id'] == self.sample.sample_id), None)
         self.assertIsNotNone(sample_entry)
         self.assertEqual(sample_entry['risk_level'], 'low')
+
+    def test_risk_level_safe_with_zero_result(self):
+        """A sample with a zero toxin result should report risk_level='safe'."""
+        from .models import MycotoxinResult
+        MycotoxinResult.objects.create(
+            sample=self.sample,
+            toxin_type='AFB1',
+            value=0,
+            unit='ug_kg',
+        )
+        url = reverse('sample-list')
+        response = self.client.get(url)
+        results = response.data if not isinstance(response.data, dict) else response.data.get('results', [])
+        sample_entry = next((s for s in results if s['sample_id'] == self.sample.sample_id), None)
+        self.assertIsNotNone(sample_entry)
+        self.assertEqual(sample_entry['risk_level'], 'safe')
 
 
 class BulkImportResultsTests(SampleTestMixin, TestCase):
@@ -572,10 +721,58 @@ class BulkImportResultsTests(SampleTestMixin, TestCase):
         self.assertEqual(response.data['matched_samples'], 1)
         self.assertEqual(response.data['results_created'], 2)
         self.assertEqual(response.data['unmatched_sample_ids'], [])
+        self.assertEqual(response.data['failed_rows'], [])
 
         sample = Sample.objects.get(sample_id=self.sample.sample_id)
         self.assertEqual(sample.status, 'completed')
         self.assertEqual(sample.mycotoxin_results.count(), 2)
+        self.assertTrue(sample.mycotoxin_results.filter(toxin_type='AFB1').exists())
+        self.assertTrue(sample.mycotoxin_results.filter(toxin_type='DON').exists())
+
+    def test_bulk_import_results_reports_failed_rows_without_full_rollback(self):
+        """A failed source row should not roll back successfully imported rows."""
+        second_sample = Sample.objects.create(
+            sample_id='TEST-002',
+            region='Central',
+            province='Bangkok',
+            district='Chatuchak',
+            vegetation_variety='Rice',
+            collection_date='2026-01-16',
+            status='pending',
+            updated_by=self.user,
+        )
+        url = reverse('sample-bulk-import-results')
+        csv_content = (
+            'Sample ID,AFB1\n'
+            f'{self.sample.sample_id},7\n'
+            f'{second_sample.sample_id},4\n'
+        )
+        upload = SimpleUploadedFile(
+            'results_partial_failure.csv',
+            csv_content.encode('utf-8'),
+            content_type='text/csv',
+        )
+        original_create = MycotoxinResult._default_manager.create
+
+        def flaky_create(*args, **kwargs):
+            if kwargs.get('sample') == self.sample:
+                raise IntegrityError('simulated row failure')
+            return original_create(*args, **kwargs)
+
+        with patch.object(
+            MycotoxinResult._default_manager,
+            'create',
+            side_effect=flaky_create,
+        ):
+            response = self.client.post(url, {'file': upload}, format='multipart')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['results_created'], 1)
+        self.assertEqual(response.data['skipped_rows'], 1)
+        self.assertEqual(len(response.data['failed_rows']), 1)
+        self.assertEqual(response.data['failed_rows'][0]['sample_id'], self.sample.sample_id)
+        self.assertFalse(self.sample.mycotoxin_results.exists())
+        self.assertTrue(second_sample.mycotoxin_results.filter(toxin_type='AFB1').exists())
 
     def test_bulk_import_results_reports_unmatched_sample_ids(self):
         """CSV rows for missing sample_id should be reported in unmatched_sample_ids."""
@@ -603,6 +800,9 @@ class BulkImportResultsTests(SampleTestMixin, TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['matched_samples'], 1)
         self.assertEqual(response.data['results_created'], 1)
+        self.assertTrue(
+            self.sample.mycotoxin_results.filter(toxin_type='AFB1').exists()
+        )
 
     def test_bulk_import_results_two_row_header_excel_style(self):
         """Importer should parse files converted from Excel with grouped headers and 'Final Conc.' second header row."""
@@ -673,8 +873,8 @@ class BulkImportResultsTests(SampleTestMixin, TestCase):
         self.assertGreaterEqual(response.data['results_created'], 3)
 
         sample = Sample.objects.get(sample_id='SAM-2026-001')
-        self.assertTrue(sample.mycotoxin_results.filter(name='Aflatoxin B1').exists())
-        self.assertTrue(sample.mycotoxin_results.filter(name='Deoxynivalenol').exists())
+        self.assertTrue(sample.mycotoxin_results.filter(toxin_type='AFB1').exists())
+        self.assertTrue(sample.mycotoxin_results.filter(toxin_type='DON').exists())
         self.assertTrue(sample.process_logs.filter(notes__icontains='Analyzed at: 3/13/2026 11:46').exists())
 
 

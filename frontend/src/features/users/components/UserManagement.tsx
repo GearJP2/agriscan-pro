@@ -1,4 +1,5 @@
-import { useState, useMemo, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Users, UserCheck, UserX } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
@@ -72,7 +73,6 @@ const mapBackendUserToFrontendUser = (user: BackendUser): User => ({
 
 const UserManagement = () => {
   const { role: currentUserRole, isInitializing, user: currentUser } = useAuth();
-  const [users, setUsers] = useState<User[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -81,39 +81,52 @@ const UserManagement = () => {
   const [newRole, setNewRole] = useState<UserRole>("user");
   const [isStatusDialogOpen, setIsStatusDialogOpen] = useState(false);
   const [pendingStatusUser, setPendingStatusUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const queryClient = useQueryClient();
 
   const currentUserWeight = USER_ROLE_WEIGHT[currentUserRole] || 0;
-  const canManageUsers = currentUserRole === "admin";
 
-  const fetchUsers = async () => {
-    try {
-      setIsLoading(true);
+  const usersQuery = useQuery({
+    queryKey: ["users"],
+    enabled: !isInitializing,
+    queryFn: async () => {
       const data = await userAPI.getUsers();
       const mappedUsers: User[] = Array.isArray(data)
         ? data.map((user) => mapBackendUserToFrontendUser(user as BackendUser))
         : [];
 
-      setUsers(mappedUsers);
       logger.info("users.fetch.success", { count: mappedUsers.length });
-    } catch (error) {
-      logger.error("users.fetch.failed", error);
+      return mappedUsers;
+    },
+  });
+
+  const users = usersQuery.data ?? [];
+  const isLoading = isInitializing || usersQuery.isLoading;
+
+  useEffect(() => {
+    if (usersQuery.error) {
+      logger.error("users.fetch.failed", usersQuery.error);
       toast({
         title: "Error loading users",
         description:
-          error instanceof Error ? error.message : "Unknown error occurred",
+          usersQuery.error instanceof Error
+            ? usersQuery.error.message
+            : "Unknown error occurred",
         variant: "destructive",
       });
-    } finally {
-      setIsLoading(false);
     }
-  };
+  }, [usersQuery.error]);
 
-  useEffect(() => {
-    if (!isInitializing) {
-      void fetchUsers();
-    }
-  }, [isInitializing]);
+  const updateRoleMutation = useMutation({
+    mutationFn: ({ id, role }: { id: string; role: UserRole }) =>
+      userAPI.updateUser(id, { role }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["users"] }),
+  });
+
+  const updateStatusMutation = useMutation({
+    mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
+      userAPI.updateUser(id, { is_active: isActive }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["users"] }),
+  });
 
   const filteredUsers = useMemo(() => {
     return users.filter((user) => {
@@ -145,13 +158,10 @@ const UserManagement = () => {
     if (!selectedUser) return;
 
     try {
-      await userAPI.updateUser(selectedUser.id, { role: newRole });
-
-      setUsers((prev) =>
-        prev.map((user) =>
-          user.id === selectedUser.id ? { ...user, role: newRole } : user,
-        ),
-      );
+      await updateRoleMutation.mutateAsync({
+        id: selectedUser.id,
+        role: newRole,
+      });
 
       toast({
         title: "Role Updated",
@@ -188,15 +198,10 @@ const UserManagement = () => {
     const newIsActive = newStatus === "active";
 
     try {
-      await userAPI.updateUser(user.id, { is_active: newIsActive });
-
-      setUsers((prev) =>
-        prev.map((existingUser) =>
-          existingUser.id === user.id
-            ? { ...existingUser, status: newStatus }
-            : existingUser,
-        ),
-      );
+      await updateStatusMutation.mutateAsync({
+        id: user.id,
+        isActive: newIsActive,
+      });
 
       toast({
         title: "Status Updated",

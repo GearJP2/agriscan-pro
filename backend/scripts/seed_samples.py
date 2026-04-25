@@ -11,6 +11,7 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'core.settings')
 django.setup()
 
 from samples.models import Sample, MycotoxinResult, ProcessLog
+from samples.constants.mycotoxin_constants import VALID_TOXINS
 from accounts.models import User
 
 def seed_samples():
@@ -86,14 +87,8 @@ def seed_samples():
             )
 
             # Add toxin results
-            toxins = ['DON', 'AFB1', 'FB1', 'T-2', 'ZEA', 'OTA']
-            thresholds = {
-                'AFB1': 5.0, 'DON': 1000.0, 'FB1': 2000.0, 
-                'T-2': 100.0, 'ZEA': 200.0, 'OTA': 5.0
-            }
-            
-            for t in toxins:
-                val_str = row[t].strip().upper()
+            for t in sorted(VALID_TOXINS - {'UNKNOWN'}):
+                val_str = row.get(t, '').strip().upper()
                 if val_str in ['ND', '<LOD', '']:
                     continue
                 
@@ -101,17 +96,13 @@ def seed_samples():
                     # Handle comma as decimal separator if any
                     clean_val_str = val_str.replace(',', '.')
                     val = float(clean_val_str)
-                    dangerous = val > thresholds.get(t, 0)
                     MycotoxinResult.objects.update_or_create(
                         sample=sample,
-                        name=t,
+                        toxin_type=t,
                         defaults={
-                            'intensity': val,
-                            'is_detected': True,
-                            'dangerous': dangerous,
-                            'threshold': thresholds.get(t, 0),
-                            'unit': 'ppb',
-                            'test_method': 'LC-MS/MS'
+                            'value': val,
+                            'unit': 'ug_kg',
+                            'notes': 'LC-MS/MS',
                         }
                     )
                 except ValueError:

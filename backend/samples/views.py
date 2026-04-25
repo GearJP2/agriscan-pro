@@ -158,7 +158,11 @@ class SampleViewSet(viewsets.ModelViewSet):
             completed=Count('id', filter=Q(status='completed')),
             flagged=Count('id', filter=Q(status='flagged')),
             pending=Count('id', filter=Q(status='pending')),
-            high_risk=Count('id', filter=Q(mycotoxin_results__dangerous=True), distinct=True),
+            high_risk=Count(
+                'id',
+                filter=Q(mycotoxin_results__risk_level__in=['high', 'critical']),
+                distinct=True,
+            ),
         )
         return Response(stats)
 
@@ -235,8 +239,26 @@ class SampleViewSet(viewsets.ModelViewSet):
         sample = self.get_object()
         serializer = MycotoxinResultSerializer(data=request.data)
         if serializer.is_valid():
+            response_status = status.HTTP_201_CREATED
             with transaction.atomic():
-                result = serializer.save(sample=sample)
+                toxin_type = serializer.validated_data['toxin_type']
+                existing = (
+                    sample.mycotoxin_results
+                    .select_for_update()
+                    .filter(toxin_type=toxin_type)
+                    .first()
+                )
+                if existing:
+                    serializer = MycotoxinResultSerializer(
+                        existing,
+                        data=request.data,
+                        partial=True,
+                    )
+                    serializer.is_valid(raise_exception=True)
+                    result = serializer.save(sample=sample)
+                    response_status = status.HTTP_200_OK
+                else:
+                    result = serializer.save(sample=sample)
 
                 # If results are recorded, mark the sample workflow as completed.
                 if sample.status != 'completed':
@@ -254,23 +276,25 @@ class SampleViewSet(viewsets.ModelViewSet):
                     )
 
             logger.info(
-                'sample.mycotoxin_result.added',
+                'sample.mycotoxin_result.saved',
                 extra={
                     'sample_id': sample.sample_id,
-                    'test_method': result.test_method,
-                    'dangerous': result.dangerous,
+                    'toxin_type': result.toxin_type,
+                    'value': result.value,
+                    'risk_level': result.risk_level,
                 },
             )
-            if result.dangerous:
+            if result.risk_level in {'high', 'critical'}:
                 logger.warning(
-                    'sample.dangerous_result',
+                    'sample.high_risk_result',
                     extra={
                         'sample_id': sample.sample_id,
-                        'test_method': result.test_method,
-                        'intensity': result.intensity,
+                        'toxin_type': result.toxin_type,
+                        'value': result.value,
+                        'risk_level': result.risk_level,
                     },
                 )
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
+            return Response(serializer.data, status=response_status)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=False, methods=['post'])
@@ -311,6 +335,7 @@ class SampleViewSet(viewsets.ModelViewSet):
             'results_updated': results.get('updated', 0),
             'skipped_rows': results.get('skipped_rows', 0),
             'unmatched_sample_ids': results.get('unmatched_sample_ids', []),
+            'failed_rows': results.get('failed_rows', []),
         }
         return Response(payload, status=status.HTTP_200_OK)
 

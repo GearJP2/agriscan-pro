@@ -2,6 +2,31 @@
 
 A comprehensive agricultural research platform for lab sample analysis and mycotoxin detection. Built with a React frontend and Django REST Framework backend, deployed on AWS.
 
+---
+
+## Project Status — 2026-04-25
+
+### ✅ All Completed
+
+| Milestone | Details |
+| :--- | :--- |
+| **Auth Hardening (Week 1)** | Cookie-only refresh, in-memory access tokens, refresh rotation + blacklist, role policy alignment, Google OAuth server-side state validation |
+| **Quality Gates (Week 2)** | TypeScript `strict: true`, route `ErrorBoundary`, lazy routes, frontend smoke-test script, CI lint → typecheck → smoke → build pipeline |
+| **Performance (Week 3)** | Virtualised sample table, streaming two-pass CSV ingestion, N+1 regression suite, route-level code splitting |
+| **Hardening & Docs (Week 4)** | Dependency audit job, transactional mutations, audit-log structured logging, `.env.example`, `CONTRIBUTING.md`, `SECURITY.md`, `ARCHITECTURE.md` |
+| **Backend Cleanup** | CORS/API config, rate-limit safety, refresh-cookie SSL guard, shared API client, sample-import regression tests |
+| **MycotoxinResult Refactor** | Canonical `toxin_type` registry, `risk_level` scoring, EU threshold snapshots, migration `0010`, serializer aliases, ingestion rewrite, 60 tests passing |
+| **MR Follow-ups (2026-04-25)** | Per-row savepoints + `failed_rows` (MR-M4), canonical `MycotoxinForm` (MR-M5), `method: null` deprecation note (MR-MN2), migration edge-case tests (MR-MN6), React Query cleanup in `UserManagement` |
+
+### 🔲 Remaining
+
+| Item | Priority |
+| :--- | :--- |
+| API schema docs (`drf-spectacular`) | Low |
+| Downloadable failed-row CSV for large imports | Nice-to-have |
+| Landing page migration from `test.html` → React `Landing.tsx` | Planned |
+| i18n (`react-i18next` + Django `gettext`) | Planned |
+
 ## 1. Stack
 
 ### 1.1 Runtimes
