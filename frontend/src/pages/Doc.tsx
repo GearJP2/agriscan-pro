@@ -226,7 +226,7 @@ const Doc = () => {
 
         <div className="flex gap-8 items-start">
           {/* ── Sidebar ── */}
-          <aside className="hidden lg:block w-56 flex-shrink-0 sticky top-8">
+          <aside className="hidden lg:block w-56 flex-shrink-0 sticky top-28">
             <Card className="glass-card">
               <CardContent className="p-3">
                 <nav className="space-y-0.5">

@@ -40,43 +40,45 @@ const Header = () => {
     });
 
     return (
-        <nav className="fixed top-4 left-1/2 -translate-x-1/2 w-[95%] max-w-7xl rounded-2xl border border-white/20 dark:border-slate-800/50 bg-white/70 dark:bg-slate-950/70 backdrop-blur-xl flex justify-between items-center px-8 py-4 z-50 transition-all duration-300">
-            <Link to="/" className="text-xl font-bold tracking-tighter text-slate-900 dark:text-white flex items-center gap-2">
-                <span className="material-symbols-outlined text-primary" style={{ fontVariationSettings: '"FILL" 1' }}>biotech</span>
-                AgriScan Pro
-            </Link>
+        <nav className="fixed top-4 left-1/2 -translate-x-1/2 w-full max-w-container-max px-gutter z-50 transition-all duration-300">
+            <div className="w-full rounded-2xl border border-white/20 dark:border-slate-800/50 bg-white/70 dark:bg-slate-950/70 backdrop-blur-xl flex justify-between items-center px-8 py-4">
+                <Link to="/" className="text-xl font-bold tracking-tighter text-slate-900 dark:text-white flex items-center gap-2">
+                    <span className="material-symbols-outlined text-primary" style={{ fontVariationSettings: '"FILL" 1' }}>biotech</span>
+                    AgriScan Pro
+                </Link>
 
-            <div className="hidden md:flex items-center gap-6 font-sans text-[13px] font-bold tracking-tight nav-container">
-                {links.map((link) => {
-                    const isActive = location.pathname === link.href;
-                    return (
-                        <Link
-                            key={link.href}
-                            to={link.href}
-                            className={cn(
-                                "nav-link transition-all duration-300 relative group font-bold",
-                                isActive && "nav-link-active"
-                            )}
-                        >
-                            {link.label}
-                            <span className="underline-span" />
-                        </Link>
-                    );
-                })}
-            </div>
+                <div className="hidden md:flex items-center gap-6 font-sans text-[13px] font-bold tracking-tight nav-container">
+                    {links.map((link) => {
+                        const isActive = location.pathname === link.href;
+                        return (
+                            <Link
+                                key={link.href}
+                                to={link.href}
+                                className={cn(
+                                    "nav-link transition-all duration-300 relative group font-bold",
+                                    isActive && "nav-link-active"
+                                )}
+                            >
+                                {link.label}
+                                <span className="underline-span" />
+                            </Link>
+                        );
+                    })}
+                </div>
 
-            <div className="flex items-center gap-4">
-                <ThemeToggle />
-                {!isInitializing && (
-                    isAuthenticated ? (
-                        <div className="flex items-center gap-2">
-                            {canSwitchRole && <RoleSwitcher />}
-                            <UserDropdown />
-                        </div>
-                    ) : (
-                        <LoginModal />
-                    )
-                )}
+                <div className="flex items-center gap-4">
+                    <ThemeToggle />
+                    {!isInitializing && (
+                        isAuthenticated ? (
+                            <div className="flex items-center gap-2">
+                                {canSwitchRole && <RoleSwitcher />}
+                                <UserDropdown />
+                            </div>
+                        ) : (
+                            <LoginModal />
+                        )
+                    )}
+                </div>
             </div>
         </nav>
     );

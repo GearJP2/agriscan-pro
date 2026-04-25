@@ -92,7 +92,7 @@ export const AppRoutes = () => (
 export const AppLayout = () => (
   <div className="flex min-h-screen flex-col">
     <Header />
-    <div className="flex flex-1 flex-col">
+    <div className="flex flex-1 flex-col pt-24 md:pt-28">
       <RouteErrorBoundary>
         <Suspense fallback={<RouteLoadingFallback />}>
           <AppRoutes />
