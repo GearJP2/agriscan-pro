@@ -7,8 +7,18 @@ import RegionalRiskRanking from './RegionalRiskRanking';
 import PublicHealthSummary from './PublicHealthSummary';
 import MycotoxinAnalysis from './MycotoxinAnalysis';
 import CoContaminationAnalysis from './CoContaminationAnalysis';
-import { Loader2, AlertTriangle } from 'lucide-react';
-import { sampleAPI } from '@/lib/api';
+import DynamicThresholdControl from './DynamicThresholdControl';
+import EnvironmentalKinetics from './EnvironmentalKinetics';
+import {
+  Loader2,
+  AlertTriangle,
+  Database,
+  Zap,
+  MapPin,
+  Wheat,
+  Bell
+} from 'lucide-react';
+import { sampleAPI, analyticsAPI } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   ALL_TIME_QUARTER,
@@ -62,9 +72,52 @@ export default function SurveillanceDashboard() {
   const isDeferredMounted = useDeferredMount(400);
   const [filters, setFilters] = useState<DashboardFilters>(DEFAULT_FILTERS);
   const [selectedProvince, setSelectedProvince] = useState<string | null>(null);
+  const [mapViewMode, setMapViewMode] = useState<'risk' | 'samples'>('risk');
+
+  // State for Threshold Simulator overrides
+  const [thresholdOverrides, setThresholdOverrides] = useState<Record<string, Record<string, number>>>({});
+  const isSimulating = Object.keys(thresholdOverrides).length > 0;
+
+  // 1. Legacy full samples call for un-migrated components (Heatmap, PublicHealthSummary)
   const { data: samples = [], isLoading, error } = useQuery({
     queryKey: ['surveillance-dashboard-samples'],
     queryFn: () => sampleAPI.getAllSamples(),
+    enabled: isAuthenticated,
+  });
+
+  // 2. Dashboard Analytics V2: Overview / Simulated Overview
+  const { data: overviewData } = useQuery({
+    // Cache keys separate real from simulated data automatically
+    queryKey: ['surveillance-overview', filters, isSimulating ? thresholdOverrides : 'baseline'],
+    queryFn: async () => {
+      // Map filters matching the backend expected snake_case layout where necessary
+      const apiFilters = {
+        region: filters.regions,
+        vegetation_variety: filters.commodities,
+        date_from: filters.dateRange.from,
+        date_to: filters.dateRange.to
+      };
+
+      if (isSimulating) {
+        return analyticsAPI.simulateThreshold(thresholdOverrides, apiFilters);
+      }
+      return analyticsAPI.getOverview(apiFilters);
+    },
+    enabled: isAuthenticated,
+  });
+
+  // 3. Dashboard Analytics V2: Co-contamination (UpSet Plot)
+  const { data: coContamData } = useQuery({
+    queryKey: ['surveillance-cocontamination', filters],
+    queryFn: () => {
+      const apiFilters = {
+        region: filters.regions,
+        vegetation_variety: filters.commodities,
+        date_from: filters.dateRange.from,
+        date_to: filters.dateRange.to
+      };
+      return analyticsAPI.getCoContamination(apiFilters);
+    },
     enabled: isAuthenticated,
   });
 
@@ -183,9 +236,9 @@ export default function SurveillanceDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-background dashboard-wrapper">
+    <div className="min-h-screen bg-background dashboard-wrapper font-['Plus_Jakarta_Sans']">
 
-      <main className="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+      <main className="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 pt-0 pb-12 space-y-8">
         <DashboardFilterBar
           filters={filters}
           onChange={handleFilterChange}
@@ -203,7 +256,7 @@ export default function SurveillanceDashboard() {
           </div>
         )}
 
-         {/* Deferred Content Area */}
+        {/* Deferred Content Area */}
         {!isDeferredMounted || !analytics ? (
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -223,33 +276,76 @@ export default function SurveillanceDashboard() {
           </div>
         ) : (
           <>
-            {/* Section 1: KPI Cards */}
-            <KPICards cards={analytics.kpiData.cards} />
+            {/* Section 1: KPI Summary */}
+            <div className="flex items-center gap-3 mb-4 mt-2">
+              <div className="h-5 w-1.5 bg-primary/40 rounded-full" />
+              <h2 className="text-sm font-black uppercase tracking-[0.2em] text-slate-500 dark:text-white/60">KPI Summary</h2>
+            </div>
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
+              <div className="flex-1">
+                {overviewData ? (
+                  <KPICards
+                    cards={[
+                      { label: 'Total Samples Reported', value: (overviewData as any).kpis.total_samples, delta: 0, deltaDirection: 'up', isImprovement: true, context: 'Total selected', icon: Database },
+                      { label: 'Positive Samples', value: `${(overviewData as any).kpis.positive_pct}%`, delta: 0, deltaDirection: 'down', isImprovement: false, context: 'vs previous', icon: Zap },
+                      { label: isSimulating ? 'Simulated High Risk' : 'Above Safety Threshold (EU)', value: `${(overviewData as any).kpis.above_threshold_pct}%`, delta: 0, deltaDirection: 'down', isImprovement: false, context: 'Critical limit', icon: AlertTriangle },
+                      { label: 'High Risk Regions', value: (overviewData as any).kpis.high_risk_regions, delta: 0, deltaDirection: 'up', isImprovement: false, context: 'Province count', icon: MapPin },
+                      { label: 'Highest Risk Commodity', value: (overviewData as any).kpis.highest_risk_commodity, delta: 0, deltaDirection: null, isImprovement: null, context: 'Ranked by share', icon: Wheat },
+                      { label: 'Active Alerts', value: (overviewData as any).kpis.active_alerts, delta: 0, deltaDirection: 'down', isImprovement: true, context: 'Flagged samples', accent: 'red', icon: Bell },
+                    ]}
+                  />
+                ) : (
+                  <KPICards cards={analytics.kpiData.cards.map((card, i) => {
+                    const icons = [Database, Zap, AlertTriangle, MapPin, Wheat, Bell];
+                    return { ...card, icon: icons[i] || Database };
+                  })} />
+                )}
+              </div>
+            </div>
 
-            {/* Section 2: Regional Risk Map + Ranking */}
-            <section aria-label="Regional Risk Analysis">
+            {/* Section 2: Public Health Risk Summary (Strategic Insights) */}
+            <div className="flex items-center gap-3 mb-4 mt-12">
+              <div className="h-5 w-1.5 bg-rose-500/40 rounded-full" />
+              <h2 className="text-sm font-black uppercase tracking-[0.2em] text-slate-500 dark:text-white/60">Public Health Risk Summary</h2>
+            </div>
+            <PublicHealthSummary summary={analytics.publicHealthSummary} />
+
+            {/* Section 3: Regional Risk Atlas (Operational Context) */}
+            <div className="flex items-center gap-3 mb-4 mt-12">
+              <div className="h-5 w-1.5 bg-primary/40 rounded-full" />
+              <h2 className="text-sm font-black uppercase tracking-[0.2em] text-slate-500 dark:text-white/60">Regional Risk Atlas</h2>
+            </div>
+            <section aria-label="Regional Risk Analysis" className="mb-4">
               <div className="grid grid-cols-1 lg:grid-cols-[65%_35%] gap-4">
                 <Suspense fallback={<MapSkeleton />}>
                   <RegionalRiskMap
                     selectedProvince={selectedProvince}
                     onSelectProvince={setSelectedProvince}
-                    provinceRiskData={analytics.provinceRiskData}
+                    provinceRiskData={overviewData ? (overviewData as any).provinces : analytics.provinceRiskData}
+                    viewMode={mapViewMode}
+                    onViewModeChange={setMapViewMode}
                   />
                 </Suspense>
-                <RegionalRiskRanking
-                  selectedProvince={selectedProvince}
-                  onSelectProvince={setSelectedProvince}
-                  provinces={analytics.topProvinces}
-                  allProvinces={analytics.provinceRiskData}
-                  toxinColors={analytics.toxinColors}
-                />
+                <div className="flex flex-col gap-4">
+                  <DynamicThresholdControl
+                    onOverridesChange={setThresholdOverrides}
+                    commodityOptions={filterOptions.commodities}
+                  />
+                  <RegionalRiskRanking
+                    selectedProvince={selectedProvince}
+                    onSelectProvince={setSelectedProvince}
+                    provinces={overviewData ? (overviewData as any).provinces : analytics.provinceRiskData}
+                    viewMode={mapViewMode}
+                  />
+                </div>
               </div>
             </section>
 
-            {/* Section 3: Public Health Risk Summary */}
-            <PublicHealthSummary summary={analytics.publicHealthSummary} />
-
             {/* Section 4: Mycotoxin & Commodity Analysis */}
+            <div className="flex items-center gap-3 mb-4 mt-12">
+              <div className="h-5 w-1.5 bg-primary/40 rounded-full" />
+              <h2 className="text-sm font-black uppercase tracking-[0.2em] text-slate-500 dark:text-white/60">Analytics & Trends</h2>
+            </div>
             <MycotoxinAnalysis
               mycotoxinBarData={analytics.mycotoxinBarData}
               commodityShare={analytics.commodityShare}
@@ -260,14 +356,27 @@ export default function SurveillanceDashboard() {
               affectedSampleCount={analytics.filteredSamples.filter((sample) => sample.mycotoxin_results?.length).length}
             />
 
+            <EnvironmentalKinetics />
+
             {/* Section 5: Co-contamination Analysis */}
-            <CoContaminationAnalysis
-              coContamSummary={analytics.coContamSummary}
-              coOccurrenceList={analytics.coOccurrenceList}
-              toxinsPerSample={analytics.toxinsPerSample}
-              networkData={analytics.networkData}
-              toxinColors={analytics.toxinColors}
-            />
+            <div className="grid grid-cols-1 gap-6">
+              {coContamData ? (
+                <CoContaminationAnalysis
+                  coContamSummary={{
+                    avgToxinsPerSample: 0, // Fallbacks if not computed globally
+                    pctTwoPlus: (coContamData as any).toxins_per_sample['2'] || 0,
+                    pctThreePlus: (coContamData as any).toxins_per_sample['3'] || 0,
+                    mostCommonPair: (coContamData as any).intersections[0]?.toxins.join(' + ') || 'N/A'
+                  }}
+                  coOccurrenceList={(coContamData as any).intersections}
+                  intersections={(coContamData as any).intersections}
+                  toxinsPerSample={Object.entries((coContamData as any).toxins_per_sample).map(([count, pct]) => ({ count, pct: Number(pct) }))}
+                  toxinColors={analytics.toxinColors}
+                />
+              ) : (
+                <ChartSkeleton />
+              )}
+            </div>
           </>
         )}
 

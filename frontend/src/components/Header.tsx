@@ -39,8 +39,14 @@ const Header = () => {
         return currentWeight >= link.minWeight;
     });
 
+    const isDashboard = location.pathname === "/dashboard";
+    const isHomepage = location.pathname === "/";
+
     return (
-        <nav className="fixed top-4 left-1/2 -translate-x-1/2 w-full max-w-container-max px-gutter z-50 transition-all duration-300">
+        <nav className={cn(
+            "fixed top-4 left-1/2 -translate-x-1/2 w-full z-[1000] transition-all duration-700 ease-in-out",
+            isDashboard ? "max-w-[1920px] px-4 sm:px-6 lg:px-8" : "max-w-container-max px-gutter"
+        )}>
             <div className="w-full rounded-2xl border border-white/20 dark:border-slate-800/50 bg-white/70 dark:bg-slate-950/70 backdrop-blur-xl flex justify-between items-center px-8 py-4">
                 <Link to="/" className="text-xl font-bold tracking-tighter text-slate-900 dark:text-white flex items-center gap-2">
                     <span className="material-symbols-outlined text-primary" style={{ fontVariationSettings: '"FILL" 1' }}>biotech</span>

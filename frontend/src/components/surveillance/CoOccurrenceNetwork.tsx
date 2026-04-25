@@ -47,14 +47,29 @@ export default function CoOccurrenceNetwork({ networkData }: { networkData: Netw
 
     const maxLinkValue = Math.max(...links.map((l) => l.value));
     const linkScale = d3.scaleLinear().domain([0, maxLinkValue]).range([2, 10]);
-    const nodeScale = d3.scaleLinear().domain([20, 100]).range([18, 38]);
+    const nodeScale = d3.scaleLinear().domain([20, 100]).range([25, 55]); // Increased node sizes
+
+    // Inverse scales for Affinity Clustering
+    const distScale = d3.scaleLinear()
+      .domain([0, maxLinkValue])
+      .range([width > 600 ? 180 : 140, 80]); // Reduced spread distance
+    
+    // Scale link strength so it isn't overly rigid
+    const strengthScale = d3.scaleLinear()
+      .domain([0, maxLinkValue])
+      .range([0.1, 0.6]);
 
     const simulation = d3
       .forceSimulation<SimNode>(nodes)
-      .force('link', d3.forceLink<SimNode, SimLink>(links).id((d) => d.id).distance(90))
-      .force('charge', d3.forceManyBody().strength(-300))
+      .force('link', d3.forceLink<SimNode, SimLink>(links)
+        .id((d) => d.id)
+        .distance((d) => distScale(d.value))
+        .strength((d) => strengthScale(d.value))
+      )
+      .force('charge', d3.forceManyBody().strength(-400)) // Moderated repulsion
       .force('center', d3.forceCenter(width / 2, height / 2))
-      .force('collision', d3.forceCollide<SimNode>().radius((d) => nodeScale(d.frequency) + 5));
+      .force('collision', d3.forceCollide<SimNode>().radius((d) => nodeScale(d.frequency) + 15)); // Gentle collision buffer
+
 
     // Links
     const link = svg
@@ -63,7 +78,7 @@ export default function CoOccurrenceNetwork({ networkData }: { networkData: Netw
       .data(links)
       .join('line')
       .attr('stroke', linkColor)
-      .attr('stroke-opacity', 0.6)
+      .attr('stroke-opacity', 0.4)
       .attr('stroke-width', (d) => linkScale(d.value));
 
     // Node groups
@@ -97,9 +112,9 @@ export default function CoOccurrenceNetwork({ networkData }: { networkData: Netw
       .attr('fill', (d) => d.color)
       .attr('stroke', strokeColor)
       .attr('stroke-width', 2)
-      .attr('opacity', 0.85)
+      .attr('opacity', 0.95)
       .on('mouseover', function (event, d) {
-        d3.select(this).attr('opacity', 1).attr('stroke', '#fbbf24');
+        d3.select(this).attr('stroke', isDark ? '#ffffff' : '#000000').attr('stroke-width', 3);
         const connected = links.filter(
           (l) =>
             (l.source as SimNode).id === d.id || (l.target as SimNode).id === d.id
@@ -120,7 +135,7 @@ export default function CoOccurrenceNetwork({ networkData }: { networkData: Netw
         });
       })
       .on('mouseout', function () {
-        d3.select(this).attr('opacity', 0.85).attr('stroke', strokeColor);
+        d3.select(this).attr('stroke', strokeColor).attr('stroke-width', 2);
         setTooltip(null);
       });
 
@@ -129,13 +144,22 @@ export default function CoOccurrenceNetwork({ networkData }: { networkData: Netw
       .append('text')
       .text((d) => d.id)
       .attr('text-anchor', 'middle')
-      .attr('dy', 4)
+      .attr('dy', 5)
       .attr('fill', labelColor)
-      .attr('font-size', 11)
-      .attr('font-weight', 600)
-      .attr('pointer-events', 'none');
+      .attr('font-size', 12)
+      .attr('font-weight', 800)
+      .attr('pointer-events', 'none')
+      .style('text-shadow', isDark ? '0 1px 2px rgba(0,0,0,0.5)' : '0 1px 2px rgba(255,255,255,0.5)');
 
     simulation.on('tick', () => {
+      // Apply bounding box constraints
+      nodes.forEach(d => {
+        const r = nodeScale(d.frequency);
+        const pad = 10;
+        d.x = Math.max(r + pad, Math.min(width - r - pad, d.x!));
+        d.y = Math.max(r + pad, Math.min(height - r - pad, d.y!));
+      });
+
       link
         .attr('x1', (d) => (d.source as SimNode).x!)
         .attr('y1', (d) => (d.source as SimNode).y!)

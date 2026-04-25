@@ -17,17 +17,18 @@ import type { MycotoxinResult, ProcessState, RiskLevel, Sample } from '@/types/s
 
 const TOXIN_ALIASES: Record<string, string> = {
   'Aflatoxin B1': 'AFB1',
-  'Aflatoxin B2': 'AFB2',
   'Aflatoxin G1': 'AFG1',
   'Aflatoxin G2': 'AFG2',
-  'Fumonisin B1': 'FUM',
+  'Aflatoxin M1': 'AFM1',
+  'Fumonisin B1': 'FB1',
   Fumonisin: 'FUM',
   'Ochratoxin A': 'OTA',
   Deoxynivalenol: 'DON',
   Zearalenone: 'ZEA',
+  'T-2 Toxin': 'T-2',
 };
 
-const TOXIN_PALETTE = ['#ef4444', '#f97316', '#a855f7', '#3b82f6', '#eab308', '#14b8a6', '#ec4899', '#22c55e'];
+const TOXIN_PALETTE = ['#ef4444', '#f97316', '#a855f7', '#3b82f6', '#eab308', '#14b8a6', '#ec4899', '#22c55e', '#6366f1', '#06b6d4'];
 
 const SAMPLE_TYPE_LABELS: Record<string, string> = {
   field: 'Farming communities',
@@ -433,7 +434,7 @@ function buildCoContamination(samples: Sample[], toxinColors: Record<string, str
 
   const networkNodes = [...toxinFrequency.entries()]
     .sort((left, right) => right[1] - left[1])
-    .slice(0, 8)
+    .slice(0, 10)
     .map(([toxin, count]) => ({
       id: toxin,
       frequency: Math.round(toPercent(count, positiveCount)),
@@ -654,7 +655,7 @@ export function buildSurveillanceAnalytics(allSamples: Sample[], filters: Dashbo
 
   const mycotoxinBarData: ToxinScore[] = toxinStats
     .sort((left, right) => right.dangerousCount - left.dangerousCount || right.detectedCount - left.detectedCount)
-    .slice(0, 6)
+    .slice(0, 10)
     .map((toxin) => {
       const score = clamp(Math.round(toPercent(toxin.detectedCount + toxin.dangerousCount, filteredSamples.length || 1)), 0, 100);
       return {

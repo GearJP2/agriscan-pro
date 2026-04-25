@@ -8,6 +8,7 @@ export interface KPICard {
   isImprovement: boolean | null; // whether the delta direction is good
   context: string;
   accent?: 'red' | 'amber' | 'green' | 'default';
+  icon?: any;
 }
 
 export interface KPIData {

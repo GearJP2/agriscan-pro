@@ -24,6 +24,7 @@ from .serializers import (
     SampleSerializer,
 )
 from .tasks import process_sample_file
+from .services.analytics_service import AnalyticsService
 
 logger = logging.getLogger('agriscan.samples')
 
@@ -446,3 +447,31 @@ class SampleViewSet(viewsets.ModelViewSet):
             logger.error('auditlog.write_failed', extra={'action': 'bulk_delete', 'error': str(audit_exc)})
 
         return Response({'deleted': count, 'not_found': not_found}, status=status.HTTP_200_OK)
+
+    # ─── Dashboard Analytics V2 Endpoints ──────────────────────────────────────────
+
+    @action(detail=False, methods=['get'], url_path='analytics/overview')
+    def analytics_overview(self, request):
+        """Dashboard Overview KPIs and Regional bounds."""
+        data = AnalyticsService.get_overview(request.query_params)
+        return Response(data, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['get'], url_path='analytics/co-contamination')
+    def analytics_co_contamination(self, request):
+        """UpSet plot intersections and Network graph links."""
+        data = AnalyticsService.get_co_contamination(request.query_params)
+        return Response(data, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['post'], url_path='analytics/threshold-simulation')
+    def analytics_threshold_simulation(self, request):
+        """Simulate overriding of toxin thresholds."""
+        overrides = request.data.get('overrides', {})
+        data = AnalyticsService.simulate_threshold(overrides, request.query_params)
+        return Response(data, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['get'], url_path='analytics/environmental-correlation')
+    def analytics_environmental_correlation(self, request):
+        """Stub for weather/moisture correlation chart."""
+        data = AnalyticsService.get_environmental_correlation(request.query_params)
+        return Response(data, status=status.HTTP_200_OK)
+

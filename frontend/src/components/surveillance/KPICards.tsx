@@ -27,8 +27,8 @@ function DeltaBadge({ card }: { card: KPICard }) {
 
 export default function KPICards({ cards }: { cards: KPICard[] }) {
   return (
-    <section aria-label="Key Performance Indicators">
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
+    <section aria-label="Key Performance Indicators" className="font-sans">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {cards.map((card) => {
           const hasRedAccent = card.accent === 'red';
           return (
@@ -40,23 +40,30 @@ export default function KPICards({ cards }: { cards: KPICard[] }) {
               )}
             >
               <CardContent className="p-5">
-                {/* Delta badge - top right */}
-                <div className="absolute top-3 right-3">
-                  <DeltaBadge card={card} />
+                {/* Header row: Label/Icon on Left, Value on Right */}
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    {card.icon && (
+                      <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+                        <card.icon className="h-4 w-4" />
+                      </div>
+                    )}
+                    <p className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">
+                      {card.label}
+                    </p>
+                  </div>
+                  <p className="text-2xl font-black text-foreground">
+                    {card.value}
+                  </p>
                 </div>
 
-                {/* Main value */}
-                <p className="text-3xl font-bold text-foreground mt-2">
-                  {card.value}
-                </p>
-
-                {/* Label */}
-                <p className="text-sm text-muted-foreground mt-1">{card.label}</p>
-
-                {/* Context line */}
-                <p className="text-xs text-muted-foreground/60 mt-3 border-t border-border pt-2">
-                  {card.context}
-                </p>
+                {/* Delta badge and context row */}
+                <div className="flex items-center justify-between mt-4 border-t border-border/50 pt-3">
+                  <p className="text-[10px] text-muted-foreground/60 font-bold uppercase tracking-widest">
+                    {card.context}
+                  </p>
+                  <DeltaBadge card={card} />
+                </div>
               </CardContent>
             </Card>
           );

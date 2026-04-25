@@ -368,4 +368,52 @@ export const userAPI = {
   },
 };
 
+
+
+export const analyticsAPI = {
+  async getOverview(filters?: Record<string, string | string[]>) {
+    const params = new URLSearchParams();
+    if (filters) {
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value) params.append(key, Array.isArray(value) ? value.join(",") : value);
+      });
+    }
+    const response = await apiClient.get(`/samples/analytics/overview/?${params.toString()}`);
+    return response.data;
+  },
+
+  async getCoContamination(filters?: Record<string, string | string[]>) {
+    const params = new URLSearchParams();
+    if (filters) {
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value) params.append(key, Array.isArray(value) ? value.join(",") : value);
+      });
+    }
+    const response = await apiClient.get(`/samples/analytics/co-contamination/?${params.toString()}`);
+    return response.data;
+  },
+
+  async simulateThreshold(overrides: Record<string, Record<string, number>>, filters?: Record<string, string | string[]>) {
+    const params = new URLSearchParams();
+    if (filters) {
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value) params.append(key, Array.isArray(value) ? value.join(",") : value);
+      });
+    }
+    const response = await apiClient.post(`/samples/analytics/threshold-simulation/?${params.toString()}`, { overrides });
+    return response.data;
+  },
+
+  async getEnvironmentalCorrelation(filters?: Record<string, string | string[]>) {
+    const params = new URLSearchParams();
+    if (filters) {
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value) params.append(key, Array.isArray(value) ? value.join(",") : value);
+      });
+    }
+    const response = await apiClient.get(`/samples/analytics/environmental-correlation/?${params.toString()}`);
+    return response.data;
+  }
+};
+
 export default apiClient;

@@ -226,6 +226,23 @@
     }
 }
 
+/* Leaflet Dark Mode Support */
+.leaflet-tooltip-dark {
+    background-color: #0f172a !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+    color: #f8fafc !important;
+    font-weight: 700;
+}
+
+.leaflet-tooltip-dark::before {
+    border-right-color: #0f172a !important;
+}
+
+/* Global Recharts Overrides for Pure Flat */
+.recharts-default-tooltip {
+    box-shadow: none !important;
+}
+
 @keyframes fadeIn {
     from {
         opacity: 0;
