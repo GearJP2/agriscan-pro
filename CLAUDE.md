@@ -254,6 +254,21 @@ const api = axios.create({
 export const getSamples = (filters) => api.get('/samples/', { params: filters });
 ```
 
+#### Troubleshooting Beanstalk Deployments
+
+**Issue: `ImproperlyConfigured` during `container_commands`**
+If `python manage.py migrate` fails with missing environment variables (e.g., Google OAuth keys), it's because Beanstalk's environment variables aren't automatically loaded into the build-time shell.
+
+**Fix:** Use `get-config environment` to load them manually in your `.config` files:
+```yaml
+container_commands:
+  01_migrate:
+    command: |
+      export $(/opt/elasticbeanstalk/bin/get-config environment | jq -r 'to_entries | .[] | "\(.key)=\"\(.value)\""')
+      source /var/app/venv/*/bin/activate
+      python manage.py migrate --noinput
+```
+
 ---
 
 ## 🧪 Testing Strategy
