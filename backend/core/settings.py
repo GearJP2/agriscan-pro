@@ -419,10 +419,6 @@ if not DEBUG:
     # Support CloudFront-specific header as well
     USE_X_FORWARDED_PORT = True
     SECURE_REFERRER_POLICY = "same-origin"
-    # Exempt health check from SSL redirect to allow ALB to verify status over HTTP
-    SECURE_REDIRECT_EXEMPT = [
-        r"^health/$",
-    ]
 
 
 # Structured Logging Configuration
