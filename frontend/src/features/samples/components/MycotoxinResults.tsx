@@ -2,6 +2,7 @@ import { MycotoxinResult } from '@/types/sample';
 import { AlertTriangle, CheckCircle2, FileText, ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { isAboveThresholdResult } from '@/lib/mycotoxinRisk';
 
 interface MycotoxinResultsProps {
   results?: MycotoxinResult[] | null;
@@ -22,14 +23,14 @@ const MycotoxinResults = ({ results }: MycotoxinResultsProps) => {
       <div className="space-y-3">
         {results.map((result, index) => (
           (() => {
-            const isDetected = result.is_detected ?? result.intensity > 0;
+            const isAboveThreshold = isAboveThresholdResult(result);
             return (
-          <div 
-            key={index} 
+          <div
+            key={index}
             className={cn(
               'rounded-lg border p-4 transition-all',
-              isDetected 
-                ? 'border-danger/30 bg-danger/5' 
+              isAboveThreshold
+                ? 'border-danger/30 bg-danger/5'
                 : 'border-border bg-card'
             )}
           >
@@ -37,7 +38,7 @@ const MycotoxinResults = ({ results }: MycotoxinResultsProps) => {
               <div className="flex-1">
                 <div className="flex items-center gap-2">
                   <h4 className="font-medium text-foreground">{result.name}</h4>
-                  {isDetected ? (
+                  {isAboveThreshold ? (
                     <div className="flex items-center gap-1 rounded-full bg-danger/10 px-2 py-0.5 text-xs font-medium text-danger">
                       <AlertTriangle className="h-3 w-3" />
                       Positive
@@ -45,7 +46,7 @@ const MycotoxinResults = ({ results }: MycotoxinResultsProps) => {
                   ) : (
                     <div className="flex items-center gap-1 rounded-full bg-success/10 px-2 py-0.5 text-xs font-medium text-success">
                       <CheckCircle2 className="h-3 w-3" />
-                      Negative
+                      Below Threshold
                     </div>
                   )}
                 </div>
@@ -74,11 +75,19 @@ const MycotoxinResults = ({ results }: MycotoxinResultsProps) => {
                 <span className="text-muted-foreground">Measured Concentration</span>
                 <span className={cn(
                   'font-semibold',
-                  isDetected ? 'text-danger' : 'text-foreground'
+                  isAboveThreshold ? 'text-danger' : 'text-foreground'
                 )}>
-                  {isDetected ? `${result.intensity} ${result.unit}` : 'LOD'}
+                  {`${result.intensity} ${result.unit}`}
                 </span>
               </div>
+              {result.threshold !== undefined && result.threshold !== null && (
+                <div className="mt-2 flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">Threshold</span>
+                  <span className="font-semibold text-muted-foreground">
+                    {result.threshold} {result.unit}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
             );

@@ -42,9 +42,20 @@ class AnalyticsEndpointsTests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn('kpis', response.data)
         self.assertEqual(response.data['kpis']['total_samples'], 2)
-        # Assuming AFB1 high is > 5 based on existing tests logic
+        self.assertEqual(response.data['kpis']['positive_pct'], 50.0)
+        self.assertEqual(response.data['kpis']['detected_pct'], 100.0)
         self.assertIn('provinces', response.data)
         self.assertGreaterEqual(len(response.data['provinces']), 2)
+        bangkok = next(p for p in response.data['provinces'] if p['name'] == 'Bangkok')
+        self.assertEqual(bangkok['positiveCount'], 1)
+
+    def test_overview_filters_by_province(self):
+        url = reverse('sample-analytics-overview')
+        response = self.client.get(url, {'province': 'Bangkok'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['kpis']['total_samples'], 1)
+        self.assertEqual(len(response.data['provinces']), 1)
+        self.assertEqual(response.data['provinces'][0]['name'], 'Bangkok')
 
     def test_co_contamination(self):
         url = reverse('sample-analytics-co-contamination')
@@ -66,9 +77,13 @@ class AnalyticsEndpointsTests(TestCase):
         }
         response = self.client.post(url, payload, format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn('total_samples', response.data)
+        self.assertIn('kpis', response.data)
+        self.assertEqual(response.data['kpis']['total_samples'], 2)
         # sample1 AFB1 > EU default, sample2 AFB1 (2.0) > override (1.0), so both above!
-        self.assertEqual(response.data['above_threshold'], 2)
+        self.assertEqual(response.data['kpis']['above_threshold_pct'], 100.0)
+        self.assertTrue(
+            all(province['positiveCount'] == 1 for province in response.data['provinces'])
+        )
 
     def test_environmental_correlation(self):
         url = reverse('sample-analytics-environmental-correlation')

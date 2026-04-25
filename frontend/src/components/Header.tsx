@@ -44,7 +44,7 @@ const Header = () => {
 
     return (
         <nav className={cn(
-            "fixed top-4 left-1/2 -translate-x-1/2 w-full z-[1000] transition-all duration-700 ease-in-out",
+            "fixed top-4 left-1/2 -translate-x-1/2 w-full z-40 transition-all duration-700 ease-in-out",
             isDashboard ? "max-w-[1920px] px-4 sm:px-6 lg:px-8" : "max-w-container-max px-gutter"
         )}>
             <div className="w-full rounded-2xl border border-white/20 dark:border-slate-800/50 bg-white/70 dark:bg-slate-950/70 backdrop-blur-xl flex justify-between items-center px-8 py-4">

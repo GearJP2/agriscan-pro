@@ -18,12 +18,13 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Sample, FilterState, ProcessLog, RiskLevel } from '@/types/sample';
+import { Sample, FilterState, ProcessLog } from '@/types/sample';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useWatchlist } from '@/hooks/useWatchlist';
 import { USER_ROLE_WEIGHT } from '@/types/user';
 import { sampleAPI } from '@/lib/api';
+import { getThresholdRiskLevel } from '@/lib/mycotoxinRisk';
 
 import { useDeferredMount } from '@/hooks/useDeferredMount';
 
@@ -157,6 +158,7 @@ const SampleList = () => {
                 search: filters.search || undefined,
                 status: filters.status.length ? filters.status : undefined,
                 region: filters.region.length ? filters.region[0] : undefined,
+                province: filters.province.length ? filters.province[0] : undefined,
                 vegetation: filters.vegetation.length ? filters.vegetation[0] : undefined,
                 riskLevel: filters.risk.length ? filters.risk : undefined,
                 dateFrom: filters.dateFrom || undefined,
@@ -169,21 +171,6 @@ const SampleList = () => {
     const samples = useMemo<Sample[]>(() => {
         return samplesData?.results || samplesData || [];
     }, [samplesData]);
-
-
-
-    // Calculate risk level for a sample
-    const getRiskLevel = (sample: Sample): RiskLevel => {
-        const results = sample.mycotoxin_results ?? [];
-        if (results.length === 0) return sample.risk_level || 'safe';
-        if (results.some((result) => result.dangerous)) return 'high';
-
-        const maxIntensity = Math.max(...results.map((result) => result.intensity));
-        if (maxIntensity >= 7) return 'medium';
-        if (maxIntensity >= 4) return 'low';
-        return 'safe';
-    };
-
     const [selectedSample, setSelectedSample] = useState<Sample | null>(null);
     const [modalOpen, setModalOpen] = useState(false);
 
@@ -214,7 +201,7 @@ const SampleList = () => {
                 sample.vegetation_variety,
                 sample.collection_date,
                 sample.status,
-                getRiskLevel(sample),
+                getThresholdRiskLevel(sample),
                 sample.purpose || '-',
                 sample.sample_type || '-',
                 sample.collected_by || '-',

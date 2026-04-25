@@ -26,6 +26,11 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useWatchlist } from '@/hooks/useWatchlist';
+import {
+  getThresholdRiskScore,
+  hasAboveThresholdResults,
+  hasMeasuredResults,
+} from '@/lib/mycotoxinRisk';
 import { cn } from '@/lib/utils';
 import type { Sample } from '@/types/sample';
 
@@ -52,61 +57,12 @@ const TABLE_ROW_HEIGHT = 64;
 const TABLE_OVERSCAN_ROWS = 8;
 const VIRTUALIZATION_THRESHOLD = 60;
 
-const getMaxIntensity = (sample: Sample) => {
-  if (!sample.mycotoxin_results || sample.mycotoxin_results.length === 0) {
-    return null;
-  }
-
-  return Math.max(...sample.mycotoxin_results.map((result) => result.intensity));
-};
-
-const hasPositiveResults = (sample: Sample) => {
-  if (sample.mycotoxin_results && sample.mycotoxin_results.length > 0) {
-    return sample.mycotoxin_results.some(
-      (result) => result.is_detected ?? result.intensity > 0,
-    );
-  }
-
-  return ['high', 'medium', 'low'].includes(sample.risk_level || '');
-};
-
-const hasRecordedResults = (sample: Sample) => {
-  if (sample.mycotoxin_results && sample.mycotoxin_results.length > 0) {
-    return true;
-  }
-
-  if (sample.status === 'completed') {
-    return true;
-  }
-
-  return (
-    (sample.results_count ?? 0) > 0 ||
-    ['low', 'medium', 'high'].includes(sample.risk_level || '')
-  );
-};
-
 const getRiskScore = (sample: Sample) => {
-  if (!hasRecordedResults(sample)) {
+  if (!hasMeasuredResults(sample)) {
     return -1;
   }
 
-  const maxIntensity = getMaxIntensity(sample);
-  if (hasPositiveResults(sample)) {
-    return 100 + (maxIntensity ?? 1);
-  }
-
-  if (sample.mycotoxin_results && sample.mycotoxin_results.length > 0) {
-    return maxIntensity ?? 1;
-  }
-
-  const riskWeight: Record<string, number> = {
-    safe: 1,
-    low: 2,
-    medium: 3,
-    high: 4,
-  };
-
-  return riskWeight[sample.risk_level || 'safe'] || 0;
+  return getThresholdRiskScore(sample);
 };
 
 interface SampleRowProps {
@@ -211,11 +167,11 @@ const SampleRow = memo(
         <TableCell>{getStatusBadge(sample)}</TableCell>
         <TableCell>
           <div className="flex items-center gap-2">
-            {hasPositiveResults(sample) ? (
+            {hasAboveThresholdResults(sample) ? (
               <Badge className="bg-danger text-danger-foreground border-danger/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-tight shadow-sm">
                 Positive
               </Badge>
-            ) : hasRecordedResults(sample) ? (
+            ) : hasMeasuredResults(sample) ? (
               <Badge className="bg-info text-info-foreground border-info/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-tight shadow-sm">
                 Negative
               </Badge>

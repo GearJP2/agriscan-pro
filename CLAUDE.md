@@ -53,11 +53,12 @@ agriscan-pro/
 │   │   ├── serializers.py    # Auth serializers
 │   │   └── urls.py
 │   ├── samples/              # Core business logic
-│   │   ├── models.py         # Sample, ProcessLog, MycotoxinResult (composite indexes)
+│   │   ├── models.py         # Sample, ProcessLog, MycotoxinResult risk model
 │   │   ├── views.py          # CRUD viewsets (thin views)
 │   │   ├── serializers.py    # Data serialization (N+1 optimized)
 │   │   ├── urls.py
 │   │   ├── admin.py          # Django admin config
+│   │   ├── constants/        # Mycotoxin registry, aliases, EU thresholds
 │   │   └── services/
 │   │       ├── ingestion_service.py  # CSV import logic (decoupled)
 │   │       └── s3_service.py         # S3 presigned URL generation
@@ -129,6 +130,7 @@ agriscan-pro/
 - `backend/samples/models.py` - Sample, ProcessLog, MycotoxinResult models (with composite DB indexes)
 - `backend/samples/views.py` - CRUD operations and custom actions (thin views)
 - `backend/samples/serializers.py` - Data serialization (N+1 optimized via prefetch)
+- `backend/samples/constants/mycotoxin_constants.py` - Toxin registry, aliases, EU threshold metadata, risk policy
 - `backend/samples/services/ingestion_service.py` - CSV bulk import logic (decoupled from views)
 - `backend/samples/services/s3_service.py` - S3 presigned URL generation
 - `backend/core/permissions.py` - `IsOwnerOrAdmin` — role-based object-level permission
@@ -169,6 +171,9 @@ POST   /api/samples/bulk_delete/                   # Bulk delete (admin only)
 POST   /api/samples/request_upload/                # Get S3 presigned upload URL
 POST   /api/samples/confirm_upload/                # Enqueue Celery task after S3 upload
 GET    /api/samples/task_status/{task_id}/         # Poll Celery task status
+GET    /api/samples/analytics/overview/            # Threshold-based dashboard KPIs
+GET    /api/samples/analytics/co-contamination/    # Co-contamination intersections/network
+POST   /api/samples/analytics/threshold-simulation/ # Simulate toxin thresholds
 ```
 
 ### System
@@ -180,7 +185,9 @@ GET /health/    # SRE health check — DB latency, Redis latency, system metrics
 ```
 GET /api/samples/?status=pending
 GET /api/samples/?region=Southeast
+GET /api/samples/?province=Chiang%20Mai
 GET /api/samples/?vegetation=Rice
+GET /api/samples/?risk_level=high
 GET /api/samples/?date_from=2026-01-01&date_to=2026-03-31
 ```
 
@@ -369,6 +376,8 @@ node agents-orchestrator/examples/simple-task.js
   - **Project Cleanup**: `.venv/` untracked; orphan docs (`Requirement.md`) removed; `DB/DB.sql` retained as schema artifact; `.gitignore` audited for stale tracked files; generated migration files excluded from static analysis.
 - **Graceful Dependency Handling**: Optional dependencies (`psutil`, Redis) handled gracefully in local/test environments without hard failures.
 - **Logger Migration in OAuth**: OAuth backend code migrated from `print()` to structured `logging.getLogger("agriscan.accounts")` calls.
+- **Backend-First Mycotoxin Risk Model**: `MycotoxinResult` uses canonical `toxin_type`, `value`, `unit`, `risk_level`, EU threshold snapshots, and `(sample, toxin_type)` uniqueness. Legacy serializer aliases (`name`, `intensity`, `threshold`, `dangerous`, `method`) are transitional compatibility only.
+- **Threshold Source of Truth**: SampleList, dashboard fallback analytics, Regional Risk Ranking, and Regional Risk Map treat `Positive` as above-threshold (`risk_level` `high`/`critical`). `detected_pct` is available separately for samples with any mycotoxin result below or above threshold.
 
 
 ### 🚧 In Development (Local Only)
@@ -465,12 +474,27 @@ timestamp: DateTime (auto)
 ```
 id: Integer (primary key)
 sample: ForeignKey(Sample)
-test_type: String
-value: Float
-unit: String
-dangerous: Boolean
-timestamp: DateTime (auto)
+toxin_type: String (canonical toxin code, e.g. AFB1, DON, FB1)
+value: Float (measured concentration)
+unit: String (canonical default: ug_kg)
+risk_level: String (safe, detected, high, critical, unclassified)
+eu_threshold_low: Float (snapshot)
+eu_threshold_high: Float (snapshot)
+timestamp: DateTime
+notes: Text
+
+Compatibility aliases returned by serializers:
+name, intensity, is_detected, dangerous, threshold, method
 ```
+
+### Mycotoxin Threshold Semantics
+- `safe`: value is zero or below detection concern.
+- `detected`: value is above zero but not above the EU low threshold.
+- `high`: value is above the EU low threshold.
+- `critical`: value is above the EU high threshold.
+- `unclassified`: toxin has no trusted threshold data.
+- UI `Positive` means above threshold (`high`/`critical`), not merely detected.
+- Dashboard `detected_pct` tracks samples with any result separately from threshold risk.
 
 ---
 
@@ -609,9 +633,9 @@ eb status                            # Check environment health
 ---
 
 ## Last Updated
-- Date: 2026-04-24
-- By: Claude Code (Week 1 Security Hardening follow-up review)
-- Status: Week 1 roadmap fixes landed (B1/B2/B3/B7) and follow-up items 21–32 in `task.md` are now complete. Remaining focus is Week 2 quality gates plus the outstanding backend/sample cleanup backlog.
+- Date: 2026-04-26
+- By: Codex / Claude Code project handoff
+- Status: Week 1-4 hardening and backend-first MycotoxinResult migration are complete. Current threshold policy is documented: dashboard/list `Positive` means above-threshold only; `detected_pct` is separate.
 
 
 ## Pending Actions
@@ -620,6 +644,7 @@ eb status                            # Check environment health
 - Role policy restored for `admin`, `head_researcher`, and `researcher`; refresh flow is cookie-only and token blacklisting is atomic.
 - Frontend API config now uses CloudFront-routed `/api` in production; stale Railway fallbacks are removed.
 - Shared `IsAdmin` / `IsAdminOrResearchRole` permissions are in place, the OAuth client-side state shim is gone, and Google OAuth credentials now fail fast outside debug/test.
+- Mycotoxin analytics now use threshold-derived risk consistently across backend analytics, SampleList, RegionalRiskRanking, and RegionalRiskMap.
 
 ### Cookie / OAuth environment variables (new in this release)
 - `JWT_USE_HTTPONLY_REFRESH_COOKIE` (default `True`) — toggles the httpOnly refresh cookie flow
@@ -638,5 +663,5 @@ eb status                            # Check environment health
 - Set `GATEWAY_API_KEY` env var before starting agent orchestrator (will refuse to start without it)
 - Set `EMAIL_HOST_USER` + `EMAIL_HOST_PASSWORD` in `.env` for real email delivery (see `.env.example`); without them OTP prints to terminal only
 - Set `SRE_MONITOR_KEY` env var to protect system metrics on `/health/` endpoint
-- **Local environment**: Install `psutil` (`pip install psutil`) and resolve SQLite migration compatibility to unblock backend tests
-- **Week 2 backlog**: CI lint/test gates, TypeScript `strict: true`, frontend `ErrorBoundary`s, frontend smoke tests
+- **Local environment**: Install `psutil` (`pip install psutil`) if local health metrics are needed
+- **API docs backlog**: Add `drf-spectacular` schema generation when ready

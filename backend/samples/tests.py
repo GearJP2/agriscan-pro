@@ -285,6 +285,16 @@ class SampleFilteringTests(SampleTestMixin, TestCase):
         self.assertIn('FILTER-001', sample_ids)
         self.assertNotIn('FILTER-002', sample_ids)
 
+    def test_filter_by_province(self):
+        """Filtering by province should return only matching samples."""
+        url = reverse('sample-list')
+        response = self.client.get(url, {'province': 'Songkhla'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        results = self._get_results(response.data)
+        sample_ids = [s['sample_id'] for s in results]
+        self.assertIn('FILTER-002', sample_ids)
+        self.assertNotIn('FILTER-001', sample_ids)
+
     def test_filter_by_vegetation(self):
         """Filtering by vegetation should return only matching samples."""
         url = reverse('sample-list')
@@ -314,6 +324,36 @@ class SampleFilteringTests(SampleTestMixin, TestCase):
         returned_statuses = {s['status'] for s in results}
         self.assertTrue(returned_statuses.issubset({'pending', 'completed'}))
         self.assertGreaterEqual(len(results), 2)
+
+    def test_filter_by_threshold_risk_level(self):
+        """Risk filters should use mycotoxin threshold-derived risk levels."""
+        high_sample = Sample.objects.get(sample_id='FILTER-002')
+        low_sample = Sample.objects.get(sample_id='FILTER-001')
+        MycotoxinResult.objects.create(
+            sample=high_sample,
+            toxin_type='AFB1',
+            value=25,
+            unit='ug_kg',
+        )
+        MycotoxinResult.objects.create(
+            sample=low_sample,
+            toxin_type='AFB1',
+            value=1,
+            unit='ug_kg',
+        )
+
+        url = reverse('sample-list')
+        high_response = self.client.get(url, {'risk_level': 'high'})
+        self.assertEqual(high_response.status_code, status.HTTP_200_OK)
+        high_ids = [s['sample_id'] for s in self._get_results(high_response.data)]
+        self.assertIn('FILTER-002', high_ids)
+        self.assertNotIn('FILTER-001', high_ids)
+
+        low_response = self.client.get(url, {'risk_level': 'low'})
+        self.assertEqual(low_response.status_code, status.HTTP_200_OK)
+        low_ids = [s['sample_id'] for s in self._get_results(low_response.data)]
+        self.assertIn('FILTER-001', low_ids)
+        self.assertNotIn('FILTER-002', low_ids)
 
     def test_search_by_sample_id(self):
         """Search query should find samples matching the sample_id."""

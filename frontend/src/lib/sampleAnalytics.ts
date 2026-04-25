@@ -14,6 +14,12 @@ import type {
   ToxinScore,
 } from '@/types/dashboard';
 import type { MycotoxinResult, ProcessState, RiskLevel, Sample } from '@/types/sample';
+import {
+  getThresholdRiskLevel,
+  hasAboveThresholdResults,
+  hasMeasuredResults,
+  isAboveThresholdResult,
+} from '@/lib/mycotoxinRisk';
 
 const TOXIN_ALIASES: Record<string, string> = {
   'Aflatoxin B1': 'AFB1',
@@ -171,6 +177,10 @@ function isWithinRange(sample: Sample, filters: DashboardFilters) {
   if (to && date > to) return false;
   if (filters.commodities.length > 0 && !filters.commodities.includes(sample.vegetation_variety)) return false;
   if (filters.regions.length > 0 && !filters.regions.includes(sample.region)) return false;
+
+  // Province Filtering (Deep Match)
+  if (filters.provinces.length > 0 && !filters.provinces.includes(sample.province)) return false;
+
   return true;
 }
 
@@ -179,25 +189,11 @@ function getSampleResults(sample: Sample) {
 }
 
 export function hasRecordedResults(sample: Sample) {
-  if (getSampleResults(sample).length > 0) return true;
-  if (sample.status === 'completed' || sample.status === 'flagged') return true;
-  return (sample.results_count ?? 0) > 0 || ['low', 'medium', 'high'].includes(sample.risk_level || '');
+  return hasMeasuredResults(sample);
 }
 
 export function getRiskLevel(sample: Sample): RiskLevel {
-  const results = getSampleResults(sample);
-
-  if (results.length === 0) {
-    return sample.risk_level ?? 'safe';
-  }
-
-  const hasDangerous = results.some((result) => result.dangerous);
-  if (hasDangerous) return 'high';
-
-  const maxRatio = Math.max(...results.map((result) => (result.threshold > 0 ? result.intensity / result.threshold : 0)));
-  if (maxRatio >= 0.75) return 'medium';
-  if (maxRatio > 0) return 'low';
-  return 'safe';
+  return getThresholdRiskLevel(sample);
 }
 
 export function getLatestProcessState(sample: Sample): ProcessState | null {
@@ -241,8 +237,10 @@ function getCommodityStats(samples: Sample[]) {
     };
 
     current.sampleCount += 1;
-    if (hasRecordedResults(sample)) current.positiveCount += 1;
-    if (getRiskLevel(sample) === 'high') current.aboveThresholdCount += 1;
+    if (hasAboveThresholdResults(sample)) {
+      current.positiveCount += 1;
+      current.aboveThresholdCount += 1;
+    }
     groups.set(commodity, current);
   }
 
@@ -263,7 +261,7 @@ function getToxinStats(samples: Sample[]) {
       };
 
       current.detectedCount += 1;
-      if (result.dangerous) current.dangerousCount += 1;
+      if (isAboveThresholdResult(result)) current.dangerousCount += 1;
       groups.set(key, current);
     }
   }
@@ -296,16 +294,18 @@ function buildProvinceRiskData(samples: Sample[]) {
 
   return [...groups.entries()].map(([province, provinceSamples]) => {
     const sampleCount = provinceSamples.length;
-    const aboveThresholdCount = provinceSamples.filter((sample) => getRiskLevel(sample) !== 'safe').length;
+    const aboveThresholdCount = provinceSamples.filter((sample) => getRiskLevel(sample) === 'high').length;
+    const positiveCount = aboveThresholdCount;
     const aboveThresholdPct = toPercent(aboveThresholdCount, sampleCount);
+    const positivePct = aboveThresholdPct;
     const toxinCounts = new Map<string, number>();
     const commodityCounts = new Map<string, number>();
 
     for (const sample of provinceSamples) {
       commodityCounts.set(sample.vegetation_variety, (commodityCounts.get(sample.vegetation_variety) ?? 0) + 1);
       for (const result of getSampleResults(sample)) {
-        const key = result.dangerous ? result.name : getShortToxinName(result.name);
-        toxinCounts.set(key, (toxinCounts.get(key) ?? 0) + (result.dangerous ? 2 : 1));
+        const key = isAboveThresholdResult(result) ? result.name : getShortToxinName(result.name);
+        toxinCounts.set(key, (toxinCounts.get(key) ?? 0) + (isAboveThresholdResult(result) ? 2 : 1));
       }
     }
 
@@ -323,6 +323,8 @@ function buildProvinceRiskData(samples: Sample[]) {
       region: provinceSamples[0]?.region ?? 'Unknown',
       riskLevel,
       sampleCount,
+      positiveCount,
+      positivePct,
       aboveThresholdPct,
       dominantToxin,
       dominantCommodity,
@@ -474,14 +476,14 @@ function buildCoContamination(samples: Sample[], toxinColors: Record<string, str
 }
 
 function buildKpiData(currentSamples: Sample[], previousSamples: Sample[]) {
-  const currentPositive = currentSamples.filter((sample) => hasRecordedResults(sample)).length;
+  const currentPositive = currentSamples.filter((sample) => hasAboveThresholdResults(sample)).length;
   const currentAboveThreshold = currentSamples.filter((sample) => getRiskLevel(sample) === 'high').length;
   const currentHighRiskRegions = new Set(
     currentSamples.filter((sample) => getRiskLevel(sample) === 'high').map((sample) => sample.region)
   ).size;
   const currentAlerts = currentSamples.filter((sample) => sample.status === 'flagged').length;
 
-  const previousPositive = previousSamples.filter((sample) => hasRecordedResults(sample)).length;
+  const previousPositive = previousSamples.filter((sample) => hasAboveThresholdResults(sample)).length;
   const previousAboveThreshold = previousSamples.filter((sample) => getRiskLevel(sample) === 'high').length;
   const previousHighRiskRegions = new Set(
     previousSamples.filter((sample) => getRiskLevel(sample) === 'high').map((sample) => sample.region)
@@ -657,7 +659,11 @@ export function buildSurveillanceAnalytics(allSamples: Sample[], filters: Dashbo
     .sort((left, right) => right.dangerousCount - left.dangerousCount || right.detectedCount - left.detectedCount)
     .slice(0, 10)
     .map((toxin) => {
-      const score = clamp(Math.round(toPercent(toxin.detectedCount + toxin.dangerousCount, filteredSamples.length || 1)), 0, 100);
+      const score = clamp(
+        Math.round(toPercent(toxin.dangerousCount, filteredSamples.length || 1)),
+        0,
+        100,
+      );
       return {
         name: toxin.name,
         shortName: toxin.shortName,
@@ -667,7 +673,7 @@ export function buildSurveillanceAnalytics(allSamples: Sample[], filters: Dashbo
     });
 
   const commodityPalette = ['#ef4444', '#f59e0b', '#22c55e', '#3b82f6', '#6b7280'];
-  const positiveSamples = filteredSamples.filter((sample) => hasRecordedResults(sample));
+  const positiveSamples = filteredSamples.filter((sample) => hasAboveThresholdResults(sample));
   const positiveCommodityCounts = getCommodityStats(positiveSamples)
     .sort((left, right) => right.positiveCount - left.positiveCount)
     .slice(0, 5);

@@ -169,7 +169,10 @@ export default function RegionalRiskMap({ selectedProvince, onSelectProvince, pr
   const getSampleColor = (count: number) => {
     if (count === 0) return isDark ? '#374151' : '#d1d5db';
     // Scaling based on local distribution of positive samples
-    const maxRiskSamples = provinceRiskData.reduce((acc, p) => Math.max(acc, Math.round((p.sampleCount * p.aboveThresholdPct) / 100)), 0);
+    const maxRiskSamples = provinceRiskData.reduce((acc, p) => {
+      const positiveCount = p.positiveCount ?? Math.round((p.sampleCount * p.aboveThresholdPct) / 100);
+      return Math.max(acc, positiveCount);
+    }, 0);
     const ratio = count / (maxRiskSamples || 1);
     const idx = Math.min(Math.floor(ratio * SAMPLE_COLORS.length), SAMPLE_COLORS.length - 1);
     return SAMPLE_COLORS[idx];
@@ -186,7 +189,7 @@ export default function RegionalRiskMap({ selectedProvince, onSelectProvince, pr
       if (viewMode === 'risk') {
         fillColor = getRiskColor(risk.aboveThresholdPct);
       } else {
-        const positiveCount = Math.round((risk.sampleCount * risk.aboveThresholdPct) / 100);
+        const positiveCount = risk.positiveCount ?? Math.round((risk.sampleCount * risk.aboveThresholdPct) / 100);
         fillColor = getSampleColor(positiveCount);
       }
     }
@@ -209,12 +212,12 @@ export default function RegionalRiskMap({ selectedProvince, onSelectProvince, pr
     const risk = findProvinceRisk(name);
 
     if (risk) {
-      const positiveCount = Math.round((risk.sampleCount * risk.aboveThresholdPct) / 100);
+      const positiveCount = risk.positiveCount ?? Math.round((risk.sampleCount * risk.aboveThresholdPct) / 100);
       layer.bindTooltip(
         `<div class="text-sm p-1">
           <div class="font-bold border-b border-border/50 pb-1 mb-1">${risk.name}</div>
           <div class="flex justify-between gap-4"><span>Total Samples:</span> <span class="font-mono text-muted-foreground">${risk.sampleCount}</span></div>
-          <div class="flex justify-between gap-4"><span>Positive Detection:</span> <span class="font-mono text-primary font-bold">${positiveCount}</span></div>
+          <div class="flex justify-between gap-4"><span>Above Threshold:</span> <span class="font-mono text-primary font-bold">${positiveCount}</span></div>
           <div class="flex justify-between gap-4"><span>Risk Rate:</span> <span class="font-mono text-destructive font-bold">${risk.aboveThresholdPct}%</span></div>
           <div class="mt-1 text-[10px] text-muted-foreground"> Dominant: ${risk.dominantToxin}</div>
         </div>`,

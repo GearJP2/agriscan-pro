@@ -29,8 +29,8 @@ export default function RegionalRiskRanking({ onSelectProvince, selectedProvince
       if (viewMode === 'risk') {
         return b.aboveThresholdPct - a.aboveThresholdPct || b.sampleCount - a.sampleCount;
       } else {
-        const countA = Math.round((a.sampleCount * a.aboveThresholdPct) / 100);
-        const countB = Math.round((b.sampleCount * b.aboveThresholdPct) / 100);
+        const countA = a.positiveCount ?? Math.round((a.sampleCount * a.aboveThresholdPct) / 100);
+        const countB = b.positiveCount ?? Math.round((b.sampleCount * b.aboveThresholdPct) / 100);
         return countB - countA || b.sampleCount - a.sampleCount;
       }
     });
@@ -42,7 +42,7 @@ export default function RegionalRiskRanking({ onSelectProvince, selectedProvince
       province: p.nameEn || p.name, // Use English as display if possible
       sampleCount: p.sampleCount,
       aboveThresholdPct: p.aboveThresholdPct,
-      positiveCount: Math.round((p.sampleCount * p.aboveThresholdPct) / 100),
+      positiveCount: p.positiveCount ?? Math.round((p.sampleCount * p.aboveThresholdPct) / 100),
       dominantToxin: p.dominantToxin,
       riskLevel: p.riskLevel,
     }));
@@ -165,4 +165,3 @@ export default function RegionalRiskRanking({ onSelectProvince, selectedProvince
     </Card>
   );
 }
-

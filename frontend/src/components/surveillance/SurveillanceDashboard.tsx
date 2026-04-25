@@ -64,6 +64,7 @@ const DEFAULT_FILTERS: DashboardFilters = {
   dateRange: { from: '', to: '' },
   commodities: [],
   regions: [],
+  provinces: [],
   quarter: ALL_TIME_QUARTER,
 };
 
@@ -71,7 +72,7 @@ export default function SurveillanceDashboard() {
   const { isAuthenticated } = useAuth();
   const isDeferredMounted = useDeferredMount(400);
   const [filters, setFilters] = useState<DashboardFilters>(DEFAULT_FILTERS);
-  const [selectedProvince, setSelectedProvince] = useState<string | null>(null);
+  const selectedProvince = filters.provinces[0] || null;
   const [mapViewMode, setMapViewMode] = useState<'risk' | 'samples'>('risk');
 
   // State for Threshold Simulator overrides
@@ -93,6 +94,7 @@ export default function SurveillanceDashboard() {
       // Map filters matching the backend expected snake_case layout where necessary
       const apiFilters = {
         region: filters.regions,
+        province: filters.provinces,
         vegetation_variety: filters.commodities,
         date_from: filters.dateRange.from,
         date_to: filters.dateRange.to
@@ -112,6 +114,7 @@ export default function SurveillanceDashboard() {
     queryFn: () => {
       const apiFilters = {
         region: filters.regions,
+        province: filters.provinces,
         vegetation_variety: filters.commodities,
         date_from: filters.dateRange.from,
         date_to: filters.dateRange.to
@@ -248,11 +251,13 @@ export default function SurveillanceDashboard() {
         />
 
         {/* Active filter indicator */}
-        {(filters.commodities.length > 0 || filters.regions.length > 0) && (
+        {(filters.commodities.length > 0 || filters.regions.length > 0 || filters.provinces.length > 0) && (
           <div className="text-xs text-warning bg-warning/10 rounded-lg px-4 py-2 border border-warning/20">
             Filters active: {filters.commodities.length > 0 && `Commodities: ${filters.commodities.join(', ')}`}
-            {filters.commodities.length > 0 && filters.regions.length > 0 && ' · '}
+            {filters.commodities.length > 0 && (filters.regions.length > 0 || filters.provinces.length > 0) && ' · '}
             {filters.regions.length > 0 && `Regions: ${filters.regions.join(', ')}`}
+            {filters.regions.length > 0 && filters.provinces.length > 0 && ' · '}
+            {filters.provinces.length > 0 && `Provinces: ${filters.provinces.join(', ')}`}
           </div>
         )}
 
@@ -320,7 +325,12 @@ export default function SurveillanceDashboard() {
                 <Suspense fallback={<MapSkeleton />}>
                   <RegionalRiskMap
                     selectedProvince={selectedProvince}
-                    onSelectProvince={setSelectedProvince}
+                    onSelectProvince={(p) => {
+                      setFilters(prev => ({
+                        ...prev,
+                        provinces: p ? [p] : []
+                      }));
+                    }}
                     provinceRiskData={overviewData ? (overviewData as any).provinces : analytics.provinceRiskData}
                     viewMode={mapViewMode}
                     onViewModeChange={setMapViewMode}
@@ -333,7 +343,12 @@ export default function SurveillanceDashboard() {
                   />
                   <RegionalRiskRanking
                     selectedProvince={selectedProvince}
-                    onSelectProvince={setSelectedProvince}
+                    onSelectProvince={(p) => {
+                      setFilters(prev => ({
+                        ...prev,
+                        provinces: p ? [p] : []
+                      }));
+                    }}
                     provinces={overviewData ? (overviewData as any).provinces : analytics.provinceRiskData}
                     viewMode={mapViewMode}
                   />

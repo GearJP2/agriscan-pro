@@ -21,6 +21,8 @@ export interface ProvinceRisk {
   region: string;
   riskLevel: 'low' | 'medium' | 'high' | 'critical';
   sampleCount: number;
+  positiveCount: number;
+  positivePct: number;
   aboveThresholdPct: number;
   dominantToxin: string;
   dominantCommodity: string;
@@ -105,5 +107,6 @@ export interface DashboardFilters {
   dateRange: { from: string; to: string };
   commodities: string[];
   regions: string[];
+  provinces: string[];
   quarter: string;
 }

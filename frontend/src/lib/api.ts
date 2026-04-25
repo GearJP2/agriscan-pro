@@ -147,6 +147,7 @@ export const sampleAPI = {
       search?: string;
       status?: string[];
       region?: string;
+      province?: string;
       vegetation?: string;
       riskLevel?: RiskLevel[];
       dateFrom?: string;
@@ -163,6 +164,7 @@ export const sampleAPI = {
       if (filters.status?.length)
         params.append("status", filters.status.join(","));
       if (filters.region) params.append("region", filters.region);
+      if (filters.province) params.append("province", filters.province);
       if (filters.vegetation) params.append("vegetation", filters.vegetation);
       if (filters.riskLevel?.length)
         params.append("risk_level", filters.riskLevel.join(","));
@@ -178,6 +180,7 @@ export const sampleAPI = {
     search?: string;
     status?: string[];
     region?: string;
+    province?: string;
     vegetation?: string;
     riskLevel?: RiskLevel[];
     dateFrom?: string;

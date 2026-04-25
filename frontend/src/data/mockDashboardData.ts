@@ -145,6 +145,8 @@ function assignRisk(province: string, region: string): ProvinceRisk {
     region,
     riskLevel,
     sampleCount,
+    positiveCount: Math.round((sampleCount * Math.max(aboveThresholdPct, 20)) / 100),
+    positivePct: Math.max(aboveThresholdPct, 20),
     aboveThresholdPct,
     dominantToxin: riskLevel === 'critical' ? 'AFB1' : toxins[Math.floor(Math.random() * toxins.length)],
     dominantCommodity: riskLevel === 'critical' || riskLevel === 'high'

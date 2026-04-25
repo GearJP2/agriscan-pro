@@ -76,6 +76,11 @@ class SampleViewSet(viewsets.ModelViewSet):
         region = self.request.query_params.get('region')
         if region:
             queryset = queryset.filter(region=region)
+
+        # Filter by province
+        province = self.request.query_params.get('province')
+        if province:
+            queryset = queryset.filter(province=province)
         
         # Filter by vegetation variety
         vegetation = self.request.query_params.get('vegetation')
@@ -90,6 +95,23 @@ class SampleViewSet(viewsets.ModelViewSet):
         date_to = self.request.query_params.get('date_to')
         if date_to:
             queryset = queryset.filter(collection_date__lte=date_to)
+
+        risk_level = self.request.query_params.get('risk_level')
+        if risk_level:
+            requested_levels = set(risk_level.split(','))
+            risk_filter = Q()
+            if 'high' in requested_levels:
+                risk_filter |= Q(mycotoxin_results__risk_level__in=['high', 'critical'])
+            if requested_levels.intersection({'low', 'medium'}):
+                risk_filter |= Q(mycotoxin_results__risk_level='detected')
+            if 'safe' in requested_levels:
+                risk_filter |= (
+                    Q(mycotoxin_results__risk_level='safe')
+                    | Q(mycotoxin_results__isnull=True)
+                )
+
+            if risk_filter:
+                queryset = queryset.filter(risk_filter).distinct()
         
         return queryset
 
@@ -474,4 +496,3 @@ class SampleViewSet(viewsets.ModelViewSet):
         """Stub for weather/moisture correlation chart."""
         data = AnalyticsService.get_environmental_correlation(request.query_params)
         return Response(data, status=status.HTTP_200_OK)
-

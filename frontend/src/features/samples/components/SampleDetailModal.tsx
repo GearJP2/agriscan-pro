@@ -13,6 +13,7 @@ import MycotoxinResults from './MycotoxinResults';
 import AdminStatusApproval from './AdminStatusApproval';
 import MycotoxinForm from './MycotoxinForm';
 import { useAuth } from '@/contexts/AuthContext';
+import { hasAboveThresholdResults, hasMeasuredResults } from '@/lib/mycotoxinRisk';
 
 interface SampleDetailModalProps {
   sample: Sample | null;
@@ -38,8 +39,8 @@ const SampleDetailModal = ({ sample, open, onOpenChange, onUpdateSample }: Sampl
     flagged: 'Flagged',
   };
 
-  const hasPositiveResults = sample.mycotoxin_results?.some(r => (r.is_detected ?? r.intensity > 0)) ?? false;
-  const hasResults = (sample.mycotoxin_results?.length ?? 0) > 0;
+  const hasPositiveResults = hasAboveThresholdResults(sample);
+  const hasResults = hasMeasuredResults(sample);
 
   const handleStatusUpdate = (sampleId: string, newLog: ProcessLog) => {
     // Call the update callback if provided
@@ -182,7 +183,7 @@ const SampleDetailModal = ({ sample, open, onOpenChange, onUpdateSample }: Sampl
                     "font-bold text-sm",
                     hasPositiveResults ? "text-danger" : hasResults ? "text-success" : "text-muted-foreground"
                   )}>
-                    {hasPositiveResults ? 'Positive (Detected)' : hasResults ? 'Stable (LOD)' : 'Awaiting Test'}
+                    {hasPositiveResults ? 'Positive (Above Threshold)' : hasResults ? 'Stable (Below Threshold)' : 'Awaiting Test'}
                   </p>
                 </div>
 

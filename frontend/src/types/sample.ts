@@ -40,11 +40,15 @@ export interface TestMethod {
 }
 
 export interface MycotoxinResult {
+  toxin_type?: string;
   name: string;
   intensity: number; // Exact measured concentration from lab
   is_detected?: boolean;
   dangerous: boolean;
-  threshold: number;
+  risk_level?: 'safe' | 'detected' | 'high' | 'critical' | 'unclassified';
+  eu_threshold_low?: number | null;
+  eu_threshold_high?: number | null;
+  threshold?: number | null;
   unit: string;
   method?: TestMethod;
 }
