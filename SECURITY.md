@@ -19,3 +19,21 @@ Instead, please send an email to the project maintainers outlining:
 - Potential impact.
 
 We will review reports and provide a timeline for fixes. Vulnerabilities that require coordinated disclosure will be handled privately until a patch is merged.
+
+## Dependency Scanning
+
+Backend dependency scans should run through:
+
+```bash
+python backend/scripts/run_dependency_audit.py
+```
+
+This script runs `pip-audit` and applies only the temporary exceptions declared in:
+
+`backend/security/pip_audit_exceptions.json`
+
+## Temporary Exceptions Register
+
+| ID | Package | Status | Added On | Review On | Reason |
+| --- | --- | --- | --- | --- | --- |
+| `CVE-2026-3219` | `pip` `26.0.1` | Active (temporary) | 2026-04-27 | 2026-05-27 | No fixed upstream release available yet. |

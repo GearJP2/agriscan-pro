@@ -128,10 +128,16 @@ WSGI_APPLICATION = "core.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
-# Use SQLite for development (default), PostgreSQL if explicitly configured
-_DB_ENGINE = os.environ.get("DB_ENGINE", "sqlite")
+# Keep test detection near DB/cache configuration so both can share it.
+IS_TESTING = "test" in sys.argv or "pytest" in sys.argv[0]
 
-if _DB_ENGINE == "postgresql":
+# Use SQLite for development (default), PostgreSQL when explicitly configured.
+# During tests, default to SQLite unless TEST_DB_ENGINE is explicitly set.
+_db_engine = os.environ.get("DB_ENGINE", "sqlite").strip().lower()
+_test_db_engine = os.environ.get("TEST_DB_ENGINE", "sqlite").strip().lower()
+_active_db_engine = _test_db_engine if IS_TESTING else _db_engine
+
+if _active_db_engine == "postgresql":
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.postgresql",
@@ -187,7 +193,6 @@ STORAGES = {
 #   REDIS_URL=redis://localhost:6379/0   (local)
 #   REDIS_URL=rediss://host:6379/0      (AWS ElastiCache with TLS)
 
-IS_TESTING = "test" in sys.argv or "pytest" in sys.argv[0]
 USE_LOCAL_MEMORY_CACHE = (
     IS_TESTING or os.environ.get("USE_LOCAL_MEMORY_CACHE", "False") == "True"
 )

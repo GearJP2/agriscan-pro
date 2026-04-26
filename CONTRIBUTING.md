@@ -34,6 +34,7 @@ First off, thank you for considering contributing to AgriScan Pro! It's people l
 3. Ensure CI passes on your PR:
    - `npm run lint` and `npm run typecheck` must exit without error.
    - `python manage.py test` must pass all suites.
+   - `python backend/scripts/run_dependency_audit.py` should pass in the backend environment.
 4. Keep PRs focused. If you are solving multiple issues, consider creating multiple PRs.
 
 ## Code Style
