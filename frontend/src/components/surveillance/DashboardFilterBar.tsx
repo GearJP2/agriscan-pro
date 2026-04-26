@@ -141,7 +141,9 @@ function SingleSelect({
 
 export default function DashboardFilterBar({ filters, onChange, commodityOptions, regionOptions, quarterOptions }: Props) {
     const [dateOpen, setDateOpen] = useState(false);
+    const [isStuck, setIsStuck] = useState(false);
     const dateRef = useRef<HTMLDivElement>(null);
+    const observerRef = useRef<HTMLDivElement>(null);
 
     const toggleItem = (list: string[], item: string) =>
         list.includes(item) ? list.filter((i) => i !== item) : [...list, item];
@@ -153,22 +155,43 @@ export default function DashboardFilterBar({ filters, onChange, commodityOptions
             }
         };
         document.addEventListener('mousedown', handler);
-        return () => document.removeEventListener('mousedown', handler);
+
+        // Intersection Observer to detect if stuck against header
+        // Header bottom is approx 88px. We observe the container hitting that mark.
+        const observer = new IntersectionObserver(
+            ([e]) => setIsStuck(e.intersectionRatio < 1),
+            { threshold: [1], rootMargin: '-89px 0px 0px 0px' }
+        );
+        
+        if (observerRef.current) {
+            observer.observe(observerRef.current);
+        }
+
+        return () => {
+            document.removeEventListener('mousedown', handler);
+            observer.disconnect();
+        };
     }, []);
 
     const hasActiveFilters = filters.commodities.length > 0 || filters.regions.length > 0;
 
     return (
-        <div className="relative z-[50] bg-card/90 backdrop-blur-xl border border-border/40 rounded-2xl p-3 px-5 shadow-lg font-sans">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div className="flex items-center gap-2.5">
-                    <div className="p-2 rounded-xl bg-primary/10 border border-primary/20 transition-colors">
-                        <Filter className="h-4 w-4 text-primary" />
+        <div ref={observerRef} className={cn(
+            "sticky z-[30] transition-all duration-300",
+            isStuck ? "top-[87px]" : "top-[88px]" // Shift up 1px when stuck to cover header border
+        )}>
+            <div className={cn(
+                "w-full transition-all duration-500 font-sans backdrop-blur-xl",
+                isStuck 
+                    ? "rounded-b-2xl border border-white/20 dark:border-slate-800/50 bg-white/70 dark:bg-slate-950/70 border-t-0 p-2.5 px-6 shadow-none" 
+                    : "rounded-2xl border border-border/40 bg-card/95 p-3 px-5 shadow-lg"
+            )}>
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="flex items-center gap-2.5">
+                        <div>
+                            <span className="text-sm font-black text-black dark:text-white uppercase tracking-[0.2em]">Dashboard Filters</span>
+                        </div>
                     </div>
-                    <div>
-                        <span className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-[0.2em]">Dashboard Filters</span>
-                    </div>
-                </div>
 
                 <div className="flex flex-wrap items-center gap-3">
                     {/* Date range group as Popover */}
@@ -250,5 +273,6 @@ export default function DashboardFilterBar({ filters, onChange, commodityOptions
                 </div>
             </div>
         </div>
+    </div>
     );
 }
