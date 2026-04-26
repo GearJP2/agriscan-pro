@@ -2,7 +2,7 @@ import logging
 
 from celery.result import AsyncResult
 from django.db import IntegrityError, transaction
-from django.db.models import Count, Q
+from django.db.models import Exists, OuterRef
 from rest_framework.decorators import action
 from rest_framework import filters, status, viewsets
 from rest_framework.permissions import IsAuthenticated
@@ -52,7 +52,7 @@ class SampleViewSet(viewsets.ModelViewSet):
     lookup_field = 'sample_id'
 
     def get_permissions(self):
-        if self.action == 'destroy':
+        if self.action in ['destroy', 'bulk_delete']:
             return [IsAuthenticated(), IsAdmin()]
         return [permission() for permission in self.permission_classes]
 
@@ -101,17 +101,32 @@ class SampleViewSet(viewsets.ModelViewSet):
             requested_levels = set(risk_level.split(','))
             risk_filter = Q()
             if 'high' in requested_levels:
-                risk_filter |= Q(mycotoxin_results__risk_level__in=['high', 'critical'])
+                risk_filter |= Exists(
+                    MycotoxinResult.objects.filter(
+                        sample=OuterRef('pk'),
+                        risk_level__in=['high', 'critical']
+                    )
+                )
             if requested_levels.intersection({'low', 'medium'}):
-                risk_filter |= Q(mycotoxin_results__risk_level='detected')
+                risk_filter |= Exists(
+                    MycotoxinResult.objects.filter(
+                        sample=OuterRef('pk'),
+                        risk_level='detected'
+                    )
+                )
             if 'safe' in requested_levels:
                 risk_filter |= (
-                    Q(mycotoxin_results__risk_level='safe')
-                    | Q(mycotoxin_results__isnull=True)
+                    Exists(
+                        MycotoxinResult.objects.filter(
+                            sample=OuterRef('pk'),
+                            risk_level='safe'
+                        )
+                    )
+                    | ~Exists(MycotoxinResult.objects.filter(sample=OuterRef('pk')))
                 )
 
             if risk_filter:
-                queryset = queryset.filter(risk_filter).distinct()
+                queryset = queryset.filter(risk_filter)
         
         return queryset
 
@@ -175,8 +190,19 @@ class SampleViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def statistics(self, request):
-        """Get dashboard statistics"""
-        stats = Sample.objects.aggregate(
+        """Get dashboard statistics - filtered by user role"""
+        queryset = Sample.objects.all()
+        
+        # Apply role-based filtering
+        if request.user.role not in ["admin", "head_researcher", "researcher"]:
+            # research_assistant and other roles see only their own samples
+            queryset = queryset.filter(
+                updated_by=request.user
+            ) | queryset.filter(
+                collected_by=request.user.username
+            )
+        
+        stats = queryset.aggregate(
             total_samples=Count('id'),
             completed=Count('id', filter=Q(status='completed')),
             flagged=Count('id', filter=Q(status='flagged')),
@@ -191,10 +217,19 @@ class SampleViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def recent_alerts(self, request):
-        """Get recently flagged samples"""
-        recent = Sample.objects.filter(
-            status='flagged'
-        ).order_by('-updated_at')[:RECENT_ALERTS_LIMIT]
+        """Get recently flagged samples - filtered by user role"""
+        queryset = Sample.objects.filter(status='flagged')
+        
+        # Apply role-based filtering
+        if request.user.role not in ["admin", "head_researcher", "researcher"]:
+            # research_assistant and other roles see only their own samples
+            queryset = queryset.filter(
+                updated_by=request.user
+            ) | queryset.filter(
+                collected_by=request.user.username
+            )
+        
+        recent = queryset.order_by('-updated_at')[:RECENT_ALERTS_LIMIT]
         serializer = SampleListSerializer(recent, many=True)
         return Response(serializer.data)
 
@@ -363,6 +398,23 @@ class SampleViewSet(viewsets.ModelViewSet):
         return Response(payload, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=['post'])
+    def export_failed_rows(self, request):
+        """
+        Accepts a list of failed_rows (including row_data) and returns a CSV file response.
+        Useful for immediately downloading an error report after a bulk import.
+        """
+        failed_rows = request.data.get('failed_rows', [])
+        if not failed_rows:
+            return Response({'detail': 'No failed rows provided.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        csv_content = SampleIngestionService.generate_failed_rows_csv(failed_rows)
+        
+        from django.http import HttpResponse
+        response = HttpResponse(csv_content, content_type='text/csv')
+        response['Content-Disposition'] = 'attachment; filename="failed_import_rows.csv"'
+        return response
+
+    @action(detail=False, methods=['post'])
     def request_upload(self, request):
         """
         Step 1: Request a presigned URL for the frontend to upload directly to S3.
@@ -403,11 +455,26 @@ class SampleViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], url_path='task_status/(?P<task_id>[^/.]+)')
     def task_status(self, request, task_id=None):
         """
-        Poll Celery task status after confirm_upload
+        Poll Celery task status after confirm_upload.
+        Restricted to authenticated users who own the task.
         GET /api/samples/task_status/{task_id}/
         Returns: { "status": "pending|started|success|failure", "result": {...} }
         """
         result = AsyncResult(task_id)
+        
+        # Verify the task belongs to the requesting user
+        if result.status not in ['PENDING'] and result.info:
+            # Check if task metadata contains user info
+            task_user = None
+            if isinstance(result.info, dict):
+                task_user = result.info.get('uploaded_by_username')
+            
+            if task_user and task_user != request.user.username:
+                return Response(
+                    {'detail': 'You do not have permission to view this task.'},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+        
         response = {'task_id': task_id, 'status': result.status}
         if result.ready():
             if result.successful():
@@ -419,11 +486,6 @@ class SampleViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['post'])
     def bulk_delete(self, request):
         """Bulk delete samples - admin only"""
-        if not (request.user.is_superuser or getattr(request.user, 'role', None) == 'admin'):
-            return Response(
-                {'detail': 'You do not have permission to delete samples. Admin access required.'},
-                status=status.HTTP_403_FORBIDDEN,
-            )
         sample_ids = request.data.get('sample_ids', [])
         if not isinstance(sample_ids, list) or not sample_ids:
             return Response(

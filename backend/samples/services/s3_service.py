@@ -6,12 +6,11 @@ _ALLOWED_EXTENSIONS = {'.csv', '.xlsx', '.xls'}
 
 
 def get_s3_client():
-    return boto3.client(
-        's3',
-        aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
-        aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
-        region_name=settings.AWS_S3_REGION_NAME,
-    )
+    kwargs = {'region_name': settings.AWS_S3_REGION_NAME}
+    if settings.AWS_ACCESS_KEY_ID and settings.AWS_SECRET_ACCESS_KEY:
+        kwargs['aws_access_key_id'] = settings.AWS_ACCESS_KEY_ID
+        kwargs['aws_secret_access_key'] = settings.AWS_SECRET_ACCESS_KEY
+    return boto3.client('s3', **kwargs)
 
 
 def generate_upload_url(username: str, filename: str, content_type: str) -> dict:

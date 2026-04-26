@@ -58,11 +58,6 @@ class AnalyticsService:
         # Group by province for Regional Risk
         province_data = qs.values('province', 'region').annotate(
             sample_count=Count('id', distinct=True),
-            positive_count=Count(
-                'id',
-                filter=Q(mycotoxin_results__risk_level__in=ABOVE_THRESHOLD_RISK_LEVELS),
-                distinct=True
-            ),
             above_threshold_count=Count(
                 'id',
                 filter=Q(mycotoxin_results__risk_level__in=ABOVE_THRESHOLD_RISK_LEVELS),
@@ -75,14 +70,9 @@ class AnalyticsService:
 
         for pd in province_data:
             sample_count = pd['sample_count']
-            positive_count = pd['positive_count']
             above_threshold = pd['above_threshold_count']
             above_pct = (
                 (above_threshold / sample_count * 100)
-                if sample_count > 0 else 0
-            )
-            positive_pct = (
-                (positive_count / sample_count * 100)
                 if sample_count > 0 else 0
             )
 
@@ -101,8 +91,8 @@ class AnalyticsService:
                 'name': pd['province'],
                 'region': pd['region'],
                 'sampleCount': sample_count,
-                'positiveCount': positive_count,
-                'positivePct': round(positive_pct, 1),
+                'positiveCount': above_threshold,
+                'positivePct': round(above_pct, 1),
                 'aboveThresholdPct': round(above_pct, 1),
                 'riskLevel': risk_level,
                 'dominantToxin': 'Unknown',
@@ -243,6 +233,23 @@ class AnalyticsService:
         Dynamically recalculate risk levels based on overridden thresholds per-variety.
         overrides format: { 'AFB1': { 'maize': 10, 'peanuts': 5 } }
         """
+        # Validate overrides structure
+        if overrides:
+            if not isinstance(overrides, dict):
+                raise ValueError("overrides must be a dictionary")
+            for toxin, varieties in overrides.items():
+                if not isinstance(toxin, str):
+                    raise ValueError("toxin names must be strings")
+                if not isinstance(varieties, dict):
+                    raise ValueError(f"overrides[{toxin}] must be a dictionary of variety->threshold mappings")
+                for variety, threshold in varieties.items():
+                    if not isinstance(variety, str):
+                        raise ValueError(f"variety names must be strings in overrides[{toxin}]")
+                    try:
+                        float(threshold)
+                    except (TypeError, ValueError):
+                        raise ValueError(f"threshold for {toxin}/{variety} must be numeric")
+        
         qs = Sample.objects.prefetch_related('mycotoxin_results').all()
         qs = AnalyticsService._apply_filters(qs, filters)
 
@@ -273,9 +280,9 @@ class AnalyticsService:
                 threshold = None
                 if overrides and toxin in overrides:
                     if variety in overrides[toxin]:
-                        threshold = overrides[toxin][variety]
+                        threshold = float(overrides[toxin][variety])
                     elif variety.lower() in overrides[toxin]:
-                        threshold = overrides[toxin][variety.lower()]
+                        threshold = float(overrides[toxin][variety.lower()])
 
                 if threshold is None:
                     # Model high/critical risk means value > EU low threshold.

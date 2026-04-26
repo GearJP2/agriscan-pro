@@ -36,6 +36,10 @@ def process_sample_file(self, key: str, uploaded_by_username: str):
             region_name=settings.AWS_S3_REGION_NAME,
         )
         obj = s3.get_object(Bucket=settings.AWS_STORAGE_BUCKET_NAME, Key=key)
+        # Check file size to prevent memory exhaustion
+        content_length = obj.get('ContentLength', 0)
+        if content_length > 50 * 1024 * 1024:  # 50MB limit
+            raise ValueError(f"File too large: {content_length} bytes")
         file_bytes = obj['Body'].read()
     except Exception as exc:
         logger.error('task.process_sample_file.s3_error', extra={'key': key, 'error': str(exc)})
@@ -66,17 +70,38 @@ def process_sample_file(self, key: str, uploaded_by_username: str):
             continue
 
         try:
+            # Validate choice fields
+            from .models import Sample as SampleModel
+            status = str(row.get('status', 'pending')).strip() or 'pending'
+            purpose = str(row.get('purpose', 'routine')).strip() or 'routine'
+            sample_type = str(row.get('sample_type', 'field')).strip() or 'field'
+            processing_type = str(row.get('processing_type', 'raw')).strip() or 'raw'
+            
+            valid_statuses = [choice[0] for choice in SampleModel.STATUS_CHOICES]
+            valid_purposes = [choice[0] for choice in SampleModel.PURPOSE_CHOICES]
+            valid_sample_types = [choice[0] for choice in SampleModel.SAMPLE_TYPE_CHOICES]
+            valid_processing_types = [choice[0] for choice in SampleModel.PROCESSING_TYPE_CHOICES]
+            
+            if status not in valid_statuses:
+                raise ValueError(f"Invalid status '{status}'. Must be one of: {', '.join(valid_statuses)}")
+            if purpose not in valid_purposes:
+                raise ValueError(f"Invalid purpose '{purpose}'. Must be one of: {', '.join(valid_purposes)}")
+            if sample_type not in valid_sample_types:
+                raise ValueError(f"Invalid sample_type '{sample_type}'. Must be one of: {', '.join(valid_sample_types)}")
+            if processing_type not in valid_processing_types:
+                raise ValueError(f"Invalid processing_type '{processing_type}'. Must be one of: {', '.join(valid_processing_types)}")
+            
             sample = Sample.objects.create(
                 sample_id=sample_id,
                 region=str(row.get('region', '')).strip(),
                 province=str(row.get('province', '')).strip(),
                 district=str(row.get('district', '')).strip(),
                 vegetation_variety=str(row.get('vegetation_variety', '')).strip(),
-                status=str(row.get('status', 'pending')).strip() or 'pending',
+                status=status,
                 collection_date=row.get('collection_date') or None,
-                purpose=str(row.get('purpose', 'routine')).strip() or 'routine',
-                sample_type=str(row.get('sample_type', 'field')).strip() or 'field',
-                processing_type=str(row.get('processing_type', 'raw')).strip() or 'raw',
+                purpose=purpose,
+                sample_type=sample_type,
+                processing_type=processing_type,
                 collected_by=str(row.get('collected_by', uploaded_by_username)).strip() or uploaded_by_username,
                 updated_by=user,
             )
@@ -94,7 +119,16 @@ def process_sample_file(self, key: str, uploaded_by_username: str):
         'task.process_sample_file.done',
         extra={'key': key, 'created': created, 'error_count': len(errors), 'user': uploaded_by_username},
     )
-    return {'status': 'ok', 'created': created, 'errors': errors}
+    
+    # Return appropriate status based on result
+    if len(errors) == 0:
+        status_result = 'success'
+    elif created == 0:
+        status_result = 'failed'
+    else:
+        status_result = 'partial'
+    
+    return {'status': status_result, 'created': created, 'errors': errors}
 
 
 def _parse_csv(file_bytes: bytes) -> list[dict]:

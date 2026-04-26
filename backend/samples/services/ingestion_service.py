@@ -1,7 +1,8 @@
 import csv
 import logging
+import math
 import re
-from io import TextIOWrapper
+from io import StringIO, TextIOWrapper
 from typing import Iterator
 
 from django.db import transaction
@@ -189,7 +190,15 @@ class SampleIngestionService:
             normalized = normalized.replace(",", "")
 
         match = re.search(r"[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?", normalized)
-        return float(match.group(0)) if match else None
+        if match:
+            try:
+                val = float(match.group(0))
+                if not math.isfinite(val):
+                    return None
+                return val
+            except (ValueError, OverflowError):
+                return None
+        return None
 
     @staticmethod
     def iter_csv_rows(uploaded_file) -> Iterator[dict[str, str]]:
@@ -235,7 +244,7 @@ class SampleIngestionService:
             ]
 
         # Wide format: include any column whose header resolves to a toxin name.
-        results = []
+        results = {}
         for header, raw_value in (row or {}).items():
             header_text = str(header or "").strip()
             if not header_text:
@@ -251,16 +260,16 @@ class SampleIngestionService:
             if intensity is None:
                 continue
 
-            results.append(
-                {
+            # Deduplicate by toxin_type, keeping the highest value
+            if canonical not in results or intensity > results[canonical]["value"]:
+                results[canonical] = {
                     "toxin_type": canonical,
                     "value": intensity,
                     "unit": "ug_kg",
                     "notes": f"Imported CSV column: {header_text}",
                 }
-            )
 
-        return results
+        return list(results.values())
 
     @classmethod
     def process_csv_results(cls, uploaded_file, user):
@@ -301,6 +310,15 @@ class SampleIngestionService:
             sample = sample_map.get(sid)
             if not sample:
                 unmatched.add(display_id or sid)
+                failed_rows.append(
+                    {
+                        "row_number": row_number,
+                        "sample_id": display_id or sid,
+                        "error": "Sample ID not found in system.",
+                        "row_data": row,
+                    }
+                )
+                skipped += 1
                 continue
 
             results = cls.extract_results_from_row(row)
@@ -310,6 +328,8 @@ class SampleIngestionService:
 
             try:
                 with transaction.atomic():
+                    # Lock the sample to prevent concurrent modifications
+                    sample = Sample.objects.select_for_update().get(pk=sample.pk)
                     created_for_row, updated_for_row = 0, 0
                     analyzed_at = cls.extract_analyzed_datetime(row)
 
@@ -323,12 +343,14 @@ class SampleIngestionService:
                     notes = "Mycotoxin results imported from CSV."
                     if analyzed_at:
                         notes = f"{notes} Analyzed at: {analyzed_at}"
-                    ProcessLog._default_manager.create(
-                        sample=sample,
-                        state="completed",
-                        conducted_by=user.username,
-                        notes=notes,
-                    )
+                    # Avoid creating duplicate completed logs
+                    if not sample.process_logs.filter(state='completed').exists():
+                        ProcessLog._default_manager.create(
+                            sample=sample,
+                            state="completed",
+                            conducted_by=user.username,
+                            notes=notes,
+                        )
 
                     for payload in results:
                         existing = sample.mycotoxin_results.filter(
@@ -357,9 +379,10 @@ class SampleIngestionService:
                 skipped += 1
                 failed_rows.append(
                     {
-                        "row": row_number,
+                        "row_number": row_number,
                         "sample_id": display_id or sid,
                         "error": str(exc),
+                        "row_data": row,  # Store the raw dictionary for potential CSV export
                     }
                 )
                 logger.warning(
@@ -380,3 +403,36 @@ class SampleIngestionService:
             "unmatched_sample_ids": sorted(unmatched),
             "failed_rows": failed_rows,
         }
+
+    @staticmethod
+    def generate_failed_rows_csv(failed_rows: list[dict]) -> str:
+        """
+        Convert failed_rows metadata back into a CSV string.
+        Includes an extra 'import_error' column for context.
+        """
+        if not failed_rows:
+            return ""
+
+        # Collect all headers from original row data
+        fieldnames = set()
+        for entry in failed_rows:
+            if "row_data" in entry:
+                fieldnames.update(entry["row_data"].keys())
+
+        # Sort fieldnames but keep 'import_error' and 'row_number' as first columns
+        header = ["row_number", "import_error"] + sorted(list(fieldnames))
+        
+        output = StringIO()
+        writer = csv.DictWriter(output, fieldnames=header)
+        writer.writeheader()
+        
+        for entry in failed_rows:
+            row_to_write = {
+                "row_number": entry.get("row_number"),
+                "import_error": entry.get("error"),
+            }
+            # Spread the original row data
+            row_to_write.update(entry.get("row_data", {}))
+            writer.writerow(row_to_write)
+            
+        return output.getvalue()
