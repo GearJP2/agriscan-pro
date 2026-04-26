@@ -294,12 +294,59 @@ export default function SurveillanceDashboard() {
           </div>
         ) : (
           <>
-            {/* Section 1: KPI Summary */}
+            {/* Section 1: Public Health Risk Summary (Strategic Insights) */}
             <div className="flex items-center gap-3 mb-4 mt-2">
-              <div className="h-5 w-1.5 bg-primary/40 rounded-full" />
-              <h2 className="text-sm font-black uppercase tracking-[0.2em] text-slate-500 dark:text-white/60">KPI Summary</h2>
+              <div className="h-5 w-1.5 bg-rose-500/40 rounded-full" />
+              <h2 className="text-sm font-black uppercase tracking-[0.2em] text-slate-500 dark:text-white/60">Public Health Risk Summary</h2>
             </div>
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
+            <PublicHealthSummary summary={analytics.publicHealthSummary} />
+
+            {/* Section 2: KPI Summary - Re-engineered for Province-Specific Context */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 mt-12 bg-slate-50 dark:bg-card/30 p-5 rounded-2xl border border-border/50">
+              <div className="flex items-center gap-3">
+                {selectedProvince ? (
+                  <div className="flex items-center gap-2 self-stretch">
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded-lg shadow-sm text-[10px] font-black uppercase tracking-widest animate-in zoom-in duration-300">
+                      <MapPin className="w-3.5 h-3.5" />
+                      {selectedProvince}
+                    </div>
+                    <div className="w-px h-6 bg-border mx-1" />
+                  </div>
+                ) : (
+                  <div className="h-6 w-1.5 bg-primary/40 rounded-full" />
+                )}
+                
+                <div className="space-y-0.5">
+                  <h2 className="text-lg font-black uppercase tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
+                    KPI Summary
+                    {selectedProvince && (
+                      <span className="text-xs font-medium text-muted-foreground normal-case opacity-60">
+                        (Selective View)
+                      </span>
+                    )}
+                  </h2>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-[0.2em] font-black opacity-60">
+                    {selectedProvince 
+                      ? `Drilling down into ${selectedProvince} local surveillance data`
+                      : `Aggregated data across ${filters.regions.length > 0 ? filters.regions.join(', ') : 'all regions'}`}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-6 text-[10px] font-black uppercase tracking-widest text-muted-foreground/80">
+                <div className="flex flex-col items-end">
+                  <span className="opacity-50">Data Refresh</span>
+                  <span className="text-slate-900 dark:text-white">Real-time</span>
+                </div>
+                <div className="h-8 w-px bg-border" />
+                <div className="flex flex-col items-end">
+                  <span className="opacity-50">Reporting Scope</span>
+                  <span className="text-primary">{selectedProvince ? 'Province Level' : 'Regional/National'}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-12">
               <div className="flex-1">
                 {overviewData ? (
                   <KPICards
@@ -321,15 +368,8 @@ export default function SurveillanceDashboard() {
               </div>
             </div>
 
-            {/* Section 2: Public Health Risk Summary (Strategic Insights) */}
-            <div className="flex items-center gap-3 mb-4 mt-12">
-              <div className="h-5 w-1.5 bg-rose-500/40 rounded-full" />
-              <h2 className="text-sm font-black uppercase tracking-[0.2em] text-slate-500 dark:text-white/60">Public Health Risk Summary</h2>
-            </div>
-            <PublicHealthSummary summary={analytics.publicHealthSummary} />
-
             {/* Section 3: Regional Risk Atlas (Operational Context) */}
-            <div className="flex items-center gap-3 mb-4 mt-12">
+            <div className="flex items-center gap-3 mb-4 mt-8">
               <div className="h-5 w-1.5 bg-primary/40 rounded-full" />
               <h2 className="text-sm font-black uppercase tracking-[0.2em] text-slate-500 dark:text-white/60">Regional Risk Atlas</h2>
             </div>
@@ -341,10 +381,10 @@ export default function SurveillanceDashboard() {
                     onSelectProvince={(p) => {
                       setFilters(prev => ({
                         ...prev,
-                        provinces: p ? [p] : []
+                        provinces: prev.provinces.includes(p) ? [] : [p]
                       }));
                     }}
-                    provinceRiskData={overviewData ? (overviewData as any).provinces : analytics.provinceRiskData}
+                    provinceRiskData={regionalRankingData ? (regionalRankingData as any).provinces : (rankingAnalytics?.provinceRiskData || [])}
                     viewMode={mapViewMode}
                     onViewModeChange={setMapViewMode}
                   />
