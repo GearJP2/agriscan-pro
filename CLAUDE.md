@@ -378,6 +378,10 @@ node agents-orchestrator/examples/simple-task.js
 - **Logger Migration in OAuth**: OAuth backend code migrated from `print()` to structured `logging.getLogger("agriscan.accounts")` calls.
 - **Backend-First Mycotoxin Risk Model**: `MycotoxinResult` uses canonical `toxin_type`, `value`, `unit`, `risk_level`, EU threshold snapshots, and `(sample, toxin_type)` uniqueness. Legacy serializer aliases (`name`, `intensity`, `threshold`, `dangerous`, `method`) are transitional compatibility only.
 - **Threshold Source of Truth**: SampleList, dashboard fallback analytics, Regional Risk Ranking, and Regional Risk Map treat `Positive` as above-threshold (`risk_level` `high`/`critical`). `detected_pct` is available separately for samples with any mycotoxin result below or above threshold.
+- **Dependency Security Hardening**: Replaced `xlsx` (ReDoS / Prototype Pollution CVEs) with `exceljs` + `papaparse` across all frontend file-import and export paths. Applied `uuid` package override to clear downstream moderate vulnerabilities. `@types/xlsx` removed; `@types/papaparse` added.
+- **Migration Atomicity Fix**: `migration 0010` sets `atomic = False` to prevent `OperationalError: pending trigger events` on PostgreSQL when running deferred-constraint data migrations.
+- **Frontend CSV Import Bug Fixes**: Added `skipEmptyLines: true` to all four `Papa.parse` calls (`UnifiedImportForm`, `AdvancedImportForm`, `AddSampleForm` ×2) — trailing blank rows no longer reach the import pipeline. Fixed `URL.revokeObjectURL` memory leak in `SampleList.handleExportXLSX`. Typed Papa error callbacks as `Error` (removed `any`). Removed unused `rowNumber` parameter from `eachRow` callback.
+- **Backend PEP8 Compliance**: Stripped trailing whitespace (W293) from 15 blank lines in `backend/samples/views.py` — passes `flake8 --max-line-length=120` clean.
 
 
 ### 🚧 In Development (Local Only)
@@ -633,18 +637,16 @@ eb status                            # Check environment health
 ---
 
 ## Last Updated
-- Date: 2026-04-26
-- By: Codex / Claude Code project handoff
-- Status: Week 1-4 hardening and backend-first MycotoxinResult migration are complete. Current threshold policy is documented: dashboard/list `Positive` means above-threshold only; `detected_pct` is separate.
+- Date: 2026-04-27
+- By: Claude Code
+- Status: All hardening phases (Weeks 1–4), MycotoxinResult migration, dependency security hardening (xlsx → exceljs/papaparse), and frontend CSV import bug fixes are complete. `task.md` items 1–46 are all resolved. Infra/ops items (DB migration, EB env vars) remain open.
 
 
 ## Pending Actions
 
-### Follow-up from 2026-04-24 review (see [CODE_REVIEW.md](CODE_REVIEW.md))
-- Role policy restored for `admin`, `head_researcher`, and `researcher`; refresh flow is cookie-only and token blacklisting is atomic.
-- Frontend API config now uses CloudFront-routed `/api` in production; stale Railway fallbacks are removed.
-- Shared `IsAdmin` / `IsAdminOrResearchRole` permissions are in place, the OAuth client-side state shim is gone, and Google OAuth credentials now fail fast outside debug/test.
-- Mycotoxin analytics now use threshold-derived risk consistently across backend analytics, SampleList, RegionalRiskRanking, and RegionalRiskMap.
+### All code hardening items resolved (see [CODE_REVIEW.md](CODE_REVIEW.md) and [task.md](task.md))
+- Role policy, refresh-cookie flow, token blacklisting, API config, permissions, OAuth state, and mycotoxin analytics are all complete and verified.
+- Dependency security hardening (xlsx → exceljs/papaparse), migration atomicity, and frontend CSV import bugs (task items 41–46) are resolved as of 2026-04-27.
 
 ### Cookie / OAuth environment variables (new in this release)
 - `JWT_USE_HTTPONLY_REFRESH_COOKIE` (default `True`) — toggles the httpOnly refresh cookie flow

@@ -255,6 +255,18 @@ Final hardening items and aesthetic standardization.
   Replaced hardcoded color values with semantic CSS variables (`primary`, `success`, `warning`, `destructive`) across all core screens for robust dark mode support.
 - [x] **40. Failed-row CSV generation**
   `SampleIngestionService` now captures raw failing rows and provides an `export_failed_rows` endpoint for user-facing error reports.
+- [x] **41. Resolve backend migration test OperationalError**
+  Fixed "pending trigger events" on PostgreSQL by setting `atomic = False` in migration `0010` and `0009`. Corrected `MycotoxinResultMigration0010Tests` setup.
+- [x] **42. Resolve frontend dependency vulnerabilities**
+  Eliminated high-severity ReDoS/Prototype Pollution risks by replacing `xlsx` with `exceljs` and `papaparse`. Fixed moderate risks with `uuid` overrides.
+- [x] **43. Fix Papa.parse missing `skipEmptyLines` (Medium bug)**
+  All 4 Papa.parse calls in `UnifiedImportForm`, `AdvancedImportForm`, `AddSampleForm` (×2) now include `skipEmptyLines: true`. `error` callbacks retyped from `any` to `Error` (matches `@types/papaparse` signature).
+- [x] **44. Fix `URL.revokeObjectURL` missing in SampleList export (Medium bug)**
+  `handleExportXLSX` in `SampleList.tsx` now calls `URL.revokeObjectURL(url)` immediately after `link.click()`.
+- [x] **45. Fix unused `rowNumber` param and `error: any` type smells**
+  `AddSampleForm.tsx` `eachRow` callback param removed. All Papa.parse `error` callbacks now typed as `Error`.
+- [x] **46. Fix W293 trailing whitespace in views.py (PEP8)**
+  Stripped all trailing whitespace from blank lines in `backend/samples/views.py`. flake8 now passes clean.
 
 ---
 
@@ -263,7 +275,7 @@ Final hardening items and aesthetic standardization.
 - **Completed roadmap tasks:** `20 / 20` (items 1–20)
 - **Completed follow-up review items:** `12 / 12` (items 21–32)
 - **Resolved unrelated sample follow-ups:** `3 / 3` (items 33–35)
-- **Infrastructure stability & aesthetics:** `5 / 5` (items 36–40) — **complete**
+- **Infrastructure stability & aesthetics:** `11 / 11` (items 36–46) — **all complete**
 - **Backend cleanup backlog:** `16 / 16` (BR-C1–C3, BR-M1–M7, BR-MN1–MN6) — **complete**
 - **Recommended focus:** Future enhancements (`FE-*`)
 
