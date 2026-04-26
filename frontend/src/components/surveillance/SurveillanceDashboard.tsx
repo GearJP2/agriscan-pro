@@ -87,6 +87,12 @@ export default function SurveillanceDashboard() {
   });
 
   // 2. Dashboard Analytics V2: Overview / Simulated Overview
+  // We separate the "Specific" overview (filtered by province) from the "Regional" overview (ranking/map)
+  const rankingFilters = useMemo(() => ({
+    ...filters,
+    provinces: [] // Don't filter the ranking list/map by specific province selection
+  }), [filters.regions, filters.commodities, filters.dateRange, filters.quarter]);
+
   const { data: overviewData } = useQuery({
     // Cache keys separate real from simulated data automatically
     queryKey: ['surveillance-overview', filters, isSimulating ? thresholdOverrides : 'baseline'],
