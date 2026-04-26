@@ -270,12 +270,27 @@ Final hardening items and aesthetic standardization.
 
 ---
 
+## 2026-04-27 dashboard analytics & ui logic phase (Current)
+
+Resolved critical UX regressions in the surveillance dashboard and implemented high-end UI interactions.
+
+- [x] **47. Fix Regional Risk Ranking context (Bug)**
+  Separated ranking/map data queries from global filters. Ranking now maintains a complete list of all provinces even when a specific province is selected, using `rankingFilters` (provinces=null).
+- [x] **48. Implement Selection Toggle (Feature)**
+  Added toggle behavior to province selection in both `RegionalRiskMap` and `RegionalRiskRanking`. Clicking an already selected province now clears the filter.
+- [x] **49. Dashboard Layout & Contextual KPI Header (Refactor)**
+  Reordered sections (Strategic summary first, then Filter/KPI above Map). Redesigned `KPICards` header to dynamically show the selected province name with a MapPin badge and "Drilling down" indicators.
+- [x] **50. Adaptive Morphing Sticky Filter (UI/UX)**
+  Created a smart sticky `DashboardFilterBar` that attaches to the header when scrolling. It dynamically morphs (removes top rounding, overlaps header border, matches header translucency) to create a "Single Block" appearance.
+
+---
+
 ## Summary
 
 - **Completed roadmap tasks:** `20 / 20` (items 1–20)
 - **Completed follow-up review items:** `12 / 12` (items 21–32)
 - **Resolved unrelated sample follow-ups:** `3 / 3` (items 33–35)
-- **Infrastructure stability & aesthetics:** `11 / 11` (items 36–46) — **all complete**
+- **Infrastructure stability & aesthetics:** `15 / 15` (items 36–50) — **all complete**
 - **Backend cleanup backlog:** `16 / 16` (BR-C1–C3, BR-M1–M7, BR-MN1–MN6) — **complete**
 - **Recommended focus:** Future enhancements (`FE-*`)
 
