@@ -108,6 +108,25 @@ export default function SurveillanceDashboard() {
     enabled: isAuthenticated,
   });
 
+  const { data: regionalRankingData } = useQuery({
+    queryKey: ['surveillance-regional-ranking', rankingFilters, isSimulating ? thresholdOverrides : 'baseline'],
+    queryFn: async () => {
+      const apiFilters = {
+        region: rankingFilters.regions,
+        province: [],
+        vegetation_variety: rankingFilters.commodities,
+        date_from: rankingFilters.dateRange.from,
+        date_to: rankingFilters.dateRange.to
+      };
+
+      if (isSimulating) {
+        return analyticsAPI.simulateThreshold(thresholdOverrides, apiFilters);
+      }
+      return analyticsAPI.getOverview(apiFilters);
+    },
+    enabled: isAuthenticated,
+  });
+
   // 3. Dashboard Analytics V2: Co-contamination (UpSet Plot)
   const { data: coContamData } = useQuery({
     queryKey: ['surveillance-cocontamination', filters],
@@ -175,6 +194,11 @@ export default function SurveillanceDashboard() {
     if (!isDeferredMounted || samples.length === 0) return null;
     return buildSurveillanceAnalytics(samples, filters);
   }, [samples, filters, isDeferredMounted]);
+
+  const rankingAnalytics = useMemo(() => {
+    if (!isDeferredMounted || samples.length === 0) return null;
+    return buildSurveillanceAnalytics(samples, rankingFilters);
+  }, [samples, rankingFilters, isDeferredMounted]);
 
   const handleFilterChange = (nextFilters: DashboardFilters) => {
     const currentQuarterRange = getQuarterDateRange(nextFilters.quarter);
@@ -249,17 +273,6 @@ export default function SurveillanceDashboard() {
           regionOptions={filterOptions.regions}
           quarterOptions={filterOptions.quarters}
         />
-
-        {/* Active filter indicator */}
-        {(filters.commodities.length > 0 || filters.regions.length > 0 || filters.provinces.length > 0) && (
-          <div className="text-xs text-warning bg-warning/10 rounded-lg px-4 py-2 border border-warning/20">
-            Filters active: {filters.commodities.length > 0 && `Commodities: ${filters.commodities.join(', ')}`}
-            {filters.commodities.length > 0 && (filters.regions.length > 0 || filters.provinces.length > 0) && ' · '}
-            {filters.regions.length > 0 && `Regions: ${filters.regions.join(', ')}`}
-            {filters.regions.length > 0 && filters.provinces.length > 0 && ' · '}
-            {filters.provinces.length > 0 && `Provinces: ${filters.provinces.join(', ')}`}
-          </div>
-        )}
 
         {/* Deferred Content Area */}
         {!isDeferredMounted || !analytics ? (
@@ -346,10 +359,10 @@ export default function SurveillanceDashboard() {
                     onSelectProvince={(p) => {
                       setFilters(prev => ({
                         ...prev,
-                        provinces: p ? [p] : []
+                        provinces: prev.provinces.includes(p) ? [] : [p]
                       }));
                     }}
-                    provinces={overviewData ? (overviewData as any).provinces : analytics.provinceRiskData}
+                    provinces={regionalRankingData ? (regionalRankingData as any).provinces : (rankingAnalytics?.provinceRiskData || [])}
                     viewMode={mapViewMode}
                   />
                 </div>
