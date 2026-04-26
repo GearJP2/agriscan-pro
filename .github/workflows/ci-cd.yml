@@ -52,9 +52,8 @@ jobs:
           pip install pip-audit
 
       - name: Run dependency scan (backend)
-        working-directory: backend
         run: |
-          pip-audit --strict
+          python backend/scripts/run_dependency_audit.py
 
       - name: Run backend tests
         working-directory: backend

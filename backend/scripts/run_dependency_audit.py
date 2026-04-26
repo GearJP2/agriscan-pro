@@ -91,7 +91,9 @@ def run() -> int:
         print(error)
         return 127
 
-    command = [executable]
+    # Preserve strict-mode behavior from CI while allowing explicit temporary
+    # exceptions from the tracked baseline file.
+    command = [executable, "--strict"]
     for record in active:
         command.extend(["--ignore-vuln", record.vuln_id])
 
