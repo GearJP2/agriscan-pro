@@ -8,11 +8,14 @@ if [ -z "$VENV" ]; then
 fi
 source "$VENV"
 
-pkill -f "celery worker" || true
-pkill -f "celery beat"   || true
-
 mkdir -p /var/log/celery
+
+runuser webapp -c "
+source \"$VENV\"
+pkill -f \"celery worker\" || true
+pkill -f \"celery beat\"   || true
 nohup celery -A core worker -l info --logfile=/var/log/celery/worker.log > /dev/null 2>&1 &
 disown
+"
 
 echo "Celery started."

@@ -230,19 +230,23 @@ def _oauth_state_cache_key(state: str) -> str:
     return f"{OAUTH_STATE_CACHE_PREFIX}:{state}"
 
 
-def store_oauth_state(state: str) -> None:
+def store_oauth_state(state: str, metadata: dict[str, Any] | None = None) -> None:
     """Store an OAuth state token in cache with a short TTL."""
+    data = metadata if metadata is not None else {"valid": True}
     cache.set(
-        _oauth_state_cache_key(state), True, timeout=get_oauth_state_ttl_seconds()
+        _oauth_state_cache_key(state), data, timeout=get_oauth_state_ttl_seconds()
     )
 
 
-def validate_and_consume_oauth_state(state: str) -> bool:
-    """Validate an OAuth state token and invalidate it after first use."""
+def validate_and_consume_oauth_state(state: str) -> dict[str, Any] | None:
+    """Validate an OAuth state token and return stored metadata, invalidating after use."""
     cache_key = _oauth_state_cache_key(state)
-    is_valid = bool(cache.get(cache_key))
-    if is_valid:
+    data = cache.get(cache_key)
+    if data is not None:
         cache.delete(cache_key)
-    else:
-        logger.warning("auth.oauth_state.invalid", extra={"state": state})
-    return is_valid
+        if isinstance(data, bool):
+            return {"valid": True}
+        return data
+
+    logger.warning("auth.oauth_state.invalid", extra={"state": state})
+    return None

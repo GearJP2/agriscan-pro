@@ -6,6 +6,27 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from .auth_helpers import can_manage_user_security_fields
 from .models import User
 from .repositories import UserRepository
+from .utils import normalize_email, sanitize_text
+
+
+def _reject_unsafe_secret(value: str, *, field_name: str) -> str:
+    secret = str(value or "")
+    if "\x00" in secret:
+        raise serializers.ValidationError(
+            {field_name: "This field contains invalid characters."}
+        )
+    if secret != secret.strip():
+        raise serializers.ValidationError(
+            {field_name: "Leading or trailing whitespace is not allowed."}
+        )
+    return secret
+
+
+def _validate_required_clean_text(value: str, *, field_name: str) -> str:
+    cleaned = sanitize_text(value)
+    if not cleaned:
+        raise serializers.ValidationError({field_name: "This field may not be blank."})
+    return cleaned
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
@@ -112,14 +133,45 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 class RegisterSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True)
-    verify_password = serializers.CharField(write_only=True)
+    password = serializers.CharField(write_only=True, trim_whitespace=False)
+    verify_password = serializers.CharField(write_only=True, trim_whitespace=False)
 
     class Meta:
         model = User
         fields = ("username", "email", "name", "password", "verify_password")
+        extra_kwargs = {
+            "email": {
+                "error_messages": {
+                    "unique": "This email is already in use or invalid."
+                }
+            },
+            "username": {
+                "error_messages": {
+                    "unique": "This username is already taken."
+                }
+            }
+        }
 
     def validate(self, attrs):
+        attrs = attrs.copy()
+        attrs["username"] = _validate_required_clean_text(
+            attrs.get("username", ""),
+            field_name="username",
+        )
+        attrs["name"] = _validate_required_clean_text(
+            attrs.get("name", ""),
+            field_name="name",
+        )
+        attrs["email"] = normalize_email(attrs.get("email", ""))
+        attrs["password"] = _reject_unsafe_secret(
+            attrs.get("password", ""),
+            field_name="password",
+        )
+        attrs["verify_password"] = _reject_unsafe_secret(
+            attrs.get("verify_password", ""),
+            field_name="verify_password",
+        )
+
         if attrs["password"] != attrs["verify_password"]:
             raise serializers.ValidationError(
                 {"password": "Password fields didn't match."}
@@ -140,14 +192,36 @@ class RegisterSerializer(serializers.ModelSerializer):
 class PasswordResetRequestSerializer(serializers.Serializer):
     email = serializers.EmailField()
 
+    def validate_email(self, value):
+        return normalize_email(value)
+
 
 class PasswordResetSerializer(serializers.Serializer):
     email = serializers.EmailField()
     otp_code = serializers.CharField(max_length=6)
-    new_password = serializers.CharField(min_length=8)
-    confirm_password = serializers.CharField(min_length=8)
+    new_password = serializers.CharField(min_length=8, trim_whitespace=False)
+    confirm_password = serializers.CharField(min_length=8, trim_whitespace=False)
+
+    def validate_email(self, value):
+        return normalize_email(value)
+
+    def validate_otp_code(self, value):
+        normalized = sanitize_text(value)
+        if not normalized.isdigit() or len(normalized) != 6:
+            raise serializers.ValidationError("OTP code must be a 6-digit number.")
+        return normalized
 
     def validate(self, attrs):
+        attrs = attrs.copy()
+        attrs["new_password"] = _reject_unsafe_secret(
+            attrs.get("new_password", ""),
+            field_name="new_password",
+        )
+        attrs["confirm_password"] = _reject_unsafe_secret(
+            attrs.get("confirm_password", ""),
+            field_name="confirm_password",
+        )
+
         if attrs["new_password"] != attrs["confirm_password"]:
             raise serializers.ValidationError(
                 {"confirm_password": "Passwords do not match."}
@@ -156,7 +230,11 @@ class PasswordResetSerializer(serializers.Serializer):
 
 
 class ProfileUpdateSerializer(serializers.ModelSerializer):
-    current_password = serializers.CharField(write_only=True, required=False)
+    current_password = serializers.CharField(
+        write_only=True,
+        required=False,
+        trim_whitespace=False,
+    )
 
     class Meta:
         model = User
@@ -167,6 +245,19 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
         }
 
     def validate(self, attrs):
+        attrs = attrs.copy()
+        if "name" in attrs:
+            attrs["name"] = _validate_required_clean_text(
+                attrs["name"], field_name="name"
+            )
+        if "email" in attrs:
+            attrs["email"] = normalize_email(attrs["email"])
+        if "current_password" in attrs:
+            attrs["current_password"] = _reject_unsafe_secret(
+                attrs["current_password"],
+                field_name="current_password",
+            )
+
         user = self.instance
         if user is None:
             return attrs

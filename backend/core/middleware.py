@@ -1,3 +1,4 @@
+import ipaddress
 import logging
 import time
 from dataclasses import dataclass
@@ -145,8 +146,14 @@ class RateLimitMiddleware:
 
     def get_client_ip(self, request) -> str:
         x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
-        if x_forwarded_for:
-            return x_forwarded_for.split(",")[0].strip()
+        if x_forwarded_for and settings.TRUSTED_PROXIES:
+            ips = [ip.strip() for ip in x_forwarded_for.split(",")]
+            for ip in ips:
+                try:
+                    ipaddress.ip_address(ip)
+                    return ip
+                except ValueError:
+                    continue
         return request.META.get("REMOTE_ADDR", "unknown")
 
     def _track_violation(self, user) -> int:

@@ -24,6 +24,13 @@ Input Task
 └─ Is it human decision needed? → ESCALATE
 ```
 
+## Skills Integration
+The Orchestrator and sub-agents have access to specialized skills in `.claude/skills/`, including:
+- **Architecture & Design**: `architecture-designer`, `microservices-architect`, `rag-architect`.
+- **Backend & DB**: `Backend-Engineering`, `django-expert`, `postgres-pro`, `sql-pro`.
+- **Frontend & UI**: `react-expert`, `typescript-pro`, `UI-UX-Design`.
+- **Security & DevOps**: `secure-code-guardian`, `security-reviewer`, `devops-engineer`, `sre-engineer`.
+
 ## Key Workflow
 1. Parse task metadata (priority, type, dependencies)
 2. Check if all dependencies are resolved

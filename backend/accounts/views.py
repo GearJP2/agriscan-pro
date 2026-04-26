@@ -38,7 +38,13 @@ from .serializers import (
     RegisterSerializer,
     UserSerializer,
 )
-from .utils import AttemptLimiter, RateLimiter, generate_otp
+from .utils import (
+    AttemptLimiter,
+    RateLimiter,
+    generate_otp,
+    hash_data,
+    normalize_email,
+)
 
 logger = logging.getLogger("agriscan.accounts")
 
@@ -49,6 +55,20 @@ MAX_OTP_VERIFY_ATTEMPTS = 5
 OTP_VERIFY_PERIOD_SEC = 3600
 OTP_EXPIRY_MINUTES = 10
 EMAIL_CHANGE_EXPIRY_HOURS = 24
+PASSWORD_RESET_REQUEST_ACCEPTED_MESSAGE = (
+    "If your email is registered, you will receive an OTP."
+)
+INVALID_RESET_CONFIRMATION_MESSAGE = "Invalid or expired OTP."
+AUTHENTICATION_FAILED_MESSAGE = "Authentication failed."
+TOO_MANY_RESET_ATTEMPTS_MESSAGE = "Too many requests. Please try again later."
+EMAIL_CHANGE_CONFIRMATION_FAILED_MESSAGE = "Unable to complete email change request."
+
+
+def _get_request_fingerprint(request) -> str:
+    forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR", "")
+    client_ip = (forwarded_for.split(",")[0] if forwarded_for else request.META.get("REMOTE_ADDR", "")).strip()
+    user_agent = request.META.get("HTTP_USER_AGENT", "")
+    return hash_data(f"{client_ip}|{user_agent}")
 
 
 class CustomTokenObtainPairView(TokenObtainPairView):
@@ -87,18 +107,18 @@ class CustomTokenRefreshView(generics.GenericAPIView):
     def post(self, request, *args, **kwargs):
         refresh_token = get_refresh_token_from_request(request)
         if not refresh_token:
-            raise AuthenticationFailed("Refresh token missing.")
+            raise AuthenticationFailed(AUTHENTICATION_FAILED_MESSAGE)
 
         serializer = self.get_serializer(data={"refresh": refresh_token})
         try:
             serializer.is_valid(raise_exception=True)
         except TokenError as exc:
-            raise AuthenticationFailed(str(exc)) from exc
+            raise AuthenticationFailed(AUTHENTICATION_FAILED_MESSAGE) from exc
 
         response_data = cast(dict[str, Any], dict(serializer.validated_data))
         rotated_refresh_token = response_data.get("refresh")
         if not rotated_refresh_token:
-            raise AuthenticationFailed("Token rotation failed.")
+            raise AuthenticationFailed(AUTHENTICATION_FAILED_MESSAGE)
 
         if should_set_httponly_refresh_cookie():
             response_data.pop("refresh", None)
@@ -242,17 +262,11 @@ class RequestOTPView(generics.GenericAPIView):
     def post(self, request):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        email = serializer.validated_data["email"]
-
-        user = UserRepository.get_user_by_email(email)
-        if not user:
-            return Response(
-                {"detail": "If your email is registered, you will receive an OTP."},
-                status=status.HTTP_200_OK,
-            )
+        email = normalize_email(serializer.validated_data["email"])
+        request_key = f"otp_request:{_get_request_fingerprint(request)}"
 
         if not RateLimiter.is_allowed(
-            f"otp_request:{user.id}",
+            request_key,
             max_requests=MAX_OTP_REQUESTS,
             period_seconds=OTP_REQUEST_PERIOD_SEC,
         ):
@@ -261,25 +275,31 @@ class RequestOTPView(generics.GenericAPIView):
                 status=status.HTTP_429_TOO_MANY_REQUESTS,
             )
 
-        otp_code = generate_otp()
-        PasswordResetOTP.objects.filter(user=user, used=False).update(used=True)
-        PasswordResetOTP.objects.create(
-            user=user,
-            otp_hash=PasswordResetOTP.hash_otp(otp_code),
-            expiry=timezone.now() + datetime.timedelta(minutes=OTP_EXPIRY_MINUTES),
-        )
+        user = UserRepository.get_user_by_email(email)
+        if user:
+            otp_code = generate_otp()
+            PasswordResetOTP.objects.filter(user=user, used=False).update(used=True)
+            PasswordResetOTP.objects.create(
+                user=user,
+                otp_hash=PasswordResetOTP.hash_otp(otp_code),
+                expiry=timezone.now() + datetime.timedelta(minutes=OTP_EXPIRY_MINUTES),
+            )
 
-        send_mail(
-            "Your AgriScan Pro OTP",
-            f"Your OTP for password reset is: {otp_code}. It will expire in {OTP_EXPIRY_MINUTES} minutes.",
-            settings.DEFAULT_FROM_EMAIL,
-            [email],
-            fail_silently=False,
-        )
+            try:
+                send_mail(
+                    "Your AgriScan Pro OTP",
+                    f"Your OTP for password reset is: {otp_code}. It will expire in {OTP_EXPIRY_MINUTES} minutes.",
+                    settings.DEFAULT_FROM_EMAIL,
+                    [user.email],
+                    fail_silently=False,
+                )
+            except Exception:
+                logger.error("email_send_failed", exc_info=True)
 
-        logger.info("user.password_reset_otp_sent", extra={"email": email})
+            logger.info("user.password_reset_otp_sent", extra={"email": email})
+
         return Response(
-            {"detail": "OTP sent to your email."},
+            {"detail": PASSWORD_RESET_REQUEST_ACCEPTED_MESSAGE},
             status=status.HTTP_200_OK,
         )
 
@@ -294,32 +314,40 @@ class ResetPasswordOTPView(generics.GenericAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        email = serializer.validated_data["email"]
+        email = normalize_email(serializer.validated_data["email"])
         otp_code = serializer.validated_data["otp_code"]
         new_password = serializer.validated_data["new_password"]
 
+        verify_key = f"otp_verify:{hash_data(f'{email}|{_get_request_fingerprint(request)}')}"
         user = UserRepository.get_user_by_email(email)
-        if not user:
-            return Response(
-                {"detail": "Invalid request."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
 
         if not AttemptLimiter.is_allowed(
-            f"otp_verify:{user.id}",
+            verify_key,
             max_attempts=MAX_OTP_VERIFY_ATTEMPTS,
             period_seconds=OTP_VERIFY_PERIOD_SEC,
         ):
+            if user:
+                # Invalidate all unused OTPs for this user
+                PasswordResetOTP.objects.filter(user=user, used=False).update(used=True)
             return Response(
-                {"detail": "Too many failed attempts. OTP has been invalidated."},
+                {"detail": TOO_MANY_RESET_ATTEMPTS_MESSAGE},
                 status=status.HTTP_429_TOO_MANY_REQUESTS,
             )
 
-        otp_hash = PasswordResetOTP.hash_otp(otp_code)
+        # Always hash something to mitigate timing attacks
+        provided_otp_hash = PasswordResetOTP.hash_otp(otp_code)
+
+        if not user:
+            # Dummy delay or just proceed with generic failure
+            return Response(
+                {"detail": INVALID_RESET_CONFIRMATION_MESSAGE},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         otp_obj = (
             PasswordResetOTP.objects.filter(
                 user=user,
-                otp_hash=otp_hash,
+                otp_hash=provided_otp_hash,
                 used=False,
             )
             .order_by("-created_at")
@@ -328,7 +356,7 @@ class ResetPasswordOTPView(generics.GenericAPIView):
 
         if not otp_obj or not otp_obj.is_valid():
             return Response(
-                {"detail": "Invalid or expired OTP."},
+                {"detail": INVALID_RESET_CONFIRMATION_MESSAGE},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -342,7 +370,7 @@ class ResetPasswordOTPView(generics.GenericAPIView):
         ).update(used=True)
 
         blacklisted_count = blacklist_all_user_tokens(user)
-        AttemptLimiter.reset_attempts(f"otp_verify:{user.id}")
+        AttemptLimiter.reset_attempts(verify_key)
 
         logger.info(
             "user.password_reset_success",
@@ -376,8 +404,8 @@ class ProfileUpdateView(generics.UpdateAPIView):
         )
         serializer.is_valid(raise_exception=True)
 
-        new_email = request.data.get("email")
-        if new_email and new_email != instance.email:
+        new_email = serializer.validated_data.get("email")
+        if new_email and new_email.lower() != instance.email.lower():
             EmailChangeRequest.objects.filter(user=instance).delete()
 
             req = EmailChangeRequest.objects.create(
@@ -441,7 +469,7 @@ class ConfirmEmailChangeView(generics.GenericAPIView):
 
         if not req or not req.is_valid():
             return Response(
-                {"detail": "Invalid or expired token."},
+                {"detail": EMAIL_CHANGE_CONFIRMATION_FAILED_MESSAGE},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -454,7 +482,7 @@ class ConfirmEmailChangeView(generics.GenericAPIView):
         ):
             req.delete()
             return Response(
-                {"detail": "This email address is already in use."},
+                {"detail": EMAIL_CHANGE_CONFIRMATION_FAILED_MESSAGE},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -465,7 +493,7 @@ class ConfirmEmailChangeView(generics.GenericAPIView):
                 req.delete()
         except IntegrityError:
             return Response(
-                {"detail": "This email address is already in use."},
+                {"detail": EMAIL_CHANGE_CONFIRMATION_FAILED_MESSAGE},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 

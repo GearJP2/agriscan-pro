@@ -85,6 +85,38 @@ class UserCreationEdgeCaseTests(TestCase):
         response = self.client.post(self.register_url, {}, format="json")
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_register_normalizes_email_and_trims_text_fields(self):
+        """Registration should normalize email and strip surrounding whitespace."""
+        payload = {
+            "username": "  newuser  ",
+            "email": "  NEW@Example.COM  ",
+            "name": "  New User  ",
+            "password": "StrongPass123!",
+            "verify_password": "StrongPass123!",
+        }
+
+        response = self.client.post(self.register_url, payload, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        created = User.objects.get(email="new@example.com")
+        self.assertEqual(created.username, "newuser")
+        self.assertEqual(created.name, "New User")
+
+    def test_register_rejects_blank_username_after_sanitization(self):
+        """Usernames that become blank after sanitization should be rejected."""
+        payload = {
+            "username": "\x00   \x00",
+            "email": "blankuser@example.com",
+            "name": "Valid Name",
+            "password": "StrongPass123!",
+            "verify_password": "StrongPass123!",
+        }
+
+        response = self.client.post(self.register_url, payload, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("username", str(response.data))
+
 
 class LoginTests(TestCase):
     """Tests for the JWT login endpoint using cookie-backed refresh tokens."""
@@ -207,6 +239,7 @@ class TokenRefreshTests(TestCase):
         response = client.post(self.refresh_url, {}, format="json")
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertIn("Authentication failed.", str(response.data))
 
     def test_missing_refresh_token_rejected(self):
         """A refresh request without cookie or body token should return 401."""
@@ -598,6 +631,7 @@ class PasswordResetSecurityTests(TestCase):
         self.client = APIClient()
         self.request_url = reverse("password-reset-request")
         self.confirm_url = reverse("password-reset-confirm")
+        cache.clear()
         self.user = User.objects.create_user(
             username="otpuser",
             email="otp@example.com",
@@ -605,6 +639,86 @@ class PasswordResetSecurityTests(TestCase):
             password="StrongPass123!",
             role="user",
         )
+
+    @patch("accounts.views.send_mail")
+    def test_request_returns_same_response_for_existing_and_unknown_email(self, mock_send_mail):
+        """Password-reset request should not reveal whether an email exists."""
+        known = self.client.post(
+            self.request_url,
+            {"email": self.user.email},
+            format="json",
+        )
+        unknown = self.client.post(
+            self.request_url,
+            {"email": "unknown@example.com"},
+            format="json",
+        )
+
+        self.assertEqual(known.status_code, status.HTTP_200_OK)
+        self.assertEqual(unknown.status_code, status.HTTP_200_OK)
+        self.assertEqual(known.data.get("detail"), unknown.data.get("detail"))
+        self.assertEqual(mock_send_mail.call_count, 1)
+
+    @patch("accounts.views.send_mail")
+    @patch("accounts.views.generate_otp", return_value="111111")
+    def test_request_normalizes_email_input(self, _mock_generate_otp, _mock_send_mail):
+        """Email input should be sanitized/normalized before lookup."""
+        response = self.client.post(
+            self.request_url,
+            {"email": "  OTP@EXAMPLE.com  "},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(PasswordResetOTP.objects.filter(user=self.user).exists())
+
+    def test_confirm_rejects_non_numeric_otp_code(self):
+        """OTP code must be strictly 6 digits."""
+        response = self.client.post(
+            self.confirm_url,
+            {
+                "email": self.user.email,
+                "otp_code": "12ab34",
+                "new_password": "NewStrongPass123!",
+                "confirm_password": "NewStrongPass123!",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("otp_code", str(response.data))
+
+    def test_confirm_unknown_email_uses_generic_invalid_message(self):
+        """Unknown email should return the same generic invalid OTP response."""
+        response = self.client.post(
+            self.confirm_url,
+            {
+                "email": "missing@example.com",
+                "otp_code": "123456",
+                "new_password": "NewStrongPass123!",
+                "confirm_password": "NewStrongPass123!",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Invalid or expired OTP.", str(response.data))
+
+    def test_confirm_rejects_password_with_surrounding_whitespace(self):
+        """Reset-password serializer should reject ambiguous whitespace in secrets."""
+        response = self.client.post(
+            self.confirm_url,
+            {
+                "email": self.user.email,
+                "otp_code": "123456",
+                "new_password": " NewStrongPass123! ",
+                "confirm_password": " NewStrongPass123! ",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("new_password", str(response.data))
 
     @patch("accounts.views.generate_otp", side_effect=["111111", "222222"])
     def test_requesting_new_otp_invalidates_previous_code(self, _mock_generate_otp):
@@ -744,6 +858,41 @@ class EmailChangeSecurityTests(TestCase):
         self.user.refresh_from_db()
         self.assertEqual(self.user.email, "emailuser@example.com")
 
+    def test_email_change_confirmation_uses_generic_failure_message(self):
+        """Invalid-token and duplicate-email outcomes should expose the same error detail."""
+        invalid_token_response = self.client.post(
+            self.confirm_url,
+            {"token": "00000000-0000-0000-0000-000000000000"},
+            format="json",
+        )
+        self.assertEqual(invalid_token_response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        create_response = self.client.patch(
+            self.profile_url,
+            {
+                "email": "pending2@example.com",
+                "current_password": "StrongPass123!",
+            },
+            format="json",
+        )
+        self.assertEqual(create_response.status_code, status.HTTP_202_ACCEPTED)
+
+        request_record = EmailChangeRequest.objects.get(user=self.user)
+        request_record.new_email = self.other_user.email
+        request_record.save(update_fields=["new_email"])
+
+        duplicate_response = self.client.post(
+            self.confirm_url,
+            {"token": str(request_record.token)},
+            format="json",
+        )
+
+        self.assertEqual(duplicate_response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            invalid_token_response.data.get("detail"),
+            duplicate_response.data.get("detail"),
+        )
+
 
 class GoogleOAuthTests(TestCase):
     """Tests for server-side Google OAuth state validation."""
@@ -806,6 +955,40 @@ class GoogleOAuthTests(TestCase):
 
         self.assertIn(self.refresh_cookie_name, response.cookies)
         self.assertTrue(response.cookies[self.refresh_cookie_name].value)
+
+    @patch("accounts.oauth.get_google_user_info")
+    @patch("accounts.oauth.get_google_token")
+    def test_google_callback_with_pkce_verifier(
+        self,
+        mock_get_google_token,
+        mock_get_google_user_info,
+    ):
+        """Callback should accept and pass code_verifier to token exchange."""
+        auth_response = self.client.get(
+            f"{self.google_auth_url}?code_challenge=challenge&code_challenge_method=S256"
+        )
+        valid_state = auth_response.data["state"]
+
+        mock_get_google_token.return_value = {"access_token": "google-access-token"}
+        mock_get_google_user_info.return_value = {
+            "email": "pkceuser@example.com",
+            "name": "PKCE User",
+        }
+
+        response = self.client.post(
+            self.google_callback_url,
+            {
+                "code": "valid-code",
+                "state": valid_state,
+                "code_verifier": "verifier",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        mock_get_google_token.assert_called_once_with(
+            "valid-code", code_verifier="verifier"
+        )
 
     @patch("accounts.oauth.get_google_user_info")
     @patch("accounts.oauth.get_google_token")

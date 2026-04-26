@@ -80,8 +80,8 @@ def _access_token_lifetime_seconds() -> int:
     return int(lifetime.total_seconds())
 
 
-def get_google_token(code: str) -> dict[str, Any] | None:
-    """Exchange an authorization code for Google tokens."""
+def get_google_token(code: str, code_verifier: str | None = None) -> dict[str, Any] | None:
+    """Exchange an authorization code for Google tokens, supporting PKCE."""
     try:
         payload = {
             "code": code,
@@ -90,6 +90,9 @@ def get_google_token(code: str) -> dict[str, Any] | None:
             "redirect_uri": GoogleOAuthConfig.REDIRECT_URI,
             "grant_type": "authorization_code",
         }
+
+        if code_verifier:
+            payload["code_verifier"] = code_verifier
 
         response = requests.post(
             GoogleOAuthConfig.TOKEN_URL,
@@ -200,12 +203,14 @@ def google_oauth_callback(request):
     Expected body:
     {
         "code": "...",
-        "state": "..."
+        "state": "...",
+        "code_verifier": "..." (optional)
     }
     """
     try:
         code = request.data.get("code")
         state = request.data.get("state")
+        code_verifier = request.data.get("code_verifier")
 
         if not code or not state:
             return Response(
@@ -213,13 +218,14 @@ def google_oauth_callback(request):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        if not validate_and_consume_oauth_state(state):
+        state_data = validate_and_consume_oauth_state(state)
+        if state_data is None:
             return Response(
                 {"detail": "Invalid or expired OAuth state."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        google_tokens = get_google_token(code)
+        google_tokens = get_google_token(code, code_verifier=code_verifier)
         if not google_tokens:
             return Response(
                 {"detail": "Failed to exchange authorization code."},
@@ -292,7 +298,15 @@ def google_auth_url(request):
     """Return a Google authorization URL with a server-stored state token."""
     try:
         state = secrets.token_urlsafe(32)
-        store_oauth_state(state)
+
+        # Optional PKCE challenge from frontend
+        code_challenge = request.query_params.get("code_challenge")
+        code_challenge_method = request.query_params.get("code_challenge_method", "S256")
+
+        store_oauth_state(state, {
+            "code_challenge": code_challenge,
+            "code_challenge_method": code_challenge_method
+        })
 
         params = {
             "client_id": GoogleOAuthConfig.CLIENT_ID,
@@ -303,6 +317,11 @@ def google_auth_url(request):
             "access_type": "offline",
             "prompt": "consent",
         }
+
+        if code_challenge:
+            params["code_challenge"] = code_challenge
+            params["code_challenge_method"] = code_challenge_method
+
         auth_url = f"https://accounts.google.com/o/oauth2/v2/auth?{urlencode(params)}"
 
         return Response(

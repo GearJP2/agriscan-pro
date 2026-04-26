@@ -36,17 +36,19 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 
-# Quick-start development settings - unsuitable for production
+# QUICK-START DEVELOPMENT SETTINGS
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
-
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.environ.get(
-    "SECRET_KEY",
-    "django-insecure-very-long-secret-key-for-jwt-tokens-32-chars-minimum!",
-)
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get("DEBUG", "False") == "True"
+
+# SECURITY WARNING: keep the secret key used in production secret!
+SECRET_KEY = os.environ.get("SECRET_KEY")
+if not SECRET_KEY:
+    if not DEBUG:
+        from django.core.exceptions import ImproperlyConfigured
+        raise ImproperlyConfigured("SECRET_KEY environment variable is required in production")
+    SECRET_KEY = "insecure-dev-key"
 
 # Comma-separated list of allowed hosts
 _ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "")
@@ -56,8 +58,14 @@ if _ALLOWED_HOSTS:
         # Add a default local allow list alongside the provided env var
         ALLOWED_HOSTS.extend(["localhost", "127.0.0.1"])
 else:
-    # If not set in environment, allow all in non-debug mode for EB health checks or standard local defaults
-    ALLOWED_HOSTS = ["*"] if not DEBUG else ["localhost", "127.0.0.1"]
+    # If not set in environment, require explicit setting in production
+    if not DEBUG:
+        raise ImproperlyConfigured("ALLOWED_HOSTS environment variable is required in production")
+    ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
+
+
+# Trusted proxies for X-Forwarded-For validation
+TRUSTED_PROXIES = [p.strip() for p in os.environ.get("TRUSTED_PROXIES", "").split(",") if p.strip()]
 
 
 # Application definition
@@ -74,6 +82,7 @@ INSTALLED_APPS = [
     "rest_framework_simplejwt.token_blacklist",
     "corsheaders",
     "storages",
+    "drf_spectacular",
     "core.apps.CoreConfig",
     "accounts",
     "samples",
@@ -366,6 +375,14 @@ REST_FRAMEWORK = {
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ),
     "EXCEPTION_HANDLER": "core.exceptions.agriscan_exception_handler",
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+}
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": "AgriScan Pro API",
+    "DESCRIPTION": "API for Mycotoxin Analysis and Sample Management",
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
 }
 
 SIMPLE_JWT = {

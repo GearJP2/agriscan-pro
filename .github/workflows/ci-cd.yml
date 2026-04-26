@@ -54,8 +54,7 @@ jobs:
       - name: Run dependency scan (backend)
         working-directory: backend
         run: |
-          # Continue on error so we don't instantly break the build if vulnerable deps exist.
-          pip-audit || echo "::warning::pip-audit found vulnerabilities"
+          pip-audit --strict
 
       - name: Run backend tests
         working-directory: backend
@@ -88,7 +87,7 @@ jobs:
 
       - name: Run dependency scan (frontend)
         working-directory: frontend
-        run: npm audit --audit-level=high || echo "::warning::npm audit found vulnerabilities"
+        run: npm audit --audit-level=high
 
       - name: Lint frontend
         working-directory: frontend
