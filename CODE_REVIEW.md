@@ -2,11 +2,11 @@
 
 ## Overview
 
-**Last Updated**: 2026-04-27 (Dependency Security + CSV Import Bug Fixes)
+**Last Updated**: 2026-04-27 (FE-1 review follow-up: password-change session revocation gap)
 
 **Scope**: Current working-tree review covering completed Weeks 1-4 hardening, the backend-first `MycotoxinResult` refactor, and the final infrastructure stability phase (Migrations, Profile modularization, OAuth PKCE, and Theme standardization).
 
-**Current Status**: All MycotoxinResult refactor, threshold-alignment, hardening, and dependency-security items are **Fixed**. The migration graph is linearized, the profile architecture is modular, security is production-grade, and `xlsx` has been replaced with `exceljs` + `papaparse`.
+**Current Status**: MycotoxinResult refactor, threshold-alignment, and dependency-security items are **Fixed**. One auth-security follow-up remains open from FE-1: password-change via `/api/accounts/password/set/` does not yet revoke outstanding refresh-token sessions.
 
 **Recent Verification** _(2026-04-27)_
 
@@ -52,6 +52,7 @@ above_threshold_pct: 50.0
 - **Migration 0010 Atomicity Fix** _(2026-04-27)_: Added `atomic = False` to `Migration` class to prevent `OperationalError: there are pending trigger events` on PostgreSQL during deferred-constraint data migration.
 - **Frontend CSV Import Bug Fixes** _(2026-04-27)_: Added `skipEmptyLines: true` to all 4 `Papa.parse` calls; fixed `URL.revokeObjectURL` memory leak in `SampleList.handleExportXLSX`; typed Papa `error` callbacks as `Error` instead of `any`; removed unused `rowNumber` param in `AddSampleForm.eachRow`.
 - **Backend PEP8** _(2026-04-27)_: Stripped trailing whitespace (W293) from `backend/samples/views.py` — passes `flake8 --max-line-length=120` clean.
+- **FE-1 review finding** _(2026-04-27)_: `SetPasswordView` currently updates password without blacklisting existing refresh sessions; tracked as P1 follow-up.
 
 ### MycotoxinResult Refactor Status
 
@@ -81,6 +82,7 @@ above_threshold_pct: 50.0
 ### Remaining Follow-ups
 
 - [ ] Add API documentation with `drf-spectacular`.
+- [ ] **P1 Security**: Revoke all outstanding refresh sessions after successful `POST /api/accounts/password/set/` (align with OTP reset security behavior).
 - [x] Optional: downloadable failed-row CSV for very large imports (`ingestion_service.py`). **[FIXED]**
 - [x] Delete redundant migrations (`accounts:0004`, `samples:0008`) and update downstream dependencies. **[FIXED]**
 - [x] Complete refactoring of `Profile.tsx` into modular components. **[FIXED]**
@@ -201,6 +203,7 @@ above_threshold_pct: 50.0
 | Input validation gaps | Medium | Improved | Canonical serializer validation and negative-value rejection are covered |
 | Migration Graph Instability | Medium | Fixed | Restored deterministic database deployments |
 | OAuth Interception Risk | High | Fixed | PKCE verified (SHA-256 + No-Padding Base64URL) |
+| Password-change session revocation gap | High | Open | Existing refresh sessions remain valid after `/api/accounts/password/set/` |
 | `xlsx` ReDoS / Prototype Pollution | High | Fixed | Replaced with `exceljs` + `papaparse`; `uuid` override applied |
 | CSV trailing-row bug | Medium | Fixed | `skipEmptyLines: true` added to all Papa.parse calls |
 | Blob URL memory leak | Low | Fixed | `URL.revokeObjectURL` added to `SampleList.handleExportXLSX` |
@@ -213,13 +216,13 @@ above_threshold_pct: 50.0
 | Architecture | 3.5/5 | 4.9/5 | Modular Hooks, Service boundaries, and clean route structure |
 | Backend Quality | 3.0/5 | 4.9/5 | Auth, samples, ingestion (CSV export ready), and analytics hardened |
 | Frontend Quality | 4.0/5 | 5.0/5 | Standardized themes, virtualization, modular components, and safe file parsing |
-| Security | 2.0/5 | 5.0/5 | Major auth/session/rate-limit/PKCE risks are closed |
+| Security | 2.0/5 | 4.8/5 | Major auth/session/rate-limit/PKCE risks are mostly closed; password-change session revocation remains open |
 | Testing | 0.0/5 | 4.3/5 | Backend suites, analytics/filter tests, migration tests, and frontend type/smoke gates exist |
 | Logging | 1.0/5 | 4.2/5 | Structured backend logging and safer error boundaries are in place |
 | Documentation | 2.0/5 | 4.8/5 | Core project docs exist; API schema docs remain open |
 | Error Handling | 2.0/5 | 4.6/5 | Specific API exceptions, safe 500s, and structed CSV import errors |
 | Performance | 3.0/5 | 4.6/5 | Virtualization, linearized DB, and lazy loading are complete |
-| Overall | 2.6/5 | 5.0/5 | **Production Ready** |
+| Overall | 2.6/5 | 4.9/5 | **Production-ready with one P1 auth-security follow-up** |
 
 ## Source Of Truth
 

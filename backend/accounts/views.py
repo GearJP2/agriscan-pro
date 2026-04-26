@@ -8,7 +8,11 @@ from django.core.mail import send_mail
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 from rest_framework import generics, permissions, status
-from rest_framework.exceptions import AuthenticationFailed, PermissionDenied
+from rest_framework.exceptions import (
+    AuthenticationFailed,
+    PermissionDenied,
+    ValidationError,
+)
 from rest_framework.response import Response
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.serializers import TokenRefreshSerializer
@@ -27,16 +31,26 @@ from .auth_helpers import (
     set_refresh_cookie,
     should_set_httponly_refresh_cookie,
 )
-from .models import EmailChangeRequest, PasswordResetOTP
+from .models import EmailChangeRequest, PasswordResetOTP, UserAuthProvider
 from .repositories import UserActionLogRepository, UserRepository
 from .serializers import (
+    AuthProviderSummarySerializer,
     CustomTokenObtainPairSerializer,
     EmailChangeConfirmSerializer,
     PasswordResetRequestSerializer,
     PasswordResetSerializer,
     ProfileUpdateSerializer,
     RegisterSerializer,
+    SetPasswordSerializer,
     UserSerializer,
+    UserAuthProviderSerializer,
+)
+from .services.auth_linking_service import (
+    LastAuthMethodRemovalError,
+    PasswordChangeError,
+    ProviderNotLinkedError,
+    disconnect_provider_for_user,
+    set_or_change_password_for_user,
 )
 from .utils import (
     AttemptLimiter,
@@ -252,6 +266,7 @@ class UserDetailView(generics.RetrieveUpdateDestroyAPIView):
                 action="CHANGED_STATUS",
                 details=f"{status_text} user account",
             )
+
 
 class RequestOTPView(generics.GenericAPIView):
     """Send a one-time password to the user's registered email for password reset."""
@@ -510,5 +525,86 @@ class ConfirmEmailChangeView(generics.GenericAPIView):
         )
         return Response(
             {"detail": f"Email successfully updated to {user.email}"},
+            status=status.HTTP_200_OK,
+        )
+
+
+class AuthProviderListView(generics.GenericAPIView):
+    """Return linked authentication providers and password availability."""
+
+    permission_classes = (permissions.IsAuthenticated,)
+    serializer_class = AuthProviderSummarySerializer
+
+    def get(self, request):
+        providers = request.user.auth_providers.order_by("provider")
+        payload = {
+            "has_password": request.user.has_usable_password(),
+            "providers": UserAuthProviderSerializer(
+                providers,
+                many=True,
+            ).data,
+        }
+        serializer = self.get_serializer(payload)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class GoogleProviderDisconnectView(generics.GenericAPIView):
+    """Disconnect Google sign-in from the authenticated user account."""
+
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def post(self, request):
+        try:
+            disconnect_provider_for_user(
+                request.user,
+                provider=UserAuthProvider.Provider.GOOGLE,
+            )
+        except (ProviderNotLinkedError, LastAuthMethodRemovalError) as exc:
+            raise ValidationError({"detail": str(exc)}) from exc
+
+        logger.info(
+            "auth.provider.disconnected",
+            extra={"user_id": request.user.id, "provider": "google"},
+        )
+        return Response(
+            {"detail": "Google account disconnected."},
+            status=status.HTTP_200_OK,
+        )
+
+
+class SetPasswordView(generics.GenericAPIView):
+    """Set or change password for the authenticated account."""
+
+    permission_classes = (permissions.IsAuthenticated,)
+    serializer_class = SetPasswordSerializer
+
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            had_password = set_or_change_password_for_user(
+                request.user,
+                new_password=serializer.validated_data["new_password"],
+                current_password=serializer.validated_data.get("current_password", ""),
+            )
+        except PasswordChangeError as exc:
+            raise ValidationError({"detail": str(exc)}) from exc
+
+        logger.info(
+            "auth.password.updated",
+            extra={
+                "user_id": request.user.id,
+                "had_password": had_password,
+            },
+        )
+        return Response(
+            {
+                "detail": (
+                    "Password changed successfully."
+                    if had_password
+                    else "Password set successfully."
+                )
+            },
             status=status.HTTP_200_OK,
         )

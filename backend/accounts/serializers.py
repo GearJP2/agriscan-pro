@@ -4,7 +4,7 @@ from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from .auth_helpers import can_manage_user_security_fields
-from .models import User
+from .models import User, UserAuthProvider
 from .repositories import UserRepository
 from .utils import normalize_email, sanitize_text
 
@@ -280,3 +280,61 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
 
 class EmailChangeConfirmSerializer(serializers.Serializer):
     token = serializers.UUIDField()
+
+
+class UserAuthProviderSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserAuthProvider
+        fields = (
+            "provider",
+            "email",
+            "email_verified",
+            "linked_at",
+            "last_used_at",
+        )
+        read_only_fields = fields
+
+
+class AuthProviderSummarySerializer(serializers.Serializer):
+    has_password = serializers.BooleanField()
+    providers = UserAuthProviderSerializer(many=True)
+
+
+class SetPasswordSerializer(serializers.Serializer):
+    current_password = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        trim_whitespace=False,
+        write_only=True,
+    )
+    new_password = serializers.CharField(
+        required=True,
+        trim_whitespace=False,
+        write_only=True,
+    )
+    confirm_password = serializers.CharField(
+        required=True,
+        trim_whitespace=False,
+        write_only=True,
+    )
+
+    def validate(self, attrs):
+        attrs = attrs.copy()
+        attrs["current_password"] = _reject_unsafe_secret(
+            attrs.get("current_password", ""),
+            field_name="current_password",
+        )
+        attrs["new_password"] = _reject_unsafe_secret(
+            attrs.get("new_password", ""),
+            field_name="new_password",
+        )
+        attrs["confirm_password"] = _reject_unsafe_secret(
+            attrs.get("confirm_password", ""),
+            field_name="confirm_password",
+        )
+
+        if attrs["new_password"] != attrs["confirm_password"]:
+            raise serializers.ValidationError(
+                {"confirm_password": "Passwords do not match."}
+            )
+        return attrs

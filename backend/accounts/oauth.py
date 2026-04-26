@@ -14,7 +14,7 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ImproperlyConfigured
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 
@@ -24,9 +24,16 @@ from .auth_helpers import (
     store_oauth_state,
     validate_and_consume_oauth_state,
 )
+from .services.auth_linking_service import (
+    AuthLinkingError,
+    resolve_user_for_google_sign_in,
+    link_google_identity_to_authenticated_user,
+)
 
 logger = logging.getLogger("agriscan.accounts")
 User = get_user_model()
+OAUTH_INTENT_LOGIN = "login"
+OAUTH_INTENT_LINK = "link"
 
 
 class GoogleOAuthConfig:
@@ -143,55 +150,51 @@ def get_google_user_info(access_token: str) -> dict[str, Any] | None:
         return None
 
 
-def _build_unique_username_from_email(email: str) -> str:
-    """Generate a unique username for a Google-authenticated user."""
-    base_username = email.split("@")[0][:150] or "googleuser"
-    username = base_username
-    suffix = 1
+def _build_google_oauth_url(
+    *,
+    state: str,
+    code_challenge: str | None,
+    code_challenge_method: str,
+) -> str:
+    """Build a Google OAuth URL with optional PKCE challenge params."""
+    params = {
+        "client_id": GoogleOAuthConfig.CLIENT_ID,
+        "redirect_uri": GoogleOAuthConfig.REDIRECT_URI,
+        "response_type": "code",
+        "scope": "openid profile email",
+        "state": state,
+        "access_type": "offline",
+        "prompt": "consent",
+    }
 
-    while User.objects.filter(username=username).exclude(email=email).exists():
-        candidate = f"{base_username[:140]}-{suffix}"
-        username = candidate[:150]
-        suffix += 1
+    if code_challenge:
+        params["code_challenge"] = code_challenge
+        params["code_challenge_method"] = code_challenge_method
 
-    return username
+    return f"https://accounts.google.com/o/oauth2/v2/auth?{urlencode(params)}"
 
 
-def get_or_create_user_from_google(user_info: dict[str, Any]) -> Any | None:
-    """Get or create a local user record from Google user information."""
-    try:
-        email = user_info.get("email")
-        if not email:
-            return None
+def _issue_login_response(
+    user: Any,
+    *,
+    flow: str,
+    detail: str | None = None,
+) -> Response:
+    """Issue app JWT response payload and set refresh cookie."""
+    refresh = RefreshToken.for_user(user)
+    payload: dict[str, Any] = {
+        "access_token": str(refresh.access_token),
+        "expires_in": _access_token_lifetime_seconds(),
+        "token_type": "Bearer",
+        "user": build_user_payload(user),
+        "flow": flow,
+    }
+    if detail:
+        payload["detail"] = detail
 
-        name = user_info.get("name") or email.split("@")[0]
-        username = _build_unique_username_from_email(email)
-
-        user, created = User.objects.get_or_create(
-            email=email,
-            defaults={
-                "username": username,
-                "name": name,
-                "is_active": True,
-            },
-        )
-
-        if created:
-            user.set_unusable_password()
-            user.save(update_fields=["password"])
-            logger.info(
-                "auth.google.user_created",
-                extra={"email": email, "username": user.username},
-            )
-
-        return user
-    except Exception as exc:  # noqa: BLE001
-        logger.error(
-            "auth.google.user_get_or_create_failed",
-            exc_info=True,
-            extra={"error": str(exc)},
-        )
-        return None
+    response = Response(payload, status=status.HTTP_200_OK)
+    set_refresh_cookie(response, str(refresh))
+    return response
 
 
 @api_view(["POST"])
@@ -246,12 +249,37 @@ def google_oauth_callback(request):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        user = get_or_create_user_from_google(user_info)
-        if not user:
-            return Response(
-                {"detail": "Failed to create user account."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        intent = state_data.get("intent", OAUTH_INTENT_LOGIN)
+        user = None
+        flow = OAUTH_INTENT_LOGIN
+        detail: str | None = None
+
+        if intent == OAUTH_INTENT_LINK:
+            link_user_id = state_data.get("link_user_id")
+            user = User.objects.filter(id=link_user_id).first()
+            if not user:
+                return Response(
+                    {"detail": "Linking session expired. Please try again."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            try:
+                link_google_identity_to_authenticated_user(user, user_info)
+            except AuthLinkingError as exc:
+                return Response(
+                    {"detail": str(exc)},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            flow = OAUTH_INTENT_LINK
+            detail = "Google account linked successfully."
+        else:
+            try:
+                user = resolve_user_for_google_sign_in(user_info)
+            except AuthLinkingError as exc:
+                return Response(
+                    {"detail": str(exc)},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
         if not user.is_active:
             logger.warning(
@@ -263,21 +291,11 @@ def google_oauth_callback(request):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        refresh = RefreshToken.for_user(user)
-        response = Response(
-            {
-                "access_token": str(refresh.access_token),
-                "expires_in": _access_token_lifetime_seconds(),
-                "token_type": "Bearer",
-                "user": build_user_payload(user),
-            },
-            status=status.HTTP_200_OK,
-        )
-        set_refresh_cookie(response, str(refresh))
+        response = _issue_login_response(user, flow=flow, detail=detail)
 
         logger.info(
             "auth.google.callback_success",
-            extra={"user_id": user.id, "email": user.email},
+            extra={"user_id": user.id, "email": user.email, "flow": flow},
         )
         return response
     except Exception as exc:  # noqa: BLE001
@@ -297,32 +315,25 @@ def google_oauth_callback(request):
 def google_auth_url(request):
     """Return a Google authorization URL with a server-stored state token."""
     try:
-        state = secrets.token_urlsafe(32)
-
-        # Optional PKCE challenge from frontend
         code_challenge = request.query_params.get("code_challenge")
-        code_challenge_method = request.query_params.get("code_challenge_method", "S256")
+        code_challenge_method = request.query_params.get(
+            "code_challenge_method", "S256"
+        )
 
-        store_oauth_state(state, {
-            "code_challenge": code_challenge,
-            "code_challenge_method": code_challenge_method
-        })
-
-        params = {
-            "client_id": GoogleOAuthConfig.CLIENT_ID,
-            "redirect_uri": GoogleOAuthConfig.REDIRECT_URI,
-            "response_type": "code",
-            "scope": "openid profile email",
-            "state": state,
-            "access_type": "offline",
-            "prompt": "consent",
-        }
-
-        if code_challenge:
-            params["code_challenge"] = code_challenge
-            params["code_challenge_method"] = code_challenge_method
-
-        auth_url = f"https://accounts.google.com/o/oauth2/v2/auth?{urlencode(params)}"
+        state = secrets.token_urlsafe(32)
+        store_oauth_state(
+            state,
+            {
+                "intent": OAUTH_INTENT_LOGIN,
+                "code_challenge": code_challenge,
+                "code_challenge_method": code_challenge_method,
+            },
+        )
+        auth_url = _build_google_oauth_url(
+            state=state,
+            code_challenge=code_challenge,
+            code_challenge_method=code_challenge_method,
+        )
 
         return Response(
             {"auth_url": auth_url, "state": state},
@@ -336,5 +347,48 @@ def google_auth_url(request):
         )
         return Response(
             {"detail": "Failed to generate authentication URL."},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def google_connect_auth_url(request):
+    """Return a Google auth URL that links Google to the current account."""
+    try:
+        code_challenge = request.query_params.get("code_challenge")
+        code_challenge_method = request.query_params.get(
+            "code_challenge_method", "S256"
+        )
+        state = secrets.token_urlsafe(32)
+
+        store_oauth_state(
+            state,
+            {
+                "intent": OAUTH_INTENT_LINK,
+                "link_user_id": request.user.id,
+                "code_challenge": code_challenge,
+                "code_challenge_method": code_challenge_method,
+            },
+        )
+
+        auth_url = _build_google_oauth_url(
+            state=state,
+            code_challenge=code_challenge,
+            code_challenge_method=code_challenge_method,
+        )
+
+        return Response(
+            {"auth_url": auth_url, "state": state},
+            status=status.HTTP_200_OK,
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.error(
+            "auth.google.connect_auth_url_failed",
+            exc_info=True,
+            extra={"error": str(exc)},
+        )
+        return Response(
+            {"detail": "Failed to generate Google linking URL."},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )

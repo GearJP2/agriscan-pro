@@ -1,15 +1,18 @@
 from django.urls import path
 
-from .oauth import google_auth_url, google_oauth_callback
+from .oauth import google_auth_url, google_connect_auth_url, google_oauth_callback
 from .views import (
+    AuthProviderListView,
     ConfirmEmailChangeView,
     CustomTokenObtainPairView,
     CustomTokenRefreshView,
+    GoogleProviderDisconnectView,
     LogoutView,
     ProfileUpdateView,
     RegisterView,
     RequestOTPView,
     ResetPasswordOTPView,
+    SetPasswordView,
     UserDetailView,
     UserListView,
 )
@@ -37,6 +40,22 @@ urlpatterns = [
         ConfirmEmailChangeView.as_view(),
         name="email-change-confirm",
     ),
+    path(
+        "auth-providers/",
+        AuthProviderListView.as_view(),
+        name="auth-provider-list",
+    ),
+    path(
+        "auth-providers/google/connect/start/",
+        google_connect_auth_url,
+        name="google-connect-auth-url",
+    ),
+    path(
+        "auth-providers/google/disconnect/",
+        GoogleProviderDisconnectView.as_view(),
+        name="google-provider-disconnect",
+    ),
+    path("password/set/", SetPasswordView.as_view(), name="password-set"),
     path("google-auth/", google_auth_url, name="google-auth-url"),
     path("google-callback/", google_oauth_callback, name="google-oauth-callback"),
 ]

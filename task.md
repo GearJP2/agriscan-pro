@@ -224,8 +224,8 @@ These items align with the roadmap goals, but are called out separately because 
 
 ## Future Enhancements (Nice to Have)
 
-- [ ] **FE-1. OAuth & Password Account Linking**
-  Implement seamless account linking between standard Username/Password accounts and Google OAuth. If an email is verified via Google, automatically link it to the existing standard account. Provide a UI in the Account Settings for users to explicitly manage (connect/disconnect) their authentication providers and set passwords.
+- [x] **FE-1. OAuth & Password Account Linking**
+  Implemented seamless linking between Username/Password and Google OAuth with verified-email auto-linking, plus Account Settings UI for connect/disconnect provider management and password set/change flows.
 
 - [ ] **FE-2. Sample status state-transition validation**
   Enforce valid state transitions (e.g. `pending → in_progress → completed`) in a service-layer guard. Currently any status value within the `STATUS_CHOICES` is accepted regardless of the current state. This is business logic that belongs in `SampleService`, not the serializer.

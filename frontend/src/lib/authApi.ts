@@ -27,11 +27,26 @@ export interface GoogleOAuthStartResponse {
   state: string;
 }
 
+export interface LinkedAuthProvider {
+  provider: string;
+  email: string;
+  email_verified: boolean;
+  linked_at: string;
+  last_used_at: string | null;
+}
+
+export interface AuthProviderSummary {
+  has_password: boolean;
+  providers: LinkedAuthProvider[];
+}
+
 export interface GoogleOAuthCallbackResponse {
   access_token: string;
   expires_in: number;
   token_type: string;
   user: AuthenticatedUser;
+  flow?: "login" | "link";
+  detail?: string;
 }
 
 export interface RegisterRequest {
@@ -186,6 +201,25 @@ export async function beginGoogleOAuth(
   }
 }
 
+export async function beginGoogleOAuthConnect(
+  codeChallenge?: string,
+  codeChallengeMethod: string = "S256",
+): Promise<GoogleOAuthStartResponse> {
+  try {
+    const params = codeChallenge
+      ? { code_challenge: codeChallenge, code_challenge_method: codeChallengeMethod }
+      : {};
+
+    const response = await apiClient.get<GoogleOAuthStartResponse>(
+      "/accounts/auth-providers/google/connect/start/",
+      { params },
+    );
+    return response.data;
+  } catch (error) {
+    throw toApiError(error, "Failed to initialize Google account linking.");
+  }
+}
+
 export async function exchangeGoogleAuthCode(
   code: string,
   state: string,
@@ -209,5 +243,36 @@ export async function registerAccount(
     await publicApiClient.post("/accounts/register/", payload);
   } catch (error) {
     throw toApiError(error, "Registration failed.");
+  }
+}
+
+export async function fetchAuthProviderSummary(): Promise<AuthProviderSummary> {
+  try {
+    const response = await apiClient.get<AuthProviderSummary>(
+      "/accounts/auth-providers/",
+    );
+    return response.data;
+  } catch (error) {
+    throw toApiError(error, "Failed to fetch linked authentication providers.");
+  }
+}
+
+export async function disconnectGoogleProvider(): Promise<void> {
+  try {
+    await apiClient.post("/accounts/auth-providers/google/disconnect/", {});
+  } catch (error) {
+    throw toApiError(error, "Failed to disconnect Google provider.");
+  }
+}
+
+export async function setAccountPassword(payload: {
+  new_password: string;
+  confirm_password: string;
+  current_password?: string;
+}): Promise<void> {
+  try {
+    await apiClient.post("/accounts/password/set/", payload);
+  } catch (error) {
+    throw toApiError(error, "Failed to set account password.");
   }
 }

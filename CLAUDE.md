@@ -364,7 +364,7 @@ node agents-orchestrator/examples/simple-task.js
 - **Production Hardening**: HSTS (1yr), SSL redirect, Secure/HttpOnly cookies, `SECURE_PROXY_SSL_HEADER` for EB ALB — all gated on `DEBUG=False`
 - **SRE Health Check**: `GET /health/` reports DB+Redis latency and system saturation; system metrics gated on `SRE_MONITOR_KEY` env var
 - **Agent Gateway Security**: `GATEWAY_API_KEY` required (fail-fast on startup if unset); path traversal closed with alphanumeric sanitization on workflow names
-- **Secure Profile Management**: Hardened password reset via hashed OTPs; 2-step email verification; JWT session blacklisting after security events; Redis-based rate/attempt limiting; OTP invalidation on new password reset requests prevents replay attacks.
+- **Secure Profile Management**: Hardened password reset via hashed OTPs; 2-step email verification; JWT session blacklisting after OTP reset/email-change events; Redis-based rate/attempt limiting; OTP invalidation on new password reset requests prevents replay attacks.
 - **Role-Based Route Protection**: `ProtectedRoute` supports `minRole`/`allowedRoles` props; `/samples` restricted to `research_assistant` and above; `user` role blocked at both frontend route and backend `IsOwnerOrAdmin.has_permission`
 - **Profile Page Redesign**: Clinical registry-style UI — hero card, Registry Metadata, Output Analytics (live stats), inline email editing with password confirmation; email backend auto-detects dev (console) vs prod (SMTP)
 - **Infrastructure Fixes**: Resolved CORS and SSL protocol mismatch for CloudFront/EB; Hardened `SECURE_PROXY_SSL_HEADER` to trust `X-Forwarded-Proto` from CloudFront; Stopped unwanted 301 redirects on the direct EB domain to prevent "null" status connection failures.
@@ -639,14 +639,15 @@ eb status                            # Check environment health
 ## Last Updated
 - Date: 2026-04-27
 - By: Claude Code
-- Status: All hardening phases (Weeks 1–4), MycotoxinResult migration, dependency security hardening (xlsx → exceljs/papaparse), and frontend CSV import bug fixes are complete. `task.md` items 1–46 are all resolved. Infra/ops items (DB migration, EB env vars) remain open.
+- Status: All hardening phases (Weeks 1–4), MycotoxinResult migration, dependency security hardening (xlsx → exceljs/papaparse), and frontend CSV import bug fixes are complete. `task.md` items 1–46 are all resolved. One FE-1 follow-up remains: revoke outstanding sessions after `/api/accounts/password/set/`. Infra/ops items (DB migration, EB env vars) remain open.
 
 
 ## Pending Actions
 
-### All code hardening items resolved (see [CODE_REVIEW.md](CODE_REVIEW.md) and [task.md](task.md))
+### Code hardening status (see [CODE_REVIEW.md](CODE_REVIEW.md) and [task.md](task.md))
 - Role policy, refresh-cookie flow, token blacklisting, API config, permissions, OAuth state, and mycotoxin analytics are all complete and verified.
 - Dependency security hardening (xlsx → exceljs/papaparse), migration atomicity, and frontend CSV import bugs (task items 41–46) are resolved as of 2026-04-27.
+- **Outstanding P1 follow-up**: `POST /api/accounts/password/set/` currently updates credentials without blacklisting all outstanding refresh tokens; this should be aligned with OTP reset behavior.
 
 ### Cookie / OAuth environment variables (new in this release)
 - `JWT_USE_HTTPONLY_REFRESH_COOKIE` (default `True`) — toggles the httpOnly refresh cookie flow
@@ -667,3 +668,4 @@ eb status                            # Check environment health
 - Set `SRE_MONITOR_KEY` env var to protect system metrics on `/health/` endpoint
 - **Local environment**: Install `psutil` (`pip install psutil`) if local health metrics are needed
 - **API docs backlog**: Add `drf-spectacular` schema generation when ready
+- **FE-1 security follow-up**: Invalidate all outstanding sessions/tokens after successful `POST /api/accounts/password/set/`

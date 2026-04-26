@@ -219,6 +219,8 @@ const AuthDialog = () => {
     }));
 
     try {
+      sessionStorage.setItem("google_oauth_next_path", "/");
+      sessionStorage.setItem("google_oauth_intent", "login");
       const { auth_url } = await beginGoogleOAuth();
       window.location.href = auth_url;
     } catch (err) {

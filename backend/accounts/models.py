@@ -40,6 +40,46 @@ class User(AbstractUser):
     objects = CustomUserManager()
 
 
+class UserAuthProvider(models.Model):
+    class Provider(models.TextChoices):
+        GOOGLE = "google", "Google"
+
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="auth_providers"
+    )
+    provider = models.CharField(max_length=32, choices=Provider.choices)
+    provider_user_id = models.CharField(max_length=255)
+    email = models.EmailField(blank=True)
+    email_verified = models.BooleanField(default=False)
+    linked_at = models.DateTimeField(auto_now_add=True)
+    last_used_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["provider", "provider_user_id"],
+                name="uq_provider_external_identity",
+            ),
+            models.UniqueConstraint(
+                fields=["user", "provider"],
+                name="uq_user_provider",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["user", "provider"]),
+            models.Index(fields=["provider", "email"]),
+        ]
+
+    def mark_used(self):
+        self.last_used_at = timezone.now()
+        self.save(update_fields=["last_used_at", "updated_at"])
+
+    def __str__(self):
+        return f"{self.user_id}:{self.provider}"
+
+
 class UserActionLog(models.Model):
     actor = models.ForeignKey(
         User, on_delete=models.SET_NULL, null=True, related_name="actions_performed"
@@ -91,5 +131,3 @@ class EmailChangeRequest(models.Model):
     def __str__(self):
         user = cast(User, cast(object, self.user))
         return f"Email change to {self.new_email} for {user.email}"
-
-

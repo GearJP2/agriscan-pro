@@ -5,11 +5,13 @@ dist-ssr/
 *.local
 frontend/.env
 .vite-cache/
+frontend/.wrangler/
 
 # Backend (Django)
 backend/venv/
 backend/env/
 backend/__pycache__/
+**/__pycache__/
 *.py[cod]
 *$py.class
 backend/db.sqlite3

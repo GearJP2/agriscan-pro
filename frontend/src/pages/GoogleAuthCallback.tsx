@@ -47,10 +47,17 @@ const GoogleAuthCallback = () => {
         );
 
         sessionStorage.removeItem("google_oauth_code_verifier");
+        const nextPath = sessionStorage.getItem("google_oauth_next_path") || "/";
+        sessionStorage.removeItem("google_oauth_next_path");
+        sessionStorage.removeItem("google_oauth_intent");
 
         await loginWithToken(authResponse.access_token, authResponse.user);
 
-        navigate("/", { replace: true });
+        if (authResponse.flow === "link" && authResponse.detail) {
+          sessionStorage.setItem("google_oauth_flash", authResponse.detail);
+        }
+
+        navigate(nextPath, { replace: true });
       } catch (err) {
         const message =
           err instanceof Error
