@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
+import Papa from 'papaparse';
 import { Upload, AlertTriangle, CheckCircle2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -29,12 +30,23 @@ const UnifiedImportForm = ({ onSuccess }: UnifiedImportFormProps) => {
 
       if (isXlsx) {
         const reader = new FileReader();
-        reader.onload = (event) => {
+        reader.onload = async (event) => {
           try {
-            const data = new Uint8Array(event.target?.result as ArrayBuffer);
-            const workbook = XLSX.read(data, { type: 'array' });
-            const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-            const jsonData = XLSX.utils.sheet_to_json<string[]>(firstSheet, { header: 1 });
+            const buffer = event.target?.result as ArrayBuffer;
+            const workbook = new ExcelJS.Workbook();
+            await workbook.xlsx.load(buffer);
+            const worksheet = workbook.worksheets[0];
+            const jsonData: string[][] = [];
+            
+            worksheet.eachRow((row: ExcelJS.Row) => {
+              const rowData: string[] = [];
+              if (Array.isArray(row.values)) {
+                for (let i = 1; i < row.values.length; i++) {
+                  rowData.push(String(row.values[i] ?? ''));
+                }
+              }
+              jsonData.push(rowData);
+            });
             resolve(jsonData);
           } catch (error) {
             reject(new Error('Failed to parse Excel file'));
@@ -45,28 +57,20 @@ const UnifiedImportForm = ({ onSuccess }: UnifiedImportFormProps) => {
       } else {
         const reader = new FileReader();
         reader.onload = (event) => {
-          const text = event.target?.result as string;
-          const lines = text.split('\n').filter(line => line.trim());
-          const parsed = lines.map(line => {
-            const cells: string[] = [];
-            let current = '';
-            let inQuotes = false;
-
-            for (let i = 0; i < line.length; i++) {
-              const char = line[i];
-              if (char === '"' && (i === 0 || line[i - 1] !== '\\')) {
-                inQuotes = !inQuotes;
-              } else if (char === ',' && !inQuotes) {
-                cells.push(current.trim());
-                current = '';
-              } else {
-                current += char;
+          try {
+            const text = event.target?.result as string;
+            Papa.parse<string[]>(text, {
+              skipEmptyLines: true,
+              complete: (results) => {
+                resolve(results.data);
+              },
+              error: (error: Error) => {
+                reject(new Error(`Failed to parse CSV: ${error.message || 'Unknown error'}`));
               }
-            }
-            cells.push(current.trim());
-            return cells;
-          });
-          resolve(parsed);
+            });
+          } catch (error) {
+            reject(new Error('Failed to parse CSV file'));
+          }
         };
         reader.onerror = () => reject(new Error('Failed to read file'));
         reader.readAsText(file);

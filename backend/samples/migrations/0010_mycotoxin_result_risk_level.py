@@ -205,6 +205,7 @@ def migrate_result_data(apps, schema_editor):
 
 
 class Migration(migrations.Migration):
+    atomic = False
     dependencies = [
         ("samples", "0009_alter_mycotoxinresult_id_alter_processlog_id_and_more"),
     ]

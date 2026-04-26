@@ -3,7 +3,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
+import Papa from 'papaparse';
 import { Upload, FileText, Plus, Check, AlertCircle, AlertTriangle, Download, CalendarIcon, Loader2, Eye, EyeOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -413,30 +414,32 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
 
   const parseFileData = (file: File): Promise<string[][]> => {
     return new Promise((resolve, reject) => {
-      const parseCsvTextWithXlsx = (text: string): string[][] => {
-        const workbook = XLSX.read(text, { type: 'string' });
-        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-        const jsonData = XLSX.utils.sheet_to_json<any[]>(firstSheet, {
-          header: 1,
-          raw: false,
-          defval: '',
-        });
-        return jsonData.map((row) => row.map((cell) => cleanText(String(cell ?? ''))));
-      };
-
       const isXlsx = file.name.endsWith('.xlsx') || file.name.endsWith('.xls');
 
       if (isXlsx) {
         const reader = new FileReader();
-        reader.onload = (event) => {
+        reader.onload = async (event) => {
           try {
-            const data = new Uint8Array(event.target?.result as ArrayBuffer);
-            const workbook = XLSX.read(data, { type: 'array' });
-            const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-            const jsonData = XLSX.utils.sheet_to_json<string[]>(firstSheet, { header: 1 });
+            const buffer = event.target?.result as ArrayBuffer;
+            const workbook = new ExcelJS.Workbook();
+            await workbook.xlsx.load(buffer);
+            const worksheet = workbook.worksheets[0];
+            const jsonData: string[][] = [];
+            
+            worksheet.eachRow((row: ExcelJS.Row) => {
+              const rowData: string[] = [];
+              if (Array.isArray(row.values)) {
+                // exceljs row.values is 1-indexed (index 0 is undefined)
+                for (let i = 1; i < row.values.length; i++) {
+                  rowData.push(String(row.values[i] ?? ''));
+                }
+              }
+              jsonData.push(rowData);
+            });
+
             // Clean quotes from all cells
-            const cleanedData = jsonData.map(row =>
-              row.map(cell => cleanText(String(cell ?? '')))
+            const cleanedData = jsonData.map((row: string[]) =>
+              row.map((cell: string) => cleanText(String(cell ?? '')))
             );
             resolve(cleanedData);
           } catch (error) {
@@ -450,8 +453,18 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
         reader.onload = (event) => {
           try {
             const text = event.target?.result as string;
-            const parsed = parseCsvTextWithXlsx(text);
-            resolve(parsed);
+            Papa.parse<string[]>(text, {
+              skipEmptyLines: true,
+              complete: (results: Papa.ParseResult<string[]>) => {
+                const cleanedData = results.data.map((rowValue: string[]) =>
+                  rowValue.map((cellValue: string) => cleanText(String(cellValue ?? '')))
+                );
+                resolve(cleanedData);
+              },
+              error: (error: Error) => {
+                reject(new Error(`Failed to parse CSV: ${error.message || 'Unknown error'}`));
+              }
+            });
           } catch (error) {
             reject(new Error('Failed to parse CSV file'));
           }
@@ -1344,28 +1357,32 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
 
   const parseAdvancedFileData = (file: File): Promise<string[][]> => {
     return new Promise((resolve, reject) => {
-      const parseCsvTextWithXlsx = (text: string): string[][] => {
-        const workbook = XLSX.read(text, { type: 'string' });
-        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-        const jsonData = XLSX.utils.sheet_to_json<any[]>(firstSheet, {
-          header: 1,
-          raw: false,
-          defval: '',
-        });
-        return jsonData.map((row) => row.map((cell) => String(cell ?? '').trim()));
-      };
-
       const isXlsx = file.name.endsWith('.xlsx') || file.name.endsWith('.xls');
 
       if (isXlsx) {
         const reader = new FileReader();
-        reader.onload = (event) => {
+        reader.onload = async (event) => {
           try {
-            const data = new Uint8Array(event.target?.result as ArrayBuffer);
-            const workbook = XLSX.read(data, { type: 'array' });
-            const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-            const jsonData = XLSX.utils.sheet_to_json<string[]>(firstSheet, { header: 1 });
-            resolve(jsonData);
+            const buffer = event.target?.result as ArrayBuffer;
+            const workbook = new ExcelJS.Workbook();
+            await workbook.xlsx.load(buffer);
+            const worksheet = workbook.worksheets[0];
+            const jsonData: string[][] = [];
+            
+            worksheet.eachRow((row) => {
+              const rowData: string[] = [];
+              if (Array.isArray(row.values)) {
+                for (let i = 1; i < row.values.length; i++) {
+                  rowData.push(String(row.values[i] ?? ''));
+                }
+              }
+              jsonData.push(rowData);
+            });
+
+            const cleanedData = jsonData.map(row =>
+              row.map(cell => cleanText(String(cell ?? '')))
+            );
+            resolve(cleanedData);
           } catch (error) {
             reject(new Error('Failed to parse Excel file'));
           }
@@ -1377,8 +1394,18 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
         reader.onload = (event) => {
           try {
             const text = event.target?.result as string;
-            const parsed = parseCsvTextWithXlsx(text);
-            resolve(parsed);
+            Papa.parse<string[]>(text, {
+              skipEmptyLines: true,
+              complete: (results: Papa.ParseResult<string[]>) => {
+                const cleanedData = results.data.map((rowValue: string[]) =>
+                  rowValue.map((cellValue: string) => cleanText(String(cellValue ?? '')))
+                );
+                resolve(cleanedData);
+              },
+              error: (error: Error) => {
+                reject(new Error(`Failed to parse CSV: ${error.message || 'Unknown error'}`));
+              }
+            });
           } catch (error) {
             reject(new Error('Failed to parse CSV file'));
           }

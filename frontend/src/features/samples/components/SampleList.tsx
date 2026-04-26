@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, Download, ChevronDown, Loader2 } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import StatsCard from '@/components/StatsCard';
 import FilterBar from '@/components/FilterBar';
 import SampleTable from './SampleTable';
@@ -239,21 +239,52 @@ const SampleList = () => {
     };
 
     // Export filtered samples to XLSX
-    const handleExportXLSX = () => {
+    const handleExportXLSX = async () => {
         const { headers, rows } = getExportData();
 
-        const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, 'Samples');
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet('Samples');
+
+        // Add headers
+        worksheet.addRow(headers);
+        
+        // Style headers
+        const headerRow = worksheet.getRow(1);
+        headerRow.font = { bold: true };
+        headerRow.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFE0E0E0' }
+        };
+
+        // Add rows
+        rows.forEach(row => {
+            worksheet.addRow(row);
+        });
 
         // Auto-size columns
-        const colWidths = headers.map((header, i) => {
-            const maxDataWidth = Math.max(...rows.map(row => String(row[i]).length));
-            return { wch: Math.max(header.length, maxDataWidth) + 2 };
+        worksheet.columns.forEach((column, i) => {
+            let maxColumnLength = headers[i].length;
+            rows.forEach(row => {
+                const cellValue = String(row[i] || '');
+                maxColumnLength = Math.max(maxColumnLength, cellValue.length);
+            });
+            column.width = maxColumnLength + 2;
         });
-        worksheet['!cols'] = colWidths;
 
-        XLSX.writeFile(workbook, `samples_export_${new Date().toISOString().split('T')[0]}.xlsx`);
+        // Generate buffer
+        const buffer = await workbook.xlsx.writeBuffer();
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.setAttribute('href', url);
+        link.setAttribute('download', `samples_export_${new Date().toISOString().split('T')[0]}.xlsx`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
 
         toast({
             title: 'Export Complete',

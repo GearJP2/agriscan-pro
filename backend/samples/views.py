@@ -2,7 +2,7 @@ import logging
 
 from celery.result import AsyncResult
 from django.db import IntegrityError, transaction
-from django.db.models import Exists, OuterRef
+from django.db.models import Count, Exists, OuterRef, Q
 from rest_framework.decorators import action
 from rest_framework import filters, status, viewsets
 from rest_framework.permissions import IsAuthenticated
@@ -65,13 +65,13 @@ class SampleViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = super().get_queryset()
-        
+
         # Filter by status
         status_param = self.request.query_params.get('status')
         if status_param:
             statuses = status_param.split(',')
             queryset = queryset.filter(status__in=statuses)
-        
+
         # Filter by region
         region = self.request.query_params.get('region')
         if region:
@@ -81,17 +81,17 @@ class SampleViewSet(viewsets.ModelViewSet):
         province = self.request.query_params.get('province')
         if province:
             queryset = queryset.filter(province=province)
-        
+
         # Filter by vegetation variety
         vegetation = self.request.query_params.get('vegetation')
         if vegetation:
             queryset = queryset.filter(vegetation_variety=vegetation)
-        
+
         # Filter by date range
         date_from = self.request.query_params.get('date_from')
         if date_from:
             queryset = queryset.filter(collection_date__gte=date_from)
-        
+
         date_to = self.request.query_params.get('date_to')
         if date_to:
             queryset = queryset.filter(collection_date__lte=date_to)
@@ -127,7 +127,7 @@ class SampleViewSet(viewsets.ModelViewSet):
 
             if risk_filter:
                 queryset = queryset.filter(risk_filter)
-        
+
         return queryset
 
     def perform_create(self, serializer):
@@ -192,7 +192,7 @@ class SampleViewSet(viewsets.ModelViewSet):
     def statistics(self, request):
         """Get dashboard statistics - filtered by user role"""
         queryset = Sample.objects.all()
-        
+
         # Apply role-based filtering
         if request.user.role not in ["admin", "head_researcher", "researcher"]:
             # research_assistant and other roles see only their own samples
@@ -201,7 +201,7 @@ class SampleViewSet(viewsets.ModelViewSet):
             ) | queryset.filter(
                 collected_by=request.user.username
             )
-        
+
         stats = queryset.aggregate(
             total_samples=Count('id'),
             completed=Count('id', filter=Q(status='completed')),
@@ -219,7 +219,7 @@ class SampleViewSet(viewsets.ModelViewSet):
     def recent_alerts(self, request):
         """Get recently flagged samples - filtered by user role"""
         queryset = Sample.objects.filter(status='flagged')
-        
+
         # Apply role-based filtering
         if request.user.role not in ["admin", "head_researcher", "researcher"]:
             # research_assistant and other roles see only their own samples
@@ -228,7 +228,7 @@ class SampleViewSet(viewsets.ModelViewSet):
             ) | queryset.filter(
                 collected_by=request.user.username
             )
-        
+
         recent = queryset.order_by('-updated_at')[:RECENT_ALERTS_LIMIT]
         serializer = SampleListSerializer(recent, many=True)
         return Response(serializer.data)
@@ -406,9 +406,9 @@ class SampleViewSet(viewsets.ModelViewSet):
         failed_rows = request.data.get('failed_rows', [])
         if not failed_rows:
             return Response({'detail': 'No failed rows provided.'}, status=status.HTTP_400_BAD_REQUEST)
-        
+
         csv_content = SampleIngestionService.generate_failed_rows_csv(failed_rows)
-        
+
         from django.http import HttpResponse
         response = HttpResponse(csv_content, content_type='text/csv')
         response['Content-Disposition'] = 'attachment; filename="failed_import_rows.csv"'
@@ -461,20 +461,20 @@ class SampleViewSet(viewsets.ModelViewSet):
         Returns: { "status": "pending|started|success|failure", "result": {...} }
         """
         result = AsyncResult(task_id)
-        
+
         # Verify the task belongs to the requesting user
         if result.status not in ['PENDING'] and result.info:
             # Check if task metadata contains user info
             task_user = None
             if isinstance(result.info, dict):
                 task_user = result.info.get('uploaded_by_username')
-            
+
             if task_user and task_user != request.user.username:
                 return Response(
                     {'detail': 'You do not have permission to view this task.'},
                     status=status.HTTP_403_FORBIDDEN,
                 )
-        
+
         response = {'task_id': task_id, 'status': result.status}
         if result.ready():
             if result.successful():

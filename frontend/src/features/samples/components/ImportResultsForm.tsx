@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
+import Papa from 'papaparse';
 import { FileDown, FileUp, Upload, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -55,14 +56,25 @@ const ImportResultsForm = ({ sampleIds, onSuccess }: ImportResultsFormProps) => 
     }
 
     const buffer = await sourceFile.arrayBuffer();
-    const workbook = XLSX.read(buffer, { type: 'array' });
-    const firstSheetName = workbook.SheetNames[0];
-    if (!firstSheetName) {
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(buffer);
+    const worksheet = workbook.worksheets[0];
+    if (!worksheet) {
       throw new Error('Excel file has no worksheet.');
     }
 
-    const worksheet = workbook.Sheets[firstSheetName];
-    const csvContent = XLSX.utils.sheet_to_csv(worksheet);
+    const rows: string[][] = [];
+    worksheet.eachRow((row) => {
+      const rowValues: string[] = [];
+      if (Array.isArray(row.values)) {
+        for (let i = 1; i < row.values.length; i++) {
+          rowValues.push(String(row.values[i] ?? ''));
+        }
+      }
+      rows.push(rowValues);
+    });
+
+    const csvContent = Papa.unparse(rows);
     const csvBlob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const baseName = sourceFile.name.replace(/\.(xlsx|xls)$/i, '');
     return new File([csvBlob], `${baseName}.csv`, { type: 'text/csv' });
