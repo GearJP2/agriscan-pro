@@ -35,10 +35,10 @@ const Dashboard = () => {
 
         <div className="space-y-8">
           {error ? (
-            <div className="rounded-lg border border-red-200 bg-red-50 p-8 text-center">
-              <AlertTriangle className="mx-auto h-12 w-12 text-red-600 mb-4" />
-              <h2 className="text-2xl font-bold text-red-900">Error loading dashboard data</h2>
-              <p className="mt-2 text-red-800">There was a problem fetching samples. Please refresh.</p>
+            <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-8 text-center">
+              <AlertTriangle className="mx-auto h-12 w-12 text-destructive mb-4" />
+              <h2 className="text-2xl font-bold text-destructive">Error loading dashboard data</h2>
+              <p className="mt-2 text-destructive/80">There was a problem fetching samples. Please refresh.</p>
             </div>
           ) : (isLoading || !isDeferredMounted) ? (
             <div className="flex flex-col items-center justify-center h-64 space-y-4">
@@ -46,14 +46,14 @@ const Dashboard = () => {
               <p className="text-sm text-muted-foreground animate-pulse font-medium">Preparing dashboard overview...</p>
             </div>
           ) : samples.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-12 text-center">
-              <div className="mx-auto h-12 w-12 text-gray-400 mb-4">
+            <div className="rounded-lg border border-dashed border-border bg-muted/30 p-12 text-center">
+              <div className="mx-auto h-12 w-12 text-muted-foreground mb-4">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
-              <h2 className="text-2xl font-bold text-gray-900">No samples yet</h2>
-              <p className="mt-2 text-gray-600">Start by adding samples from the <strong>Sample List</strong> to see dashboard metrics and risk analysis.</p>
+              <h2 className="text-2xl font-bold text-foreground">No samples yet</h2>
+              <p className="mt-2 text-muted-foreground">Start by adding samples from the <strong>Sample List</strong> to see dashboard metrics and risk analysis.</p>
             </div>
           ) : (
             <>            

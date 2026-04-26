@@ -9,10 +9,11 @@ import {
 } from "@/lib/tokenStorage";
 import { logger } from "@/lib/logger";
 
-// API base URL — set VITE_API_BASE_URL to override (e.g. "http://localhost:8080/api").
+// API base URL — prioritize VITE_API_URL, then VITE_API_BASE_URL.
 // In production builds the frontend is served behind the same CloudFront origin,
 // so a relative "/api" path is the correct default.
 const API_BASE_URL: string =
+  import.meta.env.VITE_API_URL ||
   import.meta.env.VITE_API_BASE_URL ||
   (import.meta.env.DEV ? "http://localhost:8080/api" : "/api");
 
@@ -128,7 +129,10 @@ apiClient.interceptors.response.use(
         processQueue(refreshError, null);
         clearAccessToken();
         clearSessionHint();
-        window.location.href = "/";
+        
+        // Dispatch event for AuthContext to handle graceful logout without full page reload
+        window.dispatchEvent(new CustomEvent("agriscan:auth-failure"));
+        
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;

@@ -37,7 +37,16 @@ const GoogleAuthCallback = () => {
           throw new Error("Missing authorization code or state parameter.");
         }
 
-        const authResponse = await exchangeGoogleAuthCode(code, state);
+        const codeVerifier =
+          sessionStorage.getItem("google_oauth_code_verifier") || undefined;
+
+        const authResponse = await exchangeGoogleAuthCode(
+          code,
+          state,
+          codeVerifier,
+        );
+
+        sessionStorage.removeItem("google_oauth_code_verifier");
 
         await loginWithToken(authResponse.access_token, authResponse.user);
 
@@ -76,14 +85,14 @@ const GoogleAuthCallback = () => {
           </>
         ) : (
           <div className="space-y-4">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-100">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-destructive/10">
               <span className="text-2xl">⚠️</span>
             </div>
-            <h1 className="text-2xl font-bold text-red-600">
+            <h1 className="text-2xl font-bold text-destructive">
               Authentication Failed
             </h1>
-            <p className="text-gray-600 text-sm">{error}</p>
-            <p className="text-xs text-gray-500">
+            <p className="text-muted-foreground text-sm">{error}</p>
+            <p className="text-xs text-muted-foreground/60">
               Redirecting you back to the home page...
             </p>
           </div>

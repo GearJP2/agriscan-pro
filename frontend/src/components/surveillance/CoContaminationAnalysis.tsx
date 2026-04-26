@@ -285,7 +285,7 @@ export default function CoContaminationAnalysis({
               </div>
             </div>
 
-            {/* 4. Matrix Workspace (Correlation Matrix + Selector) */}
+            {/* 4. Matrix Workspace (Correlation Matrix + Selector) - Temporarily hidden
             <div className="space-y-6 pt-6">
               <div className="space-y-2">
                 <h3 className="text-[13px] font-black uppercase tracking-[0.2em] text-slate-900 dark:text-white">Conditional Probability Matrix Workspace</h3>
@@ -295,7 +295,6 @@ export default function CoContaminationAnalysis({
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-10 bg-slate-100/30 dark:bg-slate-900/20 p-12 rounded-2xl border-2 border-border dark:border-white/10 shadow-none">
-                {/* Heatmap Area */}
                 <div className="min-h-[500px] bg-card dark:bg-card rounded-2xl border-2 border-border dark:border-white/10 flex items-center justify-center p-10 overflow-auto custom-scrollbar shadow-none">
                   <CoOccurrenceHeatmap 
                     intersections={intersections} 
@@ -305,9 +304,7 @@ export default function CoContaminationAnalysis({
                   />
                 </div>
 
-                {/* Sidebar Selector */}
                 <div className="space-y-6">
-                    {/* Matrix Zoom Control */}
                     <div className="bg-card dark:bg-card p-6 rounded-2xl border-2 border-border dark:border-white/10 space-y-4 shadow-none">
                       <div className="flex items-center justify-between">
                         <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Matrix Zoom</span>
@@ -334,7 +331,7 @@ export default function CoContaminationAnalysis({
                    </div>
                 </div>
               </div>
-            </div>
+            </div> */}
 
           </CardContent>
         )}

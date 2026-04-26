@@ -142,6 +142,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
   }, [clearAuthState, clearLocalUserState, hydrateSession]);
 
+  useEffect(() => {
+    const handleAuthFailure = () => {
+      clearAuthState();
+    };
+
+    window.addEventListener("agriscan:auth-failure", handleAuthFailure);
+    return () => {
+      window.removeEventListener("agriscan:auth-failure", handleAuthFailure);
+    };
+  }, [clearAuthState]);
+
   const login = useCallback(
     async (username: string, password: string) => {
       const response = await loginRequest(username, password);

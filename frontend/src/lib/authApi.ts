@@ -167,10 +167,18 @@ export async function fetchCurrentUser(
   }
 }
 
-export async function beginGoogleOAuth(): Promise<GoogleOAuthStartResponse> {
+export async function beginGoogleOAuth(
+  codeChallenge?: string,
+  codeChallengeMethod: string = "S256",
+): Promise<GoogleOAuthStartResponse> {
   try {
+    const params = codeChallenge
+      ? { code_challenge: codeChallenge, code_challenge_method: codeChallengeMethod }
+      : {};
+
     const response = await publicApiClient.get<GoogleOAuthStartResponse>(
       "/accounts/google-auth/",
+      { params },
     );
     return response.data;
   } catch (error) {
@@ -181,11 +189,12 @@ export async function beginGoogleOAuth(): Promise<GoogleOAuthStartResponse> {
 export async function exchangeGoogleAuthCode(
   code: string,
   state: string,
+  codeVerifier?: string,
 ): Promise<GoogleOAuthCallbackResponse> {
   try {
     const response = await publicApiClient.post<GoogleOAuthCallbackResponse>(
       "/accounts/google-callback/",
-      { code, state },
+      { code, state, code_verifier: codeVerifier },
     );
     return response.data;
   } catch (error) {

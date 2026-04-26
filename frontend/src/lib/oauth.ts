@@ -92,11 +92,39 @@ export const generateRandomState = (): string => {
   );
 };
 
+/**
+ * Generate a random PKCE code verifier.
+ */
+export const generateCodeVerifier = (): string => {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return btoa(String.fromCharCode(...bytes))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+};
+
+/**
+ * Generate a PKCE code challenge from a verifier using SHA-256.
+ */
+export const generateCodeChallenge = async (
+  verifier: string,
+): Promise<string> => {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(verifier);
+  const hash = await crypto.subtle.digest("SHA-256", data);
+  return btoa(String.fromCharCode(...new Uint8Array(hash)))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+};
+
 export const exchangeAuthCode = async (
   code: string,
   state: string,
+  codeVerifier?: string,
 ): Promise<OAuthTokenResponse> => {
-  const response = await exchangeGoogleAuthCode(code, state);
+  const response = await exchangeGoogleAuthCode(code, state, codeVerifier);
   return {
     access_token: response.access_token,
     expires_in: response.expires_in,
@@ -118,7 +146,13 @@ export const refreshAccessToken = async (): Promise<OAuthTokenResponse> => {
 };
 
 export const initGoogleOAuth = async (): Promise<void> => {
-  const { auth_url } = await beginGoogleOAuth();
+  const codeVerifier = generateCodeVerifier();
+  const codeChallenge = await generateCodeChallenge(codeVerifier);
+
+  // Store verifier for the callback
+  sessionStorage.setItem("google_oauth_code_verifier", codeVerifier);
+
+  const { auth_url } = await beginGoogleOAuth(codeChallenge);
   window.location.href = auth_url;
 };
 
@@ -135,10 +169,16 @@ export const handleOAuthCallback = async (
       throw new Error("Missing OAuth state.");
     }
 
+    const codeVerifier =
+      sessionStorage.getItem("google_oauth_code_verifier") || undefined;
+
     const response: GoogleOAuthCallbackResponse = await exchangeGoogleAuthCode(
       code,
       state,
+      codeVerifier,
     );
+
+    sessionStorage.removeItem("google_oauth_code_verifier");
 
     const payload: OAuthTokenResponse = {
       access_token: response.access_token,
