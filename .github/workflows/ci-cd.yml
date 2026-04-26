@@ -60,6 +60,8 @@ jobs:
         env:
           DB_ENGINE: sqlite
           DEBUG: "False"
+          SECRET_KEY: ci-test-secret-key-32-chars-minimum-length-for-jwt
+          ALLOWED_HOSTS: localhost,127.0.0.1
           USE_LOCAL_MEMORY_CACHE: "True"
         run: |
           python manage.py test accounts.tests core.tests samples.tests
