@@ -60,6 +60,8 @@ class Sample(models.Model):
         indexes = [
             models.Index(fields=['status']),
             models.Index(fields=['region']),
+            models.Index(fields=['province']),
+            models.Index(fields=['vegetation_variety']),
             models.Index(fields=['collection_date']),
             models.Index(fields=['region', 'status']),
             models.Index(fields=['region', 'collection_date']),
@@ -166,18 +168,11 @@ class MycotoxinResult(models.Model):
 
         should_snapshot = self._state.adding
         if not should_snapshot and self.pk:
-            original = (
-                type(self).objects
-                .only('toxin_type')
-                .filter(pk=self.pk)
-                .first()
-            )
-            should_snapshot = (
-                original is None
-                or original.toxin_type != self.toxin_type
-                or self.eu_threshold_low is None
-                or self.eu_threshold_high is None
-            )
+            if self.pk is not None:
+                should_snapshot = (
+                    self.eu_threshold_low is None
+                    or self.eu_threshold_high is None
+                )
 
         touched_fields = set()
         if should_snapshot:

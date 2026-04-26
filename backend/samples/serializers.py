@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from django.db import transaction
 from .constants.mycotoxin_constants import (
     TOXIN_LABELS,
     resolve_toxin_type,
@@ -224,30 +225,31 @@ class SampleCreateUpdateSerializer(serializers.ModelSerializer):
         return value if value else None  # Return None if empty, which allows the create() method to set default
     
     def create(self, validated_data):
-        sample_id = (validated_data.get('sample_id') or '').strip()
-        collection_date = validated_data.get('collection_date')
-        if not sample_id:
-            generated_id, sequence_number = generate_sequential_sample_id(collection_date)
-            validated_data['sample_id'] = generated_id
-            validated_data['sequence_number'] = sequence_number
-        else:
-            parsed_seq = extract_sequence_from_sample_id(sample_id, collection_date.year if collection_date else None)
-            if parsed_seq > 0:
-                validated_data['sequence_number'] = parsed_seq
+        with transaction.atomic():
+            sample_id = (validated_data.get('sample_id') or '').strip()
+            collection_date = validated_data.get('collection_date')
+            if not sample_id:
+                generated_id, sequence_number = generate_sequential_sample_id(collection_date)
+                validated_data['sample_id'] = generated_id
+                validated_data['sequence_number'] = sequence_number
+            else:
+                parsed_seq = extract_sequence_from_sample_id(sample_id, collection_date.year if collection_date else None)
+                if parsed_seq > 0:
+                    validated_data['sequence_number'] = parsed_seq
 
-        # Set defaults for empty/null fields
-        if not validated_data.get('purpose'):
-            validated_data['purpose'] = 'routine'
-        if not validated_data.get('sample_type'):
-            validated_data['sample_type'] = 'field'
-        if not validated_data.get('processing_type'):
-            validated_data['processing_type'] = 'raw'
-        if not validated_data.get('collected_by'):
-            validated_data['collected_by'] = 'Imported'
-        if not validated_data.get('additional_info'):
-            validated_data['additional_info'] = ''
-        
-        return super().create(validated_data)
+            # Set defaults for empty/null fields
+            if not validated_data.get('purpose'):
+                validated_data['purpose'] = 'routine'
+            if not validated_data.get('sample_type'):
+                validated_data['sample_type'] = 'field'
+            if not validated_data.get('processing_type'):
+                validated_data['processing_type'] = 'raw'
+            if not validated_data.get('collected_by'):
+                validated_data['collected_by'] = 'Imported'
+            if not validated_data.get('additional_info'):
+                validated_data['additional_info'] = ''
+            
+            return super().create(validated_data)
 
 
 class SampleListSerializer(serializers.ModelSerializer):

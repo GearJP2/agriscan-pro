@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('samples', '0008_alter_mycotoxinresult_id_alter_processlog_id_and_more'),
+        ('samples', '0007_sample_samples_sam_region_1f244d_idx_and_more'),
     ]
 
     operations = [
