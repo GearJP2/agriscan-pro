@@ -66,6 +66,22 @@ jobs:
         run: |
           python manage.py test accounts.tests core.tests samples.tests
 
+      - name: Run backend deploy smoke checks
+        working-directory: backend
+        env:
+          DB_ENGINE: sqlite
+          DEBUG: "False"
+          SECRET_KEY: ci-test-secret-key-32-chars-minimum-length-for-jwt
+          ALLOWED_HOSTS: localhost,127.0.0.1
+          USE_LOCAL_MEMORY_CACHE: "True"
+        run: |
+          bash -n .platform/hooks/predeploy/01_django_setup.sh
+          bash -n .platform/hooks/postdeploy/01_start_celery.sh
+          python manage.py check
+          python manage.py collectstatic --noinput
+          python -c "from core.wsgi import application; print('WSGI import OK')"
+          python -c "from core.celery import app; print('Celery import OK')"
+
   frontend-test:
     needs: changes
     # Run if frontend files changed, or if manually triggered

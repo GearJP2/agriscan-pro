@@ -5,7 +5,7 @@ from django.contrib.auth import get_user_model
 from django.core import mail
 from django.core.cache import cache
 from django.core.exceptions import ImproperlyConfigured
-from django.test import SimpleTestCase, TestCase
+from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
@@ -1362,6 +1362,16 @@ class GoogleOAuthConfigValidationTests(SimpleTestCase):
                 debug=False,
                 is_testing=False,
             )
+
+    @override_settings(DEBUG=False, IS_TESTING=False)
+    @patch("accounts.oauth.GoogleOAuthConfig.CLIENT_ID", "")
+    @patch("accounts.oauth.GoogleOAuthConfig.CLIENT_SECRET", "")
+    def test_google_auth_endpoint_returns_503_when_oauth_unconfigured(self):
+        """Missing Google OAuth config must not prevent app startup."""
+        response = self.client.get(reverse("google-auth-url"))
+
+        self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
+        self.assertEqual(response.data["detail"], "Google OAuth is not configured.")
 
 
 class AuthorizationTests(TestCase):

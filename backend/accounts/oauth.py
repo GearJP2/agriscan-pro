@@ -73,12 +73,26 @@ def validate_google_oauth_config(
         )
 
 
-validate_google_oauth_config(
-    client_id=GoogleOAuthConfig.CLIENT_ID,
-    client_secret=GoogleOAuthConfig.CLIENT_SECRET,
-    debug=settings.DEBUG,
-    is_testing=bool(getattr(settings, "IS_TESTING", False)),
-)
+def _require_google_oauth_config() -> Response | None:
+    """Return a 503 response when Google OAuth is unavailable, else None."""
+    try:
+        validate_google_oauth_config(
+            client_id=GoogleOAuthConfig.CLIENT_ID,
+            client_secret=GoogleOAuthConfig.CLIENT_SECRET,
+            debug=settings.DEBUG,
+            is_testing=bool(getattr(settings, "IS_TESTING", False)),
+        )
+    except ImproperlyConfigured as exc:
+        logger.warning(
+            "auth.google.not_configured",
+            extra={"error": str(exc)},
+        )
+        return Response(
+            {"detail": "Google OAuth is not configured."},
+            status=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+
+    return None
 
 
 def _access_token_lifetime_seconds() -> int:
@@ -211,6 +225,10 @@ def google_oauth_callback(request):
     }
     """
     try:
+        config_error = _require_google_oauth_config()
+        if config_error is not None:
+            return config_error
+
         code = request.data.get("code")
         state = request.data.get("state")
         code_verifier = request.data.get("code_verifier")
@@ -315,6 +333,10 @@ def google_oauth_callback(request):
 def google_auth_url(request):
     """Return a Google authorization URL with a server-stored state token."""
     try:
+        config_error = _require_google_oauth_config()
+        if config_error is not None:
+            return config_error
+
         code_challenge = request.query_params.get("code_challenge")
         code_challenge_method = request.query_params.get(
             "code_challenge_method", "S256"
@@ -356,6 +378,10 @@ def google_auth_url(request):
 def google_connect_auth_url(request):
     """Return a Google auth URL that links Google to the current account."""
     try:
+        config_error = _require_google_oauth_config()
+        if config_error is not None:
+            return config_error
+
         code_challenge = request.query_params.get("code_challenge")
         code_challenge_method = request.query_params.get(
             "code_challenge_method", "S256"
