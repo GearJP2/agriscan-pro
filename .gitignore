@@ -70,3 +70,4 @@ yarn-error.log*
 *.bak
 *.old
 .codex
+.logs_temp/
