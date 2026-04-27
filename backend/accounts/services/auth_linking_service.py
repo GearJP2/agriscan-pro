@@ -1,10 +1,9 @@
-"""Business logic for authentication-provider linking and password setup."""
-
 from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
@@ -172,19 +171,40 @@ def resolve_user_for_google_sign_in(user_info: dict[str, Any]) -> Any:
         raise EmailNotVerifiedError("Google email must be verified to continue.")
 
     existing_user = User.objects.filter(email__iexact=identity.email).first()
+    
+    # Check if the email is whitelisted for automatic Admin privileges
+    should_be_admin = User.is_whitelisted_admin(identity.email)
+    
     if existing_user:
+        # Step 53.3: Upgrade Logic - Ensure whitelisted emails are always Admin
+        if should_be_admin:
+            if existing_user.role != "admin":
+                existing_user.role = "admin"
+                existing_user.save(update_fields=["role"])
+            
+            # Offload sync to Celery background task
+            from ..tasks import sync_user_to_monitor_task
+            sync_user_to_monitor_task.delay(existing_user.email)
+            
         _link_google_identity_to_user(existing_user, identity)
         return existing_user
 
+    # Step 53.2: First-time login role assignment
     username = _build_unique_username_from_email(identity.email)
     user = User.objects.create_user(
         username=username,
         email=identity.email,
         name=identity.name,
+        role="admin" if should_be_admin else "user",
         is_active=True,
     )
     user.set_unusable_password()
     user.save(update_fields=["password"])
+    
+    if should_be_admin:
+        from ..tasks import sync_user_to_monitor_task
+        sync_user_to_monitor_task.delay(user.email)
+        
     _link_google_identity_to_user(user, identity)
     return user
 

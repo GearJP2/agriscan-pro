@@ -11,6 +11,7 @@ export interface AuthenticatedUser {
   name: string;
   role: UserRole | 'guest';
   is_active: boolean;
+  is_monitor_allowed: boolean;
 }
 
 export interface LoginResponse {

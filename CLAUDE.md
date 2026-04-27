@@ -1,6 +1,34 @@
-# AgriScan Pro - Claude Code Instructions
+- **Infrastructure synchronization**: Automated synchronization of authorized emails to the AgriScan Monitor's Vercel KV store via Celery background tasks.
+- **Automated Role Assignment**: Whitelisted emails (via `INITIAL_ADMIN_EMAILS`) automatically receive the 'admin' role upon sign-in/registration.
+- **Role-Based Monitor Access**: Hierarchical access control for internal observability tools.
 
-This file helps Claude (Claude Code and other Claude instances) understand the project structure, conventions, and working approach.
+### Key Files by Purpose
+... (lines 107-111 continue as before)
+#### Authentication & User Management
+...
+- `backend/accounts/services/monitor_sync_service.py` - Vercel KV (Redis) synchronization logic
+- `backend/accounts/tasks.py` - Background tasks for monitor synchronization
+...
+
+### 🧪 Testing Strategy
+...
+# Run monitor integration tests (requires KV credentials)
+MONITOR_URL=https://agriscan-monitor.vercel.app python manage.py test accounts.test_monitor_integration
+...
+
+### Required Environment Variables (Production)
+...
+INITIAL_ADMIN_EMAILS    # Comma-separated admin whitelist
+MONITOR_ACCESS_MIN_ROLE # Min role for monitor access
+KV_REST_API_URL         # Monitor Vercel KV URL
+KV_REST_API_TOKEN       # Monitor Vercel KV Token
+VITE_MONITOR_URL        # URL of the monitor application (frontend)
+...
+
+## Last Updated
+- Date: 2026-04-27
+- By: Claude Code
+- Status: Automated Admin Roles, Monitor Access Linking, and Zero-Touch Infrastructure Synchronization are complete. Task items 53 and 54 are resolved. Integrated with Celery background tasks and verified via integration tests.
 
 ## 🌾 Project Overview
 

@@ -38,6 +38,7 @@ def build_user_payload(user: Any) -> dict[str, Any]:
         "name": user.name,
         "role": user.role,
         "is_active": user.is_active,
+        "is_monitor_allowed": getattr(user, "can_access_monitor", False),
     }
 
 

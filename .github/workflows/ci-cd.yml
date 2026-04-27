@@ -213,6 +213,7 @@ jobs:
         env:
           DEPLOY_TARGET: aws
           VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
+          VITE_MONITOR_URL: ${{ secrets.VITE_MONITOR_URL }}
           NODE_ENV: production
 
       - name: Configure AWS Credentials

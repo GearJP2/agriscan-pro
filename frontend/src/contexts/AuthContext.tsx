@@ -34,6 +34,7 @@ interface AuthContextType {
   user: AuthenticatedUser | null;
   role: UserRole | "guest";
   isAdmin: boolean;
+  canAccessMonitor: boolean;
   isAuthenticated: boolean;
   isInitializing: boolean;
   login: (username: string, password: string) => Promise<void>;
@@ -66,6 +67,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const isAdmin =
     isAuthenticated && (role === "admin" || role === "head_researcher");
+
+  const canAccessMonitor =
+    isAuthenticated && (user?.is_monitor_allowed || isAdmin);
 
   const clearLocalUserState = useCallback(() => {
     setUser(null);
@@ -217,6 +221,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         user,
         role,
         isAdmin,
+        canAccessMonitor,
         isAuthenticated,
         isInitializing,
         login,

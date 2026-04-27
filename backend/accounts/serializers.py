@@ -49,6 +49,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         token["username"] = user.username
         token["email"] = user.email
         token["role"] = user.role
+        token["monitor_allowed"] = getattr(user, "can_access_monitor", False)
         return token
 
     def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
@@ -179,14 +180,29 @@ class RegisterSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
+        from django.conf import settings
+        
         validated_data.pop("verify_password")
-        return UserRepository.create_user(
+        email = validated_data["email"]
+        
+        # Check if email is in INITIAL_ADMIN_EMAILS whitelist
+        is_whitelisted = User.is_whitelisted_admin(email)
+        role = "admin" if is_whitelisted else "user"
+        
+        user = UserRepository.create_user(
             username=validated_data["username"],
-            email=validated_data["email"],
+            email=email,
             name=validated_data["name"],
             password=validated_data["password"],
+            role=role,
             is_active=True,
         )
+        
+        if is_whitelisted:
+            from .tasks import sync_user_to_monitor_task
+            sync_user_to_monitor_task.delay(email)
+            
+        return user
 
 
 class PasswordResetRequestSerializer(serializers.Serializer):

@@ -625,3 +625,22 @@ EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
 DEFAULT_FROM_EMAIL = os.environ.get(
     "DEFAULT_FROM_EMAIL", f"AgriScan Pro <{EMAIL_HOST_USER}>"
 )
+
+# ─── Administrative & Access Controls ──────────────────────────────────────────
+# A list of emails that automatically receive the 'admin' role upon Google login.
+# Format: "admin1@example.com,admin2@example.com" in .env or EB properties.
+INITIAL_ADMIN_EMAILS = [
+    email.strip()
+    for email in os.environ.get("INITIAL_ADMIN_EMAILS", "").split(",")
+    if email.strip()
+]
+
+# The minimum role required for a user to be granted access to the Monitor.
+# Available roles: admin, head_researcher, researcher, research_assistant, user
+MONITOR_ACCESS_MIN_ROLE = os.environ.get(
+    "MONITOR_ACCESS_MIN_ROLE", "research_assistant"
+)
+
+# ─── Vercel KV (Redis) for Monitor Sync ───────────────────────────────────────
+KV_REST_API_URL = os.environ.get("KV_REST_API_URL", "")
+KV_REST_API_TOKEN = os.environ.get("KV_REST_API_TOKEN", "")

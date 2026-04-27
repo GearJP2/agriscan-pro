@@ -8,7 +8,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { USER_ROLE_WEIGHT } from "@/types/user";
 
 const Header = () => {
-    const { isAuthenticated, isInitializing, user, role } = useAuth();
+    const { isAuthenticated, isInitializing, user, role, canAccessMonitor } = useAuth();
     const location = useLocation();
 
     const canSwitchRole =
@@ -39,6 +39,16 @@ const Header = () => {
         return currentWeight >= link.minWeight;
     });
 
+    // Add external Monitor link if allowed
+    if (canAccessMonitor) {
+        links.push({
+            href: import.meta.env.VITE_MONITOR_URL,
+            label: "Monitor",
+            minWeight: 0,
+            isExternal: true
+        } as any);
+    }
+
     const isDashboard = location.pathname === "/dashboard";
     const isHomepage = location.pathname === "/";
 
@@ -54,8 +64,25 @@ const Header = () => {
                 </Link>
 
                 <div className="hidden md:flex items-center gap-6 font-sans text-[13px] font-bold tracking-tight nav-container">
-                    {links.map((link) => {
+                    {links.map((link: any) => {
                         const isActive = location.pathname === link.href;
+
+                        if (link.isExternal) {
+                            return (
+                                <a
+                                    key={link.href}
+                                    href={link.href}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="nav-link transition-all duration-300 relative group font-bold flex items-center gap-1"
+                                >
+                                    {link.label}
+                                    <span className="material-symbols-outlined text-[14px]">open_in_new</span>
+                                    <span className="underline-span" />
+                                </a>
+                            );
+                        }
+
                         return (
                             <Link
                                 key={link.href}

@@ -286,6 +286,18 @@ Resolved critical UX regressions in the surveillance dashboard and implemented h
   Implemented `TestDataService`, secured API actions with `IsAdmin`, added comprehensive tests, and integrated the "Admin Tools" dropdown into the `SampleList` UI. Verified with 76 backend tests and 0 frontend errors.
 - [x] **52. Dashboard Crash & UI Fixes**
   Fixed a syntax error in `SurveillanceDashboard.tsx` that caused a crash. Resolved `z-index` conflict between the Header and the Threshold Controller/Filter Bar to ensure proper layering during scroll.
+- [x] **53. Automated Admin Role Assignment (Feature)**
+  - [x] Add `INITIAL_ADMIN_EMAILS` to `settings.py` (supported by `.env` variable).
+  - [x] Modify `resolve_user_for_google_sign_in` in `AuthLinkingService` to check whitelist.
+  - [x] Implement "Upgrade Logic" for existing users whose emails are later added to the whitelist.
+  - [x] Integrate whitelist check into standard Username/Password registration flow.
+  - [x] Add unit tests in `accounts/tests.py` for auto-assignment and upgrade flows.
+- [x] **54. Monitor Access Linking (Feature)**
+  - [x] Implement `can_access_monitor` property in `User` model using `USER_ROLE_WEIGHT`.
+  - [x] Update `build_user_payload` in `auth_helpers.py` to include `is_monitor_allowed` flag.
+  - [x] (Optional) Add `is_monitor_allowed` claim to JWT access token for cross-app verification.
+  - [x] Update Frontend `AuthContext` to expose monitor status to the UI.
+  - [x] Document the role-weight mapping in `accounts/models.py` for clarity.
 
 ---
 

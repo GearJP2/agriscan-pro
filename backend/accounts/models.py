@@ -2,6 +2,7 @@ import hashlib
 import uuid
 from typing import cast
 
+from django.conf import settings
 from django.contrib.auth.models import AbstractUser, UserManager
 from django.db import models
 from django.utils import timezone
@@ -38,6 +39,36 @@ class User(AbstractUser):
     # We can keep the default username field from AbstractUser as unique=True, which is the default.
 
     objects = CustomUserManager()
+
+    USER_ROLE_WEIGHTS = {
+        "admin": 100,
+        "head_researcher": 80,
+        "researcher": 60,
+        "research_assistant": 40,
+        "user": 20,
+        "guest": 0,
+    }
+
+    @property
+    def role_weight(self) -> int:
+        """Return the numerical priority of the user's current role."""
+        return self.USER_ROLE_WEIGHTS.get(self.role, 0)
+
+    @property
+    def can_access_monitor(self) -> bool:
+        """Check if user role weight meets the requirement for Monitor access."""
+        min_role = getattr(settings, "MONITOR_ACCESS_MIN_ROLE", "research_assistant")
+        required_weight = self.USER_ROLE_WEIGHTS.get(min_role, 40)
+        return self.role_weight >= required_weight
+
+    @staticmethod
+    def is_whitelisted_admin(email: str) -> bool:
+        """Checks if a given email is whitelisted for automatic Admin role."""
+        if not email:
+            return False
+            
+        initial_admins = getattr(settings, "INITIAL_ADMIN_EMAILS", [])
+        return email.lower() in [e.lower() for e in initial_admins]
 
 
 class UserAuthProvider(models.Model):
