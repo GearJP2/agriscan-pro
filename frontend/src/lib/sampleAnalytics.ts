@@ -192,8 +192,8 @@ export function hasRecordedResults(sample: Sample) {
   return hasMeasuredResults(sample);
 }
 
-export function getRiskLevel(sample: Sample): RiskLevel {
-  return getThresholdRiskLevel(sample);
+export function getRiskLevel(sample: Sample, overrides?: Record<string, Record<string, number>>): RiskLevel {
+  return getThresholdRiskLevel(sample, overrides);
 }
 
 export function getLatestProcessState(sample: Sample): ProcessState | null {
@@ -224,7 +224,7 @@ function getCompletionDate(sample: Sample) {
   return null;
 }
 
-function getCommodityStats(samples: Sample[]) {
+function getCommodityStats(samples: Sample[], overrides?: Record<string, Record<string, number>>) {
   const groups = new Map<string, CommodityStats>();
 
   for (const sample of samples) {
@@ -237,7 +237,7 @@ function getCommodityStats(samples: Sample[]) {
     };
 
     current.sampleCount += 1;
-    if (hasAboveThresholdResults(sample)) {
+    if (hasAboveThresholdResults(sample, overrides)) {
       current.positiveCount += 1;
       current.aboveThresholdCount += 1;
     }
@@ -247,7 +247,7 @@ function getCommodityStats(samples: Sample[]) {
   return [...groups.values()];
 }
 
-function getToxinStats(samples: Sample[]) {
+function getToxinStats(samples: Sample[], overrides?: Record<string, Record<string, number>>) {
   const groups = new Map<string, ToxinStats>();
 
   for (const sample of samples) {
@@ -261,7 +261,7 @@ function getToxinStats(samples: Sample[]) {
       };
 
       current.detectedCount += 1;
-      if (isAboveThresholdResult(result)) current.dangerousCount += 1;
+      if (isAboveThresholdResult(result, overrides, sample.vegetation_variety)) current.dangerousCount += 1;
       groups.set(key, current);
     }
   }
@@ -283,7 +283,7 @@ function buildToxinColors(toxinStats: ToxinStats[]) {
   }, {});
 }
 
-function buildProvinceRiskData(samples: Sample[]) {
+function buildProvinceRiskData(samples: Sample[], overrides?: Record<string, Record<string, number>>) {
   const groups = new Map<string, Sample[]>();
 
   for (const sample of samples) {
@@ -294,7 +294,7 @@ function buildProvinceRiskData(samples: Sample[]) {
 
   return [...groups.entries()].map(([province, provinceSamples]) => {
     const sampleCount = provinceSamples.length;
-    const aboveThresholdCount = provinceSamples.filter((sample) => getRiskLevel(sample) === 'high').length;
+    const aboveThresholdCount = provinceSamples.filter((sample) => getRiskLevel(sample, overrides) === 'high').length;
     const positiveCount = aboveThresholdCount;
     const aboveThresholdPct = toPercent(aboveThresholdCount, sampleCount);
     const positivePct = aboveThresholdPct;
@@ -304,8 +304,8 @@ function buildProvinceRiskData(samples: Sample[]) {
     for (const sample of provinceSamples) {
       commodityCounts.set(sample.vegetation_variety, (commodityCounts.get(sample.vegetation_variety) ?? 0) + 1);
       for (const result of getSampleResults(sample)) {
-        const key = isAboveThresholdResult(result) ? result.name : getShortToxinName(result.name);
-        toxinCounts.set(key, (toxinCounts.get(key) ?? 0) + (isAboveThresholdResult(result) ? 2 : 1));
+        const key = isAboveThresholdResult(result, overrides, sample.vegetation_variety) ? result.name : getShortToxinName(result.name);
+        toxinCounts.set(key, (toxinCounts.get(key) ?? 0) + (isAboveThresholdResult(result, overrides, sample.vegetation_variety) ? 2 : 1));
       }
     }
 
@@ -315,7 +315,7 @@ function buildProvinceRiskData(samples: Sample[]) {
     let riskLevel: ProvinceRisk['riskLevel'] = 'low';
     if (aboveThresholdPct >= 50) riskLevel = 'critical';
     else if (aboveThresholdPct >= 25) riskLevel = 'high';
-    else if (aboveThresholdPct >= 10 || provinceSamples.some((sample) => getRiskLevel(sample) === 'medium')) riskLevel = 'medium';
+    else if (aboveThresholdPct >= 10 || provinceSamples.some((sample) => getRiskLevel(sample, overrides) === 'medium')) riskLevel = 'medium';
 
     return {
       name: province,
@@ -332,15 +332,15 @@ function buildProvinceRiskData(samples: Sample[]) {
   }).sort((left, right) => right.aboveThresholdPct - left.aboveThresholdPct || right.sampleCount - left.sampleCount);
 }
 
-function buildPublicHealthSummary(samples: Sample[], commodityStats: CommodityStats[], coContamSummary: CoContamSummary): HealthSummary {
+function buildPublicHealthSummary(samples: Sample[], commodityStats: CommodityStats[], coContamSummary: CoContamSummary, overrides?: Record<string, Record<string, number>>): HealthSummary {
   const topCommodity = [...commodityStats].sort((left, right) => right.aboveThresholdCount - left.aboveThresholdCount)[0];
-  const highRiskSamples = samples.filter((sample) => getRiskLevel(sample) === 'high');
+  const highRiskSamples = samples.filter((sample) => getRiskLevel(sample, overrides) === 'high');
   const topRegion = Object.entries(highRiskSamples.reduce<Record<string, number>>((accumulator, sample) => {
     accumulator[sample.region] = (accumulator[sample.region] ?? 0) + 1;
     return accumulator;
   }, {})).sort((left, right) => right[1] - left[1])[0];
 
-  const toxinStats = getToxinStats(samples);
+  const toxinStats = getToxinStats(samples, overrides);
   const topToxin = [...toxinStats].sort((left, right) => right.dangerousCount - left.dangerousCount || right.detectedCount - left.detectedCount)[0];
 
   const riskDrivers = [
@@ -363,7 +363,7 @@ function buildPublicHealthSummary(samples: Sample[], commodityStats: CommoditySt
     const sampleType = sample.sample_type ?? 'field';
     const current = accumulator[sampleType] ?? { total: 0, high: 0 };
     current.total += 1;
-    if (getRiskLevel(sample) === 'high') current.high += 1;
+    if (getRiskLevel(sample, overrides) === 'high') current.high += 1;
     accumulator[sampleType] = current;
     return accumulator;
   }, {}))
@@ -475,22 +475,22 @@ function buildCoContamination(samples: Sample[], toxinColors: Record<string, str
   };
 }
 
-function buildKpiData(currentSamples: Sample[], previousSamples: Sample[]) {
-  const currentPositive = currentSamples.filter((sample) => hasAboveThresholdResults(sample)).length;
-  const currentAboveThreshold = currentSamples.filter((sample) => getRiskLevel(sample) === 'high').length;
+function buildKpiData(currentSamples: Sample[], previousSamples: Sample[], overrides?: Record<string, Record<string, number>>) {
+  const currentPositive = currentSamples.filter((sample) => hasAboveThresholdResults(sample, overrides)).length;
+  const currentAboveThreshold = currentSamples.filter((sample) => getRiskLevel(sample, overrides) === 'high').length;
   const currentHighRiskRegions = new Set(
-    currentSamples.filter((sample) => getRiskLevel(sample) === 'high').map((sample) => sample.region)
+    currentSamples.filter((sample) => getRiskLevel(sample, overrides) === 'high').map((sample) => sample.region)
   ).size;
   const currentAlerts = currentSamples.filter((sample) => sample.status === 'flagged').length;
 
-  const previousPositive = previousSamples.filter((sample) => hasAboveThresholdResults(sample)).length;
-  const previousAboveThreshold = previousSamples.filter((sample) => getRiskLevel(sample) === 'high').length;
+  const previousPositive = previousSamples.filter((sample) => hasAboveThresholdResults(sample, overrides)).length;
+  const previousAboveThreshold = previousSamples.filter((sample) => getRiskLevel(sample, overrides) === 'high').length;
   const previousHighRiskRegions = new Set(
-    previousSamples.filter((sample) => getRiskLevel(sample) === 'high').map((sample) => sample.region)
+    previousSamples.filter((sample) => getRiskLevel(sample, overrides) === 'high').map((sample) => sample.region)
   ).size;
   const previousAlerts = previousSamples.filter((sample) => sample.status === 'flagged').length;
 
-  const commodityStats = getCommodityStats(currentSamples);
+  const commodityStats = getCommodityStats(currentSamples, overrides);
   const highestRiskCommodity = [...commodityStats]
     .filter((commodity) => commodity.sampleCount > 0)
     .sort((left, right) => toPercent(right.aboveThresholdCount, right.sampleCount) - toPercent(left.aboveThresholdCount, left.sampleCount))[0]
@@ -561,13 +561,13 @@ function buildKpiData(currentSamples: Sample[], previousSamples: Sample[]) {
   } satisfies KPIData;
 }
 
-function buildHeatmapData(samples: Sample[], commodities: string[]) {
+function buildHeatmapData(samples: Sample[], commodities: string[], overrides?: Record<string, Record<string, number>>) {
   const grouped = new Map<string, { riskScore: number; total: number }>();
   const regions = uniqSorted(samples.map((sample) => sample.region));
 
   for (const sample of samples) {
     const key = `${sample.region}-${sample.vegetation_variety}`;
-    const risk = getRiskLevel(sample);
+    const risk = getRiskLevel(sample, overrides);
     const score = risk === 'high' ? 100 : risk === 'medium' ? 65 : risk === 'low' ? 30 : 5;
     const current = grouped.get(key) ?? { riskScore: 0, total: 0 };
     current.riskScore += score;
@@ -630,7 +630,11 @@ export function filterSamples(samples: Sample[], filters: DashboardFilters) {
   return samples.filter((sample) => isWithinRange(sample, filters));
 }
 
-export function buildSurveillanceAnalytics(allSamples: Sample[], filters: DashboardFilters): SurveillanceAnalytics {
+export function buildSurveillanceAnalytics(
+  allSamples: Sample[], 
+  filters: DashboardFilters,
+  overrides?: Record<string, Record<string, number>>
+): SurveillanceAnalytics {
   const filteredSamples = filterSamples(allSamples, filters);
   const startDate = filters.dateRange.from ? startOfDay(normalizeDate(filters.dateRange.from)) : null;
   const endDate = filters.dateRange.to ? endOfDay(normalizeDate(filters.dateRange.to)) : null;
@@ -647,9 +651,9 @@ export function buildSurveillanceAnalytics(allSamples: Sample[], filters: Dashbo
     return sampleDate >= previousFrom && sampleDate <= previousTo;
   });
 
-  const toxinStats = getToxinStats(filteredSamples);
+  const toxinStats = getToxinStats(filteredSamples, overrides);
   const toxinColors = buildToxinColors(toxinStats);
-  const commodityStats = getCommodityStats(filteredSamples);
+  const commodityStats = getCommodityStats(filteredSamples, overrides);
   const topCommodities = [...commodityStats]
     .sort((left, right) => right.sampleCount - left.sampleCount)
     .slice(0, 5)
@@ -673,8 +677,8 @@ export function buildSurveillanceAnalytics(allSamples: Sample[], filters: Dashbo
     });
 
   const commodityPalette = ['#ef4444', '#f59e0b', '#22c55e', '#3b82f6', '#6b7280'];
-  const positiveSamples = filteredSamples.filter((sample) => hasAboveThresholdResults(sample));
-  const positiveCommodityCounts = getCommodityStats(positiveSamples)
+  const positiveSamples = filteredSamples.filter((sample) => hasAboveThresholdResults(sample, overrides));
+  const positiveCommodityCounts = getCommodityStats(positiveSamples, overrides)
     .sort((left, right) => right.positiveCount - left.positiveCount)
     .slice(0, 5);
 
@@ -693,8 +697,8 @@ export function buildSurveillanceAnalytics(allSamples: Sample[], filters: Dashbo
       pctAbove: Math.round(toPercent(commodity.aboveThresholdCount, commodity.sampleCount)),
     }));
 
-  const { heatmapData, regions: heatmapRegions } = buildHeatmapData(filteredSamples, topCommodities);
-  const provinceRiskData = buildProvinceRiskData(filteredSamples);
+  const { heatmapData, regions: heatmapRegions } = buildHeatmapData(filteredSamples, topCommodities, overrides);
+  const provinceRiskData = buildProvinceRiskData(filteredSamples, overrides);
   const topProvinces: ProvinceRank[] = provinceRiskData
     .filter((province) => province.aboveThresholdPct > 0)
     .slice(0, 5)
@@ -711,10 +715,10 @@ export function buildSurveillanceAnalytics(allSamples: Sample[], filters: Dashbo
 
   return {
     filteredSamples,
-    kpiData: buildKpiData(filteredSamples, previousSamples),
+    kpiData: buildKpiData(filteredSamples, previousSamples, overrides),
     provinceRiskData,
     topProvinces,
-    publicHealthSummary: buildPublicHealthSummary(filteredSamples, commodityStats, coContamination.coContamSummary),
+    publicHealthSummary: buildPublicHealthSummary(filteredSamples, commodityStats, coContamination.coContamSummary, overrides),
     mycotoxinBarData,
     commodityShare,
     thresholdByCommodity,

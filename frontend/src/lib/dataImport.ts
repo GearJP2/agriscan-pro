@@ -3,6 +3,7 @@
  * Handles mycotoxin data and auto-mapping to system fields\n */
 
 import type { ProcessingType, Sample } from '@/types/sample';
+import { MYCOTOXIN_ALIASES, getMycotoxinConfigs } from '@/constants/mycotoxins';
 
 // Valid options for dropdowns
 const PROCESSING_TYPES = ['raw', 'dried', 'milled', 'processed', 'fermented'] as const satisfies readonly ProcessingType[];
@@ -127,31 +128,7 @@ export interface ParsedSampleWithResults {
 }
 
 // Known mycotoxin columns and their standard thresholds
-const MYCOTOXIN_CONFIGS: Record<string, { threshold: number; unit: string }> = {
-  'DON': { threshold: 1000, unit: 'ppb' },           // Deoxynivalenol
-  'AFB1': { threshold: 5, unit: 'ppb' },             // Aflatoxin B1
-  'FB1': { threshold: 2000, unit: 'ppb' },           // Fumonisin B1
-  'T-2': { threshold: 100, unit: 'ppb' },            // T-2 Toxin
-  'ZEA': { threshold: 200, unit: 'ppb' },            // Zearalenone
-  'OTA': { threshold: 5, unit: 'ppb' },              // Ochratoxin A
-  'AF': { threshold: 5, unit: 'ppb' },               // Aflatoxin
-  'AFG1': { threshold: 5, unit: 'ppb' },             // Aflatoxin G1
-  'AFG2': { threshold: 5, unit: 'ppb' },             // Aflatoxin G2
-  'AFM1': { threshold: 0.5, unit: 'ppb' },           // Aflatoxin M1
-};
-
-const MYCOTOXIN_ALIASES: Record<string, string[]> = {
-  DON: ['don', 'deoxynivalenol'],
-  AFB1: ['afb1', 'aflatoxin b1'],
-  FB1: ['fb1', 'fumonisin b1'],
-  'T-2': ['t-2', 't2', 't 2', 't-2 toxin', 't2 toxin'],
-  ZEA: ['zea', 'zearalenone'],
-  OTA: ['ota', 'ochratoxin a'],
-  AF: ['af', 'aflatoxin'],
-  AFG1: ['afg1', 'aflatoxin g1'],
-  AFG2: ['afg2', 'aflatoxin g2'],
-  AFM1: ['afm1', 'aflatoxin m1'],
-};
+const MYCOTOXIN_CONFIGS = getMycotoxinConfigs();
 
 // Columns to ignore (metals, minerals, isotopes, etc)
 const IGNORE_CONTAINS_PATTERNS = ['metal', 'mineral', 'isotope'];
@@ -167,7 +144,7 @@ const IGNORE_EXACT_HEADERS = new Set([
 /**
  * Normalize a value - handle <LOD, #VALUE!, empty strings, etc
  */
-export const normalizeValue = (value: string | number): string | number | null => {
+export const normalizeValue = (value: string | number | null | undefined): string | number | null => {
   if (value === null || value === undefined) return null;
   const str = String(value).trim();
   if (!str || str === '#VALUE!' || str === '-' || str === 'N/A' || str === 'none') {
@@ -183,7 +160,7 @@ export const normalizeValue = (value: string | number): string | number | null =
 /**
  * Parse mycotoxin value to numeric intensity
  */
-export const parseMycotoxinValue = (value: any): number | null => {
+export const parseMycotoxinValue = (value: string | number | null | undefined): number | null => {
   const normalized = normalizeValue(value);
   if (normalized === null) return null;
   if (typeof normalized === 'number') return normalized;

@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, Download, ChevronDown, Loader2 } from 'lucide-react';
+import { AlertTriangle, Download, ChevronDown, Loader2, ShieldCheck, Wrench, FlaskConical, Trash2 } from 'lucide-react';
 import ExcelJS from 'exceljs';
 import StatsCard from '@/components/StatsCard';
 import FilterBar from '@/components/FilterBar';
@@ -17,7 +17,19 @@ import {
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuTrigger,
+    DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { Sample, FilterState, ProcessLog } from '@/types/sample';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
@@ -25,6 +37,7 @@ import { useWatchlist } from '@/hooks/useWatchlist';
 import { USER_ROLE_WEIGHT } from '@/types/user';
 import { sampleAPI } from '@/lib/api';
 import { getThresholdRiskLevel } from '@/lib/mycotoxinRisk';
+import { AxiosError } from 'axios';
 
 import { useDeferredMount } from '@/hooks/useDeferredMount';
 
@@ -97,10 +110,50 @@ const SampleList = () => {
                 description: `${data.deleted} sample${data.deleted !== 1 ? 's' : ''} permanently deleted.${notFoundMsg}`,
             });
         },
-        onError: (error: any) => {
+        onError: (error: AxiosError<{ detail?: string }>) => {
             const detail = error?.response?.data?.detail || 'Failed to delete samples.';
             toast({
                 title: 'Bulk Delete Failed',
+                description: detail,
+                variant: 'destructive',
+            });
+        },
+    });
+
+    const generateTestSamplesMutation = useMutation({
+        mutationFn: (seed?: number) => sampleAPI.generateTestSamples(seed),
+        onSuccess: (data) => {
+            queryClient.invalidateQueries({ queryKey: ['samples-list'] });
+            queryClient.invalidateQueries({ queryKey: ['samples-dashboard'] });
+            toast({
+                title: 'Test Data Generated',
+                description: `Successfully created ${data.created} samples (${data.positive} positive, ${data.negative} negative).`,
+            });
+        },
+        onError: (error: AxiosError<{ detail?: string }>) => {
+            const detail = error?.response?.data?.detail || 'Failed to generate test data.';
+            toast({
+                title: 'Generation Failed',
+                description: detail,
+                variant: 'destructive',
+            });
+        },
+    });
+
+    const deleteTestSamplesMutation = useMutation({
+        mutationFn: () => sampleAPI.deleteTestSamples(),
+        onSuccess: (data) => {
+            queryClient.invalidateQueries({ queryKey: ['samples-list'] });
+            queryClient.invalidateQueries({ queryKey: ['samples-dashboard'] });
+            toast({
+                title: 'Test Data Purged',
+                description: `Successfully deleted ${data.deleted} test samples.`,
+            });
+        },
+        onError: (error: any) => {
+            const detail = error?.response?.data?.detail || 'Failed to delete test data.';
+            toast({
+                title: 'Purge Failed',
                 description: detail,
                 variant: 'destructive',
             });
@@ -424,6 +477,72 @@ const SampleList = () => {
                                 onAddSample={handleAddSample}
                                 onAddMultipleSamples={handleAddMultipleSamples}
                             />
+                        )}
+                        
+                        {isAdmin && (
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="outline" className="gap-2 border-primary/20 hover:border-primary/40 bg-primary/5">
+                                        <ShieldCheck className="h-4 w-4 text-primary" />
+                                        Admin Tools
+                                        <ChevronDown className="h-4 w-4" />
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-[200px]">
+                                    <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                            <div className="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50">
+                                                <FlaskConical className="mr-2 h-4 w-4" />
+                                                Generate Test Data
+                                            </div>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                                <AlertDialogTitle>Generate Test Samples?</AlertDialogTitle>
+                                                <AlertDialogDescription>
+                                                    This will create <span className="font-bold text-foreground">30 mock samples</span> (20 positive, 10 negative) with the "TEST-" prefix. 
+                                                    This is safe for production use as it helps verify analytics and filters.
+                                                </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                <AlertDialogAction onClick={() => generateTestSamplesMutation.mutate(undefined)}>
+                                                    Generate
+                                                </AlertDialogAction>
+                                            </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                    </AlertDialog>
+                                    
+                                    <DropdownMenuSeparator />
+                                    
+                                    <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                            <div className="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-destructive hover:text-destructive-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 text-destructive">
+                                                <Trash2 className="mr-2 h-4 w-4" />
+                                                Purge Test Data
+                                            </div>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                                <AlertDialogTitle>Delete All Test Samples?</AlertDialogTitle>
+                                                <AlertDialogDescription>
+                                                    Are you sure you want to delete <span className="font-bold text-destructive">ALL samples</span> starting with the "TEST-" prefix? 
+                                                    This action cannot be undone.
+                                                </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                <AlertDialogAction 
+                                                    onClick={() => deleteTestSamplesMutation.mutate()}
+                                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                                >
+                                                    Delete All
+                                                </AlertDialogAction>
+                                            </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                    </AlertDialog>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
                         )}
                     </div>
                 </div>

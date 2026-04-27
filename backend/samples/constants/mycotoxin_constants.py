@@ -63,8 +63,8 @@ EU_THRESHOLDS = {
         "source": "EU guidance value - Table 2, Gruber-Dorninger et al. 2019",
     },
     "FB1": {
-        "low": 5000,
-        "high": 60000,
+        "low": 0,
+        "high": 0,
         "unit": "ug/kg",
         "has_data": True,
         "flagged": True,

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, Suspense, lazy } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import type { DashboardFilters } from '@/types/dashboard';
+import type { DashboardFilters, AnalyticsOverviewResponse, CoContaminationResponse } from '@/types/dashboard';
 import DashboardFilterBar from './DashboardFilterBar';
 import KPICards from './KPICards';
 import RegionalRiskRanking from './RegionalRiskRanking';
@@ -29,6 +29,7 @@ import {
 } from '@/lib/sampleAnalytics';
 
 import { useDeferredMount } from '@/hooks/useDeferredMount';
+import { hasAboveThresholdResults } from '@/lib/mycotoxinRisk';
 
 // Lazy-load the map (it pulls in Leaflet + GeoJSON which is heavy)
 const RegionalRiskMap = lazy(() => import('./RegionalRiskMap'));
@@ -93,7 +94,7 @@ export default function SurveillanceDashboard() {
     provinces: [] // Don't filter the ranking list/map by specific province selection
   }), [filters.regions, filters.commodities, filters.dateRange, filters.quarter]);
 
-  const { data: overviewData } = useQuery({
+  const { data: overviewData } = useQuery<AnalyticsOverviewResponse>({
     // Cache keys separate real from simulated data automatically
     queryKey: ['surveillance-overview', filters, isSimulating ? thresholdOverrides : 'baseline'],
     queryFn: async () => {
@@ -114,7 +115,7 @@ export default function SurveillanceDashboard() {
     enabled: isAuthenticated,
   });
 
-  const { data: regionalRankingData } = useQuery({
+  const { data: regionalRankingData } = useQuery<AnalyticsOverviewResponse>({
     queryKey: ['surveillance-regional-ranking', rankingFilters, isSimulating ? thresholdOverrides : 'baseline'],
     queryFn: async () => {
       const apiFilters = {
@@ -134,7 +135,7 @@ export default function SurveillanceDashboard() {
   });
 
   // 3. Dashboard Analytics V2: Co-contamination (UpSet Plot)
-  const { data: coContamData } = useQuery({
+  const { data: coContamData } = useQuery<CoContaminationResponse>({
     queryKey: ['surveillance-cocontamination', filters],
     queryFn: () => {
       const apiFilters = {
@@ -198,13 +199,13 @@ export default function SurveillanceDashboard() {
 
   const analytics = useMemo(() => {
     if (!isDeferredMounted || samples.length === 0) return null;
-    return buildSurveillanceAnalytics(samples, filters);
-  }, [samples, filters, isDeferredMounted]);
+    return buildSurveillanceAnalytics(samples, filters, thresholdOverrides);
+  }, [samples, filters, isDeferredMounted, thresholdOverrides]);
 
   const rankingAnalytics = useMemo(() => {
     if (!isDeferredMounted || samples.length === 0) return null;
-    return buildSurveillanceAnalytics(samples, rankingFilters);
-  }, [samples, rankingFilters, isDeferredMounted]);
+    return buildSurveillanceAnalytics(samples, rankingFilters, thresholdOverrides);
+  }, [samples, rankingFilters, isDeferredMounted, thresholdOverrides]);
 
   const handleFilterChange = (nextFilters: DashboardFilters) => {
     const currentQuarterRange = getQuarterDateRange(nextFilters.quarter);
@@ -305,7 +306,12 @@ export default function SurveillanceDashboard() {
               <div className="h-5 w-1.5 bg-rose-500/40 rounded-full" />
               <h2 className="text-sm font-black uppercase tracking-[0.2em] text-slate-500 dark:text-white/60">Public Health Risk Summary</h2>
             </div>
-            <PublicHealthSummary summary={analytics.publicHealthSummary} />
+            <PublicHealthSummary 
+              summary={isSimulating && overviewData?.public_health_summary 
+                ? overviewData.public_health_summary 
+                : analytics.publicHealthSummary
+              } 
+            />
 
             {/* Section 2: KPI Summary - Re-engineered for Province-Specific Context */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 mt-12 bg-slate-50 dark:bg-card/30 p-5 rounded-2xl border border-border/50">
@@ -357,12 +363,12 @@ export default function SurveillanceDashboard() {
                 {overviewData ? (
                   <KPICards
                     cards={[
-                      { label: 'Total Samples Reported', value: (overviewData as any).kpis.total_samples, delta: 0, deltaDirection: 'up', isImprovement: true, context: 'Total selected', icon: Database },
-                      { label: 'Positive Samples', value: `${(overviewData as any).kpis.positive_pct}%`, delta: 0, deltaDirection: 'down', isImprovement: false, context: 'vs previous', icon: Zap },
-                      { label: isSimulating ? 'Simulated High Risk' : 'Above Safety Threshold (EU)', value: `${(overviewData as any).kpis.above_threshold_pct}%`, delta: 0, deltaDirection: 'down', isImprovement: false, context: 'Critical limit', icon: AlertTriangle },
-                      { label: 'High Risk Regions', value: (overviewData as any).kpis.high_risk_regions, delta: 0, deltaDirection: 'up', isImprovement: false, context: 'Province count', icon: MapPin },
-                      { label: 'Highest Risk Commodity', value: (overviewData as any).kpis.highest_risk_commodity, delta: 0, deltaDirection: null, isImprovement: null, context: 'Ranked by share', icon: Wheat },
-                      { label: 'Active Alerts', value: (overviewData as any).kpis.active_alerts, delta: 0, deltaDirection: 'down', isImprovement: true, context: 'Flagged samples', accent: 'red', icon: Bell },
+                      { label: 'Total Samples Reported', value: overviewData.kpis.total_samples, delta: 0, deltaDirection: 'up', isImprovement: true, context: 'Total selected', icon: Database },
+                      { label: 'Positive Samples', value: `${overviewData.kpis.positive_pct}%`, delta: 0, deltaDirection: 'down', isImprovement: false, context: 'vs previous', icon: Zap },
+                      { label: isSimulating ? 'Simulated High Risk' : 'Above Safety Threshold (EU)', value: `${overviewData.kpis.above_threshold_pct}%`, delta: 0, deltaDirection: 'down', isImprovement: false, context: 'Critical limit', icon: AlertTriangle },
+                      { label: 'High Risk Regions', value: overviewData.kpis.high_risk_regions, delta: 0, deltaDirection: 'up', isImprovement: false, context: 'Province count', icon: MapPin },
+                      { label: 'Highest Risk Commodity', value: overviewData.kpis.highest_risk_commodity, delta: 0, deltaDirection: null, isImprovement: null, context: 'Ranked by share', icon: Wheat },
+                      { label: 'Active Alerts', value: overviewData.kpis.active_alerts, delta: 0, deltaDirection: 'down', isImprovement: true, context: 'Flagged samples', accent: 'red', icon: Bell },
                     ]}
                   />
                 ) : (
@@ -390,7 +396,7 @@ export default function SurveillanceDashboard() {
                         provinces: prev.provinces.includes(p) ? [] : [p]
                       }));
                     }}
-                    provinceRiskData={regionalRankingData ? (regionalRankingData as any).provinces : (rankingAnalytics?.provinceRiskData || [])}
+                    provinceRiskData={regionalRankingData ? regionalRankingData.provinces : (rankingAnalytics?.provinceRiskData || [])}
                     viewMode={mapViewMode}
                     onViewModeChange={setMapViewMode}
                   />
@@ -408,7 +414,7 @@ export default function SurveillanceDashboard() {
                         provinces: prev.provinces.includes(p) ? [] : [p]
                       }));
                     }}
-                    provinces={regionalRankingData ? (regionalRankingData as any).provinces : (rankingAnalytics?.provinceRiskData || [])}
+                    provinces={regionalRankingData ? regionalRankingData.provinces : (rankingAnalytics?.provinceRiskData || [])}
                     viewMode={mapViewMode}
                   />
                 </div>
@@ -427,7 +433,11 @@ export default function SurveillanceDashboard() {
               heatmapData={analytics.heatmapData}
               heatmapRegions={analytics.heatmapRegions}
               heatmapCommodities={analytics.heatmapCommodities}
-              affectedSampleCount={analytics.filteredSamples.filter((sample) => sample.mycotoxin_results?.length).length}
+              affectedSampleCount={
+                isSimulating 
+                  ? overviewData?.kpis?.total_samples || 0
+                  : analytics.filteredSamples.filter((sample) => hasAboveThresholdResults(sample)).length
+              }
             />
 
             <EnvironmentalKinetics />
@@ -438,13 +448,13 @@ export default function SurveillanceDashboard() {
                 <CoContaminationAnalysis
                   coContamSummary={{
                     avgToxinsPerSample: 0, // Fallbacks if not computed globally
-                    pctTwoPlus: (coContamData as any).toxins_per_sample['2'] || 0,
-                    pctThreePlus: (coContamData as any).toxins_per_sample['3'] || 0,
-                    mostCommonPair: (coContamData as any).intersections[0]?.toxins.join(' + ') || 'N/A'
+                    pctTwoPlus: coContamData.toxins_per_sample['2'] || 0,
+                    pctThreePlus: coContamData.toxins_per_sample['3'] || 0,
+                    mostCommonPair: coContamData.intersections[0]?.toxins.join(' + ') || 'N/A'
                   }}
-                  coOccurrenceList={(coContamData as any).intersections}
-                  intersections={(coContamData as any).intersections}
-                  toxinsPerSample={Object.entries((coContamData as any).toxins_per_sample).map(([count, pct]) => ({ count, pct: Number(pct) }))}
+                  coOccurrenceList={coContamData.intersections}
+                  intersections={coContamData.intersections}
+                  toxinsPerSample={Object.entries(coContamData.toxins_per_sample).map(([count, pct]) => ({ count, pct: Number(pct) }))}
                   toxinColors={analytics.toxinColors}
                 />
               ) : (

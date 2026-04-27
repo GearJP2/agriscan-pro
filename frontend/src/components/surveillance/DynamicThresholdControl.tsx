@@ -5,23 +5,14 @@ import { Badge } from '@/components/ui/badge';
 import { ChevronDown, ChevronUp, AlertCircle, Info } from 'lucide-react';
 import { useDebounce } from '../../hooks/useDebounce';
 import { cn } from '@/lib/utils';
+import { MYCOTOXIN_REGISTRY } from '@/constants/mycotoxins';
 
 interface DynamicThresholdControlProps {
   onOverridesChange: (overrides: Record<string, Record<string, number>>) => void;
   commodityOptions: string[];
 }
 
-const TOXIN_METADATA: Record<string, { default: number; max: number; source: string; isUncertain?: boolean }> = {
-  AFB1: { default: 5, max: 50, source: 'EU 2023/915' },
-  DON: { default: 1250, max: 5000, source: 'EU 2023/915' },
-  FB1: { default: 0, max: 5000, source: 'No Information', isUncertain: true },
-  ZEA: { default: 200, max: 2000, source: 'EU 2023/915' },
-  OTA: { default: 5, max: 100, source: 'EU 2023/915' },
-  'T-2': { default: 50, max: 500, source: 'EU 2023/915' },
-  AFG1: { default: 0, max: 50, source: 'No Information', isUncertain: true },
-  AFG2: { default: 0, max: 50, source: 'No Information', isUncertain: true },
-  AFM1: { default: 0.5, max: 10, source: 'EU 2023/915' }
-};
+const TOXIN_METADATA = MYCOTOXIN_REGISTRY;
 
 const ACTIVE_TOXINS = Object.keys(TOXIN_METADATA);
 
@@ -71,7 +62,7 @@ export default function DynamicThresholdControl({ onOverridesChange, commodityOp
   }
 
   return (
-    <div className="relative z-[30] w-full">
+    <div className="relative z-[1] w-full">
       <Card className="w-full glass-card border-2 border-border dark:border-border/50 bg-card dark:bg-card relative overflow-hidden animate-in fade-in slide-in-from-top-8 duration-500 ease-out rounded-2xl shadow-none">
         <CardContent className="p-0">
           {/* Header Section */}
@@ -80,6 +71,18 @@ export default function DynamicThresholdControl({ onOverridesChange, commodityOp
               <h3 className="font-black text-xl uppercase tracking-tighter text-slate-900 dark:text-white font-sans">Threshold Controller</h3>
             </div>
             <div className="flex items-center gap-4">
+              <button
+                onClick={() => {
+                  const zeroOverrides: Record<string, Record<string, number>> = {};
+                  ACTIVE_TOXINS.forEach(toxin => {
+                    zeroOverrides[toxin] = { [targetCommodity]: 0 };
+                  });
+                  setOverrides(zeroOverrides);
+                }}
+                className="text-xs font-black text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-500/10 px-4 py-2 rounded-xl transition-all uppercase tracking-widest border border-amber-200 dark:border-amber-500/30"
+              >
+                Set All to 0
+              </button>
               {isSimulating && (
                 <button
                   onClick={handleReset}
@@ -104,7 +107,7 @@ export default function DynamicThresholdControl({ onOverridesChange, commodityOp
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-h-[65vh] overflow-y-auto pr-4 mr-1 custom-scrollbar scroll-py-6">
                 {ACTIVE_TOXINS.map((toxin, index) => {
                   const meta = TOXIN_METADATA[toxin];
-                  const val = overrides[toxin]?.[targetCommodity] ?? meta.default;
+                  const val = overrides[toxin]?.[targetCommodity] ?? meta.defaultThreshold;
                   const isFloat = toxin === 'AFM1';
                   const isOverridden = overrides[toxin]?.[targetCommodity] !== undefined;
 

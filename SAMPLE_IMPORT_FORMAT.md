@@ -65,7 +65,7 @@ The system automatically detects and imports these mycotoxins:
 |---------------|-------|--------|---------|-------|
 | **AFB1** | Aflatoxin B1 | 5 ug/kg | 20 ug/kg | EU maximum level |
 | **DON** | Deoxynivalenol | 900 ug/kg | 8000 ug/kg | EU guidance value |
-| **FB1** | Fumonisin B1 | 5000 ug/kg | 60000 ug/kg | Flagged: source threshold is for total fumonisins |
+| **FB1** | Fumonisin B1 | 0 ug/kg | 0 ug/kg | Adjusted to 0 for strict surveillance |
 | **ZEA** | Zearalenone | 100 ug/kg | 2000 ug/kg | EU guidance value |
 | **OTA** | Ochratoxin A | 50 ug/kg | 250 ug/kg | EU guidance value |
 | **T-2** | T-2 Toxin | N/A | N/A | Flagged: no supported threshold in the selected source table |

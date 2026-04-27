@@ -16,6 +16,7 @@ from .models import MycotoxinResult, ProcessLog, Sample
 from .services.ingestion_service import SampleIngestionService
 from .services.sample_service import SampleService
 from .services.s3_service import generate_upload_url
+from .services.test_data_service import TestDataService
 from .serializers import (
     MycotoxinResultSerializer,
     ProcessLogSerializer,
@@ -52,7 +53,7 @@ class SampleViewSet(viewsets.ModelViewSet):
     lookup_field = 'sample_id'
 
     def get_permissions(self):
-        if self.action in ['destroy', 'bulk_delete']:
+        if self.action in ['destroy', 'bulk_delete', 'generate_test_data', 'delete_test_data']:
             return [IsAuthenticated(), IsAdmin()]
         return [permission() for permission in self.permission_classes]
 
@@ -531,6 +532,43 @@ class SampleViewSet(viewsets.ModelViewSet):
             logger.error('auditlog.write_failed', extra={'action': 'bulk_delete', 'error': str(audit_exc)})
 
         return Response({'deleted': count, 'not_found': not_found}, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['post'])
+    def generate_test_data(self, request):
+        """Generate 30 test samples - admin only"""
+        seed = request.data.get('seed', 42)
+        result = TestDataService.generate_test_samples(user=request.user, seed=seed)
+
+        try:
+            AuditLog.objects.create(
+                actor=request.user,
+                action='generate_test_data',
+                model_name='Sample',
+                object_id='(multiple)',
+                changes=result,
+            )
+        except Exception as audit_exc:
+            logger.error('auditlog.write_failed', extra={'action': 'generate_test_data', 'error': str(audit_exc)})
+
+        return Response(result, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=['post'])
+    def delete_test_data(self, request):
+        """Cleanup all TEST-prefixed samples - admin only"""
+        result = TestDataService.delete_test_samples(user=request.user)
+
+        try:
+            AuditLog.objects.create(
+                actor=request.user,
+                action='delete_test_data',
+                model_name='Sample',
+                object_id='(multiple)',
+                changes=result,
+            )
+        except Exception as audit_exc:
+            logger.error('auditlog.write_failed', extra={'action': 'delete_test_data', 'error': str(audit_exc)})
+
+        return Response(result, status=status.HTTP_200_OK)
 
     # ─── Dashboard Analytics V2 Endpoints ──────────────────────────────────────────
 

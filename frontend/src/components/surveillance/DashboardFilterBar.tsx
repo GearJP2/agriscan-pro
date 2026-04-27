@@ -177,7 +177,7 @@ export default function DashboardFilterBar({ filters, onChange, commodityOptions
 
     return (
         <div ref={observerRef} className={cn(
-            "sticky z-[30] transition-all duration-300",
+            "sticky z-40 transition-all duration-300",
             isStuck ? "top-[87px]" : "top-[88px]" // Shift up 1px when stuck to cover header border
         )}>
             <div className={cn(

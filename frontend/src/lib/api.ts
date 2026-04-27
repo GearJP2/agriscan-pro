@@ -1,5 +1,6 @@
 import axios, { AxiosError, AxiosHeaders } from "axios";
 import type { Sample, ProcessLog, RiskLevel } from "@/types/sample";
+import type { AnalyticsOverviewResponse, CoContaminationResponse } from "@/types/dashboard";
 import {
   clearAccessToken,
   clearSessionHint,
@@ -266,6 +267,18 @@ export const sampleAPI = {
     return response.data;
   },
 
+  async generateTestSamples(seed: number = 42) {
+    const response = await apiClient.post("/samples/generate_test_data/", {
+      seed,
+    });
+    return response.data;
+  },
+
+  async deleteTestSamples() {
+    const response = await apiClient.post("/samples/delete_test_data/");
+    return response.data;
+  },
+
   async addProcessLog(sampleId: number | string, logData: Partial<ProcessLog>) {
     const response = await apiClient.post(
       `/samples/${sampleId}/add_process_log/`,
@@ -386,7 +399,7 @@ export const analyticsAPI = {
       });
     }
     const response = await apiClient.get(`/samples/analytics/overview/?${params.toString()}`);
-    return response.data;
+    return response.data as AnalyticsOverviewResponse;
   },
 
   async getCoContamination(filters?: Record<string, string | string[]>) {
@@ -397,7 +410,7 @@ export const analyticsAPI = {
       });
     }
     const response = await apiClient.get(`/samples/analytics/co-contamination/?${params.toString()}`);
-    return response.data;
+    return response.data as CoContaminationResponse;
   },
 
   async simulateThreshold(overrides: Record<string, Record<string, number>>, filters?: Record<string, string | string[]>) {
@@ -408,7 +421,7 @@ export const analyticsAPI = {
       });
     }
     const response = await apiClient.post(`/samples/analytics/threshold-simulation/?${params.toString()}`, { overrides });
-    return response.data;
+    return response.data as AnalyticsOverviewResponse;
   },
 
   async getEnvironmentalCorrelation(filters?: Record<string, string | string[]>) {

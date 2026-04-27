@@ -1,9 +1,39 @@
 import type { MycotoxinResult, RiskLevel, Sample } from '@/types/sample';
+import { MYCOTOXIN_REGISTRY } from '@/constants/mycotoxins';
 
 const ABOVE_THRESHOLD_RISK_LEVELS = new Set(['high', 'critical']);
 const DETECTED_RISK_LEVELS = new Set(['detected', 'high', 'critical']);
 
-export function isAboveThresholdResult(result: MycotoxinResult) {
+/**
+ * Checks if a result is above threshold, optionally using simulator overrides
+ */
+export function isAboveThresholdResult(
+  result: MycotoxinResult, 
+  overrides?: Record<string, Record<string, number>>,
+  sampleVariety?: string
+) {
+  // If we have simulation overrides, they take precedence
+  if (overrides) {
+    const toxinCode = result.toxin_type || result.name;
+    const variety = sampleVariety || 'unknown';
+    
+    let threshold = MYCOTOXIN_REGISTRY[toxinCode]?.defaultThreshold;
+    
+    // Check for override
+    if (overrides[toxinCode]) {
+      if (overrides[toxinCode][variety] !== undefined) {
+        threshold = overrides[toxinCode][variety];
+      } else if (overrides[toxinCode][variety.toLowerCase()] !== undefined) {
+        threshold = overrides[toxinCode][variety.toLowerCase()];
+      }
+    }
+
+    if (threshold !== undefined) {
+      return result.intensity > threshold;
+    }
+  }
+
+  // Fallback to existing logic
   if (result.risk_level) {
     return ABOVE_THRESHOLD_RISK_LEVELS.has(result.risk_level);
   }
@@ -27,18 +57,24 @@ export function isDetectedResult(result: MycotoxinResult) {
   return result.intensity > 0;
 }
 
-export function hasAboveThresholdResults(sample: Sample) {
-  return sample.mycotoxin_results?.some(isAboveThresholdResult) ?? false;
+export function hasAboveThresholdResults(
+  sample: Sample, 
+  overrides?: Record<string, Record<string, number>>
+) {
+  return sample.mycotoxin_results?.some(r => isAboveThresholdResult(r, overrides, sample.vegetation_variety)) ?? false;
 }
 
 export function hasMeasuredResults(sample: Sample) {
   return (sample.mycotoxin_results?.length ?? 0) > 0 || (sample.results_count ?? 0) > 0;
 }
 
-export function getThresholdRiskLevel(sample: Sample): RiskLevel {
+export function getThresholdRiskLevel(
+  sample: Sample, 
+  overrides?: Record<string, Record<string, number>>
+): RiskLevel {
   const results = sample.mycotoxin_results ?? [];
 
-  if (results.some(isAboveThresholdResult)) {
+  if (results.some(r => isAboveThresholdResult(r, overrides, sample.vegetation_variety))) {
     return 'high';
   }
 
@@ -49,7 +85,10 @@ export function getThresholdRiskLevel(sample: Sample): RiskLevel {
   return sample.risk_level ?? 'safe';
 }
 
-export function getThresholdRiskScore(sample: Sample) {
+export function getThresholdRiskScore(
+  sample: Sample, 
+  overrides?: Record<string, Record<string, number>>
+) {
   const results = sample.mycotoxin_results ?? [];
 
   if (results.length === 0) {
@@ -68,7 +107,7 @@ export function getThresholdRiskScore(sample: Sample) {
       const threshold = result.threshold ?? result.eu_threshold_low ?? 0;
       const ratio = threshold > 0 ? result.intensity / threshold : 0;
 
-      if (isAboveThresholdResult(result)) {
+      if (isAboveThresholdResult(result, overrides, sample.vegetation_variety)) {
         return 100 + ratio;
       }
 

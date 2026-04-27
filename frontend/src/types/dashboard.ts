@@ -110,3 +110,30 @@ export interface DashboardFilters {
   provinces: string[];
   quarter: string;
 }
+
+/**
+ * Backend API V2 Response Types
+ */
+
+export interface AnalyticsOverviewResponse {
+  kpis: {
+    total_samples: number;
+    positive_pct: number;
+    detected_pct: number;
+    above_threshold_pct: number;
+    high_risk_regions: number;
+    highest_risk_commodity: string;
+    active_alerts: number;
+  };
+  provinces: ProvinceRisk[];
+  public_health_summary?: HealthSummary;
+}
+
+export interface CoContaminationResponse {
+  toxins_per_sample: Record<string, number>;
+  intersections: CoOccurrence[];
+  network: {
+    nodes: Array<{ id: string; frequency: number }>;
+    links: Array<{ source: string; target: string; value: number }>;
+  };
+}

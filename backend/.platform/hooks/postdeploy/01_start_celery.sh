@@ -19,21 +19,20 @@ runuser -u webapp -- bash -lc "
 set -euo pipefail
 cd /var/app/current
 source \"$VENV\"
-
-if [[ -f \"$CELERY_PID_FILE\" ]]; then
-    existing_pid=\$(cat \"$CELERY_PID_FILE\")
-    if [[ -n \"\$existing_pid\" ]] && kill -0 \"\$existing_pid\" 2>/dev/null; then
-        kill \"\$existing_pid\" || true
+if [[ -f "$CELERY_PID_FILE" ]]; then
+    existing_pid=$(cat "$CELERY_PID_FILE")
+    if [[ -n "$existing_pid" ]] && kill -0 "$existing_pid" 2>/dev/null; then
+        kill "$existing_pid" || true
     fi
 fi
 
 mapfile -t celery_pids < <(pgrep -u webapp -x celery || true)
-if (( \${#celery_pids[@]} > 0 )); then
-    kill \"\${celery_pids[@]}\" || true
+if (( ${#celery_pids[@]} > 0 )); then
+    kill "${celery_pids[@]}" || true
 fi
 
-rm -f \"$CELERY_PID_FILE\"
-nohup \"$VENV_BIN/celery\" -A core worker -l info --pidfile=\"$CELERY_PID_FILE\" --logfile=\"$CELERY_LOG_FILE\" > /dev/null 2>&1 &
+rm -f "$CELERY_PID_FILE"
+nohup "$VENV_BIN/celery" -A core worker -l info --pidfile="$CELERY_PID_FILE" --logfile="$CELERY_LOG_FILE" > /dev/null 2>&1 &
 "
 
 echo "Celery started."
