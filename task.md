@@ -295,19 +295,36 @@ Resolved critical UX regressions in the surveillance dashboard and implemented h
 - [x] **54. Monitor Access Linking (Feature)**
   - [x] Implement `can_access_monitor` property in `User` model using `USER_ROLE_WEIGHT`.
   - [x] Update `build_user_payload` in `auth_helpers.py` to include `is_monitor_allowed` flag.
-  - [x] (Optional) Add `is_monitor_allowed` claim to JWT access token for cross-app verification.
+  - [x] Add `monitor_allowed` claim to JWT access token for cross-app verification.
   - [x] Update Frontend `AuthContext` to expose monitor status to the UI.
-  - [x] Document the role-weight mapping in `accounts/models.py` for clarity.
+  - [x] Document the role-weight mapping in `accounts/models.py`.
+
+---
+
+## 2026-04-27 User Deletion Hardening & Sync Phase (Current)
+
+Hardened user management workflows and established cross-application infrastructure synchronization.
+
+- [x] **55. Hardened User Deletion (Security)**
+  - [x] Restricted `destroy` action to Administrators only.
+  - [x] Enforced account deactivation (`is_active=False`) as a prerequisite for permanent deletion.
+  - [x] Implemented self-deletion safeguard to prevent accidental admin lockout.
+  - [x] Integrated structured audit logging for all deletion events.
+- [x] **56. Cross-App Infrastructure Sync (Integration)**
+  - [x] Created `MonitorSyncService` for managing Vercel KV (Upstash Redis) whitelists.
+  - [x] Implemented Celery background tasks (`sync_user_to_monitor_task`, `remove_user_from_monitor_task`).
+  - [x] Verified synchronization with production-grade integration tests against the Monitor API.
+- [x] **57. Deployment & Infrastructure Hardening (DevOps)**
+  - [x] Fixed quoting/syntax bugs in `.platform/hooks/postdeploy/01_start_celery.sh` using heredocs.
+  - [x] Enhanced `ci-cd.yml` with pre-deployment environment status checks.
+  - [x] Increased deployment timeout to 30 minutes to support reliable complex updates.
 
 ---
 
 ## Summary
 
-- **Completed roadmap tasks:** `20 / 20` (items 1–20)
-- **Completed follow-up review items:** `12 / 12` (items 21–32)
-- **Resolved unrelated sample follow-ups:** `3 / 3` (items 33–35)
-- **Infrastructure stability & aesthetics:** `16 / 16` (items 36–51) — **all complete**
-- **Backend cleanup backlog:** `16 / 16` (BR-C1–C3, BR-M1–M7, BR-MN1–MN6) — **complete**
-- **Recommended focus:** Future enhancements (`FE-*`)
+- **Completed roadmap tasks:** `20 / 20`
+- **Infrastructure & Hardening:** `57 / 57` (items 1–57) — **all current items complete**
+- **Recommended focus:** Next feature phase or production monitoring.
 
 This checklist should be updated as each roadmap item is actually merged and verified.

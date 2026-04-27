@@ -634,66 +634,46 @@ These are documented but not yet integrated:
 python manage.py runserver           # Start Django
 python manage.py makemigrations      # Create migration
 python manage.py migrate             # Apply migration
-python manage.py createsuperuser     # Create admin
-python manage.py test                # Run tests
+python manage.py test                # Run all tests
+python manage.py test accounts.test_user_deletion     # Test deletion guards
+python manage.py test accounts.test_monitor_integration # Test KV sync
 ```
 
 **Frontend**
 ```bash
 npm run dev                          # Start dev server
-npm run build                        # Build for production
-npm run preview                      # Preview production build
+npm run build                        # Build for production (DEPLOY_TARGET=aws)
 npm run test                         # Run tests
 npm run lint                         # Check code quality
 ```
 
-**Git**
-```bash
-git status                           # Check status
-git add .                            # Stage changes
-git commit -m "message"              # Commit with message
-git push origin main                 # Push to GitHub
-```
-
 **Deployment (AWS)**
 ```bash
-eb deploy Agriscanpro-backend-env       # Deploy backend via EB CLI
-eb logs                              # View production logs
-eb status                            # Check environment health
+eb deploy Agriscanpro-backend-env       # Deploy backend
+eb status --verbose                    # Check environment health
+eb logs --zip                          # Download full log archive
 ```
+
+---
+
+## Architecture & Infrastructure
+
+- **User Management & Security**:
+  - **Auto-Promotion**: Emails in `INITIAL_ADMIN_EMAILS` are automatically promoted to `admin` on registration/linking.
+  - **Hardened Deletion**: 
+    - Only Administrators can delete accounts (`IsAdmin` permission).
+    - Account MUST be deactivated (`is_active=False`) before permanent deletion.
+    - Self-deletion is strictly blocked to prevent accidental system lockout.
+- **Cross-Application Synchronization**:
+  - **Service**: `MonitorSyncService` manages user whitelists in the AgriScan Monitor's Vercel KV store.
+  - **Background Logic**: Cecery tasks (`sync_user_to_monitor_task`, `remove_user_from_monitor_task`) ensure asynchronous cleanup and access provisioning.
+- **CI/CD Pipeline**:
+  - Pre-deployment health checks verify environment `Ready` state.
+  - Deployment timeout increased to 30 minutes for robust RDS/infrastructure updates.
 
 ---
 
 ## Last Updated
 - Date: 2026-04-27
-- By: Claude Code
-- Status: All hardening phases (Weeks 1–4), MycotoxinResult migration, dependency security hardening (xlsx → exceljs/papaparse), and frontend CSV import bug fixes are complete. `task.md` items 1–46 are all resolved. One FE-1 follow-up remains: revoke outstanding sessions after `/api/accounts/password/set/`. Infra/ops items (DB migration, EB env vars) remain open.
-
-
-## Pending Actions
-
-### Code hardening status (see [CODE_REVIEW.md](CODE_REVIEW.md) and [task.md](task.md))
-- Role policy, refresh-cookie flow, token blacklisting, API config, permissions, OAuth state, and mycotoxin analytics are all complete and verified.
-- Dependency security hardening (xlsx → exceljs/papaparse), migration atomicity, and frontend CSV import bugs (task items 41–46) are resolved as of 2026-04-27.
-- **Outstanding P1 follow-up**: `POST /api/accounts/password/set/` currently updates credentials without blacklisting all outstanding refresh tokens; this should be aligned with OTP reset behavior.
-
-### Cookie / OAuth environment variables (new in this release)
-- `JWT_USE_HTTPONLY_REFRESH_COOKIE` (default `True`) — toggles the httpOnly refresh cookie flow
-- `JWT_REFRESH_COOKIE_NAME` (default `refresh_token`)
-- `JWT_REFRESH_COOKIE_PATH` (default `/api/accounts/`)
-- `JWT_REFRESH_COOKIE_MAX_AGE` (default 7 days)
-- `JWT_REFRESH_COOKIE_SECURE` (default matches `not DEBUG`)
-- `JWT_REFRESH_COOKIE_SAMESITE` (default `Lax` in DEBUG, `None` in production)
-- `GOOGLE_OAUTH_STATE_TTL_SECONDS` (default `300`) — TTL for cached Google OAuth state tokens
-
-### Infra / ops (still open)
-- **DB Migration**: `pg_dump` from Aurora → `psql` restore into `agriscanpro-db` (RDS PostgreSQL 16.1, DB name: `agriscan`)
-- **EB Env Vars**: Update `DB_HOST`, `DB_NAME=agriscan`, `DB_USER`, `DB_PASSWORD` to point at new RDS instance
-- **Cost**: Downgrade `agriscanpro-db` from `db.t4g.small` → `db.t3.micro` before April 30 (AWS credits expire — otherwise ~$43.64/mo)
-- Run `python manage.py migrate` after DB restore to ensure all migrations are applied on new instance
-- Set `GATEWAY_API_KEY` env var before starting agent orchestrator (will refuse to start without it)
-- Set `EMAIL_HOST_USER` + `EMAIL_HOST_PASSWORD` in `.env` for real email delivery (see `.env.example`); without them OTP prints to terminal only
-- Set `SRE_MONITOR_KEY` env var to protect system metrics on `/health/` endpoint
-- **Local environment**: Install `psutil` (`pip install psutil`) if local health metrics are needed
-- **API docs backlog**: Add `drf-spectacular` schema generation when ready
-- **FE-1 security follow-up**: Invalidate all outstanding sessions/tokens after successful `POST /api/accounts/password/set/`
+- By: Claude (Debugging Wizard & Cloud Architect)
+- Status: **User Deletion Hardening & Monitor Sync Phase Complete**. All tasks in `task.md` (items 1–57) are resolved. The legacy Celery startup script bug is fixed via heredoc refactoring. Local and integration tests pass clean. Outstanding follow-up: session revocation after password set.
