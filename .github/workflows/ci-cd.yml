@@ -168,10 +168,20 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ap-southeast-1
 
+      - name: Check EB Environment Status
+        run: |
+          cd backend
+          eb status
+          status=$(eb status --verbose | grep -i "environment is" || echo "unknown")
+          if [[ ! "$status" =~ "Ready" ]]; then
+            echo "Environment not ready: $status"
+            # We don't exit 1 here yet, because eb status might fail if env is in error state or rebuilding
+          fi
+
       - name: Deploy to Elastic Beanstalk
         run: |
           cd backend
-          if ! eb deploy Agriscanpro-backend-env --timeout 10; then
+          if ! eb deploy Agriscanpro-backend-env --timeout 30; then
             echo "=== Deployment failed — fetching instance logs ==="
             eb logs --all 2>&1 | head -300 || true
             if [ -d .elasticbeanstalk/logs/latest ]; then
