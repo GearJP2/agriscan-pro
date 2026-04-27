@@ -15,7 +15,7 @@ CELERY_PID_FILE="$CELERY_RUN_DIR/worker.pid"
 install -d -m 755 "$CELERY_LOG_DIR" "$CELERY_RUN_DIR"
 chown webapp:webapp "$CELERY_LOG_DIR" "$CELERY_RUN_DIR"
 
-runuser -u webapp -- bash -lc <<EOF
+runuser -u webapp -- bash -l <<EOF
 set -euo pipefail
 cd /var/app/current
 source "$VENV"
