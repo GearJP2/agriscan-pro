@@ -15,6 +15,13 @@ from .settings import validate_refresh_cookie_security_config
 class RefreshCookieSecurityConfigTests(SimpleTestCase):
     """Tests for refresh-cookie security validation."""
 
+    def test_health_endpoint_returns_200(self):
+        """Elastic Beanstalk health checks need a stable 200 response."""
+        response = self.client.get("/health/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"status": "ok"})
+
     def test_allows_cloudfront_style_production_settings(self):
         """Production behind CloudFront can keep Secure cookies without FORCE_SSL."""
         validate_refresh_cookie_security_config(
