@@ -9,7 +9,7 @@ from django.test import RequestFactory, SimpleTestCase, TestCase, override_setti
 from unittest.mock import patch
 
 from .middleware import RateLimitMiddleware
-from .settings import validate_refresh_cookie_security_config
+from .settings import build_allowed_hosts, validate_refresh_cookie_security_config
 
 
 class RefreshCookieSecurityConfigTests(SimpleTestCase):
@@ -18,6 +18,31 @@ class RefreshCookieSecurityConfigTests(SimpleTestCase):
     def test_health_endpoint_returns_200(self):
         """Elastic Beanstalk health checks need a stable 200 response."""
         response = self.client.get("/health/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"status": "ok"})
+
+    def test_build_allowed_hosts_includes_aws_platform_domains(self):
+        """Production configs should still allow EB health-check hostnames."""
+        hosts = build_allowed_hosts("api.example.com", debug=False)
+
+        self.assertIn("api.example.com", hosts)
+        self.assertIn(".elasticbeanstalk.com", hosts)
+        self.assertIn(".compute.amazonaws.com", hosts)
+
+    @override_settings(
+        ALLOWED_HOSTS=[
+            "localhost",
+            "127.0.0.1",
+            ".compute.amazonaws.com",
+        ]
+    )
+    def test_health_endpoint_allows_aws_compute_hostname(self):
+        """EB-style EC2 hostnames should not trip Django host validation."""
+        response = self.client.get(
+            "/health/",
+            HTTP_HOST="ec2-1-2-3-4.ap-southeast-1.compute.amazonaws.com",
+        )
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {"status": "ok"})

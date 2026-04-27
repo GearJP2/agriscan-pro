@@ -35,6 +35,33 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Default auto field to avoid models.W042 warnings (Django 3.2+)
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+DEFAULT_LOCAL_ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
+AWS_PLATFORM_ALLOWED_HOST_PATTERNS = [
+    ".elasticbeanstalk.com",
+    ".compute.amazonaws.com",
+]
+
+
+def build_allowed_hosts(raw_hosts: str, *, debug: bool) -> list[str]:
+    """Build ALLOWED_HOSTS and keep AWS platform health-check hosts reachable."""
+    if raw_hosts:
+        hosts = [h.strip() for h in raw_hosts.split(",") if h.strip()]
+        if "*" not in hosts:
+            for host in [
+                *DEFAULT_LOCAL_ALLOWED_HOSTS,
+                *AWS_PLATFORM_ALLOWED_HOST_PATTERNS,
+            ]:
+                if host not in hosts:
+                    hosts.append(host)
+        return hosts
+
+    if not debug:
+        raise ImproperlyConfigured(
+            "ALLOWED_HOSTS environment variable is required in production"
+        )
+
+    return DEFAULT_LOCAL_ALLOWED_HOSTS.copy()
+
 
 # QUICK-START DEVELOPMENT SETTINGS
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
@@ -52,16 +79,7 @@ if not SECRET_KEY:
 
 # Comma-separated list of allowed hosts
 _ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "")
-if _ALLOWED_HOSTS:
-    ALLOWED_HOSTS = [h.strip() for h in _ALLOWED_HOSTS.split(",") if h.strip()]
-    if "*" not in ALLOWED_HOSTS:
-        # Add a default local allow list alongside the provided env var
-        ALLOWED_HOSTS.extend(["localhost", "127.0.0.1"])
-else:
-    # If not set in environment, require explicit setting in production
-    if not DEBUG:
-        raise ImproperlyConfigured("ALLOWED_HOSTS environment variable is required in production")
-    ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
+ALLOWED_HOSTS = build_allowed_hosts(_ALLOWED_HOSTS, debug=DEBUG)
 
 
 # Trusted proxies for X-Forwarded-For validation

@@ -79,6 +79,20 @@ jobs:
           bash -n .platform/hooks/postdeploy/01_start_celery.sh
           python manage.py check
           python manage.py collectstatic --noinput
+          python - <<'PY'
+          import os
+
+          os.environ.setdefault("DJANGO_SETTINGS_MODULE", "core.settings")
+          import django
+          django.setup()
+
+          from django.test import Client
+
+          client = Client(HTTP_HOST="ec2-1-2-3-4.ap-southeast-1.compute.amazonaws.com")
+          response = client.get("/health/")
+          assert response.status_code == 200, response.content.decode()
+          print("Health check host OK")
+          PY
           python -c "from core.wsgi import application; print('WSGI import OK')"
           python -c "from core.celery import app; print('Celery import OK')"
 
