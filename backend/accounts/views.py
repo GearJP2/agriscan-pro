@@ -267,6 +267,39 @@ class UserDetailView(generics.RetrieveUpdateDestroyAPIView):
                 details=f"{status_text} user account",
             )
 
+    def destroy(self, request, *args, **kwargs):
+        """
+        Enforce deactivation before deletion and sync with Monitor infrastructure.
+        Only allowed for Admin-level users.
+        """
+        instance = self.get_object()
+
+        # Guard: Prevent self-deletion to avoid accidental system lockout
+        if instance == request.user:
+            raise PermissionDenied("You cannot delete your own account.")
+
+        # Guard: Account must be explicitly deactivated first to prevent accidental loss
+        if instance.is_active:
+            raise ValidationError(
+                {"detail": "User account must be deactivated before it can be deleted."}
+            )
+
+        # Log the deletion for audit trails
+        logger.info(
+            "user.deleted",
+            extra={
+                "actor": request.user.username,
+                "target": instance.email,
+                "user_id": str(instance.id)
+            }
+        )
+
+        # Offload Monitor access removal to Celery background task
+        from .tasks import remove_user_from_monitor_task
+        remove_user_from_monitor_task.delay(instance.email)
+
+        return super().destroy(request, *args, **kwargs)
+
 
 class RequestOTPView(generics.GenericAPIView):
     """Send a one-time password to the user's registered email for password reset."""
