@@ -917,6 +917,33 @@ class BulkImportResultsTests(SampleTestMixin, TestCase):
         self.assertTrue(sample.mycotoxin_results.filter(toxin_type='DON').exists())
         self.assertTrue(sample.process_logs.filter(notes__icontains='Analyzed at: 3/13/2026 11:46').exists())
 
+    def test_bulk_import_results_datetime_only_row_is_skipped_not_unmatched(self):
+        """Header-2 rows whose only candidate is a datetime must be skipped, not reported as unmatched."""
+        self.sample.sample_id = 'SAM-2026-001'
+        self.sample.save(update_fields=['sample_id'])
+
+        url = reverse('sample-bulk-import-results')
+        # Simulates an Excel file converted to CSV where the second header row has
+        # a datetime value in the first column (empty header) and 'Final Conc.' labels.
+        csv_content = (
+            ',Sample,Aflatoxin B1 Results,OTA Results\n'
+            'Name,Acq. Date-Time,Final Conc.,Final Conc.\n'
+            'SAM-2026-001,3/13/2026 18:46,1.2,2.4\n'
+        )
+        upload = SimpleUploadedFile(
+            'results_datetime_header.csv',
+            csv_content.encode('utf-8'),
+            content_type='text/csv',
+        )
+
+        response = self.client.post(url, {'file': upload}, format='multipart')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['unmatched_sample_ids'], [],
+                         msg='Datetime-only rows must be skipped, not reported as unmatched')
+        self.assertEqual(response.data['matched_samples'], 1)
+        self.assertGreaterEqual(response.data['results_created'], 2)
+
 
 class SampleUnauthenticatedTests(TestCase):
     """Verify that unauthenticated requests are rejected."""

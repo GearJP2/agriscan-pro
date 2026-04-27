@@ -3,7 +3,7 @@ import ExcelJS from 'exceljs';
 import Papa from 'papaparse';
 import { Upload, AlertTriangle, CheckCircle2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
@@ -37,12 +37,33 @@ const UnifiedImportForm = ({ onSuccess }: UnifiedImportFormProps) => {
             await workbook.xlsx.load(buffer);
             const worksheet = workbook.worksheets[0];
             const jsonData: string[][] = [];
+
+            const formatCellValue = (value: unknown): string => {
+              if (value instanceof Date) {
+                const m = value.getMonth() + 1;
+                const d = value.getDate();
+                const y = value.getFullYear();
+                const h = value.getHours();
+                const min = String(value.getMinutes()).padStart(2, '0');
+                return `${m}/${d}/${y} ${h}:${min}`;
+              }
+              // ExcelJS RichTextValue: { richText: [{text: '...'}] }
+              if (value !== null && typeof value === 'object') {
+                const obj = value as Record<string, unknown>;
+                if (Array.isArray(obj.richText)) {
+                  return (obj.richText as Array<{text?: unknown}>).map(r => String(r.text ?? '')).join('');
+                }
+                if ('result' in obj) return String(obj.result ?? '');
+                if ('text' in obj) return String(obj.text ?? '');
+              }
+              return String(value ?? '');
+            };
             
             worksheet.eachRow((row: ExcelJS.Row) => {
               const rowData: string[] = [];
               if (Array.isArray(row.values)) {
                 for (let i = 1; i < row.values.length; i++) {
-                  rowData.push(String(row.values[i] ?? ''));
+                  rowData.push(formatCellValue(row.values[i]));
                 }
               }
               jsonData.push(rowData);
@@ -200,6 +221,9 @@ const UnifiedImportForm = ({ onSuccess }: UnifiedImportFormProps) => {
       <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Import Samples</DialogTitle>
+          <DialogDescription>
+            Upload a CSV or Excel file to register new samples into the system.
+          </DialogDescription>
         </DialogHeader>
 
         {importStatus === 'idle' && (

@@ -253,6 +253,7 @@ const AuthDialog = () => {
       <DialogContent
         className="sm:max-w-[480px] p-0 gap-0 border-none rounded-3xl shadow-2xl overflow-hidden"
         style={{ backgroundColor: "#f8fafa" }}
+        aria-describedby={undefined}
       >
         <div className="w-full flex flex-col p-8 sm:p-10">
           {/* Header: Logo & Branding */}

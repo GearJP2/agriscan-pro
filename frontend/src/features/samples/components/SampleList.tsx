@@ -342,6 +342,17 @@ const SampleList = () => {
         queryClient.invalidateQueries({ queryKey: ['samples-dashboard'] });
     };
 
+    const handleMycotoxinResultChange = async (sampleId: string) => {
+        queryClient.invalidateQueries({ queryKey: ['samples-list'] });
+        queryClient.invalidateQueries({ queryKey: ['samples-dashboard'] });
+        try {
+            const updated = await sampleAPI.getSampleDetail(sampleId);
+            setSelectedSample(updated);
+        } catch (err) {
+            console.error('Failed to refresh sample after mycotoxin result change:', err);
+        }
+    };
+
     return (
         <div className="min-h-screen bg-background">
             <main className="container py-8">
@@ -451,6 +462,7 @@ const SampleList = () => {
                             setModalOpen(open);
                         }}
                         onUpdateSample={handleUpdateSample}
+                        onMycotoxinResultChange={handleMycotoxinResultChange}
                     />
                 </>
             </main>

@@ -3,7 +3,7 @@ import ExcelJS from 'exceljs';
 import Papa from 'papaparse';
 import { FileDown, FileUp, Upload, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { toast } from '@/hooks/use-toast';
 import { sampleAPI } from '@/lib/api';
 
@@ -55,6 +55,29 @@ const ImportResultsForm = ({ sampleIds, onSuccess }: ImportResultsFormProps) => 
       throw new Error('Unsupported file type. Please upload CSV, XLSX, or XLS.');
     }
 
+    const formatCellValue = (value: unknown): string => {
+      if (value instanceof Date) {
+        const m = value.getMonth() + 1;
+        const d = value.getDate();
+        const y = value.getFullYear();
+        const h = value.getHours();
+        const min = String(value.getMinutes()).padStart(2, '0');
+        return `${m}/${d}/${y} ${h}:${min}`;
+      }
+      // ExcelJS RichTextValue: { richText: [{text: '...'}] }
+      if (value !== null && typeof value === 'object') {
+        const obj = value as Record<string, unknown>;
+        if (Array.isArray(obj.richText)) {
+          return (obj.richText as Array<{text?: unknown}>).map(r => String(r.text ?? '')).join('');
+        }
+        // Formula cell: { formula: '...', result: ... }
+        if ('result' in obj) return String(obj.result ?? '');
+        // Hyperlink cell: { text: '...', hyperlink: '...' }
+        if ('text' in obj) return String(obj.text ?? '');
+      }
+      return String(value ?? '');
+    };
+
     const buffer = await sourceFile.arrayBuffer();
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(buffer);
@@ -68,7 +91,7 @@ const ImportResultsForm = ({ sampleIds, onSuccess }: ImportResultsFormProps) => 
       const rowValues: string[] = [];
       if (Array.isArray(row.values)) {
         for (let i = 1; i < row.values.length; i++) {
-          rowValues.push(String(row.values[i] ?? ''));
+          rowValues.push(formatCellValue(row.values[i]));
         }
       }
       rows.push(rowValues);
@@ -132,6 +155,9 @@ const ImportResultsForm = ({ sampleIds, onSuccess }: ImportResultsFormProps) => 
       <DialogContent className="max-w-xl">
         <DialogHeader>
           <DialogTitle>Import Mycotoxin Results</DialogTitle>
+          <DialogDescription>
+            Upload a completed CSV or Excel file with mycotoxin concentration results to update matching samples.
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Sample, ProcessLog, PROCESSING_TYPE_LABELS, ProcessingType } from '@/types/sample';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -20,9 +20,10 @@ interface SampleDetailModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onUpdateSample?: (sampleId: string, newLog: ProcessLog) => void;
+  onMycotoxinResultChange?: (sampleId: string) => void;
 }
 
-const SampleDetailModal = ({ sample, open, onOpenChange, onUpdateSample }: SampleDetailModalProps) => {
+const SampleDetailModal = ({ sample, open, onOpenChange, onUpdateSample, onMycotoxinResultChange }: SampleDetailModalProps) => {
   const [activeTab, setActiveTab] = useState('details');
   const [showMoreInfo, setShowMoreInfo] = useState(false);
   const [showTimeline, setShowTimeline] = useState(false);
@@ -106,7 +107,7 @@ const SampleDetailModal = ({ sample, open, onOpenChange, onUpdateSample }: Sampl
                 {statusLabels[sample.status]}
               </Badge>
             </div>
-            <p className="text-sm text-primary/60 font-medium">Research Sample Unit • AgriScan Pro</p>
+            <DialogDescription className="text-sm text-primary/60 font-medium">Research Sample Unit • AgriScan Pro</DialogDescription>
           </div>
         </DialogHeader>
 
@@ -217,7 +218,10 @@ const SampleDetailModal = ({ sample, open, onOpenChange, onUpdateSample }: Sampl
                 {showMycotoxinForm ? (
                   <MycotoxinForm
                     sampleId={sample.sample_id}
-                    onSuccess={() => setShowMycotoxinForm(false)}
+                    onSuccess={() => {
+                      setShowMycotoxinForm(false);
+                      onMycotoxinResultChange?.(sample.sample_id);
+                    }}
                     onClose={() => setShowMycotoxinForm(false)}
                   />
                 ) : (

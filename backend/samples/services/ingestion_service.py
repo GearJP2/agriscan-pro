@@ -23,6 +23,8 @@ class SampleIngestionService:
         "datetime",
         "analysisdatetime",
         "analyzedat",
+        "analysedtime",
+        "analysedatetime",
         "acqdatetime",
         "acqdate",
         "time",
@@ -127,7 +129,8 @@ class SampleIngestionService:
             if not cls.is_datetime_like(display):
                 return display, norm
 
-        return candidates[0]
+        # All remaining candidates are datetime-like; no valid sample ID found.
+        return "", ""
 
     @classmethod
     def extract_analyzed_datetime(cls, row):
@@ -207,11 +210,33 @@ class SampleIngestionService:
 
         The uploaded file is rewound for each pass so callers can do a cheap
         ID-discovery pass followed by a processing pass.
+
+        Duplicate column headers are made unique by appending _2, _3, …
+        so that csv.DictReader does not silently overwrite earlier column
+        values with later ones (e.g. two columns both named "Sample").
         """
         uploaded_file.file.seek(0)
         wrapped = TextIOWrapper(uploaded_file.file, encoding="utf-8-sig", newline="")
         try:
-            yield from csv.DictReader(wrapped)
+            reader = csv.reader(wrapped)
+            raw_headers = next(reader, None)
+            if raw_headers is None:
+                return
+
+            # Deduplicate headers: second "Sample" becomes "Sample_2", etc.
+            seen: dict[str, int] = {}
+            headers: list[str] = []
+            for h in raw_headers:
+                key = h if h is not None else ""
+                if key in seen:
+                    seen[key] += 1
+                    headers.append(f"{key}_{seen[key]}")
+                else:
+                    seen[key] = 1
+                    headers.append(key)
+
+            for row_values in reader:
+                yield dict(zip(headers, row_values))
         finally:
             wrapped.detach()
 
