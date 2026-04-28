@@ -34,16 +34,22 @@ class MonitorSyncService:
         try:
             response = requests.post(api_url, headers=headers, timeout=5)
             if response.status_code == 200:
-                logger.info(f"Successfully synced email to Monitor KV: {email}")
+                logger.info("auth.monitor_kv_sync.success", extra={"email": email})
                 return True
             else:
                 logger.error(
-                    f"Failed to sync email to Monitor KV: {email}. "
-                    f"Status: {response.status_code}, Response: {response.text}"
+                    "auth.monitor_kv_sync.failed",
+                    extra={
+                        "email": email,
+                        "status_code": response.status_code,
+                    }
                 )
                 return False
         except Exception as e:
-            logger.error(f"Error during Monitor KV sync for {email}: {str(e)}")
+            logger.error(
+                "auth.monitor_kv_sync.error",
+                extra={"email": email, "error": str(e)[:200]}
+            )
             return False
 
     @staticmethod

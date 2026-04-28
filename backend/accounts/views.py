@@ -358,56 +358,50 @@ class ResetPasswordOTPView(generics.GenericAPIView):
     permission_classes = (permissions.AllowAny,)
     serializer_class = PasswordResetSerializer
 
-    def post(self, request):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
-        email = normalize_email(serializer.validated_data["email"])
-        otp_code = serializer.validated_data["otp_code"]
-        new_password = serializer.validated_data["new_password"]
-
-        verify_key = f"otp_verify:{hash_data(f'{email}|{_get_request_fingerprint(request)}')}"
-        user = UserRepository.get_user_by_email(email)
-
-        if not AttemptLimiter.is_allowed(
+    @staticmethod
+    def _throttle_or_invalidate(verify_key: str, user) -> Response | None:
+        """Return 429 when the OTP attempt budget is exhausted."""
+        if AttemptLimiter.is_allowed(
             verify_key,
             max_attempts=MAX_OTP_VERIFY_ATTEMPTS,
             period_seconds=OTP_VERIFY_PERIOD_SEC,
         ):
-            if user:
-                # Invalidate all unused OTPs for this user
-                PasswordResetOTP.objects.filter(user=user, used=False).update(used=True)
-            return Response(
-                {"detail": TOO_MANY_RESET_ATTEMPTS_MESSAGE},
-                status=status.HTTP_429_TOO_MANY_REQUESTS,
-            )
+            return None
+        if user:
+            PasswordResetOTP.objects.filter(user=user, used=False).update(used=True)
+        return Response(
+            {"detail": TOO_MANY_RESET_ATTEMPTS_MESSAGE},
+            status=status.HTTP_429_TOO_MANY_REQUESTS,
+        )
 
-        # Always hash something to mitigate timing attacks
-        provided_otp_hash = PasswordResetOTP.hash_otp(otp_code)
-
-        if not user:
-            # Dummy delay or just proceed with generic failure
-            return Response(
-                {"detail": INVALID_RESET_CONFIRMATION_MESSAGE},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
+    @staticmethod
+    def _resolve_valid_otp(user, otp_code: str):
+        """Return the live OTP row, or a generic 400 Response when none matches."""
+        provided_hash = PasswordResetOTP.hash_otp(otp_code)
         otp_obj = (
             PasswordResetOTP.objects.filter(
                 user=user,
-                otp_hash=provided_otp_hash,
+                otp_hash=provided_hash,
                 used=False,
             )
             .order_by("-created_at")
             .first()
         )
-
         if not otp_obj or not otp_obj.is_valid():
             return Response(
                 {"detail": INVALID_RESET_CONFIRMATION_MESSAGE},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        return otp_obj
 
+    @staticmethod
+    def _apply_password_change(
+        user,
+        new_password: str,
+        otp_obj: PasswordResetOTP,
+        verify_key: str,
+    ) -> int:
+        """Persist the new password, invalidate sibling OTPs, blacklist tokens."""
         user.set_password(new_password)
         user.save()
 
@@ -419,6 +413,36 @@ class ResetPasswordOTPView(generics.GenericAPIView):
 
         blacklisted_count = blacklist_all_user_tokens(user)
         AttemptLimiter.reset_attempts(verify_key)
+        return blacklisted_count
+
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        email = normalize_email(serializer.validated_data["email"])
+        otp_code = serializer.validated_data["otp_code"]
+        new_password = serializer.validated_data["new_password"]
+
+        verify_key = f"otp_verify:{hash_data(f'{email}|{_get_request_fingerprint(request)}')}"
+        user = UserRepository.get_user_by_email(email)
+
+        throttled = self._throttle_or_invalidate(verify_key, user)
+        if throttled is not None:
+            return throttled
+
+        if not user:
+            return Response(
+                {"detail": INVALID_RESET_CONFIRMATION_MESSAGE},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        otp_obj = self._resolve_valid_otp(user, otp_code)
+        if isinstance(otp_obj, Response):
+            return otp_obj
+
+        blacklisted_count = self._apply_password_change(
+            user, new_password, otp_obj, verify_key,
+        )
 
         logger.info(
             "user.password_reset_success",
@@ -631,7 +655,12 @@ class SetPasswordView(generics.GenericAPIView):
                 "had_password": had_password,
             },
         )
-        return Response(
+
+        # Blacklist all existing sessions and issue a fresh one for the current user
+        blacklist_all_user_tokens(request.user)
+        new_refresh = RefreshToken.for_user(request.user)
+
+        response = Response(
             {
                 "detail": (
                     "Password changed successfully."
@@ -641,3 +670,7 @@ class SetPasswordView(generics.GenericAPIView):
             },
             status=status.HTTP_200_OK,
         )
+        if should_set_httponly_refresh_cookie():
+            set_refresh_cookie(response, str(new_refresh))
+
+        return response

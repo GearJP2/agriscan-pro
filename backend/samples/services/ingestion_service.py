@@ -297,127 +297,176 @@ class SampleIngestionService:
         return list(results.values())
 
     @classmethod
-    def process_csv_results(cls, uploaded_file, user):
-        csv_display_ids = set()
-        normalized_ids = set()
+    def _discover_csv_sample_ids(cls, uploaded_file) -> tuple[set[str], set[str], int]:
+        """First pass: collect display + normalized sample IDs and count rows."""
+        display_ids: set[str] = set()
+        normalized_ids: set[str] = set()
         rows_processed = 0
         for row in cls.iter_csv_rows(uploaded_file):
             rows_processed += 1
             display_id, _ = cls.extract_row_sample_id(row)
             if display_id:
-                csv_display_ids.add(display_id.strip())
+                display_ids.add(display_id.strip())
                 normalized_ids.add(cls.normalize_sample_id(display_id))
+        return display_ids, normalized_ids, rows_processed
 
+    @classmethod
+    def _build_sample_map(
+        cls, display_ids: set[str], normalized_ids: set[str]
+    ) -> dict[str, Sample]:
+        """Resolve CSV IDs to Sample rows, falling back to a normalized scan."""
         sample_map = {
             cls.normalize_sample_id(s.sample_id): s
-            for s in Sample._default_manager.filter(sample_id__in=csv_display_ids)
+            for s in Sample._default_manager.filter(sample_id__in=display_ids)
         }
 
         missing_norm = normalized_ids - set(sample_map.keys())
-        if missing_norm:
-            for sample in Sample._default_manager.all():
-                norm = cls.normalize_sample_id(sample.sample_id)
-                if norm in missing_norm and norm not in sample_map:
-                    sample_map[norm] = sample
+        if not missing_norm:
+            return sample_map
 
-        created, updated = 0, 0
-        touched_samples = set()
-        unmatched = set()
+        for sample in Sample._default_manager.all():
+            norm = cls.normalize_sample_id(sample.sample_id)
+            if norm in missing_norm and norm not in sample_map:
+                sample_map[norm] = sample
+        return sample_map
+
+    @classmethod
+    def _apply_results_to_sample(
+        cls, sample: Sample, results: list[dict], user, analyzed_at
+    ) -> tuple[int, int]:
+        """Persist results for one sample inside its atomic block."""
+        sample.status = "completed"
+        sample.updated_by = user
+        sample.save()
+
+        if not sample.process_logs.filter(state="completed").exists():
+            notes = "Mycotoxin results imported from CSV."
+            if analyzed_at:
+                notes = f"{notes} Analyzed at: {analyzed_at}"
+            ProcessLog._default_manager.create(
+                sample=sample,
+                state="completed",
+                conducted_by=user.username,
+                notes=notes,
+            )
+
+        created_for_row, updated_for_row = 0, 0
+        for payload in results:
+            existing = sample.mycotoxin_results.filter(
+                toxin_type=payload["toxin_type"]
+            ).first()
+            if existing:
+                existing.value = payload["value"]
+                existing.unit = payload["unit"]
+                existing.notes = payload["notes"]
+                existing.save()
+                updated_for_row += 1
+            else:
+                MycotoxinResult._default_manager.create(
+                    sample=sample,
+                    toxin_type=payload["toxin_type"],
+                    value=payload["value"],
+                    unit=payload["unit"],
+                    notes=payload["notes"],
+                )
+                created_for_row += 1
+        return created_for_row, updated_for_row
+
+    @classmethod
+    def _process_row(
+        cls, row: dict, row_number: int, sample_map: dict[str, Sample], user
+    ) -> dict:
+        """Apply a single CSV row, returning per-row counters and any failure."""
+        outcome = {
+            "created": 0,
+            "updated": 0,
+            "skipped": False,
+            "sample_id": None,
+            "unmatched": None,
+            "failed_row": None,
+        }
+
+        display_id, sid = cls.extract_row_sample_id(row)
+        if not sid:
+            outcome["skipped"] = True
+            return outcome
+
+        sample = sample_map.get(sid)
+        if not sample:
+            outcome["skipped"] = True
+            outcome["unmatched"] = display_id or sid
+            outcome["failed_row"] = {
+                "row_number": row_number,
+                "sample_id": display_id or sid,
+                "error": "Sample ID not found in system.",
+                "row_data": row,
+            }
+            return outcome
+
+        results = cls.extract_results_from_row(row)
+        if not results:
+            outcome["skipped"] = True
+            return outcome
+
+        try:
+            with transaction.atomic():
+                # Per-row savepoint isolates failures so partial imports survive.
+                # See SAMPLE_IMPORT_FORMAT.md for the response contract.
+                locked = Sample.objects.select_for_update().get(pk=sample.pk)
+                analyzed_at = cls.extract_analyzed_datetime(row)
+                created_for_row, updated_for_row = cls._apply_results_to_sample(
+                    locked, results, user, analyzed_at,
+                )
+        except Exception as exc:
+            outcome["skipped"] = True
+            outcome["failed_row"] = {
+                "row_number": row_number,
+                "sample_id": display_id or sid,
+                "error": str(exc),
+                "row_data": row,
+            }
+            logger.warning(
+                "sample.bulk_import_results.row_failed",
+                extra={
+                    "row": row_number,
+                    "sample_id": display_id or sid,
+                    "error": str(exc),
+                },
+            )
+            return outcome
+
+        outcome["created"] = created_for_row
+        outcome["updated"] = updated_for_row
+        outcome["sample_id"] = sample.sample_id
+        return outcome
+
+    @classmethod
+    def process_csv_results(cls, uploaded_file, user) -> dict:
+        """Two-pass CSV import: discover IDs, then apply results row by row."""
+        display_ids, normalized_ids, rows_processed = cls._discover_csv_sample_ids(
+            uploaded_file
+        )
+        sample_map = cls._build_sample_map(display_ids, normalized_ids)
+
+        created = 0
+        updated = 0
         skipped = 0
-        failed_rows = []
+        touched_samples: set[str] = set()
+        unmatched: set[str] = set()
+        failed_rows: list[dict] = []
 
         for row_number, row in enumerate(cls.iter_csv_rows(uploaded_file), start=1):
-            display_id, sid = cls.extract_row_sample_id(row)
-            if not sid:
+            outcome = cls._process_row(row, row_number, sample_map, user)
+            created += outcome["created"]
+            updated += outcome["updated"]
+            if outcome["skipped"]:
                 skipped += 1
-                continue
-
-            sample = sample_map.get(sid)
-            if not sample:
-                unmatched.add(display_id or sid)
-                failed_rows.append(
-                    {
-                        "row_number": row_number,
-                        "sample_id": display_id or sid,
-                        "error": "Sample ID not found in system.",
-                        "row_data": row,
-                    }
-                )
-                skipped += 1
-                continue
-
-            results = cls.extract_results_from_row(row)
-            if not results:
-                skipped += 1
-                continue
-
-            try:
-                with transaction.atomic():
-                    # Lock the sample to prevent concurrent modifications
-                    sample = Sample.objects.select_for_update().get(pk=sample.pk)
-                    created_for_row, updated_for_row = 0, 0
-                    analyzed_at = cls.extract_analyzed_datetime(row)
-
-                    # Keep each source row isolated so one failed row does not
-                    # roll back successfully imported rows from the same file.
-                    # See SAMPLE_IMPORT_FORMAT.md for the response contract.
-                    sample.status = "completed"
-                    sample.updated_by = user
-                    sample.save()
-
-                    notes = "Mycotoxin results imported from CSV."
-                    if analyzed_at:
-                        notes = f"{notes} Analyzed at: {analyzed_at}"
-                    # Avoid creating duplicate completed logs
-                    if not sample.process_logs.filter(state='completed').exists():
-                        ProcessLog._default_manager.create(
-                            sample=sample,
-                            state="completed",
-                            conducted_by=user.username,
-                            notes=notes,
-                        )
-
-                    for payload in results:
-                        existing = sample.mycotoxin_results.filter(
-                            toxin_type=payload["toxin_type"]
-                        ).first()
-                        if existing:
-                            existing.value = payload["value"]
-                            existing.unit = payload["unit"]
-                            existing.notes = payload["notes"]
-                            existing.save()
-                            updated_for_row += 1
-                        else:
-                            MycotoxinResult._default_manager.create(
-                                sample=sample,
-                                toxin_type=payload["toxin_type"],
-                                value=payload["value"],
-                                unit=payload["unit"],
-                                notes=payload["notes"],
-                            )
-                            created_for_row += 1
-
-                    touched_samples.add(sample.sample_id)
-                    created += created_for_row
-                    updated += updated_for_row
-            except Exception as exc:
-                skipped += 1
-                failed_rows.append(
-                    {
-                        "row_number": row_number,
-                        "sample_id": display_id or sid,
-                        "error": str(exc),
-                        "row_data": row,  # Store the raw dictionary for potential CSV export
-                    }
-                )
-                logger.warning(
-                    "sample.bulk_import_results.row_failed",
-                    extra={
-                        "row": row_number,
-                        "sample_id": display_id or sid,
-                        "error": str(exc),
-                    },
-                )
+            if outcome["unmatched"]:
+                unmatched.add(outcome["unmatched"])
+            if outcome["failed_row"]:
+                failed_rows.append(outcome["failed_row"])
+            if outcome["sample_id"]:
+                touched_samples.add(outcome["sample_id"])
 
         return {
             "created": created,
@@ -446,11 +495,11 @@ class SampleIngestionService:
 
         # Sort fieldnames but keep 'import_error' and 'row_number' as first columns
         header = ["row_number", "import_error"] + sorted(list(fieldnames))
-        
+
         output = StringIO()
         writer = csv.DictWriter(output, fieldnames=header)
         writer.writeheader()
-        
+
         for entry in failed_rows:
             row_to_write = {
                 "row_number": entry.get("row_number"),
@@ -459,5 +508,5 @@ class SampleIngestionService:
             # Spread the original row data
             row_to_write.update(entry.get("row_data", {}))
             writer.writerow(row_to_write)
-            
+
         return output.getvalue()

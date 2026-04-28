@@ -324,10 +324,13 @@ CORS_ALLOW_CREDENTIALS = True
 
 _LOCAL_ORIGINS = [
     "https://d27isnumffqap.cloudfront.net",
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-    "http://localhost:3000",
 ]
+if DEBUG:
+    _LOCAL_ORIGINS += [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",
+    ]
 _ENV_ORIGINS = [
     o.strip()
     for o in os.environ.get("CORS_ALLOWED_ORIGINS", "").split(",")

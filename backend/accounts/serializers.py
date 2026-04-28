@@ -1,5 +1,7 @@
 from typing import Any
 
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
@@ -177,6 +179,13 @@ class RegisterSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 {"password": "Password fields didn't match."}
             )
+
+        # Enforce Django password validators (MinimumLength, CommonPassword, etc.)
+        try:
+            validate_password(attrs["password"], user=None)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError({"password": list(exc.messages)})
+
         return attrs
 
     def create(self, validated_data):
@@ -242,6 +251,13 @@ class PasswordResetSerializer(serializers.Serializer):
             raise serializers.ValidationError(
                 {"confirm_password": "Passwords do not match."}
             )
+
+        # Enforce Django password validators
+        try:
+            validate_password(attrs["new_password"], user=None)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError({"new_password": list(exc.messages)})
+
         return attrs
 
 

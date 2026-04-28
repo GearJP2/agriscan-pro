@@ -211,111 +211,118 @@ def _issue_login_response(
     return response
 
 
+def _bad_request(detail: str) -> Response:
+    """Return a 400 response with a uniform shape."""
+    return Response({"detail": detail}, status=status.HTTP_400_BAD_REQUEST)
+
+
+def _extract_callback_inputs(request) -> tuple[str, str, str | None] | Response:
+    """Pull the required code/state and optional code_verifier from the request."""
+    code = request.data.get("code")
+    state = request.data.get("state")
+    code_verifier = request.data.get("code_verifier")
+    if not code or not state:
+        return _bad_request("Missing code or state parameter.")
+    return code, state, code_verifier
+
+
+def _consume_oauth_state(state: str) -> dict | Response:
+    """Validate and one-time-consume the OAuth state."""
+    state_data = validate_and_consume_oauth_state(state)
+    if state_data is None:
+        return _bad_request("Invalid or expired OAuth state.")
+    return state_data
+
+
+def _fetch_google_user_info(code: str, code_verifier: str | None) -> dict | Response:
+    """Exchange the auth code for tokens and fetch the user's Google profile."""
+    google_tokens = get_google_token(code, code_verifier=code_verifier)
+    if not google_tokens:
+        return _bad_request("Failed to exchange authorization code.")
+
+    access_token = google_tokens.get("access_token")
+    if not access_token:
+        return _bad_request("Google did not return an access token.")
+
+    user_info = get_google_user_info(access_token)
+    if not user_info:
+        return _bad_request("Failed to fetch user information.")
+    return user_info
+
+
+def _resolve_user_for_intent(
+    state_data: dict, user_info: dict
+) -> tuple[Any, str, str | None] | Response:
+    """Return (user, flow, detail) for the requested intent, or a 400 Response."""
+    intent = state_data.get("intent", OAUTH_INTENT_LOGIN)
+
+    if intent == OAUTH_INTENT_LINK:
+        user = User.objects.filter(id=state_data.get("link_user_id")).first()
+        if not user:
+            return _bad_request("Linking session expired. Please try again.")
+        try:
+            link_google_identity_to_authenticated_user(user, user_info)
+        except AuthLinkingError as exc:
+            return _bad_request(str(exc))
+        return user, OAUTH_INTENT_LINK, "Google account linked successfully."
+
+    try:
+        user = resolve_user_for_google_sign_in(user_info)
+    except AuthLinkingError as exc:
+        return _bad_request(str(exc))
+    return user, OAUTH_INTENT_LOGIN, None
+
+
+def _reject_inactive(user) -> Response | None:
+    """Return 403 if the resolved user has been deactivated."""
+    if user.is_active:
+        return None
+    logger.warning(
+        "auth.google.inactive_user_rejected",
+        extra={"user_id": user.id, "email": user.email},
+    )
+    return Response(
+        {"detail": "This account is inactive."},
+        status=status.HTTP_403_FORBIDDEN,
+    )
+
+
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def google_oauth_callback(request):
-    """
-    Exchange a Google auth code for an application JWT session.
-
-    Expected body:
-    {
-        "code": "...",
-        "state": "...",
-        "code_verifier": "..." (optional)
-    }
-    """
+    """Exchange a Google auth code for an application JWT session."""
     try:
         config_error = _require_google_oauth_config()
         if config_error is not None:
             return config_error
 
-        code = request.data.get("code")
-        state = request.data.get("state")
-        code_verifier = request.data.get("code_verifier")
+        inputs = _extract_callback_inputs(request)
+        if isinstance(inputs, Response):
+            return inputs
+        code, state, code_verifier = inputs
 
-        if not code or not state:
-            return Response(
-                {"detail": "Missing code or state parameter."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        state_data = _consume_oauth_state(state)
+        if isinstance(state_data, Response):
+            return state_data
 
-        state_data = validate_and_consume_oauth_state(state)
-        if state_data is None:
-            return Response(
-                {"detail": "Invalid or expired OAuth state."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        user_info = _fetch_google_user_info(code, code_verifier)
+        if isinstance(user_info, Response):
+            return user_info
 
-        google_tokens = get_google_token(code, code_verifier=code_verifier)
-        if not google_tokens:
-            return Response(
-                {"detail": "Failed to exchange authorization code."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        resolved = _resolve_user_for_intent(state_data, user_info)
+        if isinstance(resolved, Response):
+            return resolved
+        user, flow, detail = resolved
 
-        google_access_token = google_tokens.get("access_token")
-        if not google_access_token:
-            return Response(
-                {"detail": "Google did not return an access token."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        user_info = get_google_user_info(google_access_token)
-        if not user_info:
-            return Response(
-                {"detail": "Failed to fetch user information."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        intent = state_data.get("intent", OAUTH_INTENT_LOGIN)
-        user = None
-        flow = OAUTH_INTENT_LOGIN
-        detail: str | None = None
-
-        if intent == OAUTH_INTENT_LINK:
-            link_user_id = state_data.get("link_user_id")
-            user = User.objects.filter(id=link_user_id).first()
-            if not user:
-                return Response(
-                    {"detail": "Linking session expired. Please try again."},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            try:
-                link_google_identity_to_authenticated_user(user, user_info)
-            except AuthLinkingError as exc:
-                return Response(
-                    {"detail": str(exc)},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-            flow = OAUTH_INTENT_LINK
-            detail = "Google account linked successfully."
-        else:
-            try:
-                user = resolve_user_for_google_sign_in(user_info)
-            except AuthLinkingError as exc:
-                return Response(
-                    {"detail": str(exc)},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-        if not user.is_active:
-            logger.warning(
-                "auth.google.inactive_user_rejected",
-                extra={"user_id": user.id, "email": user.email},
-            )
-            return Response(
-                {"detail": "This account is inactive."},
-                status=status.HTTP_403_FORBIDDEN,
-            )
-
-        response = _issue_login_response(user, flow=flow, detail=detail)
+        inactive_response = _reject_inactive(user)
+        if inactive_response is not None:
+            return inactive_response
 
         logger.info(
             "auth.google.callback_success",
             extra={"user_id": user.id, "email": user.email, "flow": flow},
         )
-        return response
+        return _issue_login_response(user, flow=flow, detail=detail)
     except Exception as exc:  # noqa: BLE001
         logger.error(
             "auth.google.callback_unhandled_error",

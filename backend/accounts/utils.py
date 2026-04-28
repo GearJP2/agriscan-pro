@@ -53,8 +53,6 @@ class RateLimiter:
         """Get remaining time for the rate limit in seconds."""
         # Django's cache backend doesn't expose TTL; return None to indicate unknown
         return None
-        cache_key = f"ratelimit:{key}"
-        return cache.ttl(cache_key)
 
 class AttemptLimiter:
     """

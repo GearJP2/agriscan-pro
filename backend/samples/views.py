@@ -2,7 +2,7 @@ import logging
 
 from celery.result import AsyncResult
 from django.db import IntegrityError, transaction
-from django.db.models import Count, Exists, OuterRef, Q
+from django.db.models import Count, Q
 from rest_framework.decorators import action
 from rest_framework import filters, status, viewsets
 from rest_framework.permissions import IsAuthenticated
@@ -12,7 +12,8 @@ from core.exceptions import SampleAlreadyExists
 from core.models import AuditLog
 from core.permissions import IsAdmin, IsOwnerOrAdmin
 
-from .models import MycotoxinResult, ProcessLog, Sample
+from .filters import apply_sample_filters
+from .models import ProcessLog, Sample
 from .services.ingestion_service import SampleIngestionService
 from .services.sample_service import SampleService
 from .services.s3_service import generate_upload_url
@@ -65,71 +66,7 @@ class SampleViewSet(viewsets.ModelViewSet):
         return SampleSerializer
 
     def get_queryset(self):
-        queryset = super().get_queryset()
-
-        # Filter by status
-        status_param = self.request.query_params.get('status')
-        if status_param:
-            statuses = status_param.split(',')
-            queryset = queryset.filter(status__in=statuses)
-
-        # Filter by region
-        region = self.request.query_params.get('region')
-        if region:
-            queryset = queryset.filter(region=region)
-
-        # Filter by province
-        province = self.request.query_params.get('province')
-        if province:
-            queryset = queryset.filter(province=province)
-
-        # Filter by vegetation variety
-        vegetation = self.request.query_params.get('vegetation')
-        if vegetation:
-            queryset = queryset.filter(vegetation_variety=vegetation)
-
-        # Filter by date range
-        date_from = self.request.query_params.get('date_from')
-        if date_from:
-            queryset = queryset.filter(collection_date__gte=date_from)
-
-        date_to = self.request.query_params.get('date_to')
-        if date_to:
-            queryset = queryset.filter(collection_date__lte=date_to)
-
-        risk_level = self.request.query_params.get('risk_level')
-        if risk_level:
-            requested_levels = set(risk_level.split(','))
-            risk_filter = Q()
-            if 'high' in requested_levels:
-                risk_filter |= Exists(
-                    MycotoxinResult.objects.filter(
-                        sample=OuterRef('pk'),
-                        risk_level__in=['high', 'critical']
-                    )
-                )
-            if requested_levels.intersection({'low', 'medium'}):
-                risk_filter |= Exists(
-                    MycotoxinResult.objects.filter(
-                        sample=OuterRef('pk'),
-                        risk_level='detected'
-                    )
-                )
-            if 'safe' in requested_levels:
-                risk_filter |= (
-                    Exists(
-                        MycotoxinResult.objects.filter(
-                            sample=OuterRef('pk'),
-                            risk_level='safe'
-                        )
-                    )
-                    | ~Exists(MycotoxinResult.objects.filter(sample=OuterRef('pk')))
-                )
-
-            if risk_filter:
-                queryset = queryset.filter(risk_filter)
-
-        return queryset
+        return apply_sample_filters(super().get_queryset(), self.request.query_params)
 
     def perform_create(self, serializer):
         sample = serializer.save(updated_by=self.request.user)
