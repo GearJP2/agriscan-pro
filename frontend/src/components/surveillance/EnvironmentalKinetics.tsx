@@ -6,7 +6,7 @@ export default function EnvironmentalKinetics() {
   return (
     <Card className="glass-card overflow-hidden relative border-2 border-border dark:border-border/50 bg-card dark:bg-card rounded-2xl shadow-none">
       <CardHeader className="pb-4 px-6 pt-5 bg-card dark:bg-card border-b border-border/5 shadow-none">
-        <CardTitle className="text-xl flex items-center gap-2 font-black uppercase tracking-tighter text-slate-900 dark:text-white">
+        <CardTitle className="text-xl flex items-center gap-2 font-black tracking-tight text-slate-900 dark:text-white">
           <CloudRain className="w-5 h-5 text-primary" />
           Environmental Kinetics (TMD)
         </CardTitle>
@@ -27,7 +27,7 @@ export default function EnvironmentalKinetics() {
           <div className="mx-auto bg-amber-500/10 text-amber-500 p-3 rounded-full w-12 h-12 flex items-center justify-center">
             <AlertCircle className="w-6 h-6" />
           </div>
-          <h4 className="font-black uppercase tracking-tighter text-slate-900 dark:text-white">API Connection Required</h4>
+          <h4 className="font-black tracking-tight text-slate-900 dark:text-white">API Connection Required</h4>
           <p className="text-[11px] text-slate-600 dark:text-slate-400 font-bold leading-relaxed">
             This module requires connection to the Thai Meteorological Department (TMD) API to generate moisture vs. mycotoxin kinetic correlation plots.
           </p>

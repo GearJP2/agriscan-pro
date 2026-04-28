@@ -71,7 +71,7 @@ export default function ToxinDistributionChart({ data, useBarChart }: ToxinDistr
     return (
       <div className="w-full h-full min-h-[300px]">
         <ResponsiveContainer width="100%" height="100%">
-          <RechartsBarChart data={orderedData} margin={{ top: 20, right: 30, left: -20, bottom: 20 }}>
+          <RechartsBarChart data={orderedData} margin={{ top: 20, right: 30, left: 10, bottom: 50 }}>
             <defs>
               <linearGradient id="bar-g1" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor={COLORS.g1[0]} stopOpacity={0.9}/>
@@ -98,12 +98,14 @@ export default function ToxinDistributionChart({ data, useBarChart }: ToxinDistr
               tickLine={false}
               dy={15}
               tickFormatter={(val) => `${val} Toxin${val !== '1' ? 's' : ''}`}
+              label={{ value: 'Number of toxins per sample', position: 'insideBottom', offset: -25, fill: isDark ? '#94a3b8' : '#64748b', fontSize: 11 }}
             />
             <YAxis 
               tick={{ fill: isDark ? '#94a3b8' : '#64748b', fontSize: 11, fontWeight: 'bold' }} 
               axisLine={false}
               tickLine={false}
               dx={-5}
+              label={{ value: '% of positive samples', angle: -90, position: 'insideLeft', offset: 20, fill: isDark ? '#94a3b8' : '#64748b', fontSize: 11 }}
             />
             <Tooltip 
               contentStyle={tooltipStyle}

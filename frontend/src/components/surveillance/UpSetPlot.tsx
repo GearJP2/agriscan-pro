@@ -62,7 +62,7 @@ export default function UpSetPlot({ intersections, toxinColors }: UpSetPlotProps
           {allToxins.map(toxin => (
             <div 
               key={toxin} 
-              className="text-[10px] font-black text-right pr-6 truncate uppercase tracking-tighter" 
+              className="text-[10px] font-black text-right pr-6 truncate tracking-tight" 
               style={{ color: toxinColors[toxin] || (isDark ? '#94a3b8' : '#475569') }}
             >
               {toxin}

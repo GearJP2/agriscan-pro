@@ -21,6 +21,11 @@ import {
   Shield,
   Mail,
   Lock,
+  Workflow,
+  Scale,
+  Microscope,
+  ArrowRight,
+  Info,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -34,6 +39,7 @@ type SectionId =
   | 'dashboard'
   | 'samplelist'
   | 'prediction'
+  | 'workflow'
   | 'account'
   | 'api';
 
@@ -75,6 +81,18 @@ const NAV_ITEMS: NavItem[] = [
     labelEn: 'Prediction',
     labelTh: 'การทำนาย',
     icon: <TrendingUp className="h-4 w-4" />,
+  },
+  {
+    id: 'workflow',
+    labelEn: 'Workflow Guide',
+    labelTh: 'คู่มือขั้นตอนงานวิจัย',
+    icon: <Workflow className="h-4 w-4" />,
+    children: [
+      { id: 'workflow-steps', labelEn: 'Sample Workflow', labelTh: 'ขั้นตอนตัวอย่าง' },
+      { id: 'workflow-risk', labelEn: 'Interpreting Results', labelTh: 'การอ่านผลและความเสี่ยง' },
+      { id: 'workflow-thresholds', labelEn: 'EU Thresholds', labelTh: 'เกณฑ์มาตรฐาน EU' },
+      { id: 'workflow-dashboard', labelEn: 'Using the Dashboard', labelTh: 'วิธีใช้แดชบอร์ด' },
+    ],
   },
   {
     id: 'account',
@@ -502,6 +520,348 @@ const Doc = () => {
                       <FeatureCard lang={lang} icon={<TrendingUp className="h-4 w-4" />} en="Risk Forecast by Region" th="พยากรณ์ความเสี่ยงตามพื้นที่" badge="Planned" badgeTh="วางแผนไว้" />
                       <FeatureCard lang={lang} icon={<FlaskConical className="h-4 w-4" />} en="Contamination Trend Analysis" th="วิเคราะห์แนวโน้มการปนเปื้อน" badge="Planned" badgeTh="วางแผนไว้" />
                     </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </section>
+
+            {/* ══ WORKFLOW GUIDE ══ */}
+            <section id="workflow">
+              <SectionTitle
+                en="Workflow Guide"
+                th="คู่มือขั้นตอนงานวิจัย"
+                icon={<Workflow className="h-6 w-6" />}
+                lang={lang}
+              />
+              <Divider />
+
+              {/* 1. Sample Workflow Steps */}
+              <div id="workflow-steps" className="space-y-6 mb-10">
+                <SubTitle en="1. Sample Workflow" th="1. ขั้นตอนการทำงานกับตัวอย่าง" lang={lang} />
+                <Txt
+                  lang={lang}
+                  en="Every sample in AgriScan Pro follows a structured lifecycle from registration to final risk report. The steps below describe the responsibilities at each stage."
+                  th="ตัวอย่างทุกชิ้นใน AgriScan Pro มีวงจรชีวิตที่กำหนดไว้ชัดเจน ตั้งแต่การลงทะเบียนไปจนถึงรายงานความเสี่ยงฉบับสุดท้าย ขั้นตอนด้านล่างอธิบายหน้าที่ความรับผิดชอบในแต่ละช่วง"
+                />
+
+                {/* Step Timeline */}
+                <div className="space-y-3">
+                  {[
+                    {
+                      step: '1',
+                      en: 'Sample Registration',
+                      th: 'ลงทะเบียนตัวอย่าง',
+                      descEn: 'Researcher or Research Assistant creates a new sample entry. The system auto-generates a Sample ID (e.g. r-20250429-001). Status is set to Pending.',
+                      descTh: 'นักวิจัยหรือผู้ช่วยวิจัยสร้างรายการตัวอย่างใหม่ ระบบสร้าง Sample ID อัตโนมัติ (เช่น r-20250429-001) และกำหนดสถานะเป็น Pending',
+                      icon: <Upload className="h-4 w-4" />,
+                      color: 'bg-blue-500/10 border-blue-500/30 text-blue-600 dark:text-blue-400',
+                    },
+                    {
+                      step: '2',
+                      en: 'Laboratory Analysis',
+                      th: 'ส่งวิเคราะห์ในห้องปฏิบัติการ',
+                      descEn: 'Sample status is updated to In Progress. The sample is physically sent to the lab for mycotoxin analysis. A researcher updates the status to reflect this.',
+                      descTh: 'อัปเดตสถานะตัวอย่างเป็น In Progress ส่งตัวอย่างไปยังห้องแล็บเพื่อวิเคราะห์ไมโคทอกซิน นักวิจัยอัปเดตสถานะให้สอดคล้องกัน',
+                      icon: <Microscope className="h-4 w-4" />,
+                      color: 'bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400',
+                    },
+                    {
+                      step: '3',
+                      en: 'Record Mycotoxin Results',
+                      th: 'บันทึกผลไมโคทอกซิน',
+                      descEn: 'After lab analysis, the researcher records the concentration (µg/kg) for each detected toxin via the Sample Detail panel or bulk import from CSV. Results below the limit of detection are marked as <LOD.',
+                      descTh: 'หลังจากวิเคราะห์ในห้องแล็บ นักวิจัยบันทึกค่าความเข้มข้น (µg/kg) ของแต่ละสารพิษผ่านหน้ารายละเอียดตัวอย่าง หรือนำเข้าจำนวนมากจาก CSV ผลที่ต่ำกว่าขีดจำกัดการตรวจสอบจะระบุว่า <LOD',
+                      icon: <FlaskConical className="h-4 w-4" />,
+                      color: 'bg-purple-500/10 border-purple-500/30 text-purple-600 dark:text-purple-400',
+                    },
+                    {
+                      step: '4',
+                      en: 'Automatic Risk Classification',
+                      th: 'ระบบประเมินความเสี่ยงอัตโนมัติ',
+                      descEn: 'The system compares recorded values against EU threshold guidelines (Gruber-Dorninger et al. 2019) and assigns a risk status: Detected, High, Critical, or Unclassified. Samples exceeding the high threshold are automatically flagged.',
+                      descTh: 'ระบบเปรียบเทียบค่าที่บันทึกกับแนวทาง EU threshold (Gruber-Dorninger et al. 2019) และกำหนดสถานะความเสี่ยง: Detected, High, Critical หรือ Unclassified ตัวอย่างที่เกินเกณฑ์สูงจะถูก Flag อัตโนมัติ',
+                      icon: <Scale className="h-4 w-4" />,
+                      color: 'bg-orange-500/10 border-orange-500/30 text-orange-600 dark:text-orange-400',
+                    },
+                    {
+                      step: '5',
+                      en: 'Completed / Flagged',
+                      th: 'เสร็จสิ้น / ถูกแจ้งเตือน',
+                      descEn: 'Sample status is set to Completed (safe or low risk) or Flagged (high/critical). Flagged samples appear in the Dashboard Action Items and require follow-up by a Head Researcher or Administrator.',
+                      descTh: 'สถานะตัวอย่างถูกกำหนดเป็น Completed (ปลอดภัยหรือความเสี่ยงต่ำ) หรือ Flagged (สูง/วิกฤต) ตัวอย่างที่ถูก Flag จะปรากฏใน Dashboard Action Items และต้องได้รับการติดตามจากนักวิจัยอาวุโสหรือผู้ดูแลระบบ',
+                      icon: <Flag className="h-4 w-4" />,
+                      color: 'bg-red-500/10 border-red-500/30 text-red-600 dark:text-red-400',
+                    },
+                  ].map((s, idx, arr) => (
+                    <div key={s.step} className="flex gap-3">
+                      <div className="flex flex-col items-center">
+                        <div className={cn('flex-shrink-0 h-8 w-8 rounded-full border flex items-center justify-center font-bold text-sm', s.color)}>
+                          {s.icon}
+                        </div>
+                        {idx < arr.length - 1 && (
+                          <div className="flex-1 w-px bg-border/50 my-1" />
+                        )}
+                      </div>
+                      <div className="flex-1 pb-4">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-xs text-muted-foreground font-mono">Step {s.step}</span>
+                          <span className="text-sm font-semibold text-foreground">{lang === 'en' ? s.en : s.th}</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground leading-relaxed">{lang === 'en' ? s.descEn : s.descTh}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Status badges quick ref */}
+                <Card className="glass-card">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base">{t('Quick Status Reference', 'สรุปสถานะตัวอย่าง')}</CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-4 pt-0">
+                    <div className="flex flex-wrap gap-2 text-xs">
+                      {[
+                        { en: 'Pending', th: 'รอดำเนินการ', cls: 'bg-muted text-foreground border-border' },
+                        { en: 'In Progress', th: 'กำลังวิเคราะห์', cls: 'bg-amber-500/10 text-amber-600 border-amber-500/30' },
+                        { en: 'Completed', th: 'เสร็จสิ้น', cls: 'bg-green-500/10 text-green-600 border-green-500/30' },
+                        { en: 'Flagged', th: 'ถูกแจ้งเตือน ⚑', cls: 'bg-red-500/10 text-red-600 border-red-500/30' },
+                      ].map((s) => (
+                        <span key={s.en} className={cn('px-2.5 py-1 rounded-full border font-medium', s.cls)}>
+                          {lang === 'en' ? s.en : s.th}
+                        </span>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* 2. Interpreting Results */}
+              <div id="workflow-risk" className="space-y-6 mb-10">
+                <SubTitle en="2. Interpreting Results & Risk Levels" th="2. การอ่านผลและระดับความเสี่ยง" lang={lang} />
+                <Txt
+                  lang={lang}
+                  en="Each mycotoxin result is classified into one of four risk statuses based on its measured concentration versus the EU reference thresholds."
+                  th="ผลไมโคทอกซินแต่ละรายการถูกจัดประเภทออกเป็น 4 สถานะความเสี่ยง โดยอ้างอิงจากความเข้มข้นที่วัดได้เปรียบเทียบกับเกณฑ์ EU"
+                />
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {[
+                    {
+                      status: 'detected',
+                      labelEn: 'Detected — Below EU Low Limit',
+                      labelTh: 'Detected — ต่ำกว่าเกณฑ์ EU (ระดับต่ำ)',
+                      descEn: 'Toxin was found but the concentration is below the EU low-limit guideline. No immediate action required; continue monitoring.',
+                      descTh: 'พบสารพิษแต่ค่าความเข้มข้นยังต่ำกว่าเกณฑ์ EU ระดับต่ำ ไม่จำเป็นต้องดำเนินการทันที แต่ควรติดตาม',
+                      color: 'border-blue-500/30 bg-blue-500/5',
+                      badge: 'bg-blue-500/10 text-blue-600',
+                    },
+                    {
+                      status: 'high',
+                      labelEn: 'High — Exceeds EU Low Limit',
+                      labelTh: 'High — เกินเกณฑ์ EU ระดับต่ำ',
+                      descEn: 'Concentration exceeds the low-limit threshold. Monitor closely and evaluate whether additional action is needed.',
+                      descTh: 'ค่าความเข้มข้นเกินเกณฑ์ EU ระดับต่ำ ต้องติดตามอย่างใกล้ชิดและพิจารณาว่าต้องดำเนินการเพิ่มเติมหรือไม่',
+                      color: 'border-amber-500/30 bg-amber-500/5',
+                      badge: 'bg-amber-500/10 text-amber-600',
+                    },
+                    {
+                      status: 'critical',
+                      labelEn: 'Critical — Exceeds EU High Limit',
+                      labelTh: 'Critical — เกินเกณฑ์ EU ระดับสูง',
+                      descEn: 'Concentration exceeds the high-limit threshold. Sample is automatically flagged. Immediate review by Head Researcher required.',
+                      descTh: 'ค่าความเข้มข้นเกินเกณฑ์ EU ระดับสูง ตัวอย่างถูก Flag อัตโนมัติ ต้องให้นักวิจัยอาวุโสตรวจสอบทันที',
+                      color: 'border-red-500/30 bg-red-500/5',
+                      badge: 'bg-red-500/10 text-red-600',
+                    },
+                    {
+                      status: 'unclassified',
+                      labelEn: 'Unclassified — No Threshold Data',
+                      labelTh: 'Unclassified — ไม่มีข้อมูลเกณฑ์',
+                      descEn: 'No EU threshold reference exists for this toxin type (e.g. T-2, AFG1, AFG2, AFM1). The sample is flagged as a precaution.',
+                      descTh: 'ไม่มีเกณฑ์ EU สำหรับสารพิษชนิดนี้ (เช่น T-2, AFG1, AFG2, AFM1) ตัวอย่างถูก Flag ไว้ก่อนเป็นมาตรการป้องกัน',
+                      color: 'border-slate-500/30 bg-slate-500/5',
+                      badge: 'bg-slate-500/10 text-slate-600',
+                    },
+                  ].map((r) => (
+                    <div key={r.status} className={cn('rounded-xl border p-4 space-y-2', r.color)}>
+                      <div className="flex items-center gap-2">
+                        <span className={cn('px-2 py-0.5 rounded-full text-xs font-bold font-mono', r.badge)}>
+                          {r.status.toUpperCase()}
+                        </span>
+                      </div>
+                      <p className="text-sm font-semibold text-foreground">{lang === 'en' ? r.labelEn : r.labelTh}</p>
+                      <p className="text-xs text-muted-foreground leading-relaxed">{lang === 'en' ? r.descEn : r.descTh}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <Card className="glass-card border-primary/20">
+                  <CardContent className="p-4 flex gap-3">
+                    <Info className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
+                    <Txt
+                      lang={lang}
+                      className="text-xs"
+                      en="The Surveillance Dashboard's severity bar chart uses % of samples above threshold per commodity: <25% = yellow, 25–50% = amber, 50–75% = red, >75% = dark red. Bars show the count of above-threshold samples stacked on total samples."
+                      th="กราฟแท่งในหน้า Surveillance ใช้ % ของตัวอย่างที่เกินเกณฑ์ต่อสินค้า: <25% = เหลือง, 25–50% = อำพัน, 50–75% = แดง, >75% = แดงเข้ม แท่งแสดงจำนวนตัวอย่างที่เกินเกณฑ์ซ้อนทับบนจำนวนตัวอย่างทั้งหมด"
+                    />
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* 3. EU Thresholds */}
+              <div id="workflow-thresholds" className="space-y-6 mb-10">
+                <SubTitle en="3. EU Threshold Reference Table" th="3. ตารางเกณฑ์มาตรฐาน EU" lang={lang} />
+                <Txt
+                  lang={lang}
+                  en="Thresholds are sourced from Gruber-Dorninger et al. 2019, Toxins 11, 375, Table 2 (EU guidance values for animal feed). Units are µg/kg (= ppb)."
+                  th="เกณฑ์อ้างอิงจาก Gruber-Dorninger et al. 2019, Toxins 11, 375, Table 2 (ค่าแนะนำ EU สำหรับอาหารสัตว์) หน่วยคือ µg/kg (= ppb)"
+                />
+
+                <Card className="glass-card">
+                  <CardContent className="p-0">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-border/50">
+                            <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground">{t('Toxin', 'สารพิษ')}</th>
+                            <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground">{t('Full Name', 'ชื่อเต็ม')}</th>
+                            <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground">{t('Low Limit (µg/kg)', 'เกณฑ์ต่ำ (µg/kg)')}</th>
+                            <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground">{t('High Limit (µg/kg)', 'เกณฑ์สูง (µg/kg)')}</th>
+                            <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground">{t('Notes', 'หมายเหตุ')}</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border/30">
+                          {[
+                            { code: 'AFB1', name: 'Aflatoxin B1', low: 5, high: 20, note: '', noteEn: '' },
+                            { code: 'DON', name: 'Deoxynivalenol', low: 900, high: 8000, note: '', noteEn: '' },
+                            { code: 'ZEA', name: 'Zearalenone', low: 100, high: 2000, note: '', noteEn: '' },
+                            { code: 'OTA', name: 'Ochratoxin A', low: 50, high: 250, note: '', noteEn: '' },
+                            { code: 'FB1', name: 'Fumonisin B1', low: null, high: null, noteEn: 'Paper uses total fumonisins (B1+B2+B3); threshold flagged', note: 'อ้างอิงรวม Fumonisin ทั้งหมด (B1+B2+B3); ถูก Flag' },
+                            { code: 'T-2', name: 'T-2 Toxin', low: null, high: null, noteEn: 'No threshold data available', note: 'ไม่มีข้อมูลเกณฑ์' },
+                            { code: 'AFG1', name: 'Aflatoxin G1', low: null, high: null, noteEn: 'Not in source dataset', note: 'ไม่มีในชุดข้อมูลต้นฉบับ' },
+                            { code: 'AFG2', name: 'Aflatoxin G2', low: null, high: null, noteEn: 'Not in source dataset', note: 'ไม่มีในชุดข้อมูลต้นฉบับ' },
+                            { code: 'AFM1', name: 'Aflatoxin M1', low: null, high: null, noteEn: 'No threshold data available', note: 'ไม่มีข้อมูลเกณฑ์' },
+                          ].map((row) => (
+                            <tr key={row.code} className="hover:bg-muted/30 transition-colors">
+                              <td className="px-4 py-3">
+                                <code className="text-primary font-mono text-xs font-bold">{row.code}</code>
+                              </td>
+                              <td className="px-4 py-3 text-xs text-foreground">{row.name}</td>
+                              <td className="px-4 py-3 text-right text-xs">
+                                {row.low !== null ? (
+                                  <span className="font-mono text-amber-600 dark:text-amber-400">{row.low.toLocaleString()}</span>
+                                ) : (
+                                  <span className="text-muted-foreground">—</span>
+                                )}
+                              </td>
+                              <td className="px-4 py-3 text-right text-xs">
+                                {row.high !== null ? (
+                                  <span className="font-mono text-red-600 dark:text-red-400">{row.high.toLocaleString()}</span>
+                                ) : (
+                                  <span className="text-muted-foreground">—</span>
+                                )}
+                              </td>
+                              <td className="px-4 py-3 text-xs text-muted-foreground">{lang === 'en' ? row.noteEn : row.note}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="px-4 py-3 border-t border-border/30">
+                      <p className="text-[11px] text-muted-foreground">
+                        {t(
+                          'Source: Gruber-Dorninger et al. 2019, Toxins 11, 375, Table 2 (EU guidance values for mycotoxins in animal feed).',
+                          'ที่มา: Gruber-Dorninger et al. 2019, Toxins 11, 375, ตาราง 2 (ค่าแนะนำ EU สำหรับไมโคทอกซินในอาหารสัตว์)',
+                        )}
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* 4. Using the Dashboard */}
+              <div id="workflow-dashboard" className="space-y-6">
+                <SubTitle en="4. How to Use the Surveillance Dashboard" th="4. วิธีใช้งานหน้า Surveillance Dashboard" lang={lang} />
+                <Txt
+                  lang={lang}
+                  en="Follow these steps to get the most useful insights from the surveillance dashboard during a research review session."
+                  th="ทำตามขั้นตอนเหล่านี้เพื่อให้ได้ข้อมูลเชิงลึกที่มีประโยชน์ที่สุดจาก dashboard ในการประชุมทบทวนงานวิจัย"
+                />
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {[
+                    {
+                      step: '1',
+                      en: 'Set Filters',
+                      th: 'ตั้งค่าตัวกรอง',
+                      descEn: 'Use the filter bar to select the quarter/date range, toxin types, commodities, and regions you want to analyse. The entire dashboard updates in real-time.',
+                      descTh: 'ใช้แถบตัวกรองเพื่อเลือกไตรมาส/ช่วงเวลา, ชนิดสารพิษ, สินค้า และพื้นที่ที่ต้องการวิเคราะห์ Dashboard ทั้งหมดอัปเดตแบบ Real-time',
+                    },
+                    {
+                      step: '2',
+                      en: 'Review KPI Cards',
+                      th: 'อ่าน KPI Cards',
+                      descEn: 'Check the top KPI row: total samples, % positive, % above threshold, and most common toxin. Trend arrows show week-over-week change.',
+                      descTh: 'ตรวจสอบแถว KPI ด้านบน: จำนวนตัวอย่างทั้งหมด, % บวก, % เกินเกณฑ์ และสารพิษที่พบบ่อยที่สุด ลูกศรแนวโน้มแสดงการเปลี่ยนแปลงสัปดาห์ต่อสัปดาห์',
+                    },
+                    {
+                      step: '3',
+                      en: 'Analyse Charts',
+                      th: 'วิเคราะห์กราฟ',
+                      descEn: 'Explore the Mycotoxin Analysis section (severity bars, commodity risk overlay), Regional Risk Map (choropleth by province), and Co-contamination Analysis (network + distribution).',
+                      descTh: 'สำรวจส่วน Mycotoxin Analysis (กราฟแท่งความรุนแรง, overlay ความเสี่ยงสินค้า), Regional Risk Map (แผนที่ choropleth ตามจังหวัด) และ Co-contamination Analysis (network + distribution)',
+                    },
+                    {
+                      step: '4',
+                      en: 'Export & Report',
+                      th: 'ส่งออกและรายงาน',
+                      descEn: 'Use the Export button in the Sample List to download CSV/XLSX. Filter by Flagged status to get a focused high-risk list for reporting.',
+                      descTh: 'ใช้ปุ่ม Export ในหน้า Sample List เพื่อดาวน์โหลด CSV/XLSX กรองด้วยสถานะ Flagged เพื่อรับรายการความเสี่ยงสูงสำหรับรายงาน',
+                    },
+                  ].map((s) => (
+                    <div key={s.step} className="flex gap-4 p-4 rounded-xl border border-border/50 bg-background/30">
+                      <div className="flex-shrink-0 h-8 w-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-sm">
+                        {s.step}
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-sm font-semibold text-foreground">{lang === 'en' ? s.en : s.th}</p>
+                        <p className="text-xs text-muted-foreground leading-relaxed">{lang === 'en' ? s.descEn : s.descTh}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <Card className="glass-card">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <ArrowRight className="h-4 w-4 text-primary" />
+                      {t('Dashboard Navigation Tips', 'เคล็ดลับการใช้งาน Dashboard')}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-4 pt-0 space-y-2">
+                    {[
+                      {
+                        en: 'Click on any province in the Regional Risk Map to drill down into province-level data.',
+                        th: 'คลิกที่จังหวัดใดก็ได้บนแผนที่เพื่อดูข้อมูลระดับจังหวัด',
+                      },
+                      {
+                        en: 'Toggle the map between "% Positive" and "Positive sample count" views using the top-right buttons.',
+                        th: 'สลับแผนที่ระหว่างมุมมอง "% Positive" และ "จำนวนตัวอย่างบวก" โดยใช้ปุ่มมุมขวาบน',
+                      },
+                      {
+                        en: 'Hover the ⓘ icon on any chart title to read a description of what the chart shows.',
+                        th: 'วางเมาส์บนไอคอน ⓘ ที่หัวข้อกราฟเพื่ออ่านคำอธิบายว่ากราฟแสดงข้อมูลอะไร',
+                      },
+                      {
+                        en: 'In the Co-contamination section, if no co-occurrence network appears, it means no sample in the current filter has two or more selected toxins simultaneously.',
+                        th: 'ในส่วน Co-contamination หากไม่มี network ปรากฏ หมายความว่าไม่มีตัวอย่างใดในตัวกรองปัจจุบันที่มีสารพิษที่เลือกตั้งแต่ 2 ชนิดขึ้นไปพร้อมกัน',
+                      },
+                    ].map((tip, i) => (
+                      <div key={i} className="flex gap-2 text-xs text-muted-foreground">
+                        <span className="flex-shrink-0 text-primary font-bold">·</span>
+                        <span>{lang === 'en' ? tip.en : tip.th}</span>
+                      </div>
+                    ))}
                   </CardContent>
                 </Card>
               </div>

@@ -13,10 +13,10 @@ export default function PublicHealthSummary({ summary }: { summary: HealthSummar
 
             <div className="space-y-6">
               <div className="flex items-center justify-between gap-4">
-                <h3 className="text-lg font-black text-foreground uppercase tracking-tight">Key Risk Drivers</h3>
+                <h3 className="text-lg font-black text-foreground tracking-tight">Key Risk Drivers</h3>
                 <div className="inline-flex items-center gap-2 rounded-xl bg-warning/5 border border-warning/20 px-3 py-1.5 shrink-0">
                   <div className="w-1.5 h-1.5 rounded-full bg-warning animate-pulse"></div>
-                  <span className="text-[9px] text-warning font-black uppercase tracking-widest">Engine Active</span>
+                  <span className="text-[9px] text-warning font-black tracking-normal">Engine Active</span>
                 </div>
               </div>
 
@@ -38,7 +38,7 @@ export default function PublicHealthSummary({ summary }: { summary: HealthSummar
             {/* Column 2: Most Affected Commodities */}
             <div className="space-y-6">
               <div className="flex items-center">
-                <h3 className="text-lg font-black text-foreground uppercase tracking-tight">Most Affected Commodities</h3>
+                <h3 className="text-lg font-black text-foreground tracking-tight">Most Affected Commodities</h3>
               </div>
               <div className="space-y-5" aria-label="Affected commodities graph">
                 {affectedCommodities.map((c) => {
@@ -52,11 +52,11 @@ export default function PublicHealthSummary({ summary }: { summary: HealthSummar
                     <div key={c.name} className="group cursor-default">
                       <div className="flex items-end justify-between mb-2">
                         <div className="flex flex-col">
-                          <span className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-0.5">Commodity</span>
+                          <span className="text-[10px] font-black text-muted-foreground tracking-normal mb-0.5">Commodity</span>
                           <span className="text-sm font-bold text-foreground group-hover:text-primary transition-colors">{c.name}</span>
                         </div>
                         <div className="flex flex-col items-end">
-                          <span className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-0.5">Risk Exposure</span>
+                          <span className="text-[10px] font-black text-muted-foreground tracking-normal mb-0.5">Risk Exposure</span>
                           <span className="text-sm font-black text-foreground">{c.pct}%</span>
                         </div>
                       </div>
@@ -84,7 +84,7 @@ export default function PublicHealthSummary({ summary }: { summary: HealthSummar
 
             <div className="space-y-6 font-sans">
               <div className="flex items-center">
-                <h3 className="text-lg font-black text-foreground uppercase tracking-tight">Potentially Impacted</h3>
+                <h3 className="text-lg font-black text-foreground tracking-tight">Potentially Impacted</h3>
               </div>
               <div className="space-y-3" aria-label="Impacted population groups">
                 {impactedPopulations.map((pop) => (
@@ -95,7 +95,7 @@ export default function PublicHealthSummary({ summary }: { summary: HealthSummar
                     <span className="text-sm font-bold text-foreground/90">{pop.group}</span>
                     <span
                       className={cn(
-                        'text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full flex-shrink-0 border',
+                        'text-[10px] font-black tracking-normal px-2.5 py-1 rounded-full flex-shrink-0 border',
                         pop.severity === 'High'
                           ? 'bg-danger/10 text-danger border-danger/20'
                           : 'bg-warning/10 text-warning border-warning/20'

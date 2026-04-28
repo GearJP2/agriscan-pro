@@ -38,7 +38,7 @@ function MultiSelect({
             <button
                 onClick={() => setOpen(!open)}
                 className={cn(
-                    "flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-black uppercase tracking-widest transition-all duration-300 border font-sans",
+                    "flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-black tracking-normal transition-all duration-300 border font-sans",
                     selected.length > 0
                         ? "bg-transparent border-primary text-primary shadow-sm shadow-primary/5"
                         : "bg-muted/50 border-border/40 text-muted-foreground hover:bg-accent hover:border-border"
@@ -108,7 +108,7 @@ function SingleSelect({
             <button
                 onClick={() => setOpen(!open)}
                 className={cn(
-                    "flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-black uppercase tracking-widest transition-all duration-300 border font-sans",
+                    "flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-black tracking-normal transition-all duration-300 border font-sans",
                     "bg-muted/50 border-border/40 text-muted-foreground hover:bg-accent hover:border-border"
                 )}
             >
@@ -126,7 +126,7 @@ function SingleSelect({
                                 setOpen(false);
                             }}
                             className={cn(
-                                "w-full text-left px-4 py-2 text-[11px] font-bold uppercase tracking-widest transition-all",
+                                "w-full text-left px-4 py-2 text-[11px] font-bold tracking-normal transition-all",
                                 selected === opt ? "text-primary bg-transparent border-l-2 border-primary font-black" : "text-slate-600 dark:text-slate-300 hover:bg-accent"
                             )}
                         >
@@ -189,7 +189,7 @@ export default function DashboardFilterBar({ filters, onChange, commodityOptions
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div className="flex items-center gap-2.5">
                         <div>
-                            <span className="text-sm font-black text-black dark:text-white uppercase tracking-[0.2em]">Dashboard Filters</span>
+                            <span className="text-sm font-black text-black dark:text-white tracking-normal">Dashboard Filters</span>
                         </div>
                     </div>
 
@@ -199,22 +199,22 @@ export default function DashboardFilterBar({ filters, onChange, commodityOptions
                         <button
                             onClick={() => setDateOpen(!dateOpen)}
                             className={cn(
-                                "flex items-center gap-2 rounded-full px-8 py-1.5 text-xs font-black uppercase tracking-widest transition-all duration-300 border font-sans",
+                                "flex items-center gap-2 rounded-full px-8 py-1.5 text-xs font-black tracking-normal transition-all duration-300 border font-sans",
                                 "bg-muted/50 border-border/40 text-muted-foreground hover:bg-accent hover:border-border"
                             )}
                         >
                             <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                            <span className="text-[11px] font-black text-foreground uppercase tracking-widest">
+                            <span className="text-[11px] font-black text-foreground tracking-normal">
                                 {filters.dateRange.from || 'START'} <span className="mx-3 opacity-40">—</span> {filters.dateRange.to || 'END'}
                             </span>
                         </button>
 
                         {dateOpen && (
                             <div className="absolute top-full mt-2 left-0 w-80 bg-white dark:bg-slate-900 border border-border/40 rounded-2xl shadow-2xl z-[110] p-5 animate-in fade-in zoom-in-95 duration-200 font-sans">
-                                <span className="block text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-4">Select Date Range</span>
+                                <span className="block text-[10px] font-black text-muted-foreground tracking-normal mb-4">Select Date Range</span>
                                 <div className="space-y-4">
                                     <div className="space-y-1.5">
-                                        <label className="text-[9px] font-black text-muted-foreground uppercase tracking-widest ml-1 font-sans">Start Date</label>
+                                        <label className="text-[9px] font-black text-muted-foreground tracking-normal ml-1 font-sans">Start Date</label>
                                         <input
                                             type="date"
                                             value={filters.dateRange.from}
@@ -223,7 +223,7 @@ export default function DashboardFilterBar({ filters, onChange, commodityOptions
                                         />
                                     </div>
                                     <div className="space-y-1.5">
-                                        <label className="text-[9px] font-black text-muted-foreground uppercase tracking-widest ml-1 font-sans">End Date</label>
+                                        <label className="text-[9px] font-black text-muted-foreground tracking-normal ml-1 font-sans">End Date</label>
                                         <input
                                             type="date"
                                             value={filters.dateRange.to}

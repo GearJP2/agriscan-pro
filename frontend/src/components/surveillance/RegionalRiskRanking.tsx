@@ -54,8 +54,8 @@ export default function RegionalRiskRanking({ onSelectProvince, selectedProvince
     <Card className="glass-card h-full flex flex-col border-2 border-border dark:border-border/50 relative overflow-hidden bg-card dark:bg-card rounded-2xl shadow-none">
       <CardHeader className="pb-3 px-5 pt-5 space-y-2">
         <div className="font-sans">
-          <CardTitle className="text-xl font-black uppercase tracking-tighter text-slate-900 dark:text-white">Regional Risk Ranking</CardTitle>
-          <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-black mt-1 opacity-70">
+          <CardTitle className="text-xl font-black tracking-tight text-slate-900 dark:text-white">Regional Risk Ranking</CardTitle>
+          <p className="text-[10px] text-muted-foreground tracking-normal font-black mt-1 opacity-70">
             {viewMode === 'risk' ? 'Sorted by % Risk Rate' : 'Sorted by Positive Sample Count'}
           </p>
         </div>
@@ -119,7 +119,7 @@ export default function RegionalRiskRanking({ onSelectProvince, selectedProvince
                             {p.province}
                           </span>
                           <span className={cn(
-                            "text-[9px] font-black px-1.5 py-0.5 rounded-md uppercase tracking-widest border",
+                            "text-[9px] font-black px-1.5 py-0.5 rounded-md tracking-normal border",
                             badge.className
                           )}>
                             {badge.label}
@@ -129,13 +129,13 @@ export default function RegionalRiskRanking({ onSelectProvince, selectedProvince
                         {/* Metrics Grid */}
                         <div className="grid grid-cols-2 gap-3">
                           <div className="space-y-0.5">
-                            <p className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-white/30">Risk Rate</p>
+                            <p className="text-[8px] font-black tracking-normal text-slate-400 dark:text-white/30">Risk Rate</p>
                             <p className={cn("text-sm font-black", isSelected ? "text-primary" : "text-slate-700 dark:text-slate-300")}>
                               {p.aboveThresholdPct}%
                             </p>
                           </div>
                           <div className="space-y-0.5">
-                            <p className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-white/30">Pos. Samples</p>
+                            <p className="text-[8px] font-black tracking-normal text-slate-400 dark:text-white/30">Pos. Samples</p>
                             <p className={cn("text-sm font-black", isSelected ? "text-primary" : "text-slate-700 dark:text-slate-300")}>
                               {p.positiveCount}
                             </p>
@@ -145,7 +145,7 @@ export default function RegionalRiskRanking({ onSelectProvince, selectedProvince
                         {/* Footer Info */}
                         <div className="mt-2 pt-2 border-t border-dashed border-border/50 flex items-center justify-between">
                           <span className="text-[9px] text-slate-400 dark:text-white/20 italic font-medium">Dominant Toxin</span>
-                          <span className="text-[9px] font-black text-slate-600 dark:text-white/40 uppercase tracking-tighter">{p.dominantToxin}</span>
+                          <span className="text-[9px] font-black text-slate-600 dark:text-white/40 tracking-tight">{p.dominantToxin}</span>
                         </div>
                       </div>
                     </div>

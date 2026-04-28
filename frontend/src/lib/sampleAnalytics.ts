@@ -695,6 +695,8 @@ export function buildSurveillanceAnalytics(
     .map((commodity) => ({
       commodity: commodity.name,
       pctAbove: Math.round(toPercent(commodity.aboveThresholdCount, commodity.sampleCount)),
+      totalCount: commodity.sampleCount,
+      aboveCount: commodity.aboveThresholdCount,
     }));
 
   const { heatmapData, regions: heatmapRegions } = buildHeatmapData(filteredSamples, topCommodities, overrides);

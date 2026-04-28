@@ -49,7 +49,7 @@ export default function DynamicThresholdControl({ onOverridesChange, commodityOp
         onClick={() => setIsOpen(true)}
       >
         <div className="flex items-center gap-3">
-          <span className="text-xl font-black text-slate-900 dark:text-white tracking-tighter uppercase px-1 font-sans">Threshold Controller</span>
+          <span className="text-xl font-black text-slate-900 dark:text-white tracking-tighter px-1 font-sans">Threshold Controller</span>
         </div>
         
         <div 
@@ -68,7 +68,7 @@ export default function DynamicThresholdControl({ onOverridesChange, commodityOp
           {/* Header Section */}
           <div className="flex justify-between items-center bg-card dark:bg-card backdrop-blur-md p-5 px-6 border-b border-border/40">
             <div className="font-sans">
-              <h3 className="font-black text-xl uppercase tracking-tighter text-slate-900 dark:text-white font-sans">Threshold Controller</h3>
+              <h3 className="font-black text-xl tracking-tight text-slate-900 dark:text-white font-sans">Threshold Controller</h3>
             </div>
             <div className="flex items-center gap-4">
               <button
@@ -79,14 +79,14 @@ export default function DynamicThresholdControl({ onOverridesChange, commodityOp
                   });
                   setOverrides(zeroOverrides);
                 }}
-                className="text-xs font-black text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-500/10 px-4 py-2 rounded-xl transition-all uppercase tracking-widest border border-amber-200 dark:border-amber-500/30"
+                className="text-xs font-black text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-500/10 px-4 py-2 rounded-xl transition-all tracking-normal border border-amber-200 dark:border-amber-500/30"
               >
                 Set All to 0
               </button>
               {isSimulating && (
                 <button
                   onClick={handleReset}
-                  className="text-xs font-black text-rose-500 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 px-4 py-2 rounded-xl transition-all uppercase tracking-widest border border-rose-200 dark:border-rose-500/30"
+                  className="text-xs font-black text-rose-500 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 px-4 py-2 rounded-xl transition-all tracking-normal border border-rose-200 dark:border-rose-500/30"
                 >
                   Reset System
                 </button>
@@ -144,7 +144,7 @@ export default function DynamicThresholdControl({ onOverridesChange, commodityOp
                           {meta.isUncertain && (
                             <div className="flex items-center gap-1">
                               <AlertCircle className="w-2.5 h-2.5 text-rose-500 dark:text-rose-400" />
-                              <span className="text-[9px] text-rose-500 dark:text-rose-400 font-black uppercase tracking-tighter">
+                              <span className="text-[9px] text-rose-500 dark:text-rose-400 font-black tracking-tight">
                                 No official Threshholds
                               </span>
                             </div>
@@ -166,7 +166,7 @@ export default function DynamicThresholdControl({ onOverridesChange, commodityOp
                           )}
                         />
                         <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
-                          <span className="text-[10px] font-black text-slate-400 dark:text-white/40 uppercase tracking-widest">ppb</span>
+                          <span className="text-[10px] font-black text-slate-400 dark:text-white/40 tracking-normal">ppb</span>
                         </div>
                       </div>
 
@@ -184,7 +184,7 @@ export default function DynamicThresholdControl({ onOverridesChange, commodityOp
                     ? "bg-amber-500 animate-pulse"
                     : "bg-emerald-500"
                 )} />
-                <span className="text-[11px] font-black text-slate-600 dark:text-white/70 uppercase tracking-[0.1em]">
+                <span className="text-[11px] font-black text-slate-600 dark:text-white/70 tracking-normal">
                   {isSimulating ? 'Custom Simulation Active' : 'System Standard Compliance'}
                 </span>
               </div>

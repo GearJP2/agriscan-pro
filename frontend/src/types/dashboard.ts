@@ -59,6 +59,8 @@ export interface CommodityShare {
 export interface ThresholdData {
   commodity: string;
   pctAbove: number;
+  totalCount: number;
+  aboveCount: number;
 }
 
 export interface HeatmapCell {

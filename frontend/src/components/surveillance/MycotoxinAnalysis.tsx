@@ -7,16 +7,13 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  PieChart,
-  Pie,
   Cell,
   Legend,
-  ReferenceLine,
 } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useTheme } from 'next-themes';
 import { cn } from '@/lib/utils';
-import { ChevronDown, BarChart2 } from 'lucide-react';
+import { ChevronDown, BarChart2, Info } from 'lucide-react';
 import type { CommodityShare, HeatmapCell, ThresholdData, ToxinScore } from '@/types/dashboard';
 
 const SEVERITY_COLORS: Record<string, string> = {
@@ -25,12 +22,6 @@ const SEVERITY_COLORS: Record<string, string> = {
   medium: '#f59e0b',
   low: '#6b7280',
 };
-
-function barColor(pct: number) {
-  if (pct > 50) return '#ef4444';
-  if (pct > 25) return '#f59e0b';
-  return '#22c55e';
-}
 
 function intensityColor(value: number, isDark: boolean): string {
   if (value > 75) return '#991b1b';
@@ -50,14 +41,39 @@ interface MycotoxinAnalysisProps {
   affectedSampleCount: number;
 }
 
+const COMMODITY_PALETTE = ['#ef4444', '#f59e0b', '#22c55e', '#3b82f6', '#a855f7'];
+
+function ChartInfo({ text }: { text: string }) {
+  const [visible, setVisible] = useState(false);
+  return (
+    <div className="relative inline-block">
+      <button
+        onMouseEnter={() => setVisible(true)}
+        onMouseLeave={() => setVisible(false)}
+        onFocus={() => setVisible(true)}
+        onBlur={() => setVisible(false)}
+        className="ml-2 text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+        aria-label="Chart description"
+        type="button"
+      >
+        <Info className="w-3.5 h-3.5" />
+      </button>
+      {visible && (
+        <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 z-50 w-64 rounded-xl bg-popover border border-border shadow-lg px-3 py-2.5 text-xs text-popover-foreground leading-relaxed pointer-events-none">
+          {text}
+          <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-border" />
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function MycotoxinAnalysis({
   mycotoxinBarData,
-  commodityShare,
   thresholdByCommodity,
   heatmapData,
   heatmapRegions,
   heatmapCommodities,
-  affectedSampleCount,
 }: MycotoxinAnalysisProps) {
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === 'dark';
@@ -71,32 +87,25 @@ export default function MycotoxinAnalysis({
     return { sortedCells: sorted, top3: top, heatmapLookup: lookup };
   }, [heatmapData]);
 
+  // Precompute stacked bar data: aboveCount + remaining per commodity
+  const combinedData = thresholdByCommodity.map((d, i) => ({
+    ...d,
+    remaining: d.totalCount - d.aboveCount,
+    color: COMMODITY_PALETTE[i % COMMODITY_PALETTE.length],
+  }));
+
+  function aboveThresholdColor(pct: number): string {
+    if (pct === 0)  return 'transparent';
+    if (pct < 25)   return '#fde68a'; // light amber
+    if (pct < 50)   return '#f59e0b'; // amber
+    if (pct < 75)   return '#ef4444'; // red
+    return '#991b1b';                  // dark red
+  }
+
   // Theme-aware chart colors
   const gridStroke = isDark ? '#374151' : '#e5e7eb';
   const tickFill = isDark ? '#9ca3af' : '#6b7280';
   const labelFill = isDark ? '#d1d5db' : '#374151';
-  const centerTextFill = isDark ? '#f3f4f6' : '#1f2937';
-  const subTextFill = isDark ? '#9ca3af' : '#6b7280';
-
-  const tooltipStyle: React.CSSProperties = {
-    backgroundColor: isDark ? '#1e293b' : '#ffffff',
-    border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
-    borderRadius: '12px',
-    color: isDark ? '#f8fafc' : '#0f172a',
-    boxShadow: 'none'
-  };
-
-  const tooltipItemStyle: React.CSSProperties = {
-    color: isDark ? '#f8fafc' : '#0f172a'
-  };
-
-  const tooltipLabelStyle: React.CSSProperties = {
-    color: isDark ? '#f8fafc' : '#0f172a',
-    fontWeight: '800',
-    textTransform: 'uppercase',
-    fontSize: '11px',
-    marginBottom: '4px'
-  };
 
   interface TooltipProps {
     active?: boolean;
@@ -104,26 +113,47 @@ export default function MycotoxinAnalysis({
     label?: string;
   }
 
-  const CustomTooltip = ({ active, payload, label }: TooltipProps) => {
+  const ToxinTooltip = ({ active, payload, label }: TooltipProps) => {
     if (active && payload && payload.length) {
       return (
         <div className="bg-white dark:bg-[#1e293b] border-2 border-slate-900/10 dark:border-white/10 p-4 rounded-2xl shadow-2xl backdrop-blur-md">
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 dark:text-white/40 mb-1">
-            {payload[0].payload.name || payload[0].payload.commodity || payload[0].name}
+          <p className="text-[10px] font-black tracking-normal text-slate-500 dark:text-white/40 mb-1">
+            {payload[0].payload.name || label}
           </p>
           <p className="text-lg font-black text-slate-900 dark:text-white leading-tight">
             {payload[0].value}
-            <span className="text-[10px] ml-1.5 opacity-60 font-bold uppercase tracking-widest">
-              {payload[0].dataKey === 'score' ? 'Severity Score' : '% Share/Rate'}
-            </span>
+            <span className="text-[10px] ml-1.5 opacity-60 font-bold tracking-normal">Severity Score</span>
           </p>
-          {label && label !== payload[0].name && (
-            <div className="mt-2 pt-2 border-t border-slate-900/5 dark:border-white/5">
-              <p className="text-[9px] font-black text-primary uppercase tracking-tighter italic">
-                {label}
-              </p>
+        </div>
+      );
+    }
+    return null;
+  };
+
+  const CombinedTooltip = ({ active, payload, label }: TooltipProps) => {
+    if (active && payload && payload.length) {
+      const aboveEntry = payload.find((p: any) => p.dataKey === 'aboveCount');
+      const remainEntry = payload.find((p: any) => p.dataKey === 'remaining');
+      const total = (aboveEntry?.value ?? 0) + (remainEntry?.value ?? 0);
+      const above = aboveEntry?.value ?? 0;
+      const pct = total > 0 ? Math.round((above / total) * 100) : 0;
+      return (
+        <div className="bg-white dark:bg-[#1e293b] border-2 border-slate-900/10 dark:border-white/10 p-4 rounded-2xl shadow-2xl backdrop-blur-md min-w-[180px]">
+          <p className="text-[10px] font-black tracking-normal text-slate-500 dark:text-white/40 mb-3">{label}</p>
+          <div className="space-y-1.5">
+            <div className="flex justify-between gap-6">
+              <span className="text-xs text-slate-500 dark:text-white/50">Total tested</span>
+              <span className="text-xs font-black text-slate-900 dark:text-white">{total}</span>
             </div>
-          )}
+            <div className="flex justify-between gap-6">
+              <span className="text-xs text-red-500">Above threshold</span>
+              <span className="text-xs font-black text-red-500">{above} <span className="text-[10px] opacity-70">({pct}%)</span></span>
+            </div>
+            <div className="flex justify-between gap-6">
+              <span className="text-xs text-slate-400">Within safe range</span>
+              <span className="text-xs font-black text-slate-400">{total - above}</span>
+            </div>
+          </div>
         </div>
       );
     }
@@ -139,7 +169,7 @@ export default function MycotoxinAnalysis({
               <div className="p-2 rounded-xl bg-primary/10 border border-primary/20">
                 <BarChart2 className="w-5 h-5 text-primary" />
               </div>
-              <CardTitle className="text-xl font-black uppercase tracking-tighter text-slate-900 dark:text-white">
+              <CardTitle className="text-xl font-black tracking-tight text-slate-900 dark:text-white">
                 Mycotoxin & Commodity Analysis
               </CardTitle>
             </div>
@@ -157,30 +187,27 @@ export default function MycotoxinAnalysis({
           <CardContent className="px-6 pb-8 animate-in fade-in slide-in-from-top-4 duration-500 ease-out">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
 
+              {/* Top-left: Mycotoxin severity bar chart */}
               <div className="rounded-3xl bg-transparent dark:bg-muted/30 p-8 border-2 border-border dark:border-border/50">
-                <h3 className="text-[13px] font-black uppercase tracking-[0.2em] text-slate-500 dark:text-white/40 mb-2">
-                  Top Mycotoxins by Public Health Concern
-                </h3>
-                <p className="text-[11px] text-slate-900 dark:text-white/80 leading-relaxed mb-8 font-semibold">
-                  Displays the most significant toxins to public health, such as Aflatoxin B1, Fumonisin, or Ochratoxin A, based on detection frequency and risk level in samples.
-                </p>
+                <div className="flex items-center mb-8">
+                  <h3 className="text-[13px] font-black tracking-normal text-slate-500 dark:text-white/40">
+                    Top Mycotoxins by Public Health Concern
+                  </h3>
+                  <ChartInfo text="Displays the most significant toxins to public health, such as Aflatoxin B1, Fumonisin, or Ochratoxin A, based on detection frequency and risk level in samples." />
+                </div>
                 <div className="h-72" aria-label="Horizontal bar chart of mycotoxin risk scores">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart
                       data={mycotoxinBarData}
                       layout="vertical"
-                      margin={{ left: 10, right: 30, top: 5, bottom: 5 }}
+                      margin={{ left: 10, right: 30, top: 5, bottom: 30 }}
                       barCategoryGap="30%"
                     >
                       <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} horizontal={false} />
-                      <XAxis type="number" domain={[0, 100]} tick={{ fill: tickFill, fontSize: 11 }} />
-                      <YAxis type="category" dataKey="shortName" tick={{ fill: labelFill, fontSize: 11, fontWeight: 'bold' }} width={60} />
-                      <Tooltip content={<CustomTooltip />} cursor={false} />
-                      <Bar
-                        dataKey="score"
-                        radius={[0, 6, 6, 0]}
-                        barSize={24}
-                      >
+                      <XAxis type="number" domain={[0, 100]} tick={{ fill: tickFill, fontSize: 11 }} label={{ value: 'Severity score', position: 'insideBottom', offset: -15, fill: tickFill, fontSize: 11 }} />
+                      <YAxis type="category" dataKey="shortName" tick={{ fill: labelFill, fontSize: 11, fontWeight: 'bold' }} width={60} label={{ value: 'Toxin', angle: -90, position: 'insideLeft', offset: 15, fill: tickFill, fontSize: 11 }} />
+                      <Tooltip content={<ToxinTooltip />} cursor={false} />
+                      <Bar dataKey="score" radius={[0, 6, 6, 0]} barSize={24}>
                         {mycotoxinBarData.map((entry) => (
                           <Cell key={entry.shortName} fill={SEVERITY_COLORS[entry.severity]} />
                         ))}
@@ -190,85 +217,70 @@ export default function MycotoxinAnalysis({
                 </div>
               </div>
 
-              {/* Top-right: Share of Affected Commodities (Donut) */}
+              {/* Top-right: Combined Sample Coverage & Risk Threshold */}
               <div className="rounded-3xl bg-transparent dark:bg-muted/30 p-8 border-2 border-border dark:border-border/50">
-                <h3 className="text-[13px] font-black uppercase tracking-[0.2em] text-slate-500 dark:text-white/40 mb-2">
-                  Share of Affected Commodities
-                </h3>
-                <p className="text-[11px] text-slate-900 dark:text-white/80 leading-relaxed mb-8 font-semibold">
-                  Shows the distribution of affected agricultural products (e.g., Corn, Peanuts, Rice) to identify high-risk commodities across the overall supply chain.
-                </p>
-                <div className="h-72" aria-label="Donut chart showing share of affected commodities">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={commodityShare}
-                        cx="50%"
-                        cy="45%"
-                        innerRadius={65}
-                        outerRadius={95}
-                        paddingAngle={5}
-                        dataKey="value"
-                        animationDuration={1500}
-                        label={({ name, value }) => `${name} ${value}%`}
-                        labelLine={{ stroke: isDark ? '#ffffff40' : '#00000040', strokeWidth: 1 }}
-                      >
-                        {commodityShare.map((entry) => (
-                          <Cell key={entry.name} fill={entry.color} stroke="none" />
-                        ))}
-                      </Pie>
-                      <Tooltip content={<CustomTooltip />} />
-                      <text x="50%" y="42%" textAnchor="middle" fill={centerTextFill} fontSize={28} fontWeight="900" className="font-sans">
-                        {affectedSampleCount.toLocaleString()}
-                      </text>
-                      <text x="50%" y="52%" textAnchor="middle" fill={subTextFill} fontSize={10} fontWeight="bold" className="uppercase tracking-[0.2em]">
-                        Affected
-                      </text>
-                    </PieChart>
-                  </ResponsiveContainer>
+                <div className="flex items-center mb-2">
+                  <h3 className="text-[13px] font-black tracking-normal text-slate-500 dark:text-white/40">
+                    Sample Coverage &amp; Risk by Commodity
+                  </h3>
+                  <ChartInfo text="Each bar shows the total number of samples tested per commodity. The red portion shows samples that exceeded the safety threshold; the gray portion is within safe range." />
                 </div>
-              </div>
-
-              {/* Bottom-left: % Above Threshold by Commodity */}
-              <div className="rounded-3xl bg-transparent dark:bg-muted/30 p-8 border-2 border-border dark:border-border/50">
-                <h3 className="text-[13px] font-black uppercase tracking-[0.2em] text-slate-500 dark:text-white/40 mb-2">
-                  % Above Threshold by Commodity
-                </h3>
-                <p className="text-[11px] text-slate-900 dark:text-white/80 leading-relaxed mb-8 font-semibold">
-                  Indicates the percentage of samples exceeding safety standards per commodity, identifying products requiring prioritized surveillance.
-                </p>
-                <div className="h-72" aria-label="Bar chart showing percentage above safety threshold by commodity">
+                <div className="flex items-center gap-4 mb-6">
+                  <span className="text-[10px] font-bold text-muted-foreground">Above threshold:</span>
+                  <div className="flex items-center gap-1">
+                    <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: '#fde68a' }} />
+                    <span className="text-[10px] text-muted-foreground">&lt;25%</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: '#f59e0b' }} />
+                    <span className="text-[10px] text-muted-foreground">25–50%</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: '#ef4444' }} />
+                    <span className="text-[10px] text-muted-foreground">50–75%</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: '#991b1b' }} />
+                    <span className="text-[10px] text-muted-foreground">&gt;75%</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 ml-2">
+                    <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: isDark ? '#374151' : '#e5e7eb' }} />
+                    <span className="text-[10px] text-muted-foreground">Safe</span>
+                  </div>
+                </div>
+                <div className="h-64" aria-label="Stacked bar chart showing total vs above-threshold samples per commodity">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={thresholdByCommodity} margin={{ top: 10, right: 20, left: 10, bottom: 5 }}>
+                    <BarChart data={combinedData} margin={{ top: 5, right: 20, left: 10, bottom: 30 }} barCategoryGap="35%">
                       <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} vertical={false} />
-                      <XAxis dataKey="commodity" tick={{ fill: tickFill, fontSize: 10, fontWeight: 'bold' }} />
-                      <YAxis domain={[0, 80]} tick={{ fill: tickFill, fontSize: 11 }} />
-                      <Tooltip content={<CustomTooltip />} cursor={false} />
-                      <Bar dataKey="pctAbove" radius={[6, 6, 0, 0]} barSize={40}>
-                        {thresholdByCommodity.map((entry) => (
-                          <Cell key={entry.commodity} fill={barColor(entry.pctAbove)} />
+                      <XAxis dataKey="commodity" tick={{ fill: tickFill, fontSize: 10, fontWeight: 'bold' }} label={{ value: 'Commodity', position: 'insideBottom', offset: -15, fill: tickFill, fontSize: 11 }} />
+                      <YAxis tick={{ fill: tickFill, fontSize: 11 }} allowDecimals={false} label={{ value: 'No. of samples', angle: -90, position: 'insideLeft', offset: 10, fill: tickFill, fontSize: 11 }} />
+                      <Tooltip content={<CombinedTooltip />} cursor={false} />
+                      <Bar dataKey="aboveCount" stackId="a" radius={[0, 0, 0, 0]}>
+                        {combinedData.map((entry) => (
+                          <Cell key={entry.commodity} fill={aboveThresholdColor(entry.pctAbove)} />
                         ))}
                       </Bar>
+                      <Bar dataKey="remaining" stackId="a" fill={isDark ? '#374151' : '#e5e7eb'} radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
               </div>
 
-              {/* Bottom-right: Region × Commodity Risk Intensity Heatmap */}
-              <div className="rounded-3xl bg-transparent dark:bg-muted/30 p-8 border-2 border-border dark:border-border/50">
-                <h3 className="text-[13px] font-black uppercase tracking-[0.2em] text-slate-500 dark:text-white/40 mb-2">
-                  Region × Commodity Risk Intensity
-                </h3>
-                <p className="text-[11px] text-slate-900 dark:text-white/80 leading-relaxed mb-8 font-semibold">
-                  A matrix representing risk intensity across regions and product types to pinpoint localized surveillance hotspots.
-                </p>
+              {/* Bottom: Region × Commodity Risk Intensity Heatmap (full width) */}
+              <div className="lg:col-span-2 rounded-3xl bg-transparent dark:bg-muted/30 p-8 border-2 border-border dark:border-border/50">
+                <div className="flex items-center mb-8">
+                  <h3 className="text-[13px] font-black tracking-normal text-slate-500 dark:text-white/40">
+                    Region × Commodity Risk Intensity
+                  </h3>
+                  <ChartInfo text="A matrix representing risk intensity across regions and product types to pinpoint localized surveillance hotspots." />
+                </div>
                 <div className="overflow-x-auto custom-scrollbar" aria-label="Heatmap of risk intensity by region and commodity">
                   <table className="w-full border-separate border-spacing-1">
                     <thead>
                       <tr>
-                        <th className="text-[9px] text-slate-400 dark:text-white/20 text-left p-2 uppercase font-black tracking-widest px-1">Region</th>
+                        <th className="text-[9px] text-slate-400 dark:text-white/20 text-left p-2 font-black tracking-widest px-1">Region</th>
                         {heatmapCommodities.map((c) => (
-                          <th key={c} className="text-[9px] text-slate-500 dark:text-white/40 font-black text-center p-2 min-w-[70px] uppercase tracking-widest">
+                          <th key={c} className="text-[9px] text-slate-500 dark:text-white/40 font-black text-center p-2 min-w-[70px] tracking-normal">
                             {c}
                           </th>
                         ))}
@@ -277,7 +289,7 @@ export default function MycotoxinAnalysis({
                     <tbody>
                       {heatmapRegions.map((region) => (
                         <tr key={region}>
-                          <td className="text-[10px] text-slate-600 dark:text-white/40 font-black p-2 whitespace-nowrap uppercase tracking-tighter">{region}</td>
+                          <td className="text-[10px] text-slate-600 dark:text-white/40 font-black p-2 whitespace-nowrap tracking-tight">{region}</td>
                           {heatmapCommodities.map((commodity) => {
                             const key = `${region}-${commodity}`;
                             const value = heatmapLookup.get(key) ?? 0;
@@ -317,7 +329,7 @@ export default function MycotoxinAnalysis({
                 </div>
                 {/* Heatmap legend */}
                 <div className="flex items-center gap-4 mt-6 pt-4 border-t border-border/50">
-                  <span className="text-[9px] font-black text-muted-foreground/60 uppercase tracking-widest">Risk Intensity:</span>
+                  <span className="text-[9px] font-black text-muted-foreground/60 tracking-normal">Risk Intensity:</span>
                   <div className="flex gap-3">
                     {[15, 30, 50, 75, 95].map((v) => (
                       <div key={v} className="flex items-center gap-1.5">

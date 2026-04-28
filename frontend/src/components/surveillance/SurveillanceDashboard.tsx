@@ -304,7 +304,7 @@ export default function SurveillanceDashboard() {
             {/* Section 1: Public Health Risk Summary (Strategic Insights) */}
             <div className="flex items-center gap-3 mb-4 mt-2">
               <div className="h-5 w-1.5 bg-rose-500/40 rounded-full" />
-              <h2 className="text-sm font-black uppercase tracking-[0.2em] text-slate-500 dark:text-white/60">Public Health Risk Summary</h2>
+              <h2 className="text-sm font-black tracking-normal text-slate-500 dark:text-white/60">Public Health Risk Summary</h2>
             </div>
             <PublicHealthSummary 
               summary={isSimulating && overviewData?.public_health_summary 
@@ -318,7 +318,7 @@ export default function SurveillanceDashboard() {
               <div className="flex items-center gap-3">
                 {selectedProvince ? (
                   <div className="flex items-center gap-2 self-stretch">
-                    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded-lg shadow-sm text-[10px] font-black uppercase tracking-widest animate-in zoom-in duration-300">
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded-lg shadow-sm text-[10px] font-black tracking-normal animate-in zoom-in duration-300">
                       <MapPin className="w-3.5 h-3.5" />
                       {selectedProvince}
                     </div>
@@ -329,7 +329,7 @@ export default function SurveillanceDashboard() {
                 )}
                 
                 <div className="space-y-0.5">
-                  <h2 className="text-lg font-black uppercase tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
+                  <h2 className="text-lg font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
                     KPI Summary
                     {selectedProvince && (
                       <span className="text-xs font-medium text-muted-foreground normal-case opacity-60">
@@ -337,7 +337,7 @@ export default function SurveillanceDashboard() {
                       </span>
                     )}
                   </h2>
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-[0.2em] font-black opacity-60">
+                  <p className="text-[10px] text-muted-foreground tracking-normal font-black opacity-60">
                     {selectedProvince 
                       ? `Drilling down into ${selectedProvince} local surveillance data`
                       : `Aggregated data across ${filters.regions.length > 0 ? filters.regions.join(', ') : 'all regions'}`}
@@ -345,7 +345,7 @@ export default function SurveillanceDashboard() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-6 text-[10px] font-black uppercase tracking-widest text-muted-foreground/80">
+              <div className="flex items-center gap-6 text-[10px] font-black tracking-normal text-muted-foreground/80">
                 <div className="flex flex-col items-end">
                   <span className="opacity-50">Data Refresh</span>
                   <span className="text-slate-900 dark:text-white">Real-time</span>
@@ -383,7 +383,7 @@ export default function SurveillanceDashboard() {
             {/* Section 3: Regional Risk Atlas (Operational Context) */}
             <div className="flex items-center gap-3 mb-4 mt-8">
               <div className="h-5 w-1.5 bg-primary/40 rounded-full" />
-              <h2 className="text-sm font-black uppercase tracking-[0.2em] text-slate-500 dark:text-white/60">Regional Risk Atlas</h2>
+              <h2 className="text-sm font-black tracking-normal text-slate-500 dark:text-white/60">Regional Risk Atlas</h2>
             </div>
             <section aria-label="Regional Risk Analysis" className="mb-4">
               <div className="grid grid-cols-1 lg:grid-cols-[65%_35%] gap-4">
@@ -424,7 +424,7 @@ export default function SurveillanceDashboard() {
             {/* Section 4: Mycotoxin & Commodity Analysis */}
             <div className="flex items-center gap-3 mb-4 mt-12">
               <div className="h-5 w-1.5 bg-primary/40 rounded-full" />
-              <h2 className="text-sm font-black uppercase tracking-[0.2em] text-slate-500 dark:text-white/60">Analytics & Trends</h2>
+              <h2 className="text-sm font-black tracking-normal text-slate-500 dark:text-white/60">Analytics & Trends</h2>
             </div>
             <MycotoxinAnalysis
               mycotoxinBarData={analytics.mycotoxinBarData}
@@ -446,12 +446,7 @@ export default function SurveillanceDashboard() {
             <div className="grid grid-cols-1 gap-6">
               {coContamData ? (
                 <CoContaminationAnalysis
-                  coContamSummary={{
-                    avgToxinsPerSample: 0, // Fallbacks if not computed globally
-                    pctTwoPlus: coContamData.toxins_per_sample['2'] || 0,
-                    pctThreePlus: coContamData.toxins_per_sample['3'] || 0,
-                    mostCommonPair: coContamData.intersections[0]?.toxins.join(' + ') || 'N/A'
-                  }}
+                  coContamSummary={analytics.coContamSummary}
                   coOccurrenceList={coContamData.intersections}
                   intersections={coContamData.intersections}
                   toxinsPerSample={Object.entries(coContamData.toxins_per_sample).map(([count, pct]) => ({ count, pct: Number(pct) }))}

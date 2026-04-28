@@ -274,11 +274,11 @@ export default function RegionalRiskMap({ selectedProvince, onSelectProvince, pr
       <div className="absolute top-4 right-4 z-[1000]">
         <Tabs value={viewMode} onValueChange={(v) => onViewModeChange(v as 'risk' | 'samples')}>
           <TabsList className="bg-background/80 backdrop-blur-md border border-border/50 h-10 p-1 rounded-lg">
-            <TabsTrigger value="risk" className="text-xs px-4 h-8 border border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary transition-all font-black uppercase tracking-widest">
-              <Layers className="w-4 h-4 mr-1.5" /> Risk
+            <TabsTrigger value="risk" className="text-xs px-3 h-8 border border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary transition-all font-semibold">
+              <Layers className="w-4 h-4 mr-1.5" /> Positive/all sample (%)
             </TabsTrigger>
-            <TabsTrigger value="samples" className="text-xs px-4 h-8 border border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary transition-all font-black uppercase tracking-widest">
-              <TableIcon className="w-4 h-4 mr-1.5" /> Samples
+            <TabsTrigger value="samples" className="text-xs px-3 h-8 border border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary transition-all font-semibold">
+              <TableIcon className="w-4 h-4 mr-1.5" /> Number of positive sample
             </TabsTrigger>
           </TabsList>
         </Tabs>
@@ -288,7 +288,7 @@ export default function RegionalRiskMap({ selectedProvince, onSelectProvince, pr
 
   const legend = (
     <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
-      <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{viewMode === 'risk' ? 'Risk Severity' : 'Sample Intensity'}</div>
+      <div className="text-[10px] font-bold text-muted-foreground tracking-normal">{viewMode === 'risk' ? 'Risk Severity' : 'Sample Intensity'}</div>
       <div className="flex items-center gap-4">
         {viewMode === 'risk' ? (
           Object.entries(RISK_COLORS).map(([level, color]) => (
@@ -317,9 +317,9 @@ export default function RegionalRiskMap({ selectedProvince, onSelectProvince, pr
         <CardHeader className="pb-3 px-6 pt-5 bg-card dark:bg-card border-b border-slate-900/5">
           <div className="flex items-center justify-between">
             <div className="font-sans">
-              <CardTitle className="text-xl font-black uppercase tracking-tighter text-slate-900 dark:text-white">Regional Risk Atlas</CardTitle>
+              <CardTitle className="text-xl font-black tracking-tight text-slate-900 dark:text-white">Regional Risk Atlas</CardTitle>
               <div className="flex items-center gap-2 mt-0.5">
-                <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-[0.15em]">Surveillance Metadata</span>
+                <span className="text-[10px] text-muted-foreground font-bold tracking-normal">Surveillance Metadata</span>
                 <span className="text-[10px] text-primary/60 font-black">•</span>
                 <span className="text-[10px] text-primary/80 font-black italic">
                   {viewMode === 'risk' 
@@ -359,7 +359,7 @@ export default function RegionalRiskMap({ selectedProvince, onSelectProvince, pr
               <div className="p-2 bg-primary/10 rounded-lg"><Database className="w-5 h-5 text-primary" /></div>
               <div>
                 <span className="font-bold text-lg block leading-tight">Regional Risk Atlas</span>
-                <span className="text-[10px] uppercase font-bold tracking-tighter text-muted-foreground">Fullscreen Simulation Mode</span>
+                <span className="text-[10px] font-bold tracking-tighter text-muted-foreground">Fullscreen Simulation Mode</span>
               </div>
             </div>
             <div className="flex items-center gap-8">

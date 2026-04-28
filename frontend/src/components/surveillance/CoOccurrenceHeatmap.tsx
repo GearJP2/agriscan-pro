@@ -80,7 +80,7 @@ export default function CoOccurrenceHeatmap({ intersections, allToxins, toxinCol
               {allToxins.map(t => (
                 <th 
                   key={t} 
-                  className="p-1 font-black uppercase tracking-widest text-slate-400 whitespace-nowrap rotate-[-45deg] origin-bottom-left leading-none"
+                  className="p-1 font-black tracking-normal text-slate-400 whitespace-nowrap rotate-[-45deg] origin-bottom-left leading-none"
                   style={{ fontSize: labelSize }}
                 >
                   {t}
@@ -92,7 +92,7 @@ export default function CoOccurrenceHeatmap({ intersections, allToxins, toxinCol
             {allToxins.map((t1, i) => (
               <tr key={t1}>
                 <th 
-                  className="pr-4 font-black uppercase tracking-widest text-slate-400 text-right whitespace-nowrap"
+                  className="pr-4 font-black tracking-normal text-slate-400 text-right whitespace-nowrap"
                   style={{ fontSize: labelSize, height: cellSize }}
                 >
                   {t1}
@@ -116,11 +116,11 @@ export default function CoOccurrenceHeatmap({ intersections, allToxins, toxinCol
                           </TooltipTrigger>
                           <TooltipContent className="bg-slate-900 text-white border-transparent p-4 rounded-2xl shadow-2xl z-[100]">
                             <div className="space-y-1">
-                              <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Hazard Correlation</p>
+                              <p className="text-[10px] font-black tracking-normal opacity-60">Hazard Correlation</p>
                               <p className="text-sm font-bold text-white">{t1} × {t2}</p>
                               <div className="h-px w-full bg-white/20 my-2" />
                               <p className="text-2xl font-black text-red-400">{(val * 100).toFixed(1)}%</p>
-                              <p className="text-[9px] opacity-70 uppercase tracking-widest">Jaccard Index Strength</p>
+                              <p className="text-[9px] opacity-70 tracking-normal">Jaccard Index Strength</p>
                             </div>
                           </TooltipContent>
                         </Tooltip>
@@ -136,13 +136,13 @@ export default function CoOccurrenceHeatmap({ intersections, allToxins, toxinCol
       
       {/* Legend */}
       <div className="mt-16 flex items-center gap-6 border-t border-border dark:border-white/10 pt-8">
-        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Low Interaction</span>
+        <span className="text-[10px] font-black tracking-normal text-slate-400">Low Interaction</span>
         <div className="flex gap-2">
           {['#60a5fa', '#2dd4bf', '#fbbf24', '#f97316', '#ef4444', '#b91c1c'].map(c => (
             <div key={c} className="w-4 h-4 rounded-sm" style={{ backgroundColor: c }} />
           ))}
         </div>
-        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">High Interaction</span>
+        <span className="text-[10px] font-black tracking-normal text-slate-400">High Interaction</span>
       </div>
     </div>
   );

@@ -48,7 +48,7 @@ export default function KPICards({ cards }: { cards: KPICard[] }) {
                         <card.icon className="h-4 w-4" />
                       </div>
                     )}
-                    <p className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">
+                    <p className="text-sm font-black text-slate-900 dark:text-white tracking-normal">
                       {card.label}
                     </p>
                   </div>
@@ -59,7 +59,7 @@ export default function KPICards({ cards }: { cards: KPICard[] }) {
 
                 {/* Delta badge and context row */}
                 <div className="flex items-center justify-between mt-4 border-t border-border/50 pt-3">
-                  <p className="text-[10px] text-muted-foreground/60 font-bold uppercase tracking-widest">
+                  <p className="text-[10px] text-muted-foreground/60 font-bold tracking-normal">
                     {card.context}
                   </p>
                   <DeltaBadge card={card} />
