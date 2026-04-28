@@ -634,9 +634,9 @@ These are documented but not yet integrated:
 python manage.py runserver           # Start Django
 python manage.py makemigrations      # Create migration
 python manage.py migrate             # Apply migration
-python manage.py test                # Run all tests
-python manage.py test accounts.test_user_deletion     # Test deletion guards
-python manage.py test accounts.test_monitor_integration # Test KV sync
+python manage.py test                # Run all tests (auto-discovery)
+python manage.py test accounts samples core  # Run specific app tests
+python manage.py test accounts.tests.test_user_deletion # Test specific module
 ```
 
 **Frontend**
@@ -670,10 +670,11 @@ eb logs --zip                          # Download full log archive
 - **CI/CD Pipeline**:
   - Pre-deployment health checks verify environment `Ready` state.
   - Deployment timeout increased to 30 minutes for robust RDS/infrastructure updates.
+  - Backend linting (flake8) and package-based test discovery integrated.
 
 ---
 
 ## Last Updated
-- Date: 2026-04-27
+- Date: 2026-04-29
 - By: Claude (Debugging Wizard & Cloud Architect)
-- Status: **User Deletion Hardening & Monitor Sync Phase Complete**. All tasks in `task.md` (items 1–57) are resolved. The legacy Celery startup script bug is fixed via heredoc refactoring. Local and integration tests pass clean. Outstanding follow-up: session revocation after password set.
+- Status: **Backend Refactor (R1-R6) Complete**. Test folders restructured into packages. God-functions decomposed (OAuth callback, CSV ingestion, OTP reset). CI/CD updated with flake8 linting and improved test discovery. Local tests: 157/159 pass (2 pre-existing integration failures).

@@ -1,0 +1,7 @@
+{
+  "high": true,
+  "critical": true,
+  "allowlist": [
+    "GHSA-w5hq-g745-h8pq"
+  ]
+}

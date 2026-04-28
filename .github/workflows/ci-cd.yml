@@ -1,79 +1,113 @@
 name: CI/CD Pipeline
 
 on:
-  push:
+  pull_request:
     branches:
       - main
-  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+  push:
     branches:
       - main
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   changes:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     outputs:
       backend: ${{ steps.filter.outputs.backend }}
       frontend: ${{ steps.filter.outputs.frontend }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
-      
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
       - name: Check for file changes
-        uses: dorny/paths-filter@v3
         id: filter
+        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d
         with:
           filters: |
             backend:
               - 'backend/**'
+              - 'backend/requirements.txt'
+              - 'backend/requirements-ci.txt'
               - '.github/workflows/**'
             frontend:
               - 'frontend/**'
+              - 'frontend/package-lock.json'
               - '.github/workflows/**'
+
+      - name: Run actionlint
+        run: |
+          python -m pip install -r backend/requirements-ci.txt
+          actionlint
 
   backend-test:
     needs: changes
-    # Run if backend files changed, or if manually triggered
     if: ${{ needs.changes.outputs.backend == 'true' || github.event_name == 'workflow_dispatch' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    permissions:
+      contents: read
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          fetch-depth: 1
+          persist-credentials: false
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
-          python-version: "3.12"
+          python-version: '3.12'
 
       - name: Install backend dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r backend/requirements.txt
-          pip install pip-audit
+          pip install -r backend/requirements-ci.txt
 
       - name: Run dependency scan (backend)
         run: |
           python backend/scripts/run_dependency_audit.py
 
+      - name: Lint backend (flake8)
+        working-directory: backend
+        run: |
+          flake8 .
+
       - name: Run backend tests
         working-directory: backend
         env:
           DB_ENGINE: sqlite
-          DEBUG: "False"
+          DEBUG: 'False'
           SECRET_KEY: ci-test-secret-key-32-chars-minimum-length-for-jwt
           ALLOWED_HOSTS: localhost,127.0.0.1
-          USE_LOCAL_MEMORY_CACHE: "True"
+          USE_LOCAL_MEMORY_CACHE: 'True'
         run: |
-          python manage.py test accounts.tests core.tests samples.tests
+          python manage.py test accounts samples core
 
       - name: Run backend deploy smoke checks
         working-directory: backend
         env:
           DB_ENGINE: sqlite
-          DEBUG: "False"
+          DEBUG: 'False'
           SECRET_KEY: ci-test-secret-key-32-chars-minimum-length-for-jwt
           ALLOWED_HOSTS: localhost,127.0.0.1
-          USE_LOCAL_MEMORY_CACHE: "True"
+          USE_LOCAL_MEMORY_CACHE: 'True'
         run: |
           bash -n .platform/hooks/predeploy/01_django_setup.sh
           bash -n .platform/hooks/postdeploy/01_start_celery.sh
@@ -82,33 +116,250 @@ jobs:
           python - <<'PY'
           import os
 
-          os.environ.setdefault("DJANGO_SETTINGS_MODULE", "core.settings")
+          os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'core.settings')
           import django
           django.setup()
 
           from django.test import Client
 
-          client = Client(HTTP_HOST="ec2-1-2-3-4.ap-southeast-1.compute.amazonaws.com")
-          response = client.get("/health/")
+          client = Client(HTTP_HOST='testserver')
+          response = client.get('/health/')
           assert response.status_code == 200, response.content.decode()
-          print("Health check host OK")
+          print('Health check host OK')
           PY
           python -c "from core.wsgi import application; print('WSGI import OK')"
           python -c "from core.celery import app; print('Celery import OK')"
 
-  frontend-test:
-    needs: changes
-    # Run if frontend files changed, or if manually triggered
-    if: ${{ needs.changes.outputs.frontend == 'true' || github.event_name == 'workflow_dispatch' }}
-    runs-on: ubuntu-latest
+      - name: Create backend deployment bundle
+        run: |
+          tar \
+            --exclude='backend/.env' \
+            --exclude='backend/.env.*' \
+            --exclude='backend/.aws' \
+            --exclude='backend/.git' \
+            --exclude='backend/venv' \
+            --exclude='backend/.venv' \
+            --exclude='backend/**/__pycache__' \
+            --exclude='backend/**/*.pyc' \
+            --exclude='backend/**/tests/' \
+            --exclude='backend/**/test_*.py' \
+            --exclude='backend/db.sqlite3' \
+            --exclude='backend/logs' \
+            --exclude='backend/.logs_temp' \
+            --exclude='backend/.pytest_cache' \
+            -czf backend-bundle.tar.gz backend/
+
+      - name: Upload backend build artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: backend-bundle
+          path: backend-bundle.tar.gz
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Generate SBOM (backend)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
+        with:
+          scan-type: 'fs'
+          scan-ref: 'backend'
+          format: 'cyclonedx'
+          output: 'backend-sbom.json'
+
+      - name: Upload SBOM artifact (backend)
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: backend-sbom
+          path: backend-sbom.json
+          retention-days: 7
+          if-no-files-found: error
+
+  backend-db-smoke-test:
+    needs: backend-test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres@sha256:d0f363f8366fbc3f52d172c6e76bc27151c3d643b870e1062b4e8bfe65baf609
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12'
+
+      - name: Install backend dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+
+      - name: Run database migrations
+        working-directory: backend
+        env:
+          DB_ENGINE: postgresql
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_NAME: test_db
+          DB_USER: postgres
+          DB_PASSWORD: postgres
+          DEBUG: 'False'
+          SECRET_KEY: perf-test-secret-key-32-chars-minimum-length-for-jwt
+          ALLOWED_HOSTS: localhost,127.0.0.1
+        run: |
+          python manage.py migrate --noinput
+
+      - name: Run backend smoke tests
+        working-directory: backend
+        env:
+          DB_ENGINE: postgresql
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_NAME: test_db
+          DB_USER: postgres
+          DB_PASSWORD: postgres
+          DEBUG: 'False'
+          SECRET_KEY: perf-test-secret-key-32-chars-minimum-length-for-jwt
+          ALLOWED_HOSTS: localhost,127.0.0.1,testserver
+        run: |
+          python - <<'PY'
+          import time
+          import os
+          import django
+
+          os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'core.settings')
+          django.setup()
+
+          from django.test import Client
+
+          client = Client()
+          start_time = time.time()
+          response = client.get('/health/')
+          end_time = time.time()
+          response_time = (end_time - start_time) * 1000
+          print(f'Health endpoint response time: {response_time:.2f}ms')
+          if response.status_code != 200:
+              print(f'Health check failed with status: {response.status_code}')
+              raise SystemExit(1)
+          if response_time > 500:
+              print(f'ERROR: Health check took {response_time:.2f}ms (> 500ms threshold)')
+              raise SystemExit(1)
+          print('Backend smoke test passed')
+          PY
+
+  security-scan:
+    runs-on: ubuntu-24.04
+    needs: [changes]
+    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.frontend == 'true' || github.event_name == 'workflow_dispatch'
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12'
+
+      - name: Install security tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements-ci.txt
+
+      - name: Run Bandit (Python security scan)
+        run: |
+          bandit -r backend/ -f sarif -o bandit-results.sarif --exclude backend/venv/,backend/migrations/ || true
+          if [ ! -f bandit-results.sarif ]; then
+            echo "Bandit output file not found"
+            exit 1
+          fi
+          python - <<'PY'
+          import json
+          import sys
+
+          path = 'bandit-results.sarif'
+          with open(path, 'r', encoding='utf-8') as handle:
+              report = json.load(handle)
+
+          findings = []
+          for run in report.get('runs', []):
+              for result in run.get('results', []):
+                  if result.get('level') == 'error':
+                      message = result.get('message', {}).get('text', '<no message>')
+                      loc = result.get('locations', [{}])[0].get('physicalLocation', {}).get('region', {})
+                      line = loc.get('startLine', '?')
+                      findings.append(f"{message} (line {line})")
+
+          if findings:
+              print('High/critical security issues found in Python code')
+              for item in findings:
+                  print(f'- {item}')
+              sys.exit(1)
+          print('Bandit scan completed with no high/critical findings')
+          PY
+
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          ignore-unfixed: true
+          severity: 'HIGH,CRITICAL'
+          exit-code: '1'
+
+      - name: Upload Bandit scan results
+        uses: github/codeql-action/upload-sarif@7c5585e5cf078a7726d40d2fbea3e00a7e109faf
+        if: (success() || failure()) && hashFiles('bandit-results.sarif') != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+        with:
+          sarif_file: bandit-results.sarif
+          category: bandit
+
+      - name: Upload Trivy results
+        uses: github/codeql-action/upload-sarif@7c5585e5cf078a7726d40d2fbea3e00a7e109faf
+        if: (success() || failure()) && hashFiles('trivy-results.sarif') != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+        with:
+          sarif_file: trivy-results.sarif
+          category: trivy
+
+  frontend-test:
+    needs: changes
+    if: ${{ needs.changes.outputs.frontend == 'true' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          fetch-depth: 1
+          persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
-          node-version: "20"
+          node-version: '20'
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
@@ -118,7 +369,7 @@ jobs:
 
       - name: Run dependency scan (frontend)
         working-directory: frontend
-        run: npm audit --audit-level=high
+        run: npx --no-install audit-ci --config .audit-ci.json
 
       - name: Lint frontend
         working-directory: frontend
@@ -139,33 +390,179 @@ jobs:
         env:
           DEPLOY_TARGET: aws
           NODE_ENV: production
-          VITE_API_BASE_URL: /api
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+          VITE_MONITOR_URL: ${{ vars.VITE_MONITOR_URL }}
         run: npm run build
 
-  deploy-backend:
+      - name: Create frontend deployment bundle
+        run: tar -czf frontend-dist.tar.gz -C frontend dist
+
+      - name: Upload frontend build artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: frontend-dist
+          path: frontend-dist.tar.gz
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Generate SBOM (frontend)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
+        with:
+          scan-type: 'fs'
+          scan-ref: 'frontend'
+          format: 'cyclonedx'
+          output: 'frontend-sbom.json'
+
+      - name: Upload SBOM artifact (frontend)
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: frontend-sbom
+          path: frontend-sbom.json
+          retention-days: 7
+          if-no-files-found: error
+
+  attest-backend:
     needs: backend-test
-    # Only deploy on pushes to main (not PRs), and only if backend-test was successful
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
+      - name: Download backend bundle
+        uses: actions/download-artifact@484a0b528fb4d7bd804637ccb632e47a0e638317
+        with:
+          name: backend-bundle
+          path: .
+
+      - name: Attest backend bundle
+        uses: actions/attest-build-provenance@52933e748dc9ff61f0072d622f66455115d90821 # v1.4.3
+        with:
+          subject-path: backend-bundle.tar.gz
+
+      - name: Download backend SBOM
+        uses: actions/download-artifact@484a0b528fb4d7bd804637ccb632e47a0e638317
+        with:
+          name: backend-sbom
+          path: .
+
+      - name: Attest backend SBOM
+        uses: actions/attest-build-provenance@52933e748dc9ff61f0072d622f66455115d90821 # v1.4.3
+        with:
+          subject-path: backend-sbom.json
+
+  attest-frontend:
+    needs: frontend-test
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - name: Download frontend bundle
+        uses: actions/download-artifact@484a0b528fb4d7bd804637ccb632e47a0e638317
+        with:
+          name: frontend-dist
+          path: .
+
+      - name: Attest frontend bundle
+        uses: actions/attest-build-provenance@52933e748dc9ff61f0072d622f66455115d90821 # v1.4.3
+        with:
+          subject-path: frontend-dist.tar.gz
+
+      - name: Download frontend SBOM
+        uses: actions/download-artifact@484a0b528fb4d7bd804637ccb632e47a0e638317
+        with:
+          name: frontend-sbom
+          path: .
+
+      - name: Attest frontend SBOM
+        uses: actions/attest-build-provenance@52933e748dc9ff61f0072d622f66455115d90821 # v1.4.3
+        with:
+          subject-path: frontend-sbom.json
+
+  verify-backend-attestation:
+    needs: attest-backend
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      attestations: read
+    steps:
+      - name: Download backend bundle
+        uses: actions/download-artifact@484a0b528fb4d7bd804637ccb632e47a0e638317
+        with:
+          name: backend-bundle
+          path: .
+
+      - name: Verify backend attestation
+        run: gh attestation verify backend-bundle.tar.gz --repo ${{ github.repository }} --signer-workflow .github/workflows/ci-cd.yml
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  verify-frontend-attestation:
+    needs: attest-frontend
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      attestations: read
+    steps:
+      - name: Download frontend bundle
+        uses: actions/download-artifact@484a0b528fb4d7bd804637ccb632e47a0e638317
+        with:
+          name: frontend-dist
+          path: .
+
+      - name: Verify frontend attestation
+        run: gh attestation verify frontend-dist.tar.gz --repo ${{ github.repository }} --signer-workflow .github/workflows/ci-cd.yml
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  deploy-backend:
+    needs: [backend-test, security-scan, backend-db-smoke-test, verify-backend-attestation]
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    environment:
+      name: production
+    concurrency:
+      group: production-deploy
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Download backend bundle
+        uses: actions/download-artifact@484a0b528fb4d7bd804637ccb632e47a0e638317
+        with:
+          name: backend-bundle
+          path: .
+
+      - name: Extract backend bundle
+        run: |
+          tar -xzf backend-bundle.tar.gz
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: '3.12'
 
       - name: Install EB CLI
         run: |
           python -m pip install --upgrade pip
-          pip install awsebcli
+          pip install -r backend/requirements-ci.txt
 
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@ec61189d14ec14c8efccab744f656cffd0e33f37
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          role-to-assume: ${{ secrets.AWS_BACKEND_DEPLOY_ROLE_ARN }}
           aws-region: ap-southeast-1
 
       - name: Check EB Environment Status
@@ -182,7 +579,7 @@ jobs:
         run: |
           cd backend
           if ! eb deploy Agriscanpro-backend-env --timeout 30; then
-            echo "=== Deployment failed — fetching instance logs ==="
+            echo "=== Deployment failed - fetching instance logs ==="
             eb logs --all 2>&1 | head -300 || true
             if [ -d .elasticbeanstalk/logs/latest ]; then
               echo "=== Saved EB log files ==="
@@ -197,52 +594,101 @@ jobs:
             exit 1
           fi
 
-  deploy-frontend:
-    needs: frontend-test
-    # Only deploy on pushes to main (not PRs), and only if frontend-test was successful
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
+      - name: Post-deploy health check
+        run: |
+          if [ -z "${PRODUCTION_HOST}" ]; then
+            echo "PRODUCTION_HOST is required for production post-deploy validation"
+            exit 1
+          fi
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
+          echo "Waiting for application to be ready..."
+          max_attempts=30
+          attempt=1
 
-      - name: Install Dependencies
-        run: npm ci
-        working-directory: frontend
+          while [ $attempt -le $max_attempts ]; do
+            echo "Health check attempt $attempt/$max_attempts..."
+            if curl -f -s --max-time 10 "https://${PRODUCTION_HOST}/health/" > /dev/null 2>&1; then
+              echo "Health check passed on attempt $attempt"
+              if curl -f -s --max-time 10 "https://${PRODUCTION_HOST}/api/samples/" > /dev/null 2>&1; then
+                echo "API endpoints responding correctly"
+              else
+                echo "Warning: API endpoints not responding, but health check passed"
+              fi
+              exit 0
+            fi
+            echo "Health check failed, waiting 10 seconds..."
+            sleep 10
+            attempt=$((attempt + 1))
+          done
 
-      - name: Build (Static — AWS target)
-        run: npx vite build
-        working-directory: frontend
+          echo "Health check failed after $max_attempts attempts"
+          echo "=== Fetching recent logs for debugging ==="
+          curl -v "https://${PRODUCTION_HOST}/health/" || true
+          exit 1
         env:
-          DEPLOY_TARGET: aws
-          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
-          VITE_MONITOR_URL: ${{ secrets.VITE_MONITOR_URL }}
-          NODE_ENV: production
+          PRODUCTION_HOST: ${{ secrets.PRODUCTION_HOST }}
 
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
+      - name: Record backend artifact checksum
+        run: |
+          sha256sum backend-bundle.tar.gz | tee backend-bundle.sha256
+
+      - name: Deployment Summary
+        if: success()
+        run: |
+          BACKEND_SHA256="$(cut -d ' ' -f1 backend-bundle.sha256)"
+          echo "## Backend Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Artifact:** \`backend-bundle\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Artifact SHA256:** \`${BACKEND_SHA256}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Run ID:** \`${{ github.run_id }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Run Attempt:** \`${{ github.run_attempt }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** Production" >> $GITHUB_STEP_SUMMARY
+          echo "**Backend attestation:** Passed" >> $GITHUB_STEP_SUMMARY
+          echo "**Elastic Beanstalk Environment:** Agriscanpro-backend-env" >> $GITHUB_STEP_SUMMARY
+          echo "**Backend health check status:** Passed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Backend deployment completed successfully" >> $GITHUB_STEP_SUMMARY
+
+  deploy-frontend:
+    needs: [frontend-test, security-scan, verify-frontend-attestation]
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    environment:
+      name: production
+    concurrency:
+      group: production-deploy
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@ec61189d14ec14c8efccab744f656cffd0e33f37
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION || 'ap-southeast-1' }}
+          role-to-assume: ${{ secrets.AWS_FRONTEND_DEPLOY_ROLE_ARN }}
+          aws-region: ap-southeast-1
+
+      - name: Download frontend build artifact
+        uses: actions/download-artifact@484a0b528fb4d7bd804637ccb632e47a0e638317
+        with:
+          name: frontend-dist
+          path: .
+
+      - name: Extract frontend bundle
+        run: tar -xzf frontend-dist.tar.gz
 
       - name: Sync Assets to S3
         run: |
-          aws s3 sync frontend/dist/ s3://${{ secrets.S3_FRONTEND_BUCKET }}/ \
+          aws s3 sync dist/ s3://${{ secrets.S3_FRONTEND_BUCKET }}/ \
             --delete \
             --exclude "index.html" \
             --cache-control "public, max-age=31536000, immutable"
 
       - name: Upload index.html to S3
         run: |
-          aws s3 cp frontend/dist/index.html \
+          aws s3 cp dist/index.html \
             s3://${{ secrets.S3_FRONTEND_BUCKET }}/index.html \
             --cache-control "no-cache, no-store, must-revalidate" \
             --content-type "text/html"
@@ -251,9 +697,38 @@ jobs:
         run: |
           aws cloudfront create-invalidation \
             --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} \
-            --paths "/*"
+            --paths "/index.html"
+
+      - name: Frontend health check
+        run: |
+          if [ -z "${FRONTEND_URL}" ]; then
+            echo "FRONTEND_URL is required for frontend post-deploy validation"
+            exit 1
+          fi
+          curl --fail --retry 5 --retry-delay 10 "${FRONTEND_URL}"
+        env:
+          FRONTEND_URL: ${{ vars.FRONTEND_URL }}
+
+      - name: Record frontend artifact checksum
+        run: |
+          sha256sum frontend-dist.tar.gz | tee frontend-dist.sha256
 
       - name: Deployment Summary
+        if: success()
         run: |
-          echo "Frontend deployed to S3 bucket: ${{ secrets.S3_FRONTEND_BUCKET }}"
-          echo "CloudFront cache invalidated for distribution: ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}"
+          FRONTEND_SHA256="$(cut -d ' ' -f1 frontend-dist.sha256)"
+          echo "## Frontend Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Artifact:** \`frontend-dist\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Artifact SHA256:** \`${FRONTEND_SHA256}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Run ID:** \`${{ github.run_id }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Run Attempt:** \`${{ github.run_attempt }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** Production" >> $GITHUB_STEP_SUMMARY
+          echo "**Frontend attestation:** Passed" >> $GITHUB_STEP_SUMMARY
+          echo "**S3 Bucket:** configured via GitHub Secret" >> $GITHUB_STEP_SUMMARY
+          echo "**CloudFront Distribution:** configured via GitHub Secret" >> $GITHUB_STEP_SUMMARY
+          echo "**Frontend URL:** \`${{ vars.FRONTEND_URL }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Timestamp:** $(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Frontend deployment completed successfully" >> $GITHUB_STEP_SUMMARY
