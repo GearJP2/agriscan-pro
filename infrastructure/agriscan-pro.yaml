@@ -1,0 +1,956 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  AgriScan Pro — Full Infrastructure Stack
+  Covers: VPC | Aurora PostgreSQL 16 Serverless v2 | ElastiCache Redis 7 TLS |
+          S3 (uploads + frontend) | IAM | Elastic Beanstalk Python 3.12 AL2023 | CloudFront SPA
+  Region: ap-southeast-1 (Singapore)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PARAMETERS
+# ─────────────────────────────────────────────────────────────────────────────
+Parameters:
+
+  # ── Naming & environment ────────────────────────────────────────────────────
+  AppName:
+    Type: String
+    Default: agriscan-pro
+    Description: Base name prefix used for all resources
+
+  Environment:
+    Type: String
+    Default: production
+    AllowedValues: [production, staging]
+    Description: Deployment environment tag
+
+  # ── Networking ──────────────────────────────────────────────────────────────
+  VpcCIDR:
+    Type: String
+    Default: 10.0.0.0/16
+
+  PublicSubnet1CIDR:
+    Type: String
+    Default: 10.0.1.0/24
+
+  PublicSubnet2CIDR:
+    Type: String
+    Default: 10.0.2.0/24
+
+  PrivateSubnet1CIDR:
+    Type: String
+    Default: 10.0.11.0/24
+
+  PrivateSubnet2CIDR:
+    Type: String
+    Default: 10.0.12.0/24
+
+  # ── Application secrets (NoEcho) ────────────────────────────────────────────
+  DjangoSecretKey:
+    Type: String
+    NoEcho: true
+    MinLength: 50
+    Description: Django SECRET_KEY — minimum 50 characters
+
+  GatewayApiKey:
+    Type: String
+    NoEcho: true
+    Description: GATEWAY_API_KEY used by the agent orchestrator
+
+  SreMonitorKey:
+    Type: String
+    NoEcho: true
+    Description: SRE_MONITOR_KEY protecting the /health/ metrics endpoint
+
+  # ── Database ────────────────────────────────────────────────────────────────
+  DBName:
+    Type: String
+    Default: agriscan_db
+
+  DBUser:
+    Type: String
+    Default: agriscan_user
+
+  DBPassword:
+    Type: String
+    NoEcho: true
+    MinLength: 16
+    Description: Aurora master password (min 16 chars, alphanumeric + symbols)
+
+  AuroraMinACU:
+    Type: Number
+    Default: 0.5
+    Description: Aurora Serverless v2 minimum ACUs (0.5 = minimum billable)
+
+  AuroraMaxACU:
+    Type: Number
+    Default: 8
+    Description: Aurora Serverless v2 maximum ACUs
+
+  # ── ElastiCache ─────────────────────────────────────────────────────────────
+  CacheNodeType:
+    Type: String
+    Default: cache.t4g.small
+    AllowedValues: [cache.t4g.micro, cache.t4g.small, cache.t4g.medium]
+    Description: ElastiCache Redis node type
+
+  # ── Elastic Beanstalk ───────────────────────────────────────────────────────
+  EBSolutionStack:
+    Type: String
+    Default: 64bit Amazon Linux 2023 v4.5.0 running Python 3.12
+    Description: >-
+      EB solution stack name. Verify the latest with:
+      aws elasticbeanstalk list-available-solution-stacks --query
+      "SolutionStacks[?contains(@,'Python 3.12')]" --region ap-southeast-1
+
+  EC2InstanceType:
+    Type: String
+    Default: t3.small
+    AllowedValues: [t3.micro, t3.small, t3.medium, t3.large]
+
+  EBMinInstances:
+    Type: Number
+    Default: 1
+
+  EBMaxInstances:
+    Type: Number
+    Default: 3
+
+  # ── Application config ──────────────────────────────────────────────────────
+  CorsAllowedOrigins:
+    Type: String
+    Default: ''
+    Description: >-
+      Comma-separated frontend origins (e.g. https://app.yourdomain.com).
+      Update with CloudFront domain after first deploy.
+
+  EmailHostUser:
+    Type: String
+    Default: ''
+    Description: SMTP username (leave empty to log OTPs to console in dev)
+
+  EmailHostPassword:
+    Type: String
+    Default: ''
+    NoEcho: true
+    Description: SMTP password / App Password
+
+  DefaultFromEmail:
+    Type: String
+    Default: 'AgriScan Pro <noreply@agriscan.example.com>'
+
+  # ── Optional custom domain ──────────────────────────────────────────────────
+  FrontendDomainAlias:
+    Type: String
+    Default: ''
+    Description: Custom domain for CloudFront (leave empty to use the *.cloudfront.net domain)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CONDITIONS
+# ─────────────────────────────────────────────────────────────────────────────
+Conditions:
+  HasFrontendDomain: !Not [!Equals [!Ref FrontendDomainAlias, '']]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# METADATA — Console parameter grouping
+# ─────────────────────────────────────────────────────────────────────────────
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label: { default: "1 · Application" }
+        Parameters: [AppName, Environment]
+      - Label: { default: "2 · Secrets" }
+        Parameters: [DjangoSecretKey, GatewayApiKey, SreMonitorKey]
+      - Label: { default: "3 · Database (Aurora PostgreSQL 16 Serverless v2)" }
+        Parameters: [DBName, DBUser, DBPassword, AuroraMinACU, AuroraMaxACU]
+      - Label: { default: "4 · Cache (ElastiCache Redis 7 + TLS)" }
+        Parameters: [CacheNodeType]
+      - Label: { default: "5 · Compute (Elastic Beanstalk)" }
+        Parameters: [EBSolutionStack, EC2InstanceType, EBMinInstances, EBMaxInstances]
+      - Label: { default: "6 · Networking" }
+        Parameters: [VpcCIDR, PublicSubnet1CIDR, PublicSubnet2CIDR, PrivateSubnet1CIDR, PrivateSubnet2CIDR]
+      - Label: { default: "7 · Email (optional)" }
+        Parameters: [EmailHostUser, EmailHostPassword, DefaultFromEmail]
+      - Label: { default: "8 · CORS & Domain" }
+        Parameters: [CorsAllowedOrigins, FrontendDomainAlias]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# RESOURCES
+# ─────────────────────────────────────────────────────────────────────────────
+Resources:
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # NETWORKING — VPC, subnets, internet gateway, route tables
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCIDR
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-vpc
+        - Key: Environment
+          Value: !Ref Environment
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-igw
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+
+  # Public subnets — used by EB ALB + EB instances (PubliclyAccessible DB also mapped here)
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Ref PublicSubnet1CIDR
+      AvailabilityZone: !Select [0, !GetAZs '']
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-public-1
+
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Ref PublicSubnet2CIDR
+      AvailabilityZone: !Select [1, !GetAZs '']
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-public-2
+
+  # Private subnets — ElastiCache Redis (not internet-routable)
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Ref PrivateSubnet1CIDR
+      AvailabilityZone: !Select [0, !GetAZs '']
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-private-1
+
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Ref PrivateSubnet2CIDR
+      AvailabilityZone: !Select [1, !GetAZs '']
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-private-2
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-public-rt
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: VPCGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnet1RouteAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet1
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnet2RouteAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet2
+      RouteTableId: !Ref PublicRouteTable
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # SECURITY GROUPS
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  # ALB — public-facing, accepts HTTP/HTTPS from anywhere
+  ALBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub ${AppName} ALB — allow HTTP/HTTPS from internet
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-alb-sg
+
+  # EB EC2 instances — only accepts traffic from the ALB
+  EBInstanceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub ${AppName} EB instances — allow HTTP from ALB
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          SourceSecurityGroupId: !Ref ALBSecurityGroup
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-eb-sg
+
+  # Aurora — only accepts PostgreSQL connections from EB instances
+  RDSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub ${AppName} Aurora — allow 5432 from EB instances
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref EBInstanceSecurityGroup
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-rds-sg
+
+  # ElastiCache — only accepts Redis connections from EB instances
+  CacheSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub ${AppName} ElastiCache — allow 6379 from EB instances
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 6379
+          ToPort: 6379
+          SourceSecurityGroupId: !Ref EBInstanceSecurityGroup
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-cache-sg
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # DATABASE — Aurora PostgreSQL 16 Serverless v2
+  # Matches README: Aurora PostgreSQL Serverless v2 (v16.1), publicly accessible
+  # DeletionPolicy: Snapshot prevents accidental data loss on stack delete
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: !Sub ${AppName} Aurora subnet group
+      SubnetIds:
+        - !Ref PublicSubnet1
+        - !Ref PublicSubnet2
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-db-subnet-group
+
+  AuroraCluster:
+    Type: AWS::RDS::DBCluster
+    DeletionPolicy: Snapshot
+    UpdateReplacePolicy: Snapshot
+    Properties:
+      DBClusterIdentifier: !Sub ${AppName}-cluster
+      Engine: aurora-postgresql
+      EngineVersion: '16.1'
+      DatabaseName: !Ref DBName
+      MasterUsername: !Ref DBUser
+      MasterUserPassword: !Ref DBPassword
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      VpcSecurityGroupIds:
+        - !Ref RDSSecurityGroup
+      ServerlessV2ScalingConfiguration:
+        MinCapacity: !Ref AuroraMinACU
+        MaxCapacity: !Ref AuroraMaxACU
+      BackupRetentionPeriod: 7
+      StorageEncrypted: true
+      EnableCloudwatchLogsExports:
+        - postgresql
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-aurora
+        - Key: Environment
+          Value: !Ref Environment
+
+  AuroraInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBClusterIdentifier: !Ref AuroraCluster
+      DBInstanceClass: db.serverless
+      Engine: aurora-postgresql
+      DBInstanceIdentifier: agriscanpro-db   # Matches CLAUDE.md instance name
+      PubliclyAccessible: true               # Matches README — accessible for dev/migration
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-db-instance
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # CACHE — ElastiCache Redis 7 OSS with TLS (rediss://)
+  # Single-node (AutomaticFailoverEnabled: false) matching current Single-AZ config
+  # ElastiCache placed in private subnets — accessible only from EB instances via SG
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  CacheSubnetGroup:
+    Type: AWS::ElastiCache::SubnetGroup
+    Properties:
+      CacheSubnetGroupName: !Sub ${AppName}-cache-subnet-group
+      Description: !Sub ${AppName} private subnets for ElastiCache Redis
+      SubnetIds:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+
+  RedisReplicationGroup:
+    Type: AWS::ElastiCache::ReplicationGroup
+    Properties:
+      ReplicationGroupId: !Sub ${AppName}-redis
+      ReplicationGroupDescription: !Sub ${AppName} Redis 7 OSS TLS — cache & Celery broker
+      AutomaticFailoverEnabled: false   # Single-node; set true + NumCacheClusters >= 2 for Multi-AZ
+      CacheNodeType: !Ref CacheNodeType
+      Engine: redis
+      EngineVersion: '7.1'
+      NumCacheClusters: 1
+      CacheSubnetGroupName: !Ref CacheSubnetGroup
+      SecurityGroupIds:
+        - !Ref CacheSecurityGroup
+      TransitEncryptionEnabled: true    # Produces rediss:// TLS endpoint
+      AtRestEncryptionEnabled: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-redis
+        - Key: Environment
+          Value: !Ref Environment
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # S3 — Sample file uploads bucket
+  # django-storages[s3] writes to uploads/raw/ prefix (settings.py: location: "uploads/raw")
+  # Auth via IAM Instance Profile (no static credentials in environment)
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  UploadsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ${AppName}-uploads-${AWS::AccountId}
+      VersioningConfiguration:
+        Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: AbortIncompleteUploads
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 7
+            Status: Enabled
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-uploads
+        - Key: Environment
+          Value: !Ref Environment
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # S3 — Frontend static assets bucket (served by CloudFront via OAC)
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  FrontendBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ${AppName}-frontend-${AWS::AccountId}
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-frontend
+        - Key: Environment
+          Value: !Ref Environment
+
+  FrontendBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    DependsOn: CloudFrontDistribution
+    Properties:
+      Bucket: !Ref FrontendBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowCloudFrontServicePrincipal
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub ${FrontendBucket.Arn}/*
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # IAM — Elastic Beanstalk Instance Role & Service Role
+  # Instance Role grants S3 access via Instance Profile (no static credentials)
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  EBInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${AppName}-eb-instance-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AWSElasticBeanstalkWebTier
+        - arn:aws:iam::aws:policy/AWSElasticBeanstalkWorkerTier
+        - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
+      Policies:
+        - PolicyName: S3UploadsAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:DeleteObject
+                  - s3:ListBucket
+                Resource:
+                  - !GetAtt UploadsBucket.Arn
+                  - !Sub ${UploadsBucket.Arn}/*
+        - PolicyName: SSMParameterReadAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:GetParameters
+                  - ssm:GetParametersByPath
+                Resource: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${AppName}/*
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  EBInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      InstanceProfileName: !Sub ${AppName}-eb-instance-profile
+      Roles:
+        - !Ref EBInstanceRole
+
+  EBServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${AppName}-eb-service-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: elasticbeanstalk.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSElasticBeanstalkEnhancedHealth
+        - arn:aws:iam::aws:policy/AWSElasticBeanstalkManagedUpdatesCustomerRolePolicy
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # ELASTIC BEANSTALK — Application + Environment
+  # Platform: Python 3.12 AL2023 (matches .elasticbeanstalk/config.yml)
+  # App name: agriscan-backend-v2 (matches config.yml application_name)
+  # Env name: Agriscanpro-backend-env (matches config.yml environment)
+  # WSGI: core.wsgi:application (matches .ebextensions/01_python.config)
+  # Health: /health/ → 200 (matches .ebextensions/01_python.config)
+  # NOTE: This creates the environment with the sample app. The actual Django
+  #       application is deployed by the GitHub Actions CI/CD pipeline.
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  EBApplication:
+    Type: AWS::ElasticBeanstalk::Application
+    Properties:
+      ApplicationName: agriscan-backend-v2
+      Description: AgriScan Pro — Django REST API backend
+
+  EBEnvironment:
+    Type: AWS::ElasticBeanstalk::Environment
+    DependsOn:
+      - AuroraInstance
+      - RedisReplicationGroup
+      - EBInstanceProfile
+      - EBServiceRole
+    Properties:
+      EnvironmentName: Agriscanpro-backend-env
+      ApplicationName: !Ref EBApplication
+      SolutionStackName: !Ref EBSolutionStack
+      Tier:
+        Name: WebServer
+        Type: Standard
+      OptionSettings:
+
+        # ── VPC & Subnets ────────────────────────────────────────────────────
+        - Namespace: aws:ec2:vpc
+          OptionName: VPCId
+          Value: !Ref VPC
+        - Namespace: aws:ec2:vpc
+          OptionName: Subnets
+          Value: !Join [',', [!Ref PublicSubnet1, !Ref PublicSubnet2]]
+        - Namespace: aws:ec2:vpc
+          OptionName: ELBSubnets
+          Value: !Join [',', [!Ref PublicSubnet1, !Ref PublicSubnet2]]
+        - Namespace: aws:ec2:vpc
+          OptionName: AssociatePublicIpAddress
+          Value: 'true'
+
+        # ── Environment type: Application Load Balancer ───────────────────────
+        - Namespace: aws:elasticbeanstalk:environment
+          OptionName: EnvironmentType
+          Value: LoadBalanced
+        - Namespace: aws:elasticbeanstalk:environment
+          OptionName: LoadBalancerType
+          Value: application
+        - Namespace: aws:elasticbeanstalk:environment
+          OptionName: ServiceRole
+          Value: !Ref EBServiceRole
+
+        # ── Security groups ──────────────────────────────────────────────────
+        - Namespace: aws:autoscaling:launchconfiguration
+          OptionName: SecurityGroups
+          Value: !Ref EBInstanceSecurityGroup
+        - Namespace: aws:elbv2:loadbalancer
+          OptionName: SecurityGroups
+          Value: !Ref ALBSecurityGroup
+
+        # ── Instance ─────────────────────────────────────────────────────────
+        - Namespace: aws:autoscaling:launchconfiguration
+          OptionName: InstanceType
+          Value: !Ref EC2InstanceType
+        - Namespace: aws:autoscaling:launchconfiguration
+          OptionName: IamInstanceProfile
+          Value: !Ref EBInstanceProfile
+
+        # ── Auto Scaling ─────────────────────────────────────────────────────
+        - Namespace: aws:autoscaling:asg
+          OptionName: MinSize
+          Value: !Ref EBMinInstances
+        - Namespace: aws:autoscaling:asg
+          OptionName: MaxSize
+          Value: !Ref EBMaxInstances
+
+        # ── Rolling deployment (minimise downtime) ───────────────────────────
+        - Namespace: aws:elasticbeanstalk:command
+          OptionName: DeploymentPolicy
+          Value: RollingWithAdditionalBatch
+        - Namespace: aws:elasticbeanstalk:command
+          OptionName: BatchSizeType
+          Value: Percentage
+        - Namespace: aws:elasticbeanstalk:command
+          OptionName: BatchSize
+          Value: '30'
+
+        # ── Health check ─────────────────────────────────────────────────────
+        - Namespace: aws:elasticbeanstalk:environment:process:default
+          OptionName: HealthCheckPath
+          Value: /health/
+        - Namespace: aws:elasticbeanstalk:environment:process:default
+          OptionName: MatcherHTTPCode
+          Value: '200'
+        - Namespace: aws:elasticbeanstalk:healthreporting:system
+          OptionName: SystemType
+          Value: enhanced
+
+        # ── Python WSGI ───────────────────────────────────────────────────────
+        - Namespace: aws:elasticbeanstalk:container:python
+          OptionName: WSGIPath
+          Value: core.wsgi:application
+
+        # ── Static files (Django admin CSS/JS via Nginx proxy) ────────────────
+        - Namespace: aws:elasticbeanstalk:environment:proxy:staticfiles
+          OptionName: /static
+          Value: staticfiles
+
+        # ── Managed platform updates ─────────────────────────────────────────
+        - Namespace: aws:elasticbeanstalk:managedactions
+          OptionName: ManagedActionsEnabled
+          Value: 'true'
+        - Namespace: aws:elasticbeanstalk:managedactions
+          OptionName: PreferredStartTime
+          Value: 'Sun:02:00'
+        - Namespace: aws:elasticbeanstalk:managedactions:platformupdate
+          OptionName: UpdateLevel
+          Value: minor
+
+        # ════════════════════════════════════════════════════════════════════
+        # ENVIRONMENT VARIABLES
+        # All env vars from backend/.env.example are set here.
+        # Values marked (secret) are NoEcho Parameters.
+        # ════════════════════════════════════════════════════════════════════
+
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: DJANGO_SETTINGS_MODULE
+          Value: core.settings
+
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: DEBUG
+          Value: 'False'
+
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: SECRET_KEY                          # (secret)
+          Value: !Ref DjangoSecretKey
+
+        # ── Database ─────────────────────────────────────────────────────────
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: DB_ENGINE
+          Value: postgresql
+
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: DB_NAME
+          Value: !Ref DBName
+
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: DB_USER
+          Value: !Ref DBUser
+
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: DB_PASSWORD                        # (secret)
+          Value: !Ref DBPassword
+
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: DB_HOST
+          Value: !GetAtt AuroraCluster.Endpoint.Address
+
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: DB_PORT
+          Value: !GetAtt AuroraCluster.Endpoint.Port
+
+        # ── Redis / Celery ────────────────────────────────────────────────────
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: REDIS_URL
+          Value: !Sub
+            - 'rediss://${Host}:${Port}/0'
+            - Host: !GetAtt RedisReplicationGroup.PrimaryEndPoint.Address
+              Port: !GetAtt RedisReplicationGroup.PrimaryEndPoint.Port
+
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: REDIS_SSL_CERT_REQS
+          Value: required
+
+        # ── Hosts & CORS ──────────────────────────────────────────────────────
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: ALLOWED_HOSTS
+          Value: !Sub '.${EBEnvironment.EndpointURL},.elasticbeanstalk.com,localhost'
+
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: CORS_ALLOWED_ORIGINS
+          Value: !Ref CorsAllowedOrigins
+
+        # ── Security keys ─────────────────────────────────────────────────────
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: GATEWAY_API_KEY                    # (secret)
+          Value: !Ref GatewayApiKey
+
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: SRE_MONITOR_KEY                    # (secret)
+          Value: !Ref SreMonitorKey
+
+        # ── S3 (IAM Instance Profile auth — no static keys needed) ───────────
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: AWS_STORAGE_BUCKET_NAME
+          Value: !Ref UploadsBucket
+
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: AWS_S3_REGION_NAME
+          Value: !Ref AWS::Region
+
+        # ── Email ─────────────────────────────────────────────────────────────
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: EMAIL_HOST_USER
+          Value: !Ref EmailHostUser
+
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: EMAIL_HOST_PASSWORD                # (secret)
+          Value: !Ref EmailHostPassword
+
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: DEFAULT_FROM_EMAIL
+          Value: !Ref DefaultFromEmail
+
+        # ── Gunicorn workers ──────────────────────────────────────────────────
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: WEB_WORKERS
+          Value: '3'
+
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # CLOUDFRONT — Frontend SPA (React + Vite build artifacts)
+  # Uses Origin Access Control (OAC) — the modern replacement for OAI
+  # SPA fallback: 403/404 from S3 → index.html (client-side routing)
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  CloudFrontOAC:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub ${AppName}-frontend-oac
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  CloudFrontCachePolicy:
+    Type: AWS::CloudFront::CachePolicy
+    Properties:
+      CachePolicyConfig:
+        Name: !Sub ${AppName}-spa-cache-policy
+        Comment: Long TTL for hashed assets, query-string/cookie/header-free cache key
+        DefaultTTL: 86400      # 1 day
+        MaxTTL: 31536000       # 1 year (Vite generates content-hashed filenames)
+        MinTTL: 0
+        ParametersInCacheKeyAndForwardedToOrigin:
+          EnableAcceptEncodingGzip: true
+          EnableAcceptEncodingBrotli: true
+          CookiesConfig:
+            CookieBehavior: none
+          HeadersConfig:
+            HeaderBehavior: none
+          QueryStringsConfig:
+            QueryStringBehavior: none
+
+  CloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    DependsOn: FrontendBucket
+    Properties:
+      DistributionConfig:
+        Comment: !Sub ${AppName} frontend SPA
+        Enabled: true
+        HttpVersion: http2and3
+        DefaultRootObject: index.html
+        # PriceClass_200 = NA + EU + Asia Pacific (includes ap-southeast-1 edge POPs)
+        PriceClass: PriceClass_200
+        Aliases: !If
+          - HasFrontendDomain
+          - [!Ref FrontendDomainAlias]
+          - !Ref AWS::NoValue
+        Origins:
+          - Id: FrontendS3Origin
+            DomainName: !GetAtt FrontendBucket.RegionalDomainName
+            OriginAccessControlId: !Ref CloudFrontOAC
+            S3OriginConfig:
+              OriginAccessIdentity: ''    # Required empty string when using OAC
+        DefaultCacheBehavior:
+          TargetOriginId: FrontendS3Origin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD, OPTIONS]
+          CachedMethods: [GET, HEAD]
+          CachePolicyId: !Ref CloudFrontCachePolicy
+          Compress: true
+        # React Router (BrowserRouter) fallback — S3 returns 403 for missing keys
+        CustomErrorResponses:
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 0
+          - ErrorCode: 404
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 0
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-cdn
+        - Key: Environment
+          Value: !Ref Environment
+
+# ─────────────────────────────────────────────────────────────────────────────
+# OUTPUTS
+# ─────────────────────────────────────────────────────────────────────────────
+Outputs:
+
+  VPCId:
+    Description: VPC ID
+    Value: !Ref VPC
+    Export:
+      Name: !Sub ${AppName}-vpc-id
+
+  # ── Database ──────────────────────────────────────────────────────────────
+
+  AuroraEndpoint:
+    Description: Aurora cluster writer endpoint — set as DB_HOST
+    Value: !GetAtt AuroraCluster.Endpoint.Address
+    Export:
+      Name: !Sub ${AppName}-db-host
+
+  AuroraPort:
+    Description: Aurora cluster port
+    Value: !GetAtt AuroraCluster.Endpoint.Port
+
+  # ── Redis ─────────────────────────────────────────────────────────────────
+
+  RedisEndpoint:
+    Description: ElastiCache Redis primary endpoint host
+    Value: !GetAtt RedisReplicationGroup.PrimaryEndPoint.Address
+    Export:
+      Name: !Sub ${AppName}-redis-host
+
+  RedisPort:
+    Description: ElastiCache Redis port
+    Value: !GetAtt RedisReplicationGroup.PrimaryEndPoint.Port
+
+  RedisURL:
+    Description: Full REDIS_URL value (paste into EB env vars or .env)
+    Value: !Sub
+      - 'rediss://${Host}:${Port}/0'
+      - Host: !GetAtt RedisReplicationGroup.PrimaryEndPoint.Address
+        Port: !GetAtt RedisReplicationGroup.PrimaryEndPoint.Port
+
+  # ── S3 ────────────────────────────────────────────────────────────────────
+
+  UploadsBucketName:
+    Description: S3 bucket for sample uploads — set as AWS_STORAGE_BUCKET_NAME
+    Value: !Ref UploadsBucket
+    Export:
+      Name: !Sub ${AppName}-uploads-bucket
+
+  FrontendBucketName:
+    Description: S3 bucket for frontend assets — deploy with `aws s3 sync dist/ s3://...`
+    Value: !Ref FrontendBucket
+    Export:
+      Name: !Sub ${AppName}-frontend-bucket
+
+  # ── Elastic Beanstalk ─────────────────────────────────────────────────────
+
+  EBEnvironmentURL:
+    Description: EB environment CNAME — add to ALLOWED_HOSTS
+    Value: !Sub http://${EBEnvironment.EndpointURL}
+
+  # ── CloudFront ────────────────────────────────────────────────────────────
+
+  CloudFrontURL:
+    Description: CloudFront domain — add to CORS_ALLOWED_ORIGINS after first deploy
+    Value: !Sub https://${CloudFrontDistribution.DomainName}
+
+  CloudFrontDistributionId:
+    Description: CloudFront distribution ID — used for cache invalidation in CI/CD
+    Value: !Ref CloudFrontDistribution
+    Export:
+      Name: !Sub ${AppName}-cf-distribution-id
