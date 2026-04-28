@@ -677,4 +677,4 @@ eb logs --zip                          # Download full log archive
 ## Last Updated
 - Date: 2026-04-29
 - By: Claude (Debugging Wizard & Cloud Architect)
-- Status: **Backend Refactor (R1-R6) Complete**. Test folders restructured into packages. God-functions decomposed (OAuth callback, CSV ingestion, OTP reset). CI/CD updated with flake8 linting and improved test discovery. Local tests: 157/159 pass (2 pre-existing integration failures).
+- Status: **Backend Refactor (R1-R6) & CI/CD Hardening Complete**. Test folders restructured into packages (`accounts/tests/`, `samples/tests/`). God-functions decomposed. CI/CD updated with flake8 linting and package-based test discovery. Local tests: 157/159 pass (2 pre-existing integration failures).

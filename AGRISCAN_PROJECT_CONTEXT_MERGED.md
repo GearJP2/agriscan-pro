@@ -44,9 +44,9 @@ VITE_MONITOR_URL        # URL of the monitor application (frontend)
 ...
 
 ## Last Updated
-- Date: 2026-04-27
-- By: Claude Code
-- Status: Automated Admin Roles, Monitor Access Linking, and Zero-Touch Infrastructure Synchronization are complete. Task items 53 and 54 are resolved. Integrated with Celery background tasks and verified via integration tests.
+- Date: 2026-04-29
+- By: Claude (Debugging Wizard & Cloud Architect)
+- Status: **Backend Refactor (R1-R6) & CI/CD Hardening Complete**. Test folders restructured into packages (`accounts/tests/`, `samples/tests/`). God-functions decomposed. CI/CD updated with flake8 linting and package-based test discovery. Local tests: 157/159 pass (2 pre-existing integration failures).
 
 ## 🌾 Project Overview
 
@@ -709,11 +709,11 @@ _Source: `CODE_REVIEW.md`_
 
 ## Overview
 
-**Last Updated**: 2026-04-27 (FE-1 review follow-up: password-change session revocation gap)
+**Last Updated**: 2026-04-29 (R1-R6 refactor and CI/CD hardening)
 
-**Scope**: Current working-tree review covering completed Weeks 1-4 hardening, the backend-first `MycotoxinResult` refactor, and the final infrastructure stability phase (Migrations, Profile modularization, OAuth PKCE, and Theme standardization).
+**Scope**: Current working-tree review covering completed Weeks 1-4 hardening, the backend-first `MycotoxinResult` refactor, the final infrastructure stability phase, and the **R1-R6 Backend Refactor** (Test restructuring & God-function decomposition).
 
-**Current Status**: MycotoxinResult refactor, threshold-alignment, and dependency-security items are **Fixed**. One auth-security follow-up remains open from FE-1: password-change via `/api/accounts/password/set/` does not yet revoke outstanding refresh-token sessions.
+**Current Status**: MycotoxinResult refactor, threshold-alignment, and dependency-security items are **Fixed**. Backend refactor (R1-R6) is **Complete**.
 
 **Recent Verification** _(2026-04-27)_
 
@@ -758,7 +758,7 @@ above_threshold_pct: 50.0
 - **Dependency Security Hardening** _(2026-04-27)_: Replaced `xlsx` with `exceljs` + `papaparse` across all import/export paths (`AddSampleForm`, `AdvancedImportForm`, `ImportResultsForm`, `SampleList`, `UnifiedImportForm`). Removed `@types/xlsx`; added `@types/papaparse`. Applied `uuid ^10` override.
 - **Migration 0010 Atomicity Fix** _(2026-04-27)_: Added `atomic = False` to `Migration` class to prevent `OperationalError: there are pending trigger events` on PostgreSQL during deferred-constraint data migration.
 - **Frontend CSV Import Bug Fixes** _(2026-04-27)_: Added `skipEmptyLines: true` to all 4 `Papa.parse` calls; fixed `URL.revokeObjectURL` memory leak in `SampleList.handleExportXLSX`; typed Papa `error` callbacks as `Error` instead of `any`; removed unused `rowNumber` param in `AddSampleForm.eachRow`.
-- **Backend PEP8** _(2026-04-27)_: Stripped trailing whitespace (W293) from `backend/samples/views.py` — passes `flake8 --max-line-length=120` clean.
+- **Backend Refactor (R1-R6)** _(2026-04-29)_: Test packages restructured; god-functions decomposed (OAuth callback, CSV ingestion, OTP reset); CI/CD hardened with flake8 and improved test discovery.
 - **FE-1 review finding** _(2026-04-27)_: `SetPasswordView` currently updates password without blacklisting existing refresh sessions; tracked as P1 follow-up.
 
 ### MycotoxinResult Refactor Status
@@ -1687,6 +1687,7 @@ Auth subsystem is generally well-designed: cookie-only refresh, server-side OAut
 
 - **Completed roadmap tasks:** `20 / 20`
 - **Infrastructure & Hardening:** `57 / 57` (items 1-57)
+- **Backend Refactor (R1-R6):** `Complete` (Test restructure, God-function decomposition)
 - **Security Audit Fixes (Phase 1):** `6 / 10` findings addressed (items 91-96)
 - **Notification Feature:** `0 / 9` planned (items 58-66)
 - **Top Priority:** Notification backend (58-63) and remaining Audit findings (email rate-limit, OTP hashing).
