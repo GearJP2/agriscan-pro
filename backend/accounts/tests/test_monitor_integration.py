@@ -50,7 +50,6 @@ class MonitorIntegrationTests(TestCase):
     @patch("requests.post")
     def test_admin_sync_to_monitor_kv(self, mock_post):
         """Functional: whitelisting an email in Pro syncs it to Monitor's Upstash Redis."""
-        from django.conf import settings
         from accounts.services.monitor_sync_service import MonitorSyncService
 
         # Ensure credentials appear to be configured for the service logic to run
