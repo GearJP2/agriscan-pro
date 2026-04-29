@@ -1581,53 +1581,133 @@ End-to-end manual smoke:
 
 ---
 
-## 2026-04-28 CI/CD Security Hardening (Current)
+## 2026-04-28/29 CI/CD Security Hardening
 
-Implemented comprehensive GitHub Actions security improvements following OWASP and GitHub security best practices.
+Implemented comprehensive GitHub Actions security improvements following OWASP CI/CD, GitHub Actions, and supply-chain security best practices.
 
 ### Completed
+
 - [x] **77. Least privilege permissions**
-  Top-level permissions reduced to `contents: read`. Deploy jobs use job-level `contents: read` + `id-token: write`.
+  Top-level permissions reduced to `contents: read`. Sensitive permissions are isolated at job level only.
 
 - [x] **78. Narrowed pull request triggers**
-  PR triggers limited to `opened`, `synchronize`, `reopened`, `ready_for_review` types only.
+  PR triggers limited to `opened`, `synchronize`, `reopened`, and `ready_for_review`.
 
 - [x] **79. Production environment protection**
-  Deploy jobs now reference `environment: production` for required reviewer approval gates.
+  Deploy jobs reference `environment: production` for production approval gates.
 
 - [x] **80. OIDC-only AWS credentials**
-  Removed long-lived `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`. Deploy jobs now use `AWS_BACKEND_DEPLOY_ROLE_ARN` and `AWS_FRONTEND_DEPLOY_ROLE_ARN` for short-lived credentials.
+  Removed long-lived `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`. Deploy jobs use `AWS_BACKEND_DEPLOY_ROLE_ARN` and `AWS_FRONTEND_DEPLOY_ROLE_ARN`.
 
 - [x] **81. Secure checkout configuration**
-  All checkout steps use `fetch-depth: 1` and `persist-credentials: false` to prevent token exposure.
+  All checkout steps use `fetch-depth: 1` and `persist-credentials: false`.
 
 - [x] **82. VITE variables moved to GitHub Variables**
-  `VITE_API_BASE_URL` and `VITE_MONITOR_URL` moved from secrets to variables (non-sensitive public config).
+  `VITE_API_BASE_URL` and `VITE_MONITOR_URL` moved from secrets to variables because they are public frontend build-time config.
 
-- [x] **83. Artifact-based deployment**
-  Frontend build now uploads artifact in test job and downloads in deploy job, ensuring test and production use identical builds.
+- [x] **83. Artifact-based deployments**
+  Backend and frontend deploy from tested artifacts:
+  - Backend: `backend-bundle.tar.gz`
+  - Frontend: `frontend-dist.tar.gz`
 
-- [x] **84. Concurrency control**
-  Added `concurrency: group: ci-${{ github.ref_name }}` with `cancel-in-progress: true` to prevent resource waste.
+- [x] **84. Safe concurrency control**
+  Workflow-level concurrency cancels only superseded pull request runs:
+  `cancel-in-progress: ${{ github.event_name == 'pull_request' }}`
+  Production deploy jobs use `cancel-in-progress: false`.
 
-### Remaining (Phase 2-3)
-- [ ] **85. Pin actions with commit SHA**
-  Replace `@v4` tags with full-length commit SHAs for supply chain security.
+- [x] **85. Pin actions with full commit SHA**
+  All GitHub Actions are pinned to full-length commit SHAs instead of mutable tags.
 
-- [ ] **86. Add dependency review job**
-  Implement PR dependency vulnerability scanning with `actions/dependency-review-action`.
+- [x] **86. Static workflow analysis**
+  Added `actionlint` through pinned CI requirements.
 
-- [ ] **87. Configure GitHub Environments**
-  Set up `production` environment with required reviewers in GitHub UI.
+- [x] **87. Security scanning gates**
+  Added Bandit and Trivy. HIGH/CRITICAL findings fail the pipeline.
 
-- [ ] **88. Set up AWS IAM OIDC roles**
-  Create IAM roles with trust policies locked to specific repo/environment/sub claims.
+- [x] **88. SARIF upload guard**
+  SARIF uploads are guarded for fork PRs and missing SARIF files.
 
-- [ ] **89. Remove unused GitHub secrets**
-  Delete `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `VITE_API_BASE_URL`, `VITE_MONITOR_URL` from secrets.
+- [x] **89. Backend dependency audit**
+  Backend dependency audit runs through `backend/scripts/run_dependency_audit.py`.
 
-- [ ] **90. Add job timeouts**
-  Implement `timeout-minutes: 15` for all jobs to prevent hanging builds.
+- [x] **90. Frontend dependency audit policy**
+  Frontend uses `audit-ci` with `npx --no-install audit-ci --config .audit-ci.json`.
+
+- [x] **91. Job timeouts**
+  Every job has `timeout-minutes`.
+
+- [x] **92. SBOM generation**
+  Backend and frontend CycloneDX SBOMs are generated and uploaded as artifacts.
+
+- [x] **93. Artifact attestations**
+  Backend/frontend deployment artifacts and SBOMs are attested.
+
+- [x] **94. Attestation verification**
+  Deployment is gated by `verify-backend-attestation` and `verify-frontend-attestation`.
+
+- [x] **95. Artifact checksum evidence**
+  Deployment summaries include SHA256 checksums for deployed artifacts.
+
+- [x] **96. Backend database smoke test**
+  PostgreSQL service image is pinned by digest and migrations/health checks run before deploy.
+
+- [x] **97. Performance gate**
+  Backend health endpoint response time above 500ms fails the smoke test.
+
+- [x] **98. CloudFront invalidation optimization**
+  Frontend deploy invalidates only `/index.html`, not `/*`.
+
+- [x] **99. Backend linting**
+  Backend CI runs `flake8`.
+
+### Remaining Production Setup
+
+- [ ] **100. Configure GitHub Environment `production`**
+  Enable required reviewers, prevent self-review, and restrict deployments to `main`.
+
+- [ ] **101. Configure GitHub Branch Protection for `main`**
+  Require PR review, required checks, up-to-date branch, and block force pushes/deletions.
+
+- [ ] **102. Set up AWS IAM OIDC provider**
+  Create or verify IAM OIDC provider for `https://token.actions.githubusercontent.com`.
+
+- [ ] **103. Create backend AWS deploy role**
+  Create `AWS_BACKEND_DEPLOY_ROLE_ARN` with trust policy scoped to the repository and `production` environment.
+
+- [ ] **104. Create frontend AWS deploy role**
+  Create `AWS_FRONTEND_DEPLOY_ROLE_ARN` with trust policy scoped to the repository and `production` environment.
+
+- [ ] **105. Apply least-privilege backend deploy policy**
+  Scope Elastic Beanstalk, deployment artifact bucket, and required read/log permissions as narrowly as practical.
+
+- [ ] **106. Apply least-privilege frontend deploy policy**
+  Scope S3 permissions to the frontend bucket and CloudFront invalidation to the target distribution only.
+
+- [ ] **107. Remove unused GitHub secrets**
+  Delete old `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `VITE_API_BASE_URL`, and `VITE_MONITOR_URL` from GitHub Secrets after confirming the workflow no longer references them.
+
+- [ ] **108. Store production secrets in GitHub Environment**
+  Add `AWS_BACKEND_DEPLOY_ROLE_ARN`, `AWS_FRONTEND_DEPLOY_ROLE_ARN`, `S3_FRONTEND_BUCKET`, `CLOUDFRONT_DISTRIBUTION_ID`, and `PRODUCTION_HOST` under the `production` environment.
+
+- [ ] **109. First production attestation verification**
+  Run one production deployment and manually verify that artifact attestations resolve correctly.
+
+- [ ] **110. First rollback test**
+  Test backend and frontend rollback once and document the exact recovery steps.
+
+### Optional Future Enhancements
+
+- [ ] **111. Add GitHub dependency-review-action**
+  Optional PR-level dependency diff review. Current pipeline already has Trivy, audit-ci, and backend dependency audit, so this is additive rather than blocking.
+
+- [ ] **112. Add OpenSSF Scorecard**
+  Add repository posture scanning for branch protection, token permissions, pinned dependencies, dangerous workflows, and security policy.
+
+- [ ] **113. Add stricter attestation policy**
+  Enforce expected commit/ref/workflow metadata beyond `--signer-workflow`.
+
+- [ ] **114. Migrate SBOM attestation semantics**
+  Consider moving from generic provenance attestation for SBOM files to SBOM-specific attestation semantics when appropriate.
 
 ---
 
@@ -1663,22 +1743,22 @@ Auth subsystem is generally well-designed: cookie-only refresh, server-side OAut
 
 ## Progress Tracking: Auth Hardening (Audit Phase 1)
 
-- [x] **91. [Auth-Audit-01] Session Revocation after Password Change**
+- [x] **115. [Auth-Audit-01] Session Revocation after Password Change**
   `SetPasswordView.post` now calls `blacklist_all_user_tokens(request.user)` and re-issues a fresh session cookie.
 
-- [x] **92. [Auth-Audit-02] Production CORS Hardening**
+- [x] **116. [Auth-Audit-02] Production CORS Hardening**
   `CORS_ALLOWED_ORIGINS` now gates `localhost` and `127.0.0.1` entries behind `DEBUG=True`.
 
-- [x] **93. [Auth-Audit-03] Password Validator Integration**
+- [x] **117. [Auth-Audit-03] Password Validator Integration**
   `RegisterSerializer` and `PasswordResetSerializer` now explicitly invoke `validate_password` from Django's auth subsystem.
 
-- [x] **94. [Auth-Audit-04] Structured Logging Standardization**
+- [x] **118. [Auth-Audit-04] Structured Logging Standardization**
   Background tasks (`tasks.py`) and `MonitorSyncService` converted from f-strings to `extra={...}` structured form.
 
-- [x] **95. [Auth-Audit-05] Security Leak Prevention**
+- [x] **119. [Auth-Audit-05] Security Leak Prevention**
   `MonitorSyncService` no longer logs upstream KV response bodies to prevent sensitive token/email leakage.
 
-- [x] **96. [Auth-Audit-06] Dead Code Cleanup**
+- [x] **120. [Auth-Audit-06] Dead Code Cleanup**
   Removed unreachable `cache.ttl(...)` logic in `RateLimiter.get_remaining_time`.
 
 ---
@@ -1687,8 +1767,9 @@ Auth subsystem is generally well-designed: cookie-only refresh, server-side OAut
 
 - **Completed roadmap tasks:** `20 / 20`
 - **Infrastructure & Hardening:** `57 / 57` (items 1-57)
+- **CI/CD Security Hardening:** `23 / 38` (items 77-114)
 - **Backend Refactor (R1-R6):** `Complete` (Test restructure, God-function decomposition)
-- **Security Audit Fixes (Phase 1):** `6 / 10` findings addressed (items 91-96)
+- **Security Audit Fixes (Phase 1):** `6 / 10` findings addressed (items 115-120)
 - **Notification Feature:** `0 / 9` planned (items 58-66)
 - **Top Priority:** Notification backend (58-63) and remaining Audit findings (email rate-limit, OTP hashing).
 
