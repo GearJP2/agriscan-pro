@@ -71,3 +71,4 @@ yarn-error.log*
 *.old
 .codex
 .logs_temp/
+flake8_*.txt
