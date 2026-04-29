@@ -9,16 +9,20 @@ The current pipeline has been hardened with least-privilege GitHub permissions, 
 ## Current Status
 
 **Status:** Production-Grade Security Hardening Complete (SLSA Level 2-aligned / SLSA 2+ readiness)  
-**Pending:** AWS IAM production role provisioning and Branch Protection rule activation  
+**Pending:** First OIDC deployment verification, old secret cleanup, Branch Protection rule activation, and production environment approval rule activation  
 **Last Updated:** 2026-04-29
 
 ### Current Remaining Items
 
 | Priority | Item | Status |
 |---|---|---|
-| P0 | Confirm AWS IAM role trust policies and least-privilege deployment policies | Pending |
+| P0 | Run first `workflow_dispatch` deployment from `main` using AWS OIDC roles | Pending |
+| P0 | Verify CloudTrail `AssumeRoleWithWebIdentity` events for backend/frontend deploy roles | Pending |
+| P0 | Remove deprecated long-lived AWS credentials from GitHub Secrets after OIDC deploy succeeds | Pending |
 | P0 | Activate GitHub Branch Protection rules for `main` | Pending |
-| P1 | Perform a manual verification of the first production attestation | Recommended |
+| P0 | Configure GitHub Environment `production` approval rules | Pending |
+| P1 | Perform manual verification of first production artifact attestation | Recommended |
+| P1 | Test backend and frontend rollback once | Pending |
 
 ---
 
@@ -28,20 +32,34 @@ Before enabling production deployment, confirm the following items:
 
 | Area | Check | Status |
 |---|---|---|
-| GitHub Branch Protection | `main` requires pull request review before merge | Pending |
-| GitHub Branch Protection | `main` requires CI checks before merge | Pending |
-| GitHub Branch Protection | Direct push to `main` is restricted | Pending |
-| GitHub Environment | `production` requires reviewer approval | Pending |
-| GitHub Environment | Self-approval is disabled | Pending |
-| GitHub Environment | Production secrets are stored as environment secrets | Pending |
-| AWS IAM | Backend deployment role trust policy is restricted to the correct repo and branch | Pending |
-| AWS IAM | Frontend deployment role trust policy is restricted to the correct repo and branch | Pending |
-| AWS IAM | Backend role has least-privilege Elastic Beanstalk permissions | Pending |
-| AWS IAM | Frontend role is scoped to one S3 bucket and one CloudFront distribution | Pending |
+| GitHub Variables | `VITE_API_BASE_URL=/api` is configured | Done |
+| GitHub Variables | `VITE_MONITOR_URL` is configured | Done |
+| GitHub Variables | `FRONTEND_URL=https://d27isnumffqap.cloudfront.net` is configured | Done |
+| GitHub Environment Secrets | `AWS_BACKEND_DEPLOY_ROLE_ARN` is configured | Done |
+| GitHub Environment Secrets | `AWS_FRONTEND_DEPLOY_ROLE_ARN` is configured | Done |
+| GitHub Environment Secrets | `S3_FRONTEND_BUCKET` is configured | Done |
+| GitHub Environment Secrets | `CLOUDFRONT_DISTRIBUTION_ID` is configured | Done |
+| GitHub Environment Secrets | `PRODUCTION_HOST=d27isnumffqap.cloudfront.net` is configured | Done |
+| AWS IAM | GitHub OIDC Provider `token.actions.githubusercontent.com` exists | Done |
+| AWS IAM | Backend deployment role trust policy is restricted to `GearJP2/agriscan-pro:environment:production` | Done |
+| AWS IAM | Frontend deployment role trust policy is restricted to `GearJP2/agriscan-pro:environment:production` | Done |
+| AWS IAM | Backend role has practical least-privilege Elastic Beanstalk deployment permissions | Done / Needs first deploy verification |
+| AWS IAM | Frontend role is scoped to one S3 bucket and one CloudFront distribution | Done / Needs first deploy verification |
+| CloudFront | `/api/*` routes to Elastic Beanstalk backend origin | Done |
+| CloudFront | `/health*` routes to Elastic Beanstalk backend origin | Confirm before deploy |
 | Artifacts | Backend bundle includes required EB deployment files | Done |
 | Artifacts | Frontend artifact is deployed without rebuild | Done |
 | Security | Trivy fails on HIGH/CRITICAL findings | Done |
 | Security | Bandit fails on high/critical findings | Done |
+| GitHub Branch Protection | `main` requires pull request review before merge | Pending |
+| GitHub Branch Protection | `main` requires CI/security/attestation checks before merge | Pending |
+| GitHub Branch Protection | Direct push to `main` is restricted | Pending |
+| GitHub Environment | `production` requires reviewer approval | Pending |
+| GitHub Environment | Self-approval is disabled | Pending |
+| Secrets Cleanup | `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` removed after OIDC deploy succeeds | Pending |
+| Secrets Cleanup | `VITE_API_BASE_URL` and `VITE_MONITOR_URL` removed from Secrets after moving to Variables | Pending |
+| Verification | First `workflow_dispatch` production deployment succeeds | Pending |
+| Verification | CloudTrail shows `AssumeRoleWithWebIdentity` for backend/frontend roles | Pending |
 | Rollback | Backend rollback command has been tested | Pending |
 | Rollback | Frontend rollback path has been tested | Pending |
 
@@ -654,21 +672,57 @@ Before production use, verify the following:
 
 ---
 
-## Required GitHub Secrets and Variables
+## Required GitHub Secrets and Variables — Updated
 
-### GitHub Secrets
+### GitHub Environment Secrets
+
 Recommended location: GitHub Environment secrets under `production`.
-- `AWS_BACKEND_DEPLOY_ROLE_ARN`
-- `AWS_FRONTEND_DEPLOY_ROLE_ARN`
-- `S3_FRONTEND_BUCKET`
-- `CLOUDFRONT_DISTRIBUTION_ID`
-- `PRODUCTION_HOST`
 
-### GitHub Variables
-Repository or environment variables:
-- `VITE_API_BASE_URL`
-- `VITE_MONITOR_URL`
-- `FRONTEND_URL`
+| Secret | Status |
+|---|---|
+| `AWS_BACKEND_DEPLOY_ROLE_ARN` | Done |
+| `AWS_FRONTEND_DEPLOY_ROLE_ARN` | Done |
+| `S3_FRONTEND_BUCKET` | Done |
+| `CLOUDFRONT_DISTRIBUTION_ID` | Done |
+| `PRODUCTION_HOST` | Done |
+
+Current expected value:
+
+```text
+PRODUCTION_HOST=d27isnumffqap.cloudfront.net
+```
+
+> [!IMPORTANT]
+> Do not include `https://` in `PRODUCTION_HOST`, because the workflow calls: `https://${PRODUCTION_HOST}/health/`
+
+### GitHub Repository Variables
+
+| Variable | Value | Status |
+|---|---|---|
+| `VITE_API_BASE_URL` | `/api` | Done |
+| `VITE_MONITOR_URL` | `<monitor-url>` | Done |
+| `FRONTEND_URL` | `https://d27isnumffqap.cloudfront.net` | Done |
+
+---
+
+## First OIDC Deployment Verification Checklist
+
+| Step | Check | Status |
+|---:|---|---|
+| 1 | Confirm CloudFront `/api/*` behavior points to `ElasticBeanstalk-API` | Done |
+| 2 | Confirm CloudFront `/health*` behavior points to `ElasticBeanstalk-API` | Pending |
+| 3 | Run `curl -I https://d27isnumffqap.cloudfront.net/health/` | Pending |
+| 4 | Run `curl -I https://d27isnumffqap.cloudfront.net/api/` | Pending |
+| 5 | Run GitHub Actions `workflow_dispatch` from `main` | Pending |
+| 6 | Confirm `verify-backend-attestation` passes | Pending |
+| 7 | Confirm `verify-frontend-attestation` passes | Pending |
+| 8 | Confirm `deploy-backend` assumes `agriscan-github-backend-deploy-role` | Pending |
+| 9 | Confirm `deploy-frontend` assumes `agriscan-github-frontend-deploy-role` | Pending |
+| 10 | Confirm AWS CloudTrail shows `AssumeRoleWithWebIdentity` for both roles | Pending |
+| 11 | Confirm backend `/health/` passes after deployment | Pending |
+| 12 | Confirm frontend health check passes after deployment | Pending |
+| 13 | Remove old `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` secrets | Pending |
+| 14 | Remove old `VITE_API_BASE_URL` and `VITE_MONITOR_URL` from Secrets if still present | Pending |
 
 ---
 

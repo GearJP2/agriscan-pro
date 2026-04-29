@@ -563,7 +563,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@ec61189d14ec14c8efccab744f656cffd0e33f37
         with:
           role-to-assume: ${{ secrets.AWS_BACKEND_DEPLOY_ROLE_ARN }}
-          aws-region: ap-southeast-1
+          aws-region: ${{ secrets.AWS_REGION }}
 
       - name: Check EB Environment Status
         run: |
@@ -668,7 +668,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@ec61189d14ec14c8efccab744f656cffd0e33f37
         with:
           role-to-assume: ${{ secrets.AWS_FRONTEND_DEPLOY_ROLE_ARN }}
-          aws-region: ap-southeast-1
+          aws-region: ${{ secrets.AWS_REGION }}
 
       - name: Download frontend build artifact
         uses: actions/download-artifact@484a0b528fb4d7bd804637ccb632e47a0e638317
