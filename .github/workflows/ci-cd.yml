@@ -441,7 +441,7 @@ jobs:
           path: .
 
       - name: Attest backend bundle
-        uses: actions/attest-build-provenance@v1.4.3
+        uses: actions/attest-build-provenance@v1
         with:
           subject-path: backend-bundle.tar.gz
 
@@ -452,7 +452,7 @@ jobs:
           path: .
 
       - name: Attest backend SBOM
-        uses: actions/attest-build-provenance@52933e748dc9ff61f0072d622f66455115d90821 # v1.4.3
+        uses: actions/attest-build-provenance@v1 # v1.4.3
         with:
           subject-path: backend-sbom.json
 
@@ -473,7 +473,7 @@ jobs:
           path: .
 
       - name: Attest frontend bundle
-        uses: actions/attest-build-provenance@v1.4.3
+        uses: actions/attest-build-provenance@v1
         with:
           subject-path: frontend-dist.tar.gz
 
@@ -484,7 +484,7 @@ jobs:
           path: .
 
       - name: Attest frontend SBOM
-        uses: actions/attest-build-provenance@52933e748dc9ff61f0072d622f66455115d90821 # v1.4.3
+        uses: actions/attest-build-provenance@v1 # v1.4.3
         with:
           subject-path: frontend-sbom.json
 
