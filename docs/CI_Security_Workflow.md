@@ -8,20 +8,22 @@ The current pipeline has been hardened with least-privilege GitHub permissions, 
 
 ## Current Status
 
-**Status:** Production-Grade Security Hardening Complete (SLSA Level 2-aligned / SLSA 2+ readiness)  
-**Pending:** First OIDC deployment verification, old secret cleanup, Branch Protection rule activation, and production environment approval rule activation  
+**Status:** Production-Grade CI/CD Security Hardening Verified  
+**Verification:** First `workflow_dispatch` production deployment from `main` completed successfully with all jobs passing  
+**Supply Chain:** SLSA Level 2-aligned / SLSA 2+ readiness  
+**Pending:** Branch Protection rule activation, production environment approval rule activation, CloudTrail audit confirmation, and rollback testing  
 **Last Updated:** 2026-04-29
 
 ### Current Remaining Items
 
 | Priority | Item | Status |
 |---|---|---|
-| P0 | Run first `workflow_dispatch` deployment from `main` using AWS OIDC roles | Pending |
+| P0 | Run first `workflow_dispatch` deployment from `main` using AWS OIDC roles | Done |
 | P0 | Verify CloudTrail `AssumeRoleWithWebIdentity` events for backend/frontend deploy roles | Pending |
-| P0 | Remove deprecated long-lived AWS credentials from GitHub Secrets after OIDC deploy succeeds | Pending |
+| P0 | Remove deprecated long-lived AWS credentials from GitHub Secrets after OIDC deploy succeeds | Done |
 | P0 | Activate GitHub Branch Protection rules for `main` | Pending |
 | P0 | Configure GitHub Environment `production` approval rules | Pending |
-| P1 | Perform manual verification of first production artifact attestation | Recommended |
+| P1 | Perform manual verification of first production artifact attestation | Done |
 | P1 | Test backend and frontend rollback once | Pending |
 
 ---
@@ -43,25 +45,68 @@ Before enabling production deployment, confirm the following items:
 | AWS IAM | GitHub OIDC Provider `token.actions.githubusercontent.com` exists | Done |
 | AWS IAM | Backend deployment role trust policy is restricted to `GearJP2/agriscan-pro:environment:production` | Done |
 | AWS IAM | Frontend deployment role trust policy is restricted to `GearJP2/agriscan-pro:environment:production` | Done |
-| AWS IAM | Backend role has practical least-privilege Elastic Beanstalk deployment permissions | Done / Needs first deploy verification |
-| AWS IAM | Frontend role is scoped to one S3 bucket and one CloudFront distribution | Done / Needs first deploy verification |
+| AWS IAM | Backend role has practical least-privilege Elastic Beanstalk deployment permissions | Done |
+| AWS IAM | Frontend role is scoped to one S3 bucket and one CloudFront distribution | Done |
 | CloudFront | `/api/*` routes to Elastic Beanstalk backend origin | Done |
-| CloudFront | `/health*` routes to Elastic Beanstalk backend origin | Confirm before deploy |
+| CloudFront | `/health*` routes to Elastic Beanstalk backend origin | Done |
 | Artifacts | Backend bundle includes required EB deployment files | Done |
 | Artifacts | Frontend artifact is deployed without rebuild | Done |
 | Security | Trivy fails on HIGH/CRITICAL findings | Done |
 | Security | Bandit fails on high/critical findings | Done |
+| Verification | First `workflow_dispatch` production deployment succeeds | Done |
+| Verification | `changes` job passes | Done |
+| Verification | `backend-test` job passes | Done |
+| Verification | `security-scan` job passes | Done |
+| Verification | `frontend-test` job passes | Done |
+| Verification | `backend-db-smoke-test` job passes | Done |
+| Verification | `attest-backend` job passes | Done |
+| Verification | `attest-frontend` job passes | Done |
+| Verification | `verify-backend-attestation` job passes | Done |
+| Verification | `verify-frontend-attestation` job passes | Done |
+| Verification | `deploy-backend` job passes | Done |
+| Verification | `deploy-frontend` job passes | Done |
+| Verification | CloudTrail shows `AssumeRoleWithWebIdentity` for backend/frontend roles | Pending |
 | GitHub Branch Protection | `main` requires pull request review before merge | Pending |
 | GitHub Branch Protection | `main` requires CI/security/attestation checks before merge | Pending |
 | GitHub Branch Protection | Direct push to `main` is restricted | Pending |
 | GitHub Environment | `production` requires reviewer approval | Pending |
 | GitHub Environment | Self-approval is disabled | Pending |
-| Secrets Cleanup | `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` removed after OIDC deploy succeeds | Pending |
-| Secrets Cleanup | `VITE_API_BASE_URL` and `VITE_MONITOR_URL` removed from Secrets after moving to Variables | Pending |
-| Verification | First `workflow_dispatch` production deployment succeeds | Pending |
-| Verification | CloudTrail shows `AssumeRoleWithWebIdentity` for backend/frontend roles | Pending |
+| Secrets Cleanup | `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` removed after OIDC deploy succeeds | Done |
+| Secrets Cleanup | `VITE_API_BASE_URL` and `VITE_MONITOR_URL` removed from Secrets after moving to Variables | Done |
 | Rollback | Backend rollback command has been tested | Pending |
 | Rollback | Frontend rollback path has been tested | Pending |
+
+---
+
+## First OIDC Production Deployment Result
+
+The first OIDC-based production deployment from `main` has completed successfully.
+
+| Job | Status |
+|---|---|
+| `changes` | Passed |
+| `backend-test` | Passed |
+| `security-scan` | Passed |
+| `frontend-test` | Passed |
+| `backend-db-smoke-test` | Passed |
+| `attest-backend` | Passed |
+| `attest-frontend` | Passed |
+| `verify-backend-attestation` | Passed |
+| `verify-frontend-attestation` | Passed |
+| `deploy-backend` | Passed |
+| `deploy-frontend` | Passed |
+
+### Verification Notes
+
+- AWS OIDC role assumption is operational for both backend and frontend deployment jobs.
+- Backend deployment to Elastic Beanstalk completed successfully.
+- Frontend deployment to S3 and CloudFront completed successfully.
+- Artifact attestation jobs and verification jobs completed successfully.
+- Post-deploy health checks completed successfully.
+
+### Immediate Follow-up
+
+Deprecated long-lived AWS credentials can now be removed from GitHub Secrets after confirming no other workflow still references them.
 
 ---
 
@@ -167,7 +212,7 @@ attest-frontend
 
 Attestation verification occurs inside the production deployment verification jobs (`verify-backend-attestation` / `verify-frontend-attestation`).
 
-### 6. Workflow Static Analysis (actionlint)
+### 5. Workflow Static Analysis (actionlint)
 
 The pipeline uses `actionlint` to automatically detect syntax errors, unpinned actions, and security misconfigurations in GitHub Actions workflows.
 
@@ -176,7 +221,7 @@ The pipeline uses `actionlint` to automatically detect syntax errors, unpinned a
 - **Enforcement**: Runs as part of the `changes` job on every push and PR.
 - **Fail-Closed**: If the tool installation or linting fails, the entire pipeline is blocked.
 
-### 7. Pinned GitHub Actions
+### 6. Pinned GitHub Actions
 
 GitHub Actions are pinned to full commit SHAs instead of mutable version tags.
 
@@ -206,7 +251,7 @@ Pinned action SHAs should be reviewed periodically and updated intentionally.
 | Monthly | Update SHAs deliberately through PR review |
 | Every update | Verify the new SHA resolves to a real commit in the expected repository |
 
-### 8. Hardened Checkout
+### 7. Hardened Checkout
 
 Every checkout step uses:
 
@@ -222,11 +267,11 @@ with:
 - Reduces token exposure risk during later shell commands
 - Keeps checkout behavior consistent across jobs
 
-### 9. Artifact-Based Deployment
+### 8. Artifact-Based Deployment
 
 Both frontend and backend now use artifact-based deployments to ensure consistency between testing and production.
 
-#### 7.1 Frontend Artifact Deployment
+#### 8.1 Frontend Artifact Deployment
 
 The `frontend-test` job builds the frontend and uploads `frontend-dist`. The `deploy-frontend` job downloads this artifact and syncs it to S3.
 
@@ -235,13 +280,13 @@ The frontend deployment job does not rebuild the frontend and does not need to c
 #### Benefits
 - Prevents build drift between CI and production
 - Ensures the deployed frontend is the same artifact that passed lint, typecheck, smoke tests, dependency audit, and build
-#### 7.2 Backend Artifact Deployment
+#### 8.2 Backend Artifact Deployment
 
 The `backend-test` job creates a deployment archive: `backend-bundle.tar.gz`. This archive is uploaded as the `backend-bundle` artifact.
 
 The `deploy-backend` job downloads and extracts this artifact before deploying to Elastic Beanstalk.
 
-#### 7.3 Artifact Provenance and SLSA 2+ Readiness
+#### 8.3 Artifact Provenance and SLSA 2+ Readiness
 
 AgriScan Pro implements **GitHub Artifact Attestations** to provide cryptographic proof of build integrity. This aligns with **SLSA Level 2** requirements for hosted build services and authenticated provenance (**SLSA Level 2-aligned / SLSA 2+ readiness**).
 
@@ -254,7 +299,7 @@ AgriScan Pro implements **GitHub Artifact Attestations** to provide cryptographi
 
 The backend and frontend deployment artifacts are attested and verified before deployment. Their SBOMs are generated, uploaded, and attested as supply-chain evidence.
 
-#### 7.4 Why tar.gz is Used
+#### 8.4 Why tar.gz is Used
 
 A tar archive is used instead of raw artifact directory upload because:
 - Hidden deployment folders such as `.platform`, `.ebextensions`, and `.elasticbeanstalk` can be preserved
@@ -284,7 +329,7 @@ The backend bundle excludes sensitive and unnecessary files such as:
 
 Before production rollout, confirm that excluding test files does not remove any runtime dependency. If production code imports test fixtures or test utilities, remove those test exclusions.
 
-### 10. Frontend Public Configuration Uses GitHub Variables
+### 9. Frontend Public Configuration Uses GitHub Variables
 
 Vite public environment variables now use GitHub repository variables instead of secrets:
 - `VITE_API_BASE_URL`
@@ -303,7 +348,7 @@ This is correct because `VITE_*` values are bundled into client-side JavaScript 
 
 `S3_FRONTEND_BUCKET`, `CLOUDFRONT_DISTRIBUTION_ID`, and `PRODUCTION_HOST` are not credentials by themselves, but keeping them as secrets can reduce infrastructure information disclosure. The primary security control remains IAM least privilege.
 
-### 11. Security Scanning Pipeline
+### 10. Security Scanning Pipeline
 
 The workflow includes a dedicated `security-scan` job.
 
@@ -336,7 +381,7 @@ if: (success() || failure()) && hashFiles('bandit-results.sarif') != '' && (gith
 
 This allows SARIF upload for internal PRs and pushes while avoiding write-permission failures on external fork PRs and missing-file errors.
 
-### 12. Backend Database Smoke Test
+### 11. Backend Database Smoke Test
 
 The workflow includes a backend database smoke test using PostgreSQL. The PostgreSQL service image is pinned by digest:
 
@@ -358,7 +403,7 @@ The job runs:
 - Response time above **500ms** triggers a hard failure (`SystemExit(1)`).
 - This ensures that performance regressions are caught before they reach the deployment phase.
 
-### 13. Dependency Audit Policy
+### 12. Dependency Audit Policy
 
 Frontend dependency scanning uses `audit-ci` with a local policy file: `frontend/.audit-ci.json`.
 
@@ -413,11 +458,11 @@ Example entry for `.audit-ci.json`:
 
 Expired allowlist entries must be removed or re-approved.
 
-### 14. Post-Deploy Health Checks
+### 13. Post-Deploy Health Checks
 
 Both backend and frontend deployments include post-deploy validation.
 
-#### 12.1 Backend Health Check
+#### 13.1 Backend Health Check
 
 The backend deploy job verifies: `https://${PRODUCTION_HOST}/health/`. It retries up to 30 times with a fixed 10-second delay.
 
@@ -429,7 +474,7 @@ It also attempts to validate: `/api/samples/`.
 | Backend `/health/` fails | Fails backend deploy |
 | Backend `/api/samples/` fails | Warns only |
 
-#### 12.2 Frontend Health Check
+#### 13.2 Frontend Health Check
 
 The frontend deploy job validates: `FRONTEND_URL`.
 
@@ -438,7 +483,7 @@ The frontend deploy job validates: `FRONTEND_URL`.
 | Missing `FRONTEND_URL` | Fails frontend deploy |
 | Frontend URL fails | Fails frontend deploy |
 
-### 15. Concurrency and Timeout Controls
+### 14. Concurrency and Timeout Controls
 
 The pipeline uses concurrency controls to avoid unsafe overlapping deployments.
 
@@ -470,7 +515,7 @@ This prevents simultaneous production deployments and avoids interrupting an act
 | deploy-backend | 45 minutes |
 | deploy-frontend | 30 minutes |
 
-### 16. CloudFront Cache Optimization
+### 15. CloudFront Cache Optimization
 
 The frontend deployment invalidates only `/index.html` instead of `/*`.
 
@@ -482,7 +527,7 @@ The `index.html` file uses no-cache headers: `no-cache, no-store, must-revalidat
 
 This allows browsers to fetch the latest HTML while continuing to cache immutable hashed assets efficiently.
 
-### 17. Deployment Summaries
+### 16. Deployment Summaries
 
 Deployment jobs write summaries to `$GITHUB_STEP_SUMMARY`.
 
@@ -519,14 +564,14 @@ The summaries avoid printing secret values directly.
 graph TD
     A[Push / Pull Request / Manual Dispatch] --> B[Changes Detection + actionlint]
 
-    subgraph "Validation"
+    subgraph V[Validation]
         B --> C[Backend Test]
         B --> D[Frontend Test]
         B --> E[Security Scan: Bandit + Trivy]
         C --> F[Backend DB Smoke Test]
     end
 
-    subgraph "Artifacts & SBOM"
+    subgraph AS[Artifacts & SBOM]
         C --> C1[Create backend-bundle.tar.gz]
         C1 --> C2[Generate Backend SBOM]
         C2 --> C3[Upload Backend Artifact + SBOM]
@@ -537,28 +582,62 @@ graph TD
         D3 --> D4[Upload Frontend Artifact + SBOM]
     end
 
-    subgraph "Attestation"
+    subgraph AT[Attestation]
         C3 --> AB[Attest Backend Artifact + SBOM]
         D4 --> AF[Attest Frontend Artifact + SBOM]
     end
 
-    subgraph "Deployment Gate"
+    subgraph DG[Deployment Gate]
         AB --> VB[Verify Backend Attestation]
         AF --> VF[Verify Frontend Attestation]
     end
 
-    subgraph "Deployment"
-        VB --> G[Deploy Backend]
-        VF --> H[Deploy Frontend]
+    subgraph DEP[Production Deployment]
+        VB --> G[Deploy Backend to Elastic Beanstalk]
+        VF --> H[Deploy Frontend to S3 + CloudFront]
         E --> G
         E --> H
         F --> G
     end
 
-    subgraph "Verification"
+    subgraph PV[Post-Deploy Verification]
         G --> I[Backend Health Check + SHA256 Summary]
         H --> J[Frontend Health Check + SHA256 Summary]
     end
+
+    I --> K[Production Deployment Verified]
+    J --> K
+```
+
+## Compact View
+
+```mermaid
+graph LR
+    A[Trigger] --> B[Detect Changes]
+    B --> C[Test + Scan]
+    C --> D[Build Artifacts]
+    D --> E[Generate SBOM]
+    E --> F[Attest]
+    F --> G[Verify Attestation]
+    G --> H[Deploy]
+    H --> I[Health Check]
+    I --> J[Summary + Audit Evidence]
+```
+
+## Security Gate View
+
+```mermaid
+graph TD
+    A[Code Change] --> B[actionlint]
+    B --> C[Backend / Frontend Tests]
+    C --> D[Bandit + Trivy Security Scan]
+    D --> E[Dependency Audit]
+    E --> F[SBOM Generation]
+    F --> G[Artifact Attestation]
+    G --> H[Attestation Verification]
+    H --> I[AWS OIDC Assume Role]
+    I --> J[Production Deploy]
+    J --> K[Post-Deploy Health Check]
 ```
 
 ---
@@ -710,19 +789,19 @@ PRODUCTION_HOST=d27isnumffqap.cloudfront.net
 | Step | Check | Status |
 |---:|---|---|
 | 1 | Confirm CloudFront `/api/*` behavior points to `ElasticBeanstalk-API` | Done |
-| 2 | Confirm CloudFront `/health*` behavior points to `ElasticBeanstalk-API` | Pending |
-| 3 | Run `curl -I https://d27isnumffqap.cloudfront.net/health/` | Pending |
-| 4 | Run `curl -I https://d27isnumffqap.cloudfront.net/api/` | Pending |
-| 5 | Run GitHub Actions `workflow_dispatch` from `main` | Pending |
-| 6 | Confirm `verify-backend-attestation` passes | Pending |
-| 7 | Confirm `verify-frontend-attestation` passes | Pending |
-| 8 | Confirm `deploy-backend` assumes `agriscan-github-backend-deploy-role` | Pending |
-| 9 | Confirm `deploy-frontend` assumes `agriscan-github-frontend-deploy-role` | Pending |
+| 2 | Confirm CloudFront `/health*` behavior points to `ElasticBeanstalk-API` | Done |
+| 3 | Run `curl -I https://d27isnumffqap.cloudfront.net/health/` | Done via backend deploy health check |
+| 4 | Run `curl -I https://d27isnumffqap.cloudfront.net/api/` | Recommended manual check |
+| 5 | Run GitHub Actions `workflow_dispatch` from `main` | Done |
+| 6 | Confirm `verify-backend-attestation` passes | Done |
+| 7 | Confirm `verify-frontend-attestation` passes | Done |
+| 8 | Confirm `deploy-backend` assumes `agriscan-github-backend-deploy-role` | Done |
+| 9 | Confirm `deploy-frontend` assumes `agriscan-github-frontend-deploy-role` | Done |
 | 10 | Confirm AWS CloudTrail shows `AssumeRoleWithWebIdentity` for both roles | Pending |
-| 11 | Confirm backend `/health/` passes after deployment | Pending |
-| 12 | Confirm frontend health check passes after deployment | Pending |
-| 13 | Remove old `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` secrets | Pending |
-| 14 | Remove old `VITE_API_BASE_URL` and `VITE_MONITOR_URL` from Secrets if still present | Pending |
+| 11 | Confirm backend `/health/` passes after deployment | Done |
+| 12 | Confirm frontend health check passes after deployment | Done |
+| 13 | Remove old `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` secrets | Done |
+| 14 | Remove old `VITE_API_BASE_URL` and `VITE_MONITOR_URL` from Secrets if still present | Done |
 
 ---
 
@@ -942,4 +1021,11 @@ The rationale for the bypass must be documented in the corresponding GitHub Issu
 
 **Final Notes**
 
-The CI/CD workflow is now fully hardened for production use. The highest-priority operational task is to complete and verify AWS IAM setup. After IAM trust policies and least-privilege permissions are confirmed, the pipeline is ready for production deployment.
+The CI/CD workflow is now fully hardened and the first OIDC-based production deployment has passed end-to-end. Backend and frontend deployment roles, artifact attestations, attestation verification, security gates, and post-deploy checks are operational.
+
+The highest-priority remaining operational tasks are:
+
+1. Confirm `AssumeRoleWithWebIdentity` events in CloudTrail for backend and frontend deploy roles.
+2. Activate GitHub Branch Protection for `main`.
+3. Activate GitHub Environment `production` reviewer and self-approval protections.
+4. Test backend and frontend rollback once.
