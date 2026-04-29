@@ -106,7 +106,7 @@ jobs:
           DB_ENGINE: sqlite
           DEBUG: 'False'
           SECRET_KEY: ci-test-secret-key-32-chars-minimum-length-for-jwt
-          ALLOWED_HOSTS: localhost,127.0.0.1
+          ALLOWED_HOSTS: localhost,127.0.0.1,testserver
           USE_LOCAL_MEMORY_CACHE: 'True'
         run: |
           bash -n .platform/hooks/predeploy/01_django_setup.sh
