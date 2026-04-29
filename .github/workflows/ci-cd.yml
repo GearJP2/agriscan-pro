@@ -636,19 +636,21 @@ jobs:
         if: success()
         run: |
           BACKEND_SHA256="$(cut -d ' ' -f1 backend-bundle.sha256)"
-          echo "## Backend Deployment Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Artifact:** \`backend-bundle\`" >> $GITHUB_STEP_SUMMARY
-          echo "**Artifact SHA256:** \`${BACKEND_SHA256}\`" >> $GITHUB_STEP_SUMMARY
-          echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "**Run ID:** \`${{ github.run_id }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "**Run Attempt:** \`${{ github.run_attempt }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "**Environment:** Production" >> $GITHUB_STEP_SUMMARY
-          echo "**Backend attestation:** Passed" >> $GITHUB_STEP_SUMMARY
-          echo "**Elastic Beanstalk Environment:** Agriscanpro-backend-env" >> $GITHUB_STEP_SUMMARY
-          echo "**Backend health check status:** Passed" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Backend deployment completed successfully" >> $GITHUB_STEP_SUMMARY
+          {
+            echo "## Backend Deployment Summary"
+            echo ""
+            echo "**Artifact:** \`backend-bundle\`"
+            echo "**Artifact SHA256:** \`${BACKEND_SHA256}\`"
+            echo "**Commit:** \`${{ github.sha }}\`"
+            echo "**Run ID:** \`${{ github.run_id }}\`"
+            echo "**Run Attempt:** \`${{ github.run_attempt }}\`"
+            echo "**Environment:** Production"
+            echo "**Backend attestation:** Passed"
+            echo "**Elastic Beanstalk Environment:** Agriscanpro-backend-env"
+            echo "**Backend health check status:** Passed"
+            echo ""
+            echo "Backend deployment completed successfully"
+          } >> "$GITHUB_STEP_SUMMARY"
 
   deploy-frontend:
     needs: [frontend-test, security-scan, verify-frontend-attestation]
@@ -717,18 +719,20 @@ jobs:
         if: success()
         run: |
           FRONTEND_SHA256="$(cut -d ' ' -f1 frontend-dist.sha256)"
-          echo "## Frontend Deployment Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Artifact:** \`frontend-dist\`" >> $GITHUB_STEP_SUMMARY
-          echo "**Artifact SHA256:** \`${FRONTEND_SHA256}\`" >> $GITHUB_STEP_SUMMARY
-          echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "**Run ID:** \`${{ github.run_id }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "**Run Attempt:** \`${{ github.run_attempt }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "**Environment:** Production" >> $GITHUB_STEP_SUMMARY
-          echo "**Frontend attestation:** Passed" >> $GITHUB_STEP_SUMMARY
-          echo "**S3 Bucket:** configured via GitHub Secret" >> $GITHUB_STEP_SUMMARY
-          echo "**CloudFront Distribution:** configured via GitHub Secret" >> $GITHUB_STEP_SUMMARY
-          echo "**Frontend URL:** \`${{ vars.FRONTEND_URL }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "**Timestamp:** $(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Frontend deployment completed successfully" >> $GITHUB_STEP_SUMMARY
+          {
+            echo "## Frontend Deployment Summary"
+            echo ""
+            echo "**Artifact:** \`frontend-dist\`"
+            echo "**Artifact SHA256:** \`${FRONTEND_SHA256}\`"
+            echo "**Commit:** \`${{ github.sha }}\`"
+            echo "**Run ID:** \`${{ github.run_id }}\`"
+            echo "**Run Attempt:** \`${{ github.run_attempt }}\`"
+            echo "**Environment:** Production"
+            echo "**Frontend attestation:** Passed"
+            echo "**S3 Bucket:** configured via GitHub Secret"
+            echo "**CloudFront Distribution:** configured via GitHub Secret"
+            echo "**Frontend URL:** \`${{ vars.FRONTEND_URL }}\`"
+            echo "**Timestamp:** $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
+            echo ""
+            echo "Frontend deployment completed successfully"
+          } >> "$GITHUB_STEP_SUMMARY"
