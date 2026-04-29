@@ -577,11 +577,11 @@ jobs:
       - name: Check EB Environment Status
         run: |
           cd backend
-          eb status
-          status=$(eb status --verbose | grep -i "environment is" || echo "unknown")
+          eb status Agriscanpro-backend-env
+          status=$(eb status Agriscanpro-backend-env --verbose | grep -i "environment is" || echo "unknown")
           if [[ ! "$status" =~ "Ready" ]]; then
             echo "Environment not ready: $status"
-            # We don't exit 1 here yet, because eb status might fail if env is in error state or rebuilding
+            # We don't exit 1 here yet, because eb status Agriscanpro-backend-env might fail if env is in error state or rebuilding
           fi
 
       - name: Deploy to Elastic Beanstalk
