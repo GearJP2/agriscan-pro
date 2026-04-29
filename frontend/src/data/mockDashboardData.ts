@@ -213,11 +213,11 @@ export const commodityShare: CommodityShare[] = [
 ];
 
 export const thresholdByCommodity: ThresholdData[] = [
-  { commodity: 'Maize', pctAbove: 62 },
-  { commodity: 'Peanuts', pctAbove: 41 },
-  { commodity: 'Animal Feed', pctAbove: 38 },
-  { commodity: 'Rice', pctAbove: 22 },
-  { commodity: 'Others', pctAbove: 14 },
+  { commodity: 'Maize', pctAbove: 62, totalCount: 1200, aboveCount: 744 },
+  { commodity: 'Peanuts', pctAbove: 41, totalCount: 850, aboveCount: 348 },
+  { commodity: 'Animal Feed', pctAbove: 38, totalCount: 920, aboveCount: 350 },
+  { commodity: 'Rice', pctAbove: 22, totalCount: 1100, aboveCount: 242 },
+  { commodity: 'Others', pctAbove: 14, totalCount: 750, aboveCount: 105 },
 ];
 
 export const heatmapData: HeatmapCell[] = [
