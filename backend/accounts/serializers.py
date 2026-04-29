@@ -189,15 +189,11 @@ class RegisterSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
-        from django.conf import settings
-        
         validated_data.pop("verify_password")
         email = validated_data["email"]
-        
         # Check if email is in INITIAL_ADMIN_EMAILS whitelist
         is_whitelisted = User.is_whitelisted_admin(email)
         role = "admin" if is_whitelisted else "user"
-        
         user = UserRepository.create_user(
             username=validated_data["username"],
             email=email,
@@ -206,11 +202,9 @@ class RegisterSerializer(serializers.ModelSerializer):
             role=role,
             is_active=True,
         )
-        
         if is_whitelisted:
             from .tasks import sync_user_to_monitor_task
             sync_user_to_monitor_task.delay(email)
-            
         return user
 
 

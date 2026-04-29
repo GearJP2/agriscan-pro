@@ -29,6 +29,7 @@ ROLE_WEIGHTS = {
     "admin": 5,
 }
 
+
 def build_user_payload(user: Any) -> dict[str, Any]:
     """Return a stable user payload for auth responses."""
     return {

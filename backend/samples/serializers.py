@@ -161,12 +161,12 @@ class SampleCreateUpdateSerializer(serializers.ModelSerializer):
         extra_kwargs = {
             'sample_id': {'required': False, 'allow_blank': True},
         }
-    
+
     def validate_collection_date(self, value):
         """Validate and normalize collection date"""
         if value is None:
             raise serializers.ValidationError("Collection date is required")
-        
+
         if isinstance(value, str):
             # Try to parse if it's a string
             from datetime import datetime
@@ -175,7 +175,7 @@ class SampleCreateUpdateSerializer(serializers.ModelSerializer):
             except ValueError:
                 raise serializers.ValidationError(f"Date '{value}' must be in YYYY-MM-DD format")
         return value
-    
+
     def validate_sample_id(self, value):
         """Validate sample ID format"""
         if value in (None, ''):
@@ -183,31 +183,31 @@ class SampleCreateUpdateSerializer(serializers.ModelSerializer):
         if not isinstance(value, str):
             raise serializers.ValidationError("Sample ID must be a string")
         return value.strip()
-    
+
     def validate_province(self, value):
         """Validate province is not empty"""
         if not value or not isinstance(value, str) or not value.strip():
             raise serializers.ValidationError("Province is required")
         return value.strip()
-    
+
     def validate_district(self, value):
         """Validate district is not empty"""
         if not value or not isinstance(value, str) or not value.strip():
             raise serializers.ValidationError("District is required")
         return value.strip()
-    
+
     def validate_vegetation_variety(self, value):
         """Validate vegetation variety is not empty"""
         if not value or not isinstance(value, str) or not value.strip():
             raise serializers.ValidationError("Vegetation variety is required")
         return value.strip()
-    
+
     def validate_region(self, value):
         """Validate region is not empty"""
         if not value or not isinstance(value, str) or not value.strip():
             raise serializers.ValidationError("Region is required")
         return value.strip()
-    
+
     def validate_sample_type(self, value):
         """Validate sample_type only if provided"""
         if value:  # Only validate if a value is provided
@@ -215,7 +215,7 @@ class SampleCreateUpdateSerializer(serializers.ModelSerializer):
             if value.lower() not in valid_choices:
                 raise serializers.ValidationError(f"Invalid choice. Valid options: {', '.join(valid_choices)}")
         return value if value else None  # Return None if empty, which allows the create() method to set default
-    
+
     def validate_processing_type(self, value):
         """Validate processing_type only if provided"""
         if value:  # Only validate if a value is provided
@@ -223,7 +223,7 @@ class SampleCreateUpdateSerializer(serializers.ModelSerializer):
             if value.lower() not in valid_choices:
                 raise serializers.ValidationError(f"Invalid choice. Valid options: {', '.join(valid_choices)}")
         return value if value else None  # Return None if empty, which allows the create() method to set default
-    
+
     def create(self, validated_data):
         with transaction.atomic():
             sample_id = (validated_data.get('sample_id') or '').strip()
@@ -233,7 +233,9 @@ class SampleCreateUpdateSerializer(serializers.ModelSerializer):
                 validated_data['sample_id'] = generated_id
                 validated_data['sequence_number'] = sequence_number
             else:
-                parsed_seq = extract_sequence_from_sample_id(sample_id, collection_date.year if collection_date else None)
+                parsed_seq = extract_sequence_from_sample_id(
+                    sample_id, collection_date.year if collection_date else None
+                )
                 if parsed_seq > 0:
                     validated_data['sequence_number'] = parsed_seq
 
@@ -248,7 +250,7 @@ class SampleCreateUpdateSerializer(serializers.ModelSerializer):
                 validated_data['collected_by'] = 'Imported'
             if not validated_data.get('additional_info'):
                 validated_data['additional_info'] = ''
-            
+
             return super().create(validated_data)
 
 

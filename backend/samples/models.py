@@ -9,6 +9,7 @@ from .constants.mycotoxin_constants import (
 
 User = get_user_model()
 
+
 class Sample(models.Model):
     STATUS_CHOICES = (
         ('pending', 'Pending'),
@@ -16,20 +17,20 @@ class Sample(models.Model):
         ('completed', 'Completed'),
         ('flagged', 'Flagged'),
     )
-    
+
     PURPOSE_CHOICES = (
         ('routine', 'Routine'),
         ('complaint driven', 'Complaint Driven'),
         ('target surveillance', 'Target Surveillance'),
     )
-    
+
     SAMPLE_TYPE_CHOICES = (
         ('field', 'Field'),
         ('market', 'Market'),
         ('storage', 'Storage'),
         ('export', 'Export'),
     )
-    
+
     PROCESSING_TYPE_CHOICES = (
         ('raw', 'Raw'),
         ('dried', 'Dried'),
@@ -53,7 +54,9 @@ class Sample(models.Model):
     additional_info = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    updated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='samples_updated')
+    updated_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="samples_updated"
+    )
 
     class Meta:
         ordering = ['-collection_date']

@@ -66,7 +66,7 @@ class User(AbstractUser):
         """Checks if a given email is whitelisted for automatic Admin role."""
         if not email:
             return False
-            
+
         initial_admins = getattr(settings, "INITIAL_ADMIN_EMAILS", [])
         return email.lower() in [e.lower() for e in initial_admins]
 

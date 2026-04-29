@@ -1,7 +1,7 @@
 import sys
 import os
 import psycopg2
-from urllib.parse import urlparse
+
 
 def check_db():
     print("Checking database connectivity...")
@@ -33,6 +33,7 @@ def check_db():
     except Exception as e:
         print(f"Database connection FAILED: {e}")
         return False
+
 
 if __name__ == "__main__":
     if not check_db():

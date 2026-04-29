@@ -73,7 +73,6 @@ DEBUG = os.environ.get("DEBUG", "False") == "True"
 SECRET_KEY = os.environ.get("SECRET_KEY")
 if not SECRET_KEY:
     if not DEBUG:
-        from django.core.exceptions import ImproperlyConfigured
         raise ImproperlyConfigured("SECRET_KEY environment variable is required in production")
     SECRET_KEY = "insecure-dev-key"
 

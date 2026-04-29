@@ -4,6 +4,7 @@ from .services.monitor_sync_service import MonitorSyncService
 
 logger = logging.getLogger("agriscan.accounts")
 
+
 @shared_task(name="accounts.tasks.sync_user_to_monitor")
 def sync_user_to_monitor_task(email: str):
     """
@@ -15,6 +16,7 @@ def sync_user_to_monitor_task(email: str):
         # In a real production app, we might want to schedule a retry here
         logger.error("auth.monitor_sync.failed", extra={"email": email})
     return success
+
 
 @shared_task(name="accounts.tasks.remove_user_from_monitor")
 def remove_user_from_monitor_task(email: str):

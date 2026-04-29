@@ -76,21 +76,23 @@ def process_sample_file(self, key: str, uploaded_by_username: str):
             purpose = str(row.get('purpose', 'routine')).strip() or 'routine'
             sample_type = str(row.get('sample_type', 'field')).strip() or 'field'
             processing_type = str(row.get('processing_type', 'raw')).strip() or 'raw'
-            
+
             valid_statuses = [choice[0] for choice in SampleModel.STATUS_CHOICES]
             valid_purposes = [choice[0] for choice in SampleModel.PURPOSE_CHOICES]
             valid_sample_types = [choice[0] for choice in SampleModel.SAMPLE_TYPE_CHOICES]
             valid_processing_types = [choice[0] for choice in SampleModel.PROCESSING_TYPE_CHOICES]
-            
+
             if status not in valid_statuses:
                 raise ValueError(f"Invalid status '{status}'. Must be one of: {', '.join(valid_statuses)}")
             if purpose not in valid_purposes:
                 raise ValueError(f"Invalid purpose '{purpose}'. Must be one of: {', '.join(valid_purposes)}")
             if sample_type not in valid_sample_types:
-                raise ValueError(f"Invalid sample_type '{sample_type}'. Must be one of: {', '.join(valid_sample_types)}")
+                raise ValueError(f"Invalid sample_type '{sample_type}'. Must be one of: {valid_sample_types}")
             if processing_type not in valid_processing_types:
-                raise ValueError(f"Invalid processing_type '{processing_type}'. Must be one of: {', '.join(valid_processing_types)}")
-            
+                raise ValueError(
+                    f"Invalid processing_type '{processing_type}'. Valid: {valid_processing_types}"
+                )
+
             sample = Sample.objects.create(
                 sample_id=sample_id,
                 region=str(row.get('region', '')).strip(),
@@ -119,7 +121,7 @@ def process_sample_file(self, key: str, uploaded_by_username: str):
         'task.process_sample_file.done',
         extra={'key': key, 'created': created, 'error_count': len(errors), 'user': uploaded_by_username},
     )
-    
+
     # Return appropriate status based on result
     if len(errors) == 0:
         status_result = 'success'
@@ -127,7 +129,7 @@ def process_sample_file(self, key: str, uploaded_by_username: str):
         status_result = 'failed'
     else:
         status_result = 'partial'
-    
+
     return {'status': status_result, 'created': created, 'errors': errors}
 
 

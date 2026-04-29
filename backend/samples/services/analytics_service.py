@@ -1,11 +1,10 @@
 from collections import defaultdict
 
-from django.db.models import Avg, Count, FloatField, Q
-from django.db.models.functions import Cast
+from django.db.models import Count, Q
 from django.utils.dateparse import parse_date
 
-from ..constants.mycotoxin_constants import EU_THRESHOLDS, TOXIN_ALIASES
-from ..models import MycotoxinResult, Sample
+from ..constants.mycotoxin_constants import EU_THRESHOLDS
+from ..models import Sample
 
 
 ABOVE_THRESHOLD_RISK_LEVELS = ['high', 'critical']
@@ -249,7 +248,6 @@ class AnalyticsService:
                         float(threshold)
                     except (TypeError, ValueError):
                         raise ValueError(f"threshold for {toxin}/{variety} must be numeric")
-        
         qs = Sample.objects.prefetch_related('mycotoxin_results').all()
         qs = AnalyticsService._apply_filters(qs, filters)
 

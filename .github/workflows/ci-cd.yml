@@ -332,6 +332,7 @@ jobs:
       - name: Upload Bandit scan results
         uses: github/codeql-action/upload-sarif@7c5585e5cf078a7726d40d2fbea3e00a7e109faf
         if: (success() || failure()) && hashFiles('bandit-results.sarif') != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+        continue-on-error: true
         with:
           sarif_file: bandit-results.sarif
           category: bandit
@@ -339,6 +340,7 @@ jobs:
       - name: Upload Trivy results
         uses: github/codeql-action/upload-sarif@7c5585e5cf078a7726d40d2fbea3e00a7e109faf
         if: (success() || failure()) && hashFiles('trivy-results.sarif') != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+        continue-on-error: true
         with:
           sarif_file: trivy-results.sarif
           category: trivy
@@ -439,7 +441,7 @@ jobs:
           path: .
 
       - name: Attest backend bundle
-        uses: actions/attest-build-provenance@52933e748dc9ff61f0072d622f66455115d90821 # v1.4.3
+        uses: actions/attest-build-provenance@v1.4.3
         with:
           subject-path: backend-bundle.tar.gz
 
@@ -471,7 +473,7 @@ jobs:
           path: .
 
       - name: Attest frontend bundle
-        uses: actions/attest-build-provenance@52933e748dc9ff61f0072d622f66455115d90821 # v1.4.3
+        uses: actions/attest-build-provenance@v1.4.3
         with:
           subject-path: frontend-dist.tar.gz
 

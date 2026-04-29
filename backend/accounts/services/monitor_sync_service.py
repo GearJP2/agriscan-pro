@@ -4,9 +4,10 @@ from django.conf import settings
 
 logger = logging.getLogger("agriscan.accounts")
 
+
 class MonitorSyncService:
     """
-    Handles synchronization of authorized emails to the AgriScan Monitor's 
+    Handles synchronization of authorized emails to the AgriScan Monitor's
     Vercel KV (Upstash/Redis) store.
     """
 
@@ -24,7 +25,7 @@ class MonitorSyncService:
             return False
 
         from urllib.parse import quote
-        
+
         # Upstash Redis REST API: SADD key value
         # We use a set named 'allowed_emails' to match the Monitor's expected logic
         safe_email = quote(email)
@@ -64,7 +65,7 @@ class MonitorSyncService:
             return False
 
         from urllib.parse import quote
-        
+
         safe_email = quote(email)
         api_url = f"{url.rstrip('/')}/srem/allowed_emails/{safe_email}"
         headers = {"Authorization": f"Bearer {token}"}

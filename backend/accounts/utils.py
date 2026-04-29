@@ -54,6 +54,7 @@ class RateLimiter:
         # Django's cache backend doesn't expose TTL; return None to indicate unknown
         return None
 
+
 class AttemptLimiter:
     """
     Simple Redis-based attempt limiter (for OTP verification).
@@ -66,15 +67,15 @@ class AttemptLimiter:
         """
         cache_key = f"attempts:{key}"
         attempts = cache.get(cache_key, 0)
-        
+
         if attempts >= max_attempts:
             return False
-            
+
         if attempts == 0:
             cache.set(cache_key, 1, timeout=period_seconds)
         else:
             cache.incr(cache_key)
-            
+
         return True
 
     @staticmethod
