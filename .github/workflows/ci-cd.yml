@@ -331,16 +331,16 @@ jobs:
 
       - name: Upload Bandit scan results
         uses: github/codeql-action/upload-sarif@7c5585e5cf078a7726d40d2fbea3e00a7e109faf
-        if: (success() || failure()) && hashFiles('bandit-results.sarif') != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
         continue-on-error: true
+        if: (success() || failure()) && hashFiles('bandit-results.sarif') != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
         with:
           sarif_file: bandit-results.sarif
           category: bandit
 
       - name: Upload Trivy results
         uses: github/codeql-action/upload-sarif@7c5585e5cf078a7726d40d2fbea3e00a7e109faf
-        if: (success() || failure()) && hashFiles('trivy-results.sarif') != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
         continue-on-error: true
+        if: (success() || failure()) && hashFiles('trivy-results.sarif') != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
         with:
           sarif_file: trivy-results.sarif
           category: trivy
@@ -443,7 +443,6 @@ jobs:
       - name: Attest backend bundle
         uses: actions/attest-build-provenance@v1
         continue-on-error: true
-        continue-on-error: true
         with:
           subject-path: backend-bundle.tar.gz
 
@@ -455,7 +454,6 @@ jobs:
 
       - name: Attest backend SBOM
         uses: actions/attest-build-provenance@v1
-        continue-on-error: true # v1.4.3
         continue-on-error: true
         with:
           subject-path: backend-sbom.json
@@ -479,7 +477,6 @@ jobs:
       - name: Attest frontend bundle
         uses: actions/attest-build-provenance@v1
         continue-on-error: true
-        continue-on-error: true
         with:
           subject-path: frontend-dist.tar.gz
 
@@ -491,7 +488,6 @@ jobs:
 
       - name: Attest frontend SBOM
         uses: actions/attest-build-provenance@v1
-        continue-on-error: true # v1.4.3
         continue-on-error: true
         with:
           subject-path: frontend-sbom.json
@@ -513,6 +509,7 @@ jobs:
 
       - name: Verify backend attestation
         run: gh attestation verify backend-bundle.tar.gz --repo ${{ github.repository }} --signer-workflow .github/workflows/ci-cd.yml
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
 
@@ -533,6 +530,7 @@ jobs:
 
       - name: Verify frontend attestation
         run: gh attestation verify frontend-dist.tar.gz --repo ${{ github.repository }} --signer-workflow .github/workflows/ci-cd.yml
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
 
