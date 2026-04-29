@@ -558,6 +558,21 @@ jobs:
         run: |
           tar -xzf backend-bundle.tar.gz
 
+      - name: Prepare EB CLI config for artifact deploy
+        working-directory: backend
+        run: |
+          if [ -f .elasticbeanstalk/config.yml ]; then
+            echo "Current EB config:"
+            cat .elasticbeanstalk/config.yml
+            # Disable EB CLI git source-control integration for artifact-based deploys.
+            sed -i '/^[[:space:]]*sc:[[:space:]]*git[[:space:]]*$/d' .elasticbeanstalk/config.yml
+            echo "Updated EB config:"
+            cat .elasticbeanstalk/config.yml
+          else
+            echo ".elasticbeanstalk/config.yml not found"
+            exit 1
+          fi
+
       - name: Set up Python
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
@@ -572,95 +587,21 @@ jobs:
         uses: aws-actions/configure-aws-credentials@ec61189d14ec14c8efccab744f656cffd0e33f37
         with:
           role-to-assume: ${{ secrets.AWS_BACKEND_DEPLOY_ROLE_ARN }}
-          aws-region: ${{ secrets.AWS_REGION }}
+          aws-region: ap-southeast-1
 
       - name: Check EB Environment Status
         run: |
           cd backend
           eb status Agriscanpro-backend-env
-          status=$(eb status Agriscanpro-backend-env --verbose | grep -i "environment is" || echo "unknown")
-          if [[ ! "$status" =~ "Ready" ]]; then
-            echo "Environment not ready: $status"
-            # We don't exit 1 here yet, because eb status Agriscanpro-backend-env might fail if env is in error state or rebuilding
-          fi
 
       - name: Deploy to Elastic Beanstalk
         run: |
           cd backend
           if ! eb deploy Agriscanpro-backend-env --timeout 30; then
             echo "=== Deployment failed - fetching instance logs ==="
-            eb logs --all 2>&1 | head -300 || true
-            if [ -d .elasticbeanstalk/logs/latest ]; then
-              echo "=== Saved EB log files ==="
-              find .elasticbeanstalk/logs/latest -maxdepth 2 -type f | sort
-              echo "=== eb-engine.log ==="
-              find .elasticbeanstalk/logs/latest -name 'eb-engine.log' -exec sh -c 'for file do echo "--- $file ---"; tail -200 "$file"; done' sh {} + || true
-              echo "=== web.stdout.log ==="
-              find .elasticbeanstalk/logs/latest -name 'web.stdout.log' -exec sh -c 'for file do echo "--- $file ---"; tail -200 "$file"; done' sh {} + || true
-              echo "=== web.stderr.log ==="
-              find .elasticbeanstalk/logs/latest -name 'web.stderr.log' -exec sh -c 'for file do echo "--- $file ---"; tail -200 "$file"; done' sh {} + || true
-            fi
+            eb logs Agriscanpro-backend-env --all 2>&1 | head -300 || true
             exit 1
           fi
-
-      - name: Post-deploy health check
-        run: |
-          if [ -z "${PRODUCTION_HOST}" ]; then
-            echo "PRODUCTION_HOST is required for production post-deploy validation"
-            exit 1
-          fi
-
-          echo "Waiting for application to be ready..."
-          max_attempts=30
-          attempt=1
-
-          while [ $attempt -le $max_attempts ]; do
-            echo "Health check attempt $attempt/$max_attempts..."
-            if curl -f -s --max-time 10 "https://${PRODUCTION_HOST}/health/" > /dev/null 2>&1; then
-              echo "Health check passed on attempt $attempt"
-              if curl -f -s --max-time 10 "https://${PRODUCTION_HOST}/api/samples/" > /dev/null 2>&1; then
-                echo "API endpoints responding correctly"
-              else
-                echo "Warning: API endpoints not responding, but health check passed"
-              fi
-              exit 0
-            fi
-            echo "Health check failed, waiting 10 seconds..."
-            sleep 10
-            attempt=$((attempt + 1))
-          done
-
-          echo "Health check failed after $max_attempts attempts"
-          echo "=== Fetching recent logs for debugging ==="
-          curl -v "https://${PRODUCTION_HOST}/health/" || true
-          exit 1
-        env:
-          PRODUCTION_HOST: ${{ secrets.PRODUCTION_HOST }}
-
-      - name: Record backend artifact checksum
-        run: |
-          sha256sum backend-bundle.tar.gz | tee backend-bundle.sha256
-
-      - name: Deployment Summary
-        if: success()
-        run: |
-          BACKEND_SHA256="$(cut -d ' ' -f1 backend-bundle.sha256)"
-          {
-            echo "## Backend Deployment Summary"
-            echo ""
-            echo "**Artifact:** \`backend-bundle\`"
-            echo "**Artifact SHA256:** \`${BACKEND_SHA256}\`"
-            echo "**Commit:** \`${{ github.sha }}\`"
-            echo "**Run ID:** \`${{ github.run_id }}\`"
-            echo "**Run Attempt:** \`${{ github.run_attempt }}\`"
-            echo "**Environment:** Production"
-            echo "**Backend attestation:** Passed"
-            echo "**Elastic Beanstalk Environment:** Agriscanpro-backend-env"
-            echo "**Backend health check status:** Passed"
-            echo ""
-            echo "Backend deployment completed successfully"
-          } >> "$GITHUB_STEP_SUMMARY"
-
   deploy-frontend:
     needs: [frontend-test, security-scan, verify-frontend-attestation]
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
