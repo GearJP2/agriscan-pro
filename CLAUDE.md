@@ -10,7 +10,7 @@
 - `backend/accounts/tasks.py` - Background tasks for monitor synchronization
 ...
 
-### 🧪 Testing Strategy
+### Testing Strategy
 ...
 # Run monitor integration tests (requires KV credentials)
 MONITOR_URL=https://agriscan-monitor.vercel.app python manage.py test accounts.test_monitor_integration
@@ -25,12 +25,7 @@ KV_REST_API_TOKEN       # Monitor Vercel KV Token
 VITE_MONITOR_URL        # URL of the monitor application (frontend)
 ...
 
-## Last Updated
-- Date: 2026-04-27
-- By: Claude Code
-- Status: Automated Admin Roles, Monitor Access Linking, and Zero-Touch Infrastructure Synchronization are complete. Task items 53 and 54 are resolved. Integrated with Celery background tasks and verified via integration tests.
-
-## 🌾 Project Overview
+## Project Overview
 
 **AgriScan Pro** is a comprehensive agricultural research platform for lab sample analysis and mycotoxin detection.
 
@@ -51,7 +46,7 @@ VITE_MONITOR_URL        # URL of the monitor application (frontend)
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 agriscan-pro/
@@ -67,32 +62,23 @@ agriscan-pro/
 │   └── package.json
 │
 ├── backend/                  # Django REST Framework
-│   ├── manage.py
-│   ├── requirements.txt
-│   ├── core/
-│   │   ├── settings.py       # Django configuration (AWS RDS/Redis/S3)
-│   │   ├── urls.py           # Main URL routing
-│   │   └── wsgi.py
-│   ├── .ebextensions/        # AWS EB configuration (migrate, collectstatic)
-│   ├── .platform/             # AWS AL2023 hooks (Celery worker startup)
-│   ├── accounts/             # User authentication
-│   │   ├── models.py         # User model
-│   │   ├── views.py          # Auth endpoints (login, register)
-│   │   ├── serializers.py    # Auth serializers
-│   │   └── urls.py
-│   ├── samples/              # Core business logic
-│   │   ├── models.py         # Sample, ProcessLog, MycotoxinResult risk model
-│   │   ├── views.py          # CRUD viewsets (thin views)
-│   │   ├── serializers.py    # Data serialization (N+1 optimized)
-│   │   ├── urls.py
-│   │   ├── admin.py          # Django admin config
-│   │   ├── constants/        # Mycotoxin registry, aliases, EU thresholds
-│   │   └── services/
-│   │       ├── ingestion_service.py  # CSV import logic (decoupled)
-│   │       └── s3_service.py         # S3 presigned URL generation
-│   ├── core/
-│   │   └── permissions.py    # IsOwnerOrAdmin permission class
-│   └── venv/                 # Python virtual environment
+│   ├── core/                 # Settings and WSGI/ASGI/Celery config
+│   ├── accounts/             # User authentication & management (Repository Pattern)
+│   ├── samples/              # Core business logic (Samples & Risk Model)
+│   ├── scripts/              # CI/CD and utility scripts
+│   ├── .ebextensions/        # AWS EB configuration
+│   └── .platform/             # AWS AL2023 hooks
+│
+├── frontend/                 # React + TypeScript frontend
+│   ├── src/
+│   │   ├── components/       # Reusable components & Surveillance Dashboard
+│   │   ├── lib/              # API, Risk logic, and Analytics engines
+│   │   └── main.tsx          # Entry point
+│
+├── .github/workflows/        # CI/CD Pipeline (Hardened w/ Attestations)
+├── .claude/                  # Claude Code & Skill definitions
+├── agents-orchestrator/      # WIP - Local development only
+└── .mcp/                     # WIP - MCP Server implementations
 │
 ├── .claude/                  # Claude Code configuration
 │   ├── agents/               # Agent definitions (7 types)
@@ -106,7 +92,7 @@ agriscan-pro/
 │   │   └── security-monitor.md
 │   └── settings.json         # Claude Code workspace settings
 │
-├── agents-orchestrator/      # 🚧 WIP - Local development only
+├── agents-orchestrator/      # WIP - Local development only
 │   ├── orchestrator.js       # Main orchestration engine
 │   ├── api-gateway.js        # REST API for agents
 │   ├── lib/                  # Supporting libraries
@@ -115,7 +101,7 @@ agriscan-pro/
 │   ├── package.json
 │   └── README.md
 │
-├── .mcp/                     # 🚧 WIP - MCP Server implementations
+├── .mcp/                     # WIP - MCP Server implementations
 │   ├── servers/
 │   │   ├── jira-server.js    # Jira integration
 │   │   ├── linear-server.js  # Linear integration
@@ -137,47 +123,44 @@ agriscan-pro/
 - `frontend/tsconfig.json` - TypeScript configuration
 - `frontend/package.json` - Frontend dependencies
 
-#### Backend Configuration
-- `backend/core/settings.py` - Django settings (DB, apps, auth)
-- `backend/core/urls.py` - Root URL routing
-- `backend/requirements.txt` - Python dependencies
+#### Backend Logic & Architecture
+- `backend/accounts/repositories.py` - User & UserActionLog data access (Repository Pattern)
+- `backend/accounts/services/` - Business logic for monitor sync, profile management
+- `backend/accounts/auth_helpers.py` - Centralized OAuth state & token rotation logic
+- `backend/accounts/utils.py` - Rate limiting (`RateLimiter`), attempts, and security hashing
+- `backend/samples/services/` - CSV ingestion, S3 management, risk simulation services
+- `backend/samples/filters.py` - Complex multi-vector sample filtering logic
+- `backend/samples/utils.py` - Atomic sequence generation for Sample IDs
+- `backend/core/permissions.py` - `IsOwnerOrAdmin` object-level security gate
 
-#### Authentication & User Management
-- `backend/accounts/models.py` - User model definition
-- `backend/accounts/serializers.py` - User serialization
-- `backend/accounts/views.py` - Login/register endpoints
-- `backend/accounts/oauth.py` - Google OAuth 2.0 implementation
-- `backend/accounts/auth_helpers.py` - Centralized OAuth state, token cookies, blacklist, permission gates
-- `frontend/src/components/AuthDialog.tsx` - Redesigned login/register modal
-- `frontend/src/pages/GoogleAuthCallback.tsx` - OAuth callback handler
-- `frontend/src/lib/oauth.ts` - OAuth utilities (token exchange, CSRF protection)
-- `frontend/src/lib/tokenStorage.ts` - Memory-only access token storage (no localStorage)
-- `frontend/src/lib/authApi.ts` - Cookie-backed auth API wrappers (login, refresh, logout, Google OAuth)
-
-#### Core Business Logic (Samples)
-- `backend/samples/models.py` - Sample, ProcessLog, MycotoxinResult models (with composite DB indexes)
-- `backend/samples/views.py` - CRUD operations and custom actions (thin views)
-- `backend/samples/serializers.py` - Data serialization (N+1 optimized via prefetch)
-- `backend/samples/constants/mycotoxin_constants.py` - Toxin registry, aliases, EU threshold metadata, risk policy
-- `backend/samples/services/ingestion_service.py` - CSV bulk import logic (decoupled from views)
-- `backend/samples/services/s3_service.py` - S3 presigned URL generation
-- `backend/core/permissions.py` - `IsOwnerOrAdmin` — role-based object-level permission
+#### Frontend Analytics & Logic
+- `frontend/src/lib/mycotoxinRisk.ts` - EU-threshold risk evaluation engine
+- `frontend/src/lib/sampleAnalytics.ts` - Dashboard KPI & co-contamination calculation engine
+- `frontend/src/lib/tokenStorage.ts` - Secure memory-only access token storage
+- `frontend/src/components/ProtectedRoute.tsx` - Role-based navigation guard (minRole/allowedRoles)
+- `frontend/src/components/surveillance/` - Regional mapping, risk rankings, and network analysis
 
 ---
 
-## 🔄 API Endpoints
+## API Endpoints
 
 ### Authentication
 ```
 POST /api/accounts/login/              # Login (username/email, password)
 POST /api/accounts/register/           # Register (email, password, name)
 POST /api/accounts/login/refresh/      # Refresh JWT token
-POST /api/accounts/google-callback/    # Exchange Google auth code for JWT
-GET  /api/accounts/google-auth/        # Get Google OAuth authorization URL
+POST /api/accounts/logout/             # Blacklist refresh token & clear cookies
+GET  /api/accounts/users/              # List all users (admin/researcher)
+GET  /api/accounts/users/{id}/         # Get user details
 POST /api/accounts/password-reset/request/    # Request password reset OTP
 POST /api/accounts/password-reset/confirm/    # Confirm OTP and reset password
+POST /api/accounts/password/set/       # Set initial password for OAuth users
 PATCH /api/accounts/profile/           # Update profile (name, email w/ verification)
 POST /api/accounts/email-change/confirm/      # Verify email change via token
+GET  /api/accounts/google-auth/        # Get Google OAuth authorization URL
+POST /api/accounts/google-callback/    # Exchange Google auth code for JWT
+GET  /api/accounts/auth-providers/     # List connected OAuth providers
+POST /api/accounts/auth-providers/google/disconnect/ # Disconnect Google
 
 ```
 
@@ -221,7 +204,7 @@ GET /api/samples/?date_from=2026-01-01&date_to=2026-03-31
 
 ---
 
-## 🛠️ Development Workflow
+## Development Workflow
 
 ### Backend Development
 
@@ -306,7 +289,7 @@ container_commands:
 
 ---
 
-## 🧪 Testing Strategy
+## Testing Strategy
 
 ### Backend Tests
 ```bash
@@ -321,13 +304,16 @@ coverage run --source='.' manage.py test
 coverage report
 ```
 
-### Frontend Tests
+### Security & Compliance Scans
 ```bash
-# Unit tests
-npm run test
+# Python Security Scan (Bandit)
+bandit -r backend/ --exclude backend/venv/,backend/migrations/
 
-# E2E tests
-npm run test:e2e
+# Filesystem & SBOM Scan (Trivy)
+trivy fs . --severity HIGH,CRITICAL
+
+# Frontend Dependency Audit
+cd frontend && npx audit-ci --config .audit-ci.json
 ```
 
 ### Agent Tests (when implemented)
@@ -338,7 +324,7 @@ node agents-orchestrator/examples/simple-task.js
 
 ---
 
-## 📝 Code Conventions
+## Code Conventions
 
 ### Python (Django)
 - Follow PEP 8
@@ -353,6 +339,14 @@ node agents-orchestrator/examples/simple-task.js
 - Add types for all function parameters
 - Extract complex logic to custom hooks
 - Use descriptive component names
+- **Resource Cleanup**: Always use `URL.revokeObjectURL` for exports and cleanup `useEffect` listeners.
+
+### Git Commit Convention
+- Use the standard: `<type>(<scope>): <subject>`
+- **Types**: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `chore`, `revert`.
+- **Subject**: Max 50 chars, imperative mood, no period, lowercase.
+- **Example**: `docs(repo): update documentation standards and readme`
+- See `.claude/skills/commit-convention/SKILL.md` for full details.
 
 ### Database
 - All tables have `id` primary key (auto-increment)
@@ -375,9 +369,9 @@ node agents-orchestrator/examples/simple-task.js
 
 ---
 
-## 🚀 Status & WIP Features
+## Status & WIP Features
 
-### ✅ Completed
+### Completed
 - User authentication (JWT + Google OAuth 2.0)
 - Redesigned auth UI with Material Design 3 aesthetic (Clinical Orchard theme)
 - **AWS Migration**: Postgres (migrated from Aurora → RDS PostgreSQL 16.1), ElastiCache Redis (TLS), S3 Storage
@@ -412,13 +406,13 @@ node agents-orchestrator/examples/simple-task.js
 - **Backend PEP8 Compliance**: Stripped trailing whitespace (W293) from 15 blank lines in `backend/samples/views.py` — passes `flake8 --max-line-length=120` clean.
 
 
-### 🚧 In Development (Local Only)
+### In Development (Local Only)
 - **Agent Orchestrator** (`agents-orchestrator/`) - Multi-agent task execution system
 - **MCP Servers** (`.mcp/`) - External service integrations
 
 These are NOT yet committed to production and are for local development only. See `ORCHESTRATOR_SUMMARY.md` for details.
 
-### 📋 Future Planned
+### Future Planned
 - Real-time notifications (WebSocket)
 - Advanced data visualization
 - Export to PDF/Excel
@@ -428,7 +422,7 @@ These are NOT yet committed to production and are for local development only. Se
 
 ---
 
-## 🔐 Security Notes
+## Security Notes
 
 ### Current Implementation
 - JWT tokens for authentication (15 min access, 7 day refresh with rotation + blacklist)
@@ -473,7 +467,7 @@ DEFAULT_FROM_EMAIL      # Sender display name + address
 
 ---
 
-## 📊 Database Models
+## Database Models
 
 ### Sample
 ```
@@ -530,7 +524,7 @@ name, intensity, is_detected, dangerous, threshold, method
 
 ---
 
-## 🎯 Common Tasks
+## Common Tasks
 
 ### Add New Sample Field
 1. Add to model in `backend/samples/models.py`
@@ -558,19 +552,20 @@ curl -H "Authorization: Bearer {token}" http://localhost:8000/api/samples/
 
 ---
 
-## 📚 Documentation Files
+## Documentation Files
 
 | File | Purpose |
 |------|---------|
-| `README.md` | Project overview and setup |
+| `README.md` | Project overview (Production Standard) |
 | `CLAUDE.md` | This file - Claude instructions |
+| `.claude/skills/` | Specialized agent skills (Documenter, Commit, etc.) |
 | `ORCHESTRATOR_SUMMARY.md` | Agent system documentation |
 | `agents-orchestrator/README.md` | Orchestrator API documentation |
 | `agents-orchestrator/QUICK_START.md` | Agent system quick start |
 
 ---
 
-## 🤖 When Working with Claude Code
+## When Working with Claude Code
 
 ### Context to Provide
 When asking Claude Code to work on this project, mention:
@@ -595,7 +590,7 @@ Before committing code changes:
 
 ---
 
-## 🔗 Integration Points (When Ready)
+## Integration Points (When Ready)
 
 These are documented but not yet integrated:
 
@@ -613,7 +608,7 @@ These are documented but not yet integrated:
 
 ---
 
-## ✨ Key Principles for This Project
+## Key Principles for This Project
 
 1. **Security First** - All user inputs validated, authentication required
 2. **Data Integrity** - Careful migration management, no data loss
@@ -625,7 +620,7 @@ These are documented but not yet integrated:
 
 ---
 
-## 📞 Quick Reference
+## Quick Reference
 
 ### Common Commands
 
@@ -645,10 +640,15 @@ npm run dev                          # Start dev server
 npm run build                        # Build for production (DEPLOY_TARGET=aws)
 npm run test                         # Run tests
 npm run lint                         # Check code quality
-```
 
-**Deployment (AWS)**
+**Security & CI/CD**
 ```bash
+# Security Scans
+bandit -r backend/ --exclude backend/venv/,backend/migrations/
+npx audit-ci --config frontend/.audit-ci.json
+trivy fs . --severity HIGH,CRITICAL
+
+# EB CLI
 eb deploy Agriscanpro-backend-env       # Deploy backend
 eb status --verbose                    # Check environment health
 eb logs --zip                          # Download full log archive
@@ -667,14 +667,20 @@ eb logs --zip                          # Download full log archive
 - **Cross-Application Synchronization**:
   - **Service**: `MonitorSyncService` manages user whitelists in the AgriScan Monitor's Vercel KV store.
   - **Background Logic**: Cecery tasks (`sync_user_to_monitor_task`, `remove_user_from_monitor_task`) ensure asynchronous cleanup and access provisioning.
-- **CI/CD Pipeline**:
-  - Pre-deployment health checks verify environment `Ready` state.
-  - Deployment timeout increased to 30 minutes for robust RDS/infrastructure updates.
-  - Backend linting (flake8) and package-based test discovery integrated.
+- **CI/CD Security Hardening**:
+  - **Attestation & Provenance**: Uses GitHub's `attest-build-provenance` to generate verifiable build artifacts.
+  - **SBOM Generation**: Automatically creates and attests Software Bill of Materials (CycloneDX) via Trivy.
+  - **Automated Scanning**: Bandit (SAST), Trivy (vuln scan), and `audit-ci` (dependency audit) are mandatory gates.
+  - **Environment Hygiene**: Deployment timeout increased to 30 mins; flake8 linting and package-discovery tests integrated.
 
 ---
 
 ## Last Updated
-- Date: 2026-04-29
-- By: Claude (Debugging Wizard & Cloud Architect)
-- Status: **Backend Refactor (R1-R6) & CI/CD Hardening Complete**. Test folders restructured into packages (`accounts/tests/`, `samples/tests/`). God-functions decomposed. CI/CD updated with flake8 linting and package-based test discovery. Local tests: 157/159 pass (2 pre-existing integration failures).
+- Date: 2026-04-30
+- By: Antigravity (Documentation & Standards Specialist)
+- Status: **Documentation & Project Standards Hardening Complete**. 
+  - Refactored `README.md` to production-grade standards (Visitor Journey, Golden Path).
+  - Updated `code-documenter` skill with comprehensive README writing guidelines.
+  - Implemented project-wide **Git Commit Convention** via `commit-convention` skill.
+  - Consolidated and updated `CLAUDE.md` to reflect new architecture and documentation resources.
+  - Backend tests: 157/159 pass (integration baseline).

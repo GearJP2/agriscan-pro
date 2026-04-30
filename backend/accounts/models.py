@@ -1,4 +1,5 @@
 import hashlib
+import hmac
 import uuid
 from typing import cast
 
@@ -136,8 +137,9 @@ class PasswordResetOTP(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     @staticmethod
-    def hash_otp(otp_code):
-        return hashlib.sha256(otp_code.encode()).hexdigest()
+    def hash_otp(otp_code: str) -> str:
+        key = settings.SECRET_KEY.encode("utf-8")
+        return hmac.new(key, otp_code.encode("utf-8"), digestmod=hashlib.sha256).hexdigest()
 
     def is_valid(self):
         return bool(not self.used and self.expiry > timezone.now())

@@ -1,9 +1,12 @@
+import datetime
+import hashlib
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
 
@@ -179,3 +182,98 @@ class PasswordResetSecurityTests(TestCase):
 
         self.assertTrue(first_otp.used)
         self.assertTrue(second_otp.used)
+
+    @patch("accounts.views.generate_otp", return_value="555555")
+    def test_valid_otp_succeeds(self, _mock_generate_otp):
+        """A correct, unexpired OTP resets the password and returns 200."""
+        self.client.post(self.request_url, {"email": self.user.email}, format="json")
+
+        response = self.client.post(
+            self.confirm_url,
+            {
+                "email": self.user.email,
+                "otp_code": "555555",
+                "new_password": "NewStrongPass123!",
+                "confirm_password": "NewStrongPass123!",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password("NewStrongPass123!"))
+
+    @patch("accounts.views.generate_otp", return_value="666666")
+    def test_reused_otp_is_rejected(self, _mock_generate_otp):
+        """An OTP that has already been consumed cannot be reused."""
+        self.client.post(self.request_url, {"email": self.user.email}, format="json")
+
+        self.client.post(
+            self.confirm_url,
+            {
+                "email": self.user.email,
+                "otp_code": "666666",
+                "new_password": "NewStrongPass123!",
+                "confirm_password": "NewStrongPass123!",
+            },
+            format="json",
+        )
+
+        response = self.client.post(
+            self.confirm_url,
+            {
+                "email": self.user.email,
+                "otp_code": "666666",
+                "new_password": "AnotherNewPass456!",
+                "confirm_password": "AnotherNewPass456!",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Invalid or expired OTP.", str(response.data))
+
+    def test_expired_otp_is_rejected(self):
+        """An OTP past its expiry datetime is rejected even with the correct code."""
+        PasswordResetOTP.objects.create(
+            user=self.user,
+            otp_hash=PasswordResetOTP.hash_otp("777777"),
+            expiry=timezone.now() - datetime.timedelta(minutes=1),
+        )
+
+        response = self.client.post(
+            self.confirm_url,
+            {
+                "email": self.user.email,
+                "otp_code": "777777",
+                "new_password": "NewStrongPass123!",
+                "confirm_password": "NewStrongPass123!",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Invalid or expired OTP.", str(response.data))
+
+
+class OTPHashSecurityTests(TestCase):
+    """Verify that OTP hashing is HMAC-keyed and not reversible via a rainbow table."""
+
+    def test_hash_differs_from_plain_sha256(self):
+        """hash_otp must not equal the raw SHA-256 of the same code."""
+        plain = hashlib.sha256("123456".encode()).hexdigest()
+        self.assertNotEqual(PasswordResetOTP.hash_otp("123456"), plain)
+
+    def test_hash_is_deterministic(self):
+        """Same code must always produce the same hash (required for DB lookup)."""
+        self.assertEqual(
+            PasswordResetOTP.hash_otp("123456"),
+            PasswordResetOTP.hash_otp("123456"),
+        )
+
+    def test_different_codes_produce_different_hashes(self):
+        """Different OTP codes must produce different hashes."""
+        self.assertNotEqual(
+            PasswordResetOTP.hash_otp("000000"),
+            PasswordResetOTP.hash_otp("111111"),
+        )
