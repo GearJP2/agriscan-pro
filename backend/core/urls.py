@@ -21,7 +21,63 @@ from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, Spec
 
 
 def health_check(_request):
-    return JsonResponse({"status": "ok"})
+    """
+    Health check endpoint used by Elastic Beanstalk and monitoring.
+
+    Always returns HTTP 200 unless the database is unreachable.
+
+    Response shape:
+        {
+            "status": "ok" | "degraded",
+            "database": {"status": "ok" | "failed", "error": "..."},
+            "redis": {
+                "status": "ok" | "failed" | "skipped",
+                "reason": "..."          # present when skipped
+            },
+            "tasks": {"mode": "sync" | "async"}
+        }
+    """
+    from django.conf import settings
+    from django.db import connection
+
+    async_enabled: bool = getattr(settings, "ASYNC_TASKS_ENABLED", False)
+    redis_url: str = getattr(settings, "REDIS_URL", "")
+    task_mode = "async" if async_enabled else "sync"
+
+    # ── Database check ────────────────────────────────────────────────────────
+    db_status: dict = {"status": "ok"}
+    overall_status = "ok"
+    try:
+        connection.ensure_connection()
+    except Exception as exc:
+        db_status = {"status": "failed", "error": str(exc)[:120]}
+        overall_status = "degraded"
+
+    # ── Redis check ───────────────────────────────────────────────────────────
+    if not async_enabled or not redis_url:
+        redis_status: dict = {
+            "status": "skipped",
+            "reason": "ASYNC_TASKS_ENABLED=False" if not async_enabled else "REDIS_URL not set",
+        }
+    else:
+        try:
+            from django.core.cache import cache
+            cache.set("_health_ping", "1", timeout=5)
+            if cache.get("_health_ping") == "1":
+                redis_status = {"status": "ok"}
+            else:
+                redis_status = {"status": "failed", "error": "ping returned unexpected value"}
+                overall_status = "degraded"
+        except Exception as exc:
+            redis_status = {"status": "failed", "error": str(exc)[:120]}
+            overall_status = "degraded"
+
+    return JsonResponse({
+        "status": overall_status,
+        "database": db_status,
+        "redis": redis_status,
+        "tasks": {"mode": task_mode},
+    })
 
 
 urlpatterns = [

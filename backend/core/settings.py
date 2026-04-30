@@ -203,24 +203,45 @@ STORAGES = {
 }
 
 
-# ─── Redis / Cache ────────────────────────────────────────────────────────────
-# django-redis is used as the default cache backend.
-# Celery will also point its broker/result-backend at the same Redis URL.
-# Set REDIS_URL in .env, e.g.:
-#   REDIS_URL=redis://localhost:6379/0   (local)
-#   REDIS_URL=rediss://host:6379/0      (AWS ElastiCache with TLS)
+# ─── Async Tasks / Redis / Cache ─────────────────────────────────────────────
+# ASYNC_TASKS_ENABLED=False (default): app runs without Redis or a Celery worker.
+#   Cache → LocMemCache  |  Tasks → synchronous / inline execution
+# ASYNC_TASKS_ENABLED=True: requires Redis (REDIS_URL) and a running Celery worker.
+#   Cache → django-redis  |  Tasks → dispatched to Celery
 
-USE_LOCAL_MEMORY_CACHE = (
-    IS_TESTING or os.environ.get("USE_LOCAL_MEMORY_CACHE", "False") == "True"
+
+def env_bool(name: str, default: bool = False) -> bool:
+    """Read a boolean environment variable robustly.
+
+    Treats '1', 'true', 'yes', 'on' (case-insensitive) as True.
+    Returns *default* when the variable is not set.
+    """
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+ASYNC_TASKS_ENABLED: bool = env_bool("ASYNC_TASKS_ENABLED", default=False)
+
+# REDIS_URL defaults to empty string so that the absence of the env var is
+# unambiguous.  When ASYNC_TASKS_ENABLED=False we never need a real Redis URL.
+REDIS_URL: str = os.getenv("REDIS_URL", "").strip()
+
+# Use LocMemCache when: async tasks are disabled, no Redis URL, tests are
+# running, or the operator explicitly requests it via USE_LOCAL_MEMORY_CACHE.
+USE_LOCAL_MEMORY_CACHE: bool = (
+    IS_TESTING
+    or not ASYNC_TASKS_ENABLED
+    or not REDIS_URL
+    or env_bool("USE_LOCAL_MEMORY_CACHE", default=False)
 )
-
-REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
 
 # ElastiCache (and any TLS Redis) use rediss:// scheme — auto-enable SSL options.
 # Set REDIS_SSL_CERT_REQS=required (default) for ACM-signed certs (AWS ElastiCache);
 # set to 'none' only if using self-signed or dev certs.
-_REDIS_USE_SSL = REDIS_URL.startswith("rediss://")
-_REDIS_SSL_CERT_REQS = (
+_REDIS_USE_SSL: bool = REDIS_URL.startswith("rediss://")
+_REDIS_SSL_CERT_REQS: str | None = (
     os.environ.get("REDIS_SSL_CERT_REQS", "required") if _REDIS_USE_SSL else None
 )
 
@@ -258,18 +279,29 @@ else:
 # SESSION_CACHE_ALIAS = 'default'
 
 # ─── Celery ───────────────────────────────────────────────────────────────────
-CELERY_BROKER_URL = REDIS_URL
-CELERY_RESULT_BACKEND = REDIS_URL
+# Task 3: When ASYNC_TASKS_ENABLED=False, use an in-memory broker so that
+# importing core.celery never fails and tasks run eagerly/synchronously.
+# When ASYNC_TASKS_ENABLED=True, connect to Redis as the broker/result-backend.
+if not ASYNC_TASKS_ENABLED:
+    CELERY_TASK_ALWAYS_EAGER = True       # run tasks inline (synchronous)
+    CELERY_TASK_EAGER_PROPAGATES = True   # propagate exceptions instead of swallowing
+    CELERY_BROKER_URL = "memory://"
+    CELERY_RESULT_BACKEND = "cache+memory://"
+else:
+    CELERY_TASK_ALWAYS_EAGER = False
+    CELERY_BROKER_URL = REDIS_URL
+    CELERY_RESULT_BACKEND = REDIS_URL
+
+    # ElastiCache TLS — pass SSL options to Celery broker and result backend
+    if _REDIS_USE_SSL:
+        _celery_ssl_opts = {"ssl_cert_reqs": _REDIS_SSL_CERT_REQS}
+        CELERY_BROKER_USE_SSL = _celery_ssl_opts
+        CELERY_REDIS_BACKEND_USE_SSL = _celery_ssl_opts
+
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = "UTC"
-
-# ElastiCache TLS — pass SSL options to Celery broker and result backend
-if _REDIS_USE_SSL:
-    _celery_ssl_opts = {"ssl_cert_reqs": _REDIS_SSL_CERT_REQS}
-    CELERY_BROKER_USE_SSL = _celery_ssl_opts
-    CELERY_REDIS_BACKEND_USE_SSL = _celery_ssl_opts
 # ─────────────────────────────────────────────────────────────────────────────
 
 

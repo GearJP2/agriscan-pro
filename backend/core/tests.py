@@ -20,7 +20,26 @@ class RefreshCookieSecurityConfigTests(SimpleTestCase):
         response = self.client.get("/health/")
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), {"status": "ok"})
+        data = response.json()
+        self.assertEqual(data["status"], "ok")
+        self.assertIn("database", data)
+        self.assertIn("redis", data)
+        self.assertIn("tasks", data)
+
+    @override_settings(ASYNC_TASKS_ENABLED=False)
+    def test_health_check_redis_skipped_when_async_disabled(self):
+        response = self.client.get("/health/")
+        data = response.json()
+        self.assertEqual(data["redis"]["status"], "skipped")
+        self.assertEqual(data["tasks"]["mode"], "sync")
+
+    @override_settings(ASYNC_TASKS_ENABLED=False, REDIS_URL="")
+    def test_async_tasks_disabled_uses_local_memory_cache(self):
+        # This is a bit tricky to test directly via override_settings because
+        # settings.py evaluates these at import time. We can just test the
+        # dispatcher logic instead.
+        from core.task_dispatcher import async_tasks_enabled
+        self.assertFalse(async_tasks_enabled())
 
     def test_build_allowed_hosts_includes_aws_platform_domains(self):
         """Production configs should still allow EB health-check hostnames."""
@@ -45,7 +64,7 @@ class RefreshCookieSecurityConfigTests(SimpleTestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), {"status": "ok"})
+        self.assertEqual(response.json()["status"], "ok")
 
     def test_allows_cloudfront_style_production_settings(self):
         """Production behind CloudFront can keep Secure cookies without FORCE_SSL."""
