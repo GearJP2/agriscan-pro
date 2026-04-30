@@ -15,19 +15,12 @@ from rest_framework_simplejwt.token_blacklist.models import (
 
 logger = logging.getLogger("agriscan.accounts")
 
+from .constants import USER_ROLE_WEIGHTS
+
 OAUTH_STATE_CACHE_PREFIX = "google_oauth_state"
 DEFAULT_OAUTH_STATE_TTL_SECONDS = 300
 USER_SECURITY_FIELD_ROLES = {"admin", "head_researcher", "researcher"}
 USER_DIRECTORY_VIEW_ROLES = {"admin", "head_researcher", "researcher"}
-
-ROLE_WEIGHTS = {
-    "guest": 0,
-    "user": 1,
-    "research_assistant": 2,
-    "researcher": 3,
-    "head_researcher": 4,
-    "admin": 5,
-}
 
 
 def build_user_payload(user: Any) -> dict[str, Any]:
@@ -70,8 +63,8 @@ def can_manage_target_in_hierarchy(actor: Any, target_user: Any, new_role: str |
     if not actor or not target_user:
         return False
 
-    actor_weight = ROLE_WEIGHTS.get(getattr(actor, "role", "guest"), 0)
-    target_weight = ROLE_WEIGHTS.get(getattr(target_user, "role", "guest"), 0)
+    actor_weight = USER_ROLE_WEIGHTS.get(getattr(actor, "role", "guest"), 0)
+    target_weight = USER_ROLE_WEIGHTS.get(getattr(target_user, "role", "guest"), 0)
 
     # Admins can do anything
     if is_admin_user(actor):
@@ -89,7 +82,7 @@ def can_manage_target_in_hierarchy(actor: Any, target_user: Any, new_role: str |
         return False
 
     # If proposing a new role, the new role cannot be higher than actor's rank
-    if new_role and ROLE_WEIGHTS.get(new_role, 0) > actor_weight:
+    if new_role and USER_ROLE_WEIGHTS.get(new_role, 0) > actor_weight:
         return False
 
     return True

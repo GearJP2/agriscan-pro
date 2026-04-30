@@ -10,6 +10,9 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 
+from .constants import ROLE_CHOICES, USER_ROLE_WEIGHTS
+
+
 class CustomUserManager(UserManager):
     def create_user(self, username, email=None, password=None, **extra_fields):
         extra_fields.setdefault("is_active", True)
@@ -24,14 +27,7 @@ class CustomUserManager(UserManager):
 
 
 class User(AbstractUser):
-    ROLE_CHOICES = (
-        ("admin", "Admin"),
-        ("head_researcher", "Head Researcher"),
-        ("researcher", "Researcher"),
-        ("research_assistant", "Research Assistant"),
-        ("user", "User"),
-        ("guest", "Guest"),
-    )
+    ROLE_CHOICES = ROLE_CHOICES
     name = models.CharField(_("Full Name"), max_length=255)
     email = models.EmailField(_("Email Address"), unique=True)
     role = models.CharField(max_length=50, choices=ROLE_CHOICES, default="user")
@@ -41,14 +37,7 @@ class User(AbstractUser):
 
     objects = CustomUserManager()
 
-    USER_ROLE_WEIGHTS = {
-        "admin": 100,
-        "head_researcher": 80,
-        "researcher": 60,
-        "research_assistant": 40,
-        "user": 20,
-        "guest": 0,
-    }
+    USER_ROLE_WEIGHTS = USER_ROLE_WEIGHTS
 
     @property
     def role_weight(self) -> int:
