@@ -16,7 +16,17 @@ logger = logging.getLogger('agriscan.samples')
 def process_sample_file(self, key: str, uploaded_by_username: str):
     """
     Download CSV/Excel from S3 and bulk-create samples.
-    เรียกหลัง Frontend PUT ไฟล์ขึ้น S3 สำเร็จแล้ว
+    Called after frontend PUTs the file to S3
+    """
+    try:
+        return sync_process_sample_file(key, uploaded_by_username)
+    except Exception as exc:
+        logger.error('task.process_sample_file.s3_error_retry', extra={'key': key, 'error': str(exc)})
+        raise self.retry(exc=exc)
+
+def sync_process_sample_file(key: str, uploaded_by_username: str):
+    """
+    Synchronous execution logic for processing sample files.
     """
     from django.contrib.auth import get_user_model
     User = get_user_model()
@@ -43,7 +53,7 @@ def process_sample_file(self, key: str, uploaded_by_username: str):
         file_bytes = obj['Body'].read()
     except Exception as exc:
         logger.error('task.process_sample_file.s3_error', extra={'key': key, 'error': str(exc)})
-        raise self.retry(exc=exc)
+        raise exc
 
     # Parse rows
     if key.endswith('.csv'):

@@ -25,6 +25,7 @@ from .serializers import (
     SampleListSerializer,
     SampleSerializer,
 )
+from core.task_dispatcher import dispatch_task
 from .tasks import process_sample_file
 from .services.analytics_service import AnalyticsService
 
@@ -378,16 +379,21 @@ class SampleViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['post'])
     def confirm_upload(self, request):
         """
-        Step 2: Called after the frontend PUTs the file to S3 — enqueue a Celery task.
+        Step 2: Called after the frontend PUTs the file to S3 — enqueue a Celery task or dispatch directly.
         Body: { "key": "mycotoxin-sample/{user}/{filename}" }
-        Returns: { "task_id": "...", "status": "queued" }
+        Returns: { "task_id": "...", "status": "queued|success|failure" }
         """
         key = request.data.get('key', '').strip()
         if not key:
             return Response({'detail': 'key is required'}, status=status.HTTP_400_BAD_REQUEST)
 
-        task = process_sample_file.delay(key=key, uploaded_by_username=request.user.username)
+        task = dispatch_task(process_sample_file, kwargs={'key': key, 'uploaded_by_username': request.user.username})
         logger.info('sample.upload.confirmed', extra={'key': key, 'task_id': task.id, 'user': request.user.username})
+        
+        # If the task completed synchronously, we can adjust the response status.
+        if getattr(task, 'status', None) in ['success', 'failed', 'partial']:
+            return Response({'task_id': task.id, 'status': task.status}, status=status.HTTP_200_OK)
+        
         return Response({'task_id': task.id, 'status': 'queued'}, status=status.HTTP_202_ACCEPTED)
 
     @action(detail=False, methods=['get'], url_path='task_status/(?P<task_id>[^/.]+)')
