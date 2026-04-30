@@ -84,6 +84,7 @@ urlpatterns = [
     path('health/', health_check, name='health-check'),
     path('admin/', admin.site.urls),
     path('api/accounts/', include('accounts.urls')),
+    path('api/notifications/', include('notifications.urls')),
     path('api/', include('samples.urls')),
     # API Documentation
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),

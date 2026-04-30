@@ -103,6 +103,7 @@ INSTALLED_APPS = [
     "core.apps.CoreConfig",
     "accounts",
     "samples",
+    "notifications",
 ]
 
 _HAS_WHITENOISE = find_spec("whitenoise") is not None
