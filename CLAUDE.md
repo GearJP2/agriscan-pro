@@ -376,7 +376,7 @@ node agents-orchestrator/examples/simple-task.js
 - Redesigned auth UI with Material Design 3 aesthetic (Clinical Orchard theme)
 - **AWS Migration**: Postgres (migrated from Aurora → RDS PostgreSQL 16.1), ElastiCache Redis (TLS), S3 Storage
 - **GitHub Actions**: Automated CI/CD for backend to Elastic Beanstalk
-- **Celery & Background Tasks**: Fully integrated with ElastiCache broker
+- **Celery & Background Tasks**: Fully integrated with ElastiCache broker (sync-first fallback mode available via `ASYNC_TASKS_ENABLED=False` to run without Redis).
 - Sample CRUD operations and Bulk Import
 - Process logging & Mycotoxin result tracking
 - Django admin integration
@@ -449,7 +449,8 @@ DB_ENGINE=postgresql
 DB_HOST                 # agriscanpro-db endpoint (ap-southeast-1)
 DB_NAME=agriscan        # initial DB name on the new RDS instance
 DB_USER / DB_PASSWORD
-REDIS_URL               # rediss:// for ElastiCache TLS
+ASYNC_TASKS_ENABLED=False # Set to True to require Redis and a Celery worker
+REDIS_URL               # rediss:// for ElastiCache TLS (required if ASYNC_TASKS_ENABLED=True)
 CORS_ALLOWED_ORIGINS    # Comma-separated frontend URLs
 GATEWAY_API_KEY         # Agent orchestrator auth — REQUIRED (fails to start without it)
 SRE_MONITOR_KEY         # Protects system metrics on /health/ endpoint

@@ -62,6 +62,14 @@ jobs:
     timeout-minutes: 25
     permissions:
       contents: read
+    env:
+      DB_ENGINE: sqlite
+      DEBUG: 'False'
+      SECRET_KEY: ci-test-secret-key-32-chars-minimum-length-for-jwt
+      ALLOWED_HOSTS: localhost,127.0.0.1,testserver
+      USE_LOCAL_MEMORY_CACHE: 'True'
+      ASYNC_TASKS_ENABLED: 'False'
+      REDIS_URL: ''
     steps:
       - name: Checkout code
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
@@ -91,23 +99,11 @@ jobs:
 
       - name: Run backend tests
         working-directory: backend
-        env:
-          DB_ENGINE: sqlite
-          DEBUG: 'False'
-          SECRET_KEY: ci-test-secret-key-32-chars-minimum-length-for-jwt
-          ALLOWED_HOSTS: localhost,127.0.0.1
-          USE_LOCAL_MEMORY_CACHE: 'True'
         run: |
           python manage.py test accounts samples core
 
       - name: Run backend deploy smoke checks
         working-directory: backend
-        env:
-          DB_ENGINE: sqlite
-          DEBUG: 'False'
-          SECRET_KEY: ci-test-secret-key-32-chars-minimum-length-for-jwt
-          ALLOWED_HOSTS: localhost,127.0.0.1,testserver
-          USE_LOCAL_MEMORY_CACHE: 'True'
         run: |
           bash -n .platform/hooks/predeploy/01_django_setup.sh
           bash -n .platform/hooks/postdeploy/01_start_celery.sh
@@ -177,6 +173,18 @@ jobs:
     needs: backend-test
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    env:
+      DB_ENGINE: postgresql
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_NAME: test_db
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DEBUG: 'False'
+      SECRET_KEY: perf-test-secret-key-32-chars-minimum-length-for-jwt
+      ALLOWED_HOSTS: localhost,127.0.0.1,testserver
+      ASYNC_TASKS_ENABLED: 'False'
+      REDIS_URL: ''
     services:
       postgres:
         image: postgres@sha256:d0f363f8366fbc3f52d172c6e76bc27151c3d643b870e1062b4e8bfe65baf609
@@ -209,31 +217,11 @@ jobs:
 
       - name: Run database migrations
         working-directory: backend
-        env:
-          DB_ENGINE: postgresql
-          DB_HOST: localhost
-          DB_PORT: 5432
-          DB_NAME: test_db
-          DB_USER: postgres
-          DB_PASSWORD: postgres
-          DEBUG: 'False'
-          SECRET_KEY: perf-test-secret-key-32-chars-minimum-length-for-jwt
-          ALLOWED_HOSTS: localhost,127.0.0.1
         run: |
           python manage.py migrate --noinput
 
       - name: Run backend smoke tests
         working-directory: backend
-        env:
-          DB_ENGINE: postgresql
-          DB_HOST: localhost
-          DB_PORT: 5432
-          DB_NAME: test_db
-          DB_USER: postgres
-          DB_PASSWORD: postgres
-          DEBUG: 'False'
-          SECRET_KEY: perf-test-secret-key-32-chars-minimum-length-for-jwt
-          ALLOWED_HOSTS: localhost,127.0.0.1,testserver
         run: |
           python - <<'PY'
           import time

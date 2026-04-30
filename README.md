@@ -72,7 +72,8 @@ Key variables for local development:
 | `DB_USER` | Yes | — | PostgreSQL user |
 | `DB_PASSWORD` | Yes | — | PostgreSQL password |
 | `DB_HOST` | No | `localhost` | Database host |
-| `REDIS_URL` | No | `redis://localhost:6379/0` | Redis connection URL |
+| `ASYNC_TASKS_ENABLED`| No | `False` | Set `True` to enable Celery/Redis background tasks |
+| `REDIS_URL` | No | `redis://localhost:6379/0` | Redis URL (required if ASYNC_TASKS_ENABLED=True) |
 | `GOOGLE_CLIENT_ID` | No | — | Google OAuth client ID |
 | `GOOGLE_CLIENT_SECRET` | No | — | Google OAuth client secret |
 | `INITIAL_ADMIN_EMAILS` | No | — | Comma-separated emails auto-promoted to admin |
