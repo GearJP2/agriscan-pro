@@ -90,7 +90,15 @@ Parameters:
     Type: String
     Default: cache.t4g.small
     AllowedValues: [cache.t4g.micro, cache.t4g.small, cache.t4g.medium]
-    Description: ElastiCache Redis node type
+    Description: ElastiCache Redis node type (used only when EnableRedis=true)
+
+  EnableRedis:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+    Description: >-
+      Set to true to provision ElastiCache Redis (requires ASYNC_TASKS_ENABLED=True).
+      Set to false (default) to skip Redis and run tasks synchronously.
 
   # ── Elastic Beanstalk ───────────────────────────────────────────────────────
   EBSolutionStack:
@@ -148,6 +156,7 @@ Parameters:
 # ─────────────────────────────────────────────────────────────────────────────
 Conditions:
   HasFrontendDomain: !Not [!Equals [!Ref FrontendDomainAlias, '']]
+  HasRedis: !Equals [!Ref EnableRedis, 'true']
 
 # ─────────────────────────────────────────────────────────────────────────────
 # METADATA — Console parameter grouping
@@ -161,8 +170,8 @@ Metadata:
         Parameters: [DjangoSecretKey, GatewayApiKey, SreMonitorKey]
       - Label: { default: "3 · Database (Aurora PostgreSQL 16 Serverless v2)" }
         Parameters: [DBName, DBUser, DBPassword, AuroraMinACU, AuroraMaxACU]
-      - Label: { default: "4 · Cache (ElastiCache Redis 7 + TLS)" }
-        Parameters: [CacheNodeType]
+      - Label: { default: "4 · Cache (ElastiCache Redis 7 + TLS — optional)" }
+        Parameters: [EnableRedis, CacheNodeType]
       - Label: { default: "5 · Compute (Elastic Beanstalk)" }
         Parameters: [EBSolutionStack, EC2InstanceType, EBMinInstances, EBMaxInstances]
       - Label: { default: "6 · Networking" }
@@ -410,6 +419,7 @@ Resources:
 
   CacheSubnetGroup:
     Type: AWS::ElastiCache::SubnetGroup
+    Condition: HasRedis
     Properties:
       CacheSubnetGroupName: !Sub ${AppName}-cache-subnet-group
       Description: !Sub ${AppName} private subnets for ElastiCache Redis
@@ -419,6 +429,7 @@ Resources:
 
   RedisReplicationGroup:
     Type: AWS::ElastiCache::ReplicationGroup
+    Condition: HasRedis
     Properties:
       ReplicationGroupId: !Sub ${AppName}-redis
       ReplicationGroupDescription: !Sub ${AppName} Redis 7 OSS TLS — cache & Celery broker
@@ -595,7 +606,6 @@ Resources:
     Type: AWS::ElasticBeanstalk::Environment
     DependsOn:
       - AuroraInstance
-      - RedisReplicationGroup
       - EBInstanceProfile
       - EBServiceRole
     Properties:
@@ -743,16 +753,25 @@ Resources:
           Value: !GetAtt AuroraCluster.Endpoint.Port
 
         # ── Redis / Celery ────────────────────────────────────────────────────
+        # ASYNC_TASKS_ENABLED controls whether Redis + Celery are used.
+        # Keep False (default) when EnableRedis=false to run tasks synchronously.
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: ASYNC_TASKS_ENABLED
+          Value: !If [HasRedis, 'True', 'False']
+
         - Namespace: aws:elasticbeanstalk:application:environment
           OptionName: REDIS_URL
-          Value: !Sub
-            - 'rediss://${Host}:${Port}/0'
-            - Host: !GetAtt RedisReplicationGroup.PrimaryEndPoint.Address
-              Port: !GetAtt RedisReplicationGroup.PrimaryEndPoint.Port
+          Value: !If
+            - HasRedis
+            - !Sub
+              - 'rediss://${Host}:${Port}/0'
+              - Host: !GetAtt RedisReplicationGroup.PrimaryEndPoint.Address
+                Port: !GetAtt RedisReplicationGroup.PrimaryEndPoint.Port
+            - ''
 
         - Namespace: aws:elasticbeanstalk:application:environment
           OptionName: REDIS_SSL_CERT_REQS
-          Value: required
+          Value: !If [HasRedis, 'required', 'none']
 
         # ── Hosts & CORS ──────────────────────────────────────────────────────
         - Namespace: aws:elasticbeanstalk:application:environment
@@ -907,16 +926,19 @@ Outputs:
   # ── Redis ─────────────────────────────────────────────────────────────────
 
   RedisEndpoint:
+    Condition: HasRedis
     Description: ElastiCache Redis primary endpoint host
     Value: !GetAtt RedisReplicationGroup.PrimaryEndPoint.Address
     Export:
       Name: !Sub ${AppName}-redis-host
 
   RedisPort:
+    Condition: HasRedis
     Description: ElastiCache Redis port
     Value: !GetAtt RedisReplicationGroup.PrimaryEndPoint.Port
 
   RedisURL:
+    Condition: HasRedis
     Description: Full REDIS_URL value (paste into EB env vars or .env)
     Value: !Sub
       - 'rediss://${Host}:${Port}/0'

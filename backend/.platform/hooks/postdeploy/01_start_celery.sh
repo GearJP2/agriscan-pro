@@ -1,6 +1,16 @@
 #!/bin/bash
 set -euo pipefail
 
+# ── Async tasks guard ─────────────────────────────────────────────────────────
+# Skip Celery worker startup when ASYNC_TASKS_ENABLED is not explicitly 'true'.
+# The env var is set by EB Environment Properties; defaults to 'False' (sync mode).
+_ASYNC="${ASYNC_TASKS_ENABLED:-False}"
+if [ "${_ASYNC}" != "True" ] && [ "${_ASYNC}" != "true" ] && [ "${_ASYNC}" != "1" ]; then
+    echo "ASYNC_TASKS_ENABLED=${_ASYNC}: skipping Celery worker startup (sync mode)."
+    exit 0
+fi
+# ─────────────────────────────────────────────────────────────────────────────
+
 VENV=$(ls -t /var/app/venv/*/bin/activate 2>/dev/null | head -1)
 if [ -z "$VENV" ]; then
     echo "No virtualenv found, skipping Celery."
