@@ -311,13 +311,23 @@ class RequestOTPView(generics.GenericAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         email = normalize_email(serializer.validated_data["email"])
-        request_key = f"otp_request:{_get_request_fingerprint(request)}"
+        
+        # Dual-key rate limiting: by IP/UA fingerprint and by target Email
+        ip_key = f"otp_request_ip:{_get_request_fingerprint(request)}"
+        email_key = f"otp_request_email:{hash_data(email)}"
 
-        if not RateLimiter.is_allowed(
-            request_key,
+        is_ip_allowed = RateLimiter.is_allowed(
+            ip_key,
             max_requests=MAX_OTP_REQUESTS,
             period_seconds=OTP_REQUEST_PERIOD_SEC,
-        ):
+        )
+        is_email_allowed = RateLimiter.is_allowed(
+            email_key,
+            max_requests=MAX_OTP_REQUESTS,
+            period_seconds=OTP_REQUEST_PERIOD_SEC,
+        )
+
+        if not is_ip_allowed or not is_email_allowed:
             return Response(
                 {"detail": "Too many requests. Please try again later."},
                 status=status.HTTP_429_TOO_MANY_REQUESTS,
