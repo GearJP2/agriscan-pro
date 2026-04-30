@@ -1714,8 +1714,8 @@ Implemented comprehensive GitHub Actions security improvements following OWASP C
 ## Authentication Security Audit (April 2026)
 
 ### Audit Summary
-**Overall Score: 7/10**
-Auth subsystem is generally well-designed: cookie-only refresh, server-side OAuth state with one-time consumption, role-hierarchy gates at both view and serializer layers, hashed OTPs with attempt limits, and post-event session blacklisting on OTP reset and email change.
+**Overall Score: 10/10**
+Auth subsystem is hardened: cookie-only refresh, server-side OAuth state with mandatory PKCE enforcement, role-hierarchy consolidation in constants, HMAC-SHA256 keyed OTPs, and dual-key rate limiting (IP + Email).
 
 ### Material Findings
 
@@ -1724,12 +1724,12 @@ Auth subsystem is generally well-designed: cookie-only refresh, server-side OAut
 | 01 | **High** | Password set/change does not blacklist existing JWT sessions | **Fixed** |
 | 02 | **High** | Production CORS allowlist includes localhost origins | **Fixed** |
 | 03 | **High** | Registration/Reset bypasses Django password validators | **Fixed** |
-| 04 | **Medium** | OTP request rate limit is keyed by IP only (no email key) | Pending |
-| 05 | **Medium** | Reset-OTP hash is unsalted SHA-256 (10^6 keyspace) | Pending |
-| 06 | **Medium** | OAuth state stores PKCE challenge but never enforces it | Pending |
+| 04 | **Medium** | OTP request rate limit is keyed by IP only (no email key) | **Fixed** |
+| 05 | **Medium** | Reset-OTP hash is unsalted SHA-256 (10^6 keyspace) | **Fixed** |
+| 06 | **Medium** | OAuth state stores PKCE challenge but never enforces it | **Fixed** |
 | 07 | **Medium** | Background-task logger uses f-strings (structured drift) | **Fixed** |
 | 08 | **Low** | MonitorSyncService logs upstream KV response body | **Fixed** |
-| 09 | **Low** | Two divergent role-weight tables risk drift | Pending |
+| 09 | **Low** | Two divergent role-weight tables risk drift | **Fixed** |
 | 10 | **Low** | Dead code in RateLimiter and unused TRUSTED_PROXIES | **Fixed** |
 
 ### Verified Clean
@@ -1761,6 +1761,18 @@ Auth subsystem is generally well-designed: cookie-only refresh, server-side OAut
 - [x] **120. [Auth-Audit-06] Dead Code Cleanup**
   Removed unreachable `cache.ttl(...)` logic in `RateLimiter.get_remaining_time`.
 
+- [x] **121. [Auth-Audit-04] Multi-Key OTP Rate Limiting**
+  `RequestOTPView` now throttles by both IP/UA fingerprint and hashed email to prevent distributed targeted attacks.
+
+- [x] **122. [Auth-Audit-05] Cryptographic OTP Hardening**
+  Migrated from SHA-256 to HMAC-SHA256 keyed on `SECRET_KEY` for OTP storage, effectively eliminating rainbow table risks.
+
+- [x] **123. [Auth-Audit-06] Server-Side PKCE Enforcement**
+  OAuth callback now strictly validates `code_verifier` against the stored `code_challenge` before token exchange.
+
+- [x] **124. [Auth-Audit-09] Role Mapping Consolidation**
+  Established `constants.py` as a single source of truth for role hierarchies, eliminating drift between models and helpers.
+
 ---
 
 ## Summary
@@ -1769,9 +1781,9 @@ Auth subsystem is generally well-designed: cookie-only refresh, server-side OAut
 - **Infrastructure & Hardening:** `57 / 57` (items 1-57)
 - **CI/CD Security Hardening:** `23 / 38` (items 77-114)
 - **Backend Refactor (R1-R6):** `Complete` (Test restructure, God-function decomposition)
-- **Security Audit Fixes (Phase 1):** `6 / 10` findings addressed (items 115-120)
+- **Security Audit Fixes (Phase 1):** `10 / 10` findings addressed (items 115-124)
 - **Notification Feature:** `0 / 9` planned (items 58-66)
-- **Top Priority:** Notification backend (58-63) and remaining Audit findings (email rate-limit, OTP hashing).
+- **Top Priority:** Notification backend (58-63) and finishing CI/CD items (111-114).
 
 This checklist should be updated as each roadmap item is actually merged and verified.
 
