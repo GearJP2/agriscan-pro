@@ -20,11 +20,14 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { USER_ROLE_WEIGHT } from "@/types/user";
+import { useUnreadCount } from "@/features/notifications/hooks/useNotifications";
 
 const UserDropdown = () => {
   const { user, role, logout } = useAuth();
   const navigate = useNavigate();
   const canManageUsers = role === "admin";
+  const { data: unreadData } = useUnreadCount();
+  const unreadCount = unreadData?.count || 0;
 
   const handleLogout = () => {
     navigate("/");
@@ -47,6 +50,11 @@ const UserDropdown = () => {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="relative h-10 w-10 rounded-full">
+          {unreadCount > 0 && (
+            <div className="absolute -top-1 -right-1 h-5 min-w-[20px] rounded-full bg-destructive text-[10px] font-bold text-destructive-foreground flex items-center justify-center border-2 border-background z-10 px-1">
+              {unreadCount > 99 ? '99+' : unreadCount}
+            </div>
+          )}
           <Avatar className="h-10 w-10 border-2 border-primary/20">
             <AvatarImage src="" alt={user?.name} />
             <AvatarFallback className="bg-primary/10 text-primary">
@@ -80,11 +88,18 @@ const UserDropdown = () => {
                 to={item.to}
                 className="flex items-center justify-between w-full px-3 py-2.5 rounded-md hover:bg-accent"
               >
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 flex-1">
                   <item.icon className="h-4 w-4 text-muted-foreground" />
                   <span className="text-sm">{item.label}</span>
+                  {item.label === "Notification" && unreadCount > 0 && (
+                    <span className="ml-auto bg-destructive text-destructive-foreground text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </span>
+                  )}
                 </div>
-                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                {item.label !== "Notification" || unreadCount === 0 ? (
+                  <ChevronRight className="h-4 w-4 text-muted-foreground ml-auto" />
+                ) : null}
               </Link>
             </DropdownMenuItem>
           ))}

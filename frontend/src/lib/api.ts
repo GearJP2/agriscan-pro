@@ -436,4 +436,27 @@ export const analyticsAPI = {
   }
 };
 
+export const notificationAPI = {
+  async list(page: number = 1) {
+    const response = await apiClient.get(`/notifications/?page=${page}`);
+    return response.data;
+  },
+
+  async unreadCount() {
+    const response = await apiClient.get("/notifications/unread_count/");
+    return response.data as { count: number };
+  },
+
+  async markRead(id: string | number) {
+    const response = await apiClient.post(`/notifications/${id}/mark_read/`);
+    return response.data;
+  },
+
+  async markAllRead() {
+    const response = await apiClient.post("/notifications/mark_all_read/");
+    return response.data;
+  },
+};
+
 export default apiClient;
+
