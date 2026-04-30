@@ -203,8 +203,9 @@ class RegisterSerializer(serializers.ModelSerializer):
             is_active=True,
         )
         if is_whitelisted:
-            from .tasks import sync_user_to_monitor_task
-            sync_user_to_monitor_task.delay(email)
+            from .tasks import sync_user_to_monitor_task, sync_user_to_monitor
+            from core.task_dispatcher import dispatch_task
+            dispatch_task(sync_user_to_monitor_task, sync_user_to_monitor, email)
         return user
 
 

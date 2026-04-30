@@ -178,9 +178,10 @@ def resolve_user_for_google_sign_in(user_info: dict[str, Any]) -> Any:
             if existing_user.role != "admin":
                 existing_user.role = "admin"
                 existing_user.save(update_fields=["role"])
-            # Offload sync to Celery background task
-            from ..tasks import sync_user_to_monitor_task
-            sync_user_to_monitor_task.delay(existing_user.email)
+            # Dispatch monitor sync via central dispatcher (sync or async)
+            from ..tasks import sync_user_to_monitor_task, sync_user_to_monitor
+            from core.task_dispatcher import dispatch_task
+            dispatch_task(sync_user_to_monitor_task, sync_user_to_monitor, existing_user.email)
         _link_google_identity_to_user(existing_user, identity)
         return existing_user
 
@@ -196,8 +197,9 @@ def resolve_user_for_google_sign_in(user_info: dict[str, Any]) -> Any:
     user.set_unusable_password()
     user.save(update_fields=["password"])
     if should_be_admin:
-        from ..tasks import sync_user_to_monitor_task
-        sync_user_to_monitor_task.delay(user.email)
+        from ..tasks import sync_user_to_monitor_task, sync_user_to_monitor
+        from core.task_dispatcher import dispatch_task
+        dispatch_task(sync_user_to_monitor_task, sync_user_to_monitor, user.email)
     _link_google_identity_to_user(user, identity)
     return user
 

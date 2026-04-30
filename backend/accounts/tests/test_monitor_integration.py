@@ -61,6 +61,23 @@ class MonitorIntegrationTests(TestCase):
             success = MonitorSyncService.sync_email_to_monitor(test_email)
             self.assertTrue(success, "Should successfully call Upstash API (Mocked)")
 
-            # Verify it also works for removal
             success_remove = MonitorSyncService.remove_email_from_monitor(test_email)
             self.assertTrue(success_remove)
+
+    @patch("accounts.tasks.MonitorSyncService.sync_email_to_monitor")
+    @patch("accounts.tasks.MonitorSyncService.remove_email_from_monitor")
+    def test_monitor_sync_runs_synchronously_when_async_disabled(self, mock_remove, mock_sync):
+        from accounts.tasks import sync_user_to_monitor_task, remove_user_from_monitor_task
+        mock_sync.return_value = True
+        mock_remove.return_value = True
+
+        test_email = "test@example.com"
+
+        # When always eager, tasks are run inline
+        result_sync = sync_user_to_monitor_task.delay(test_email)
+        self.assertTrue(result_sync.get())
+        mock_sync.assert_called_once_with(test_email)
+
+        result_remove = remove_user_from_monitor_task.delay(test_email)
+        self.assertTrue(result_remove.get())
+        mock_remove.assert_called_once_with(test_email)

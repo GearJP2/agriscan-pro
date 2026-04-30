@@ -294,9 +294,10 @@ class UserDetailView(generics.RetrieveUpdateDestroyAPIView):
             }
         )
 
-        # Offload Monitor access removal to Celery background task
-        from .tasks import remove_user_from_monitor_task
-        remove_user_from_monitor_task.delay(instance.email)
+        # Offload Monitor access removal via central dispatcher (sync or async)
+        from .tasks import remove_user_from_monitor_task, remove_user_from_monitor
+        from core.task_dispatcher import dispatch_task
+        dispatch_task(remove_user_from_monitor_task, remove_user_from_monitor, instance.email)
 
         return super().destroy(request, *args, **kwargs)
 
@@ -311,7 +312,7 @@ class RequestOTPView(generics.GenericAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         email = normalize_email(serializer.validated_data["email"])
-        
+
         # Dual-key rate limiting: by IP/UA fingerprint and by target Email
         ip_key = f"otp_request_ip:{_get_request_fingerprint(request)}"
         email_key = f"otp_request_email:{hash_data(email)}"
