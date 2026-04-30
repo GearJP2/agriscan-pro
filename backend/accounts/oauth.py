@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import base64
+import hashlib
 import logging
 import os
 import secrets
@@ -216,6 +218,26 @@ def _bad_request(detail: str) -> Response:
     return Response({"detail": detail}, status=status.HTTP_400_BAD_REQUEST)
 
 
+def _verify_pkce_verifier(verifier: str | None, challenge: str, method: str) -> bool:
+    """Verify the code_verifier against the stored code_challenge."""
+    if not verifier:
+        return False
+
+    if method == "plain":
+        return secrets.compare_digest(verifier, challenge)
+
+    if method == "S256":
+        try:
+            digest = hashlib.sha256(verifier.encode("ascii")).digest()
+            # Google/RFC 7636 uses base64url without padding
+            computed = base64.urlsafe_b64encode(digest).decode("ascii").replace("=", "")
+            return secrets.compare_digest(computed, challenge)
+        except Exception:
+            return False
+
+    return False
+
+
 def _extract_callback_inputs(request) -> tuple[str, str, str | None] | Response:
     """Pull the required code/state and optional code_verifier from the request."""
     code = request.data.get("code")
@@ -304,6 +326,15 @@ def google_oauth_callback(request):
         state_data = _consume_oauth_state(state)
         if isinstance(state_data, Response):
             return state_data
+
+        # PKCE Enforcement
+        expected_challenge = state_data.get("code_challenge")
+        if expected_challenge:
+            method = state_data.get("code_challenge_method", "S256")
+            if not code_verifier:
+                return _bad_request("PKCE verifier is required for this session.")
+            if not _verify_pkce_verifier(code_verifier, expected_challenge, method):
+                return _bad_request("Invalid PKCE verifier.")
 
         user_info = _fetch_google_user_info(code, code_verifier)
         if isinstance(user_info, Response):
