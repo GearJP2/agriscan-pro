@@ -1038,14 +1038,14 @@ const Doc = () => {
                     <CardTitle className="text-base">{t('Query Parameters', 'พารามิเตอร์การค้นหา')}</CardTitle>
                   </CardHeader>
                   <CardContent className="p-4 pt-0 space-y-3">
-                    <CodeBlock code={`GET /api/samples/?search=r-2025&status=pending,in_progress&region=North&vegetation=rice&risk_level=high&date_from=2025-01-01&date_to=2025-12-31&page=1&page_size=50`} />
+                    <CodeBlock code={`GET /api/samples/?search=r-2025&status=pending,in_progress&region=North&vegetation=rice&sample_type=field&date_from=2025-01-01&date_to=2025-12-31&page=1&page_size=50`} />
                     <div className="grid gap-2 sm:grid-cols-2 text-xs text-muted-foreground">
                       {[
                         { param: 'search', en: 'Search by sample_id or keyword', th: 'ค้นหาตาม sample_id หรือ keyword' },
                         { param: 'status', en: 'pending, in_progress, completed, flagged', th: 'pending, in_progress, completed, flagged' },
                         { param: 'region', en: 'Filter by region', th: 'กรองตามภูมิภาค' },
                         { param: 'vegetation', en: 'Filter by vegetation variety', th: 'กรองตามพันธุ์พืช' },
-                        { param: 'risk_level', en: 'safe, low, medium, high', th: 'safe, low, medium, high' },
+                        { param: 'sample_type', en: 'field, market, storage, export', th: 'field, market, storage, export' },
                         { param: 'page / page_size', en: 'Pagination', th: 'การแบ่งหน้า' },
                       ].map((p) => (
                         <div key={p.param} className="flex gap-2">
