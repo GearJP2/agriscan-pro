@@ -109,7 +109,7 @@ const UserManagement = () => {
     },
   });
 
-  const users = usersQuery.data ?? [];
+  const users = useMemo(() => usersQuery.data ?? [], [usersQuery.data]);
   const isLoading = isInitializing || usersQuery.isLoading;
 
   useEffect(() => {

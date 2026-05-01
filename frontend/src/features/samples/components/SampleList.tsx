@@ -259,7 +259,7 @@ const SampleList = () => {
             return samples.filter(s => isWatching(s.sample_id));
         }
         return samples;
-    }, [filters, samples, isWatching, watchlist]);
+    }, [filters, samples, isWatching]);
 
     // Get export data
     const getExportData = () => {
