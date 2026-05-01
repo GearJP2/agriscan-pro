@@ -183,9 +183,7 @@ export default function CoContaminationAnalysis({
         <CardHeader className="pb-4 px-6 pt-6 bg-slate-100/30 dark:bg-card border-b border-border/5 shadow-none">
            <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <div className="p-2.5 rounded-2xl bg-primary/10 border border-primary/20">
-                <Activity className="w-6 h-6 text-primary" />
-              </div>
+              <Activity className="w-6 h-6 text-primary" />
               <div>
                 <CardTitle className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">
                   Co-contamination Analysis

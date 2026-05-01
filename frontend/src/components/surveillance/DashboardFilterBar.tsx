@@ -1,7 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
 import type { DashboardFilters } from '@/types/dashboard';
-import { Calendar, ChevronDown, X, Filter, Database } from 'lucide-react';
+import { Calendar as CalendarIcon, ChevronDown, X, Filter, Database } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { format } from 'date-fns';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 interface Props {
     filters: DashboardFilters;
@@ -140,22 +143,13 @@ function SingleSelect({
 }
 
 export default function DashboardFilterBar({ filters, onChange, commodityOptions, regionOptions, quarterOptions }: Props) {
-    const [dateOpen, setDateOpen] = useState(false);
     const [isStuck, setIsStuck] = useState(false);
-    const dateRef = useRef<HTMLDivElement>(null);
     const observerRef = useRef<HTMLDivElement>(null);
 
     const toggleItem = (list: string[], item: string) =>
         list.includes(item) ? list.filter((i) => i !== item) : [...list, item];
 
     useEffect(() => {
-        const handler = (e: MouseEvent) => {
-            if (dateRef.current && !dateRef.current.contains(e.target as Node)) {
-                setDateOpen(false);
-            }
-        };
-        document.addEventListener('mousedown', handler);
-
         // Intersection Observer to detect if stuck against header
         // Header bottom is approx 88px. We observe the container hitting that mark.
         const observer = new IntersectionObserver(
@@ -168,7 +162,6 @@ export default function DashboardFilterBar({ filters, onChange, commodityOptions
         }
 
         return () => {
-            document.removeEventListener('mousedown', handler);
             observer.disconnect();
         };
     }, []);
@@ -188,6 +181,7 @@ export default function DashboardFilterBar({ filters, onChange, commodityOptions
             )}>
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div className="flex items-center gap-2.5">
+                        <Filter className="h-3.5 w-3.5 text-primary" />
                         <div>
                             <span className="text-sm font-black text-black dark:text-white tracking-normal">Dashboard Filters</span>
                         </div>
@@ -195,46 +189,44 @@ export default function DashboardFilterBar({ filters, onChange, commodityOptions
 
                 <div className="flex flex-wrap items-center gap-3">
                     {/* Date range group as Popover */}
-                    <div className="relative" ref={dateRef}>
-                        <button
-                            onClick={() => setDateOpen(!dateOpen)}
-                            className={cn(
-                                "flex items-center gap-2 rounded-full px-8 py-1.5 text-xs font-black tracking-normal transition-all duration-300 border font-sans",
-                                "bg-muted/50 border-border/40 text-muted-foreground hover:bg-accent hover:border-border"
-                            )}
-                        >
-                            <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                            <span className="text-[11px] font-black text-foreground tracking-normal">
-                                {filters.dateRange.from || 'START'} <span className="mx-3 opacity-40">—</span> {filters.dateRange.to || 'END'}
-                            </span>
-                        </button>
-
-                        {dateOpen && (
-                            <div className="absolute top-full mt-2 left-0 w-80 bg-white dark:bg-slate-900 border border-border/40 rounded-2xl shadow-2xl z-[110] p-5 animate-in fade-in zoom-in-95 duration-200 font-sans">
-                                <span className="block text-[10px] font-black text-muted-foreground tracking-normal mb-4">Select Date Range</span>
-                                <div className="space-y-4">
-                                    <div className="space-y-1.5">
-                                        <label className="text-[9px] font-black text-muted-foreground tracking-normal ml-1 font-sans">Start Date</label>
-                                        <input
-                                            type="date"
-                                            value={filters.dateRange.from}
-                                            onChange={(e) => onChange({ ...filters, dateRange: { ...filters.dateRange, from: e.target.value } })}
-                                            className="w-full bg-muted/40 border border-border/40 rounded-xl px-3 py-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-primary/20 transition-all"
-                                        />
-                                    </div>
-                                    <div className="space-y-1.5">
-                                        <label className="text-[9px] font-black text-muted-foreground tracking-normal ml-1 font-sans">End Date</label>
-                                        <input
-                                            type="date"
-                                            value={filters.dateRange.to}
-                                            onChange={(e) => onChange({ ...filters, dateRange: { ...filters.dateRange, to: e.target.value } })}
-                                            className="w-full bg-muted/40 border border-border/40 rounded-xl px-3 py-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-primary/20 transition-all"
-                                        />
-                                    </div>
-                                </div>
+                    <Popover>
+                        <PopoverTrigger asChild>
+                            <button
+                                className={cn(
+                                    "flex items-center gap-2 rounded-full px-8 py-1.5 text-xs font-black tracking-normal transition-all duration-300 border font-sans",
+                                    "bg-muted/50 border-border/40 text-muted-foreground hover:bg-accent hover:border-border"
+                                )}
+                            >
+                                <CalendarIcon className="h-3.5 w-3.5 text-muted-foreground" />
+                                <span className="text-[11px] font-black text-foreground tracking-normal">
+                                    {filters.dateRange.from ? format(new Date(filters.dateRange.from), 'yyyy-MM-dd') : 'START'} 
+                                    <span className="mx-3 opacity-40">—</span> 
+                                    {filters.dateRange.to ? format(new Date(filters.dateRange.to), 'yyyy-MM-dd') : 'END'}
+                                </span>
+                            </button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0 flex flex-col md:flex-row bg-white dark:bg-slate-900 border border-border/40 rounded-2xl shadow-2xl z-[110]" align="start">
+                            <div className="p-3 border-b md:border-b-0 md:border-r border-border/40">
+                                <span className="block text-[10px] font-black text-muted-foreground tracking-normal mb-2 px-2 uppercase">Start Date</span>
+                                <Calendar
+                                    mode="single"
+                                    selected={filters.dateRange.from ? new Date(filters.dateRange.from) : undefined}
+                                    onSelect={(date) => onChange({ ...filters, dateRange: { ...filters.dateRange, from: date ? format(date, 'yyyy-MM-dd') : '' } })}
+                                    initialFocus
+                                />
                             </div>
-                        )}
-                    </div>
+                            <div className="p-3">
+                                <span className="block text-[10px] font-black text-muted-foreground tracking-normal mb-2 px-2 uppercase">End Date</span>
+                                <Calendar
+                                    mode="single"
+                                    selected={filters.dateRange.to ? new Date(filters.dateRange.to) : undefined}
+                                    onSelect={(date) => onChange({ ...filters, dateRange: { ...filters.dateRange, to: date ? format(date, 'yyyy-MM-dd') : '' } })}
+                                    initialFocus
+                                />
+                            </div>
+                        </PopoverContent>
+                    </Popover>
+
 
                     <div className="flex items-center gap-2">
                         <MultiSelect
