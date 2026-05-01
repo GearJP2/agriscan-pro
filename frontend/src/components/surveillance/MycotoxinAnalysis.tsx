@@ -18,9 +18,9 @@ import type { CommodityShare, HeatmapCell, ThresholdData, ToxinScore } from '@/t
 
 const SEVERITY_COLORS: Record<string, string> = {
   critical: '#ef4444',
-  high: '#f97316',
-  medium: '#f59e0b',
-  low: '#6b7280',
+  high: '#f59e0b',
+  medium: '#3b82f6',
+  low: '#10b981',
 };
 
 function intensityColor(value: number, isDark: boolean): string {
@@ -94,12 +94,17 @@ export default function MycotoxinAnalysis({
     color: COMMODITY_PALETTE[i % COMMODITY_PALETTE.length],
   }));
 
+  const RISK_STEPS = [
+    { limit: 25, color: '#10b981', label: '<25%' },
+    { limit: 50, color: '#3b82f6', label: '25–50%' },
+    { limit: 75, color: '#f59e0b', label: '50–75%' },
+    { limit: 100, color: '#ef4444', label: '>75%' },
+  ];
+
   function aboveThresholdColor(pct: number): string {
-    if (pct === 0)  return 'transparent';
-    if (pct < 25)   return '#fde68a'; // light amber
-    if (pct < 50)   return '#f59e0b'; // amber
-    if (pct < 75)   return '#ef4444'; // red
-    return '#991b1b';                  // dark red
+    if (pct === 0) return 'transparent';
+    const step = RISK_STEPS.find(s => pct < s.limit) || RISK_STEPS[RISK_STEPS.length - 1];
+    return step.color;
   }
 
   // Theme-aware chart colors
@@ -121,8 +126,8 @@ export default function MycotoxinAnalysis({
             {payload[0].payload.name || label}
           </p>
           <p className="text-lg font-black text-slate-900 dark:text-white leading-tight">
-            {payload[0].value}
-            <span className="text-[10px] ml-1.5 opacity-60 font-bold tracking-normal">Severity Score</span>
+            {payload[0].value}%
+            <span className="text-[10px] ml-1.5 opacity-60 font-bold tracking-normal">Prevalence</span>
           </p>
         </div>
       );
@@ -166,9 +171,7 @@ export default function MycotoxinAnalysis({
         <CardHeader className="pb-4 px-6 pt-5 bg-card dark:bg-card border-b border-border/5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3 font-sans">
-              <div className="p-2 rounded-xl bg-primary/10 border border-primary/20">
-                <BarChart2 className="w-5 h-5 text-primary" />
-              </div>
+              <BarChart2 className="w-5 h-5 text-primary" />
               <CardTitle className="text-xl font-black tracking-tight text-slate-900 dark:text-white">
                 Mycotoxin & Commodity Analysis
               </CardTitle>
@@ -193,7 +196,26 @@ export default function MycotoxinAnalysis({
                   <h3 className="text-[13px] font-black tracking-normal text-slate-500 dark:text-white/40">
                     Top Mycotoxins by Public Health Concern
                   </h3>
-                  <ChartInfo text="Displays the most significant toxins to public health, such as Aflatoxin B1, Fumonisin, or Ochratoxin A, based on detection frequency and risk level in samples." />
+                  <ChartInfo text="Displays the prevalence of each toxin, representing the percentage of positive samples in which each specific mycotoxin was detected." />
+                </div>
+                <div className="flex items-center gap-4 mb-6">
+                  <span className="text-[10px] font-bold text-muted-foreground">Prevalence/Severity:</span>
+                  <div className="flex items-center gap-1">
+                    <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: SEVERITY_COLORS.critical }} />
+                    <span className="text-[10px] text-muted-foreground">&gt;75%</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: SEVERITY_COLORS.high }} />
+                    <span className="text-[10px] text-muted-foreground">50–75%</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: SEVERITY_COLORS.medium }} />
+                    <span className="text-[10px] text-muted-foreground">25–50%</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: SEVERITY_COLORS.low }} />
+                    <span className="text-[10px] text-muted-foreground">&lt;25%</span>
+                  </div>
                 </div>
                 <div className="h-72" aria-label="Horizontal bar chart of mycotoxin risk scores">
                   <ResponsiveContainer width="100%" height="100%">
@@ -203,13 +225,54 @@ export default function MycotoxinAnalysis({
                       margin={{ left: 10, right: 30, top: 5, bottom: 30 }}
                       barCategoryGap="30%"
                     >
-                      <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} horizontal={false} />
-                      <XAxis type="number" domain={[0, 100]} tick={{ fill: tickFill, fontSize: 11 }} label={{ value: 'Severity score', position: 'insideBottom', offset: -15, fill: tickFill, fontSize: 11 }} />
-                      <YAxis type="category" dataKey="shortName" tick={{ fill: labelFill, fontSize: 11, fontWeight: 'bold' }} width={60} label={{ value: 'Toxin', angle: -90, position: 'insideLeft', offset: 15, fill: tickFill, fontSize: 11 }} />
-                      <Tooltip content={<ToxinTooltip />} cursor={false} />
-                      <Bar dataKey="score" radius={[0, 6, 6, 0]} barSize={24}>
+                      <defs>
+                        <linearGradient id="bar-g1" x1="0" y1="0" x2="1" y2="0">
+                          <stop offset="0%" stopColor="#10b981" stopOpacity={0.9} />
+                          <stop offset="100%" stopColor="#059669" stopOpacity={0.8} />
+                        </linearGradient>
+                        <linearGradient id="bar-g2" x1="0" y1="0" x2="1" y2="0">
+                          <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.9} />
+                          <stop offset="100%" stopColor="#2563eb" stopOpacity={0.8} />
+                        </linearGradient>
+                        <linearGradient id="bar-g3" x1="0" y1="0" x2="1" y2="0">
+                          <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.9} />
+                          <stop offset="100%" stopColor="#d97706" stopOpacity={0.8} />
+                        </linearGradient>
+                        <linearGradient id="bar-g4" x1="0" y1="0" x2="1" y2="0">
+                          <stop offset="0%" stopColor="#ef4444" stopOpacity={0.9} />
+                          <stop offset="100%" stopColor="#b91c1c" stopOpacity={0.8} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke={isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'} horizontal={false} />
+                      <XAxis
+                        type="number"
+                        domain={[0, 'dataMax + 5']}
+                        tick={{ fill: tickFill, fontSize: 11, fontWeight: 'bold' }}
+                        axisLine={false}
+                        tickLine={false}
+                        label={{ value: 'Prevalence (% of Positive Samples)', position: 'insideBottom', offset: -15, fill: tickFill, fontSize: 11 }}
+                      />
+                      <YAxis
+                        type="category"
+                        dataKey="shortName"
+                        tick={{ fill: labelFill, fontSize: 12, fontWeight: '800' }}
+                        width={75}
+                        axisLine={false}
+                        tickLine={false}
+                        label={{
+                          value: 'Toxin',
+                          angle: -90,
+                          position: 'insideLeft',
+                          offset: 15,
+                          fill: tickFill,
+                          fontSize: 11,
+                          style: { textAnchor: 'middle' }
+                        }}
+                      />
+                      <Tooltip content={<ToxinTooltip />} cursor={{ fill: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)', radius: 12 }} />
+                      <Bar dataKey="score" radius={[0, 12, 12, 0]} barSize={24} animationDuration={1500}>
                         {mycotoxinBarData.map((entry) => (
-                          <Cell key={entry.shortName} fill={SEVERITY_COLORS[entry.severity]} />
+                          <Cell key={entry.shortName} fill={aboveThresholdColor(entry.score)} />
                         ))}
                       </Bar>
                     </BarChart>
@@ -227,22 +290,12 @@ export default function MycotoxinAnalysis({
                 </div>
                 <div className="flex items-center gap-4 mb-6">
                   <span className="text-[10px] font-bold text-muted-foreground">Above threshold:</span>
-                  <div className="flex items-center gap-1">
-                    <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: '#fde68a' }} />
-                    <span className="text-[10px] text-muted-foreground">&lt;25%</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: '#f59e0b' }} />
-                    <span className="text-[10px] text-muted-foreground">25–50%</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: '#ef4444' }} />
-                    <span className="text-[10px] text-muted-foreground">50–75%</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: '#991b1b' }} />
-                    <span className="text-[10px] text-muted-foreground">&gt;75%</span>
-                  </div>
+                  {RISK_STEPS.map((step) => (
+                    <div key={step.limit} className="flex items-center gap-1">
+                      <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: step.color }} />
+                      <span className="text-[10px] text-muted-foreground">{step.label}</span>
+                    </div>
+                  ))}
                   <div className="flex items-center gap-1.5 ml-2">
                     <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: isDark ? '#374151' : '#e5e7eb' }} />
                     <span className="text-[10px] text-muted-foreground">Safe</span>
@@ -251,16 +304,35 @@ export default function MycotoxinAnalysis({
                 <div className="h-64" aria-label="Stacked bar chart showing total vs above-threshold samples per commodity">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={combinedData} margin={{ top: 5, right: 20, left: 10, bottom: 30 }} barCategoryGap="35%">
-                      <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} vertical={false} />
-                      <XAxis dataKey="commodity" tick={{ fill: tickFill, fontSize: 10, fontWeight: 'bold' }} label={{ value: 'Commodity', position: 'insideBottom', offset: -15, fill: tickFill, fontSize: 11 }} />
-                      <YAxis tick={{ fill: tickFill, fontSize: 11 }} allowDecimals={false} label={{ value: 'No. of samples', angle: -90, position: 'insideLeft', offset: 10, fill: tickFill, fontSize: 11 }} />
-                      <Tooltip content={<CombinedTooltip />} cursor={false} />
-                      <Bar dataKey="aboveCount" stackId="a" radius={[0, 0, 0, 0]}>
+                      <defs>
+                        <linearGradient id="bar-stack-g1" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#475569" stopOpacity={0.4} />
+                          <stop offset="100%" stopColor="#1e293b" stopOpacity={0.2} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke={isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'} vertical={false} />
+                      <XAxis
+                        dataKey="commodity"
+                        tick={{ fill: tickFill, fontSize: 12, fontWeight: '800' }}
+                        axisLine={false}
+                        tickLine={false}
+                        dy={10}
+                        label={{ value: 'Commodity', position: 'insideBottom', offset: -15, fill: tickFill, fontSize: 11 }}
+                      />
+                      <YAxis
+                        tick={{ fill: tickFill, fontSize: 11, fontWeight: 'bold' }}
+                        allowDecimals={false}
+                        axisLine={false}
+                        tickLine={false}
+                        label={{ value: 'No. of samples', angle: -90, position: 'insideLeft', offset: 20, fill: tickFill, fontSize: 11, style: { textAnchor: 'middle' } }}
+                      />
+                      <Tooltip content={<CombinedTooltip />} cursor={{ fill: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)', radius: 12 }} />
+                      <Bar dataKey="aboveCount" stackId="a" radius={[0, 0, 0, 0]} animationDuration={1500}>
                         {combinedData.map((entry) => (
                           <Cell key={entry.commodity} fill={aboveThresholdColor(entry.pctAbove)} />
                         ))}
                       </Bar>
-                      <Bar dataKey="remaining" stackId="a" fill={isDark ? '#374151' : '#e5e7eb'} radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="remaining" stackId="a" fill={isDark ? 'url(#bar-stack-g1)' : '#e5e7eb'} radius={[12, 12, 0, 0]} animationDuration={1500} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -278,7 +350,7 @@ export default function MycotoxinAnalysis({
                   <table className="w-full border-separate border-spacing-1">
                     <thead>
                       <tr>
-                        <th className="text-[9px] text-slate-400 dark:text-white/20 text-left p-2 font-black tracking-widest px-1">Region</th>
+                        <th className="text-[9px] text-slate-400 dark:text-white/20 text-left p-2 font-black tracking-widest px-1 w-px whitespace-nowrap">Region × Commodity</th>
                         {heatmapCommodities.map((c) => (
                           <th key={c} className="text-[9px] text-slate-500 dark:text-white/40 font-black text-center p-2 min-w-[70px] tracking-normal">
                             {c}
@@ -289,7 +361,7 @@ export default function MycotoxinAnalysis({
                     <tbody>
                       {heatmapRegions.map((region) => (
                         <tr key={region}>
-                          <td className="text-[10px] text-slate-600 dark:text-white/40 font-black p-2 whitespace-nowrap tracking-tight">{region}</td>
+                          <td className="text-[10px] text-slate-600 dark:text-white/40 font-black p-2 whitespace-nowrap tracking-tight w-px">{region}</td>
                           {heatmapCommodities.map((commodity) => {
                             const key = `${region}-${commodity}`;
                             const value = heatmapLookup.get(key) ?? 0;

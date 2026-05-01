@@ -67,66 +67,104 @@ export default function ToxinDistributionChart({ data, useBarChart }: ToxinDistr
     marginBottom: '4px'
   };
 
+  // Shared Risk Thresholds
+  const RISK_STEPS = [
+    { limit: 25, color: '#10b981', label: '<25%' },
+    { limit: 50, color: '#3b82f6', label: '25–50%' },
+    { limit: 75, color: '#f59e0b', label: '50–75%' },
+    { limit: 101, color: '#ef4444', label: '>75%' },
+  ];
+
+  function aboveThresholdColor(pct: number): string {
+    if (pct === 0) return 'transparent';
+    const step = RISK_STEPS.find(s => pct < s.limit) || RISK_STEPS[RISK_STEPS.length - 1];
+    return step.color;
+  }
+
   if (useBarChart) {
     return (
-      <div className="w-full h-full min-h-[300px]">
-        <ResponsiveContainer width="100%" height="100%">
-          <RechartsBarChart data={orderedData} margin={{ top: 20, right: 30, left: 10, bottom: 50 }}>
-            <defs>
-              <linearGradient id="bar-g1" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={COLORS.g1[0]} stopOpacity={0.9}/>
-                <stop offset="100%" stopColor={COLORS.g1[1]} stopOpacity={0.8}/>
-              </linearGradient>
-              <linearGradient id="bar-g2" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={COLORS.g2[0]} stopOpacity={0.9}/>
-                <stop offset="100%" stopColor={COLORS.g2[1]} stopOpacity={0.8}/>
-              </linearGradient>
-              <linearGradient id="bar-g3" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={COLORS.g3[0]} stopOpacity={0.9}/>
-                <stop offset="100%" stopColor={COLORS.g3[1]} stopOpacity={0.8}/>
-              </linearGradient>
-              <linearGradient id="bar-g4" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={COLORS.g4[0]} stopOpacity={0.9}/>
-                <stop offset="100%" stopColor={COLORS.g4[1]} stopOpacity={0.8}/>
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke={isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'} vertical={false} />
-            <XAxis 
-              dataKey="count" 
-              tick={{ fill: isDark ? '#cbd5e1' : '#64748b', fontSize: 12, fontWeight: '800' }} 
-              axisLine={false}
-              tickLine={false}
-              dy={15}
-              tickFormatter={(val) => `${val} Toxin${val !== '1' ? 's' : ''}`}
-              label={{ value: 'Number of toxins per sample', position: 'insideBottom', offset: -25, fill: isDark ? '#94a3b8' : '#64748b', fontSize: 11 }}
-            />
-            <YAxis 
-              tick={{ fill: isDark ? '#94a3b8' : '#64748b', fontSize: 11, fontWeight: 'bold' }} 
-              axisLine={false}
-              tickLine={false}
-              dx={-5}
-              label={{ value: '% of positive samples', angle: -90, position: 'insideLeft', offset: 20, fill: isDark ? '#94a3b8' : '#64748b', fontSize: 11 }}
-            />
-            <Tooltip 
-              contentStyle={tooltipStyle}
-              itemStyle={tooltipItemStyle}
-              labelStyle={tooltipLabelStyle}
-              cursor={{ fill: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)', radius: 12 }}
-              formatter={(val: number) => [`${val}% of Samples`, 'Prevalence']}
-            />
-            <Bar 
-              dataKey="pct" 
-              radius={[12, 12, 0, 0]} 
-              barSize={50}
-              animationDuration={1500}
-            >
-              {orderedData.map((entry, index) => {
-                const gradId = `url(#bar-g${Math.min(index + 1, 4)})`;
-                return <Cell key={`cell-${index}`} fill={gradId} />;
-              })}
-            </Bar>
-          </RechartsBarChart>
-        </ResponsiveContainer>
+      <div className="w-full h-full min-h-[300px] flex flex-col">
+        {/* Color Legend */}
+        <div className="flex items-center gap-4 mb-6">
+          <span className="text-[10px] font-bold text-muted-foreground">Above threshold:</span>
+          {RISK_STEPS.map((step) => (
+            <div key={step.limit} className="flex items-center gap-1">
+              <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: step.color }} />
+              <span className="text-[10px] text-muted-foreground">{step.label}</span>
+            </div>
+          ))}
+          <div className="flex items-center gap-1.5 ml-2">
+            <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: isDark ? '#374151' : '#e5e7eb' }} />
+            <span className="text-[10px] text-muted-foreground">Safe</span>
+          </div>
+        </div>
+
+        <div className="flex-1">
+          <ResponsiveContainer width="100%" height="100%">
+            <RechartsBarChart data={orderedData} margin={{ top: 20, right: 30, left: 10, bottom: 50 }}>
+              <defs>
+                <linearGradient id="bar-g1" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={COLORS.g1[0]} stopOpacity={0.9}/>
+                  <stop offset="100%" stopColor={COLORS.g1[1]} stopOpacity={0.8}/>
+                </linearGradient>
+                <linearGradient id="bar-g2" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={COLORS.g2[0]} stopOpacity={0.9}/>
+                  <stop offset="100%" stopColor={COLORS.g2[1]} stopOpacity={0.8}/>
+                </linearGradient>
+                <linearGradient id="bar-g3" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={COLORS.g3[0]} stopOpacity={0.9}/>
+                  <stop offset="100%" stopColor={COLORS.g3[1]} stopOpacity={0.8}/>
+                </linearGradient>
+                <linearGradient id="bar-g4" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={COLORS.g4[0]} stopOpacity={0.9}/>
+                  <stop offset="100%" stopColor={COLORS.g4[1]} stopOpacity={0.8}/>
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke={isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'} vertical={false} />
+              <XAxis 
+                dataKey="count" 
+                tick={{ fill: isDark ? '#cbd5e1' : '#64748b', fontSize: 12, fontWeight: '800' }} 
+                axisLine={false}
+                tickLine={false}
+                dy={15}
+                tickFormatter={(val) => `${val} Toxin${val !== '1' ? 's' : ''}`}
+                label={{ value: 'Number of toxins per sample', position: 'insideBottom', offset: -25, fill: isDark ? '#94a3b8' : '#64748b', fontSize: 11 }}
+              />
+              <YAxis 
+                tick={{ fill: isDark ? '#94a3b8' : '#64748b', fontSize: 11, fontWeight: 'bold' }} 
+                axisLine={false}
+                tickLine={false}
+                dx={-5}
+                label={{ 
+                  value: '% of positive samples', 
+                  angle: -90, 
+                  position: 'insideLeft', 
+                  offset: 20, 
+                  fill: isDark ? '#94a3b8' : '#64748b', 
+                  fontSize: 11,
+                  style: { textAnchor: 'middle' }
+                }}
+              />
+              <Tooltip 
+                contentStyle={tooltipStyle}
+                itemStyle={tooltipItemStyle}
+                labelStyle={tooltipLabelStyle}
+                cursor={{ fill: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)', radius: 12 }}
+                formatter={(val: number) => [`${val}% of Samples`, 'Prevalence']}
+              />
+              <Bar 
+                dataKey="pct" 
+                radius={[12, 12, 0, 0]} 
+                barSize={50}
+                animationDuration={1500}
+              >
+                {orderedData.map((entry, index) => {
+                  return <Cell key={`cell-${index}`} fill={aboveThresholdColor(entry.pct)} />;
+                })}
+              </Bar>
+            </RechartsBarChart>
+          </ResponsiveContainer>
+        </div>
       </div>
     );
   }

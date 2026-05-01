@@ -27,11 +27,15 @@ export default function RegionalRiskRanking({ onSelectProvince, selectedProvince
   const displayList = useMemo(() => {
     const sorted = [...provinces].sort((a, b) => {
       if (viewMode === 'risk') {
-        return b.aboveThresholdPct - a.aboveThresholdPct || b.sampleCount - a.sampleCount;
+        const riskDiff = b.aboveThresholdPct - a.aboveThresholdPct;
+        if (riskDiff !== 0) return riskDiff;
+        return a.name.localeCompare(b.name, 'th');
       } else {
         const countA = a.positiveCount ?? Math.round((a.sampleCount * a.aboveThresholdPct) / 100);
         const countB = b.positiveCount ?? Math.round((b.sampleCount * b.aboveThresholdPct) / 100);
-        return countB - countA || b.sampleCount - a.sampleCount;
+        const countDiff = countB - countA;
+        if (countDiff !== 0) return countDiff;
+        return a.name.localeCompare(b.name, 'th');
       }
     });
 
