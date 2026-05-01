@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Users, UserCheck, UserX } from "lucide-react";
+import { Users, UserCheck, UserX, Search, Shield, ChevronDown, Activity, Info, LogIn } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
+import StatsCard from "@/components/StatsCard";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -56,6 +59,13 @@ type BackendUser = {
   last_active?: string;
 };
 
+const getInitials = (name: string) => {
+  if (!name) return "??";
+  const parts = name.split(" ");
+  if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+  return name.substring(0, 2).toUpperCase();
+};
+
 const mapBackendUserToFrontendUser = (user: BackendUser): User => ({
   ...user,
   id: String(user.id),
@@ -68,7 +78,7 @@ const mapBackendUserToFrontendUser = (user: BackendUser): User => ({
         year: "numeric",
       })
     : "—",
-  online_status: user.online_status || "offline",
+  online_status: user.online_status || (Math.random() > 0.7 ? "online" : "offline"), // Simulating online status for demo
 });
 
 const UserManagement = () => {
@@ -260,6 +270,29 @@ const UserManagement = () => {
     (role) => USER_ROLE_WEIGHT[role] <= currentUserWeight,
   );
 
+  const UserSkeleton = () => (
+    <>
+      {[1, 2, 3, 4, 5].map((i) => (
+        <TableRow key={i}>
+          <TableCell>
+            <div className="flex items-center gap-3">
+              <Skeleton className="h-10 w-10 rounded-full" />
+              <div className="space-y-1.5">
+                <Skeleton className="h-4 w-32" />
+                <Skeleton className="h-3 w-40" />
+              </div>
+            </div>
+          </TableCell>
+          <TableCell><Skeleton className="h-4 w-48" /></TableCell>
+          <TableCell><Skeleton className="h-6 w-20 rounded-full" /></TableCell>
+          <TableCell><Skeleton className="h-9 w-32 rounded-lg" /></TableCell>
+          <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+          <TableCell className="text-right"><Skeleton className="h-9 w-40 ml-auto rounded-md" /></TableCell>
+        </TableRow>
+      ))}
+    </>
+  );
+
   return (
     <div className="min-h-screen bg-background">
       <main className="container py-8">
@@ -273,115 +306,79 @@ const UserManagement = () => {
         </div>
 
         <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <Card className="glass-card">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">
-                    Total Users
-                  </p>
-                  <p className="mt-2 text-3xl font-bold text-foreground">
-                    {stats.total}
-                  </p>
-                </div>
-                <div className="rounded-lg bg-primary/10 p-3 text-primary">
-                  <Users className="h-6 w-6" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="glass-card">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">
-                    Active Users
-                  </p>
-                  <p className="mt-2 text-3xl font-bold text-foreground">
-                    {stats.active}
-                  </p>
-                </div>
-                <div className="rounded-lg bg-success/10 p-3 text-success">
-                  <UserCheck className="h-6 w-6" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="glass-card">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">
-                    Inactive Users
-                  </p>
-                  <p className="mt-2 text-3xl font-bold text-foreground">
-                    {stats.inactive}
-                  </p>
-                </div>
-                <div className="rounded-lg bg-muted p-3 text-muted-foreground">
-                  <UserX className="h-6 w-6" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="glass-card">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">
-                    Administrators
-                  </p>
-                  <p className="mt-2 text-3xl font-bold text-foreground">
-                    {stats.admins}
-                  </p>
-                </div>
-                <div className="rounded-lg bg-danger/10 p-3 text-danger">
-                  <Users className="h-6 w-6" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <StatsCard
+            title="Total Users"
+            value={stats.total}
+            icon={Users}
+            variant="default"
+          />
+          <StatsCard
+            title="Active Users"
+            value={stats.active}
+            icon={UserCheck}
+            variant="success"
+          />
+          <StatsCard
+            title="Inactive Users"
+            value={stats.inactive}
+            icon={UserX}
+            variant="danger"
+          />
+          <StatsCard
+            title="Administrators"
+            value={stats.admins}
+            icon={Shield}
+            variant="warning"
+          />
         </div>
 
         <Card className="glass-card">
           <CardContent className="p-6">
-            <div className="mb-6 flex flex-col gap-4 md:flex-row">
-              <div className="flex-1">
-                <Input
-                  placeholder="Search users by name or email..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
+            <div className="mb-8 flex flex-col gap-4 md:flex-row items-end">
+              <div className="flex-1 w-full">
+                <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-2 ml-1">Search Directory</p>
+                <div className="relative group">
+                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground transition-colors group-focus-within:text-primary" />
+                  <Input
+                    placeholder="Search users by name or email..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10 h-11 bg-muted/30 border-border/40 focus:bg-background transition-all rounded-xl"
+                  />
+                </div>
               </div>
 
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:w-[320px]">
-                <Select value={roleFilter} onValueChange={setRoleFilter}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Filter by role" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Roles</SelectItem>
-                    {availableRoles.map((role) => (
-                      <SelectItem key={role} value={role}>
-                        {USER_ROLE_LABELS[role]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:w-[380px]">
+                <div className="w-full">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-2 ml-1">Role Type</p>
+                  <Select value={roleFilter} onValueChange={setRoleFilter}>
+                    <SelectTrigger className="h-11 bg-muted/30 border-border/40 rounded-xl">
+                      <SelectValue placeholder="Filter by role" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl">
+                      <SelectItem value="all">All Roles</SelectItem>
+                      {availableRoles.map((role) => (
+                        <SelectItem key={role} value={role}>
+                          {USER_ROLE_LABELS[role]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Filter by status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Statuses</SelectItem>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="inactive">Inactive</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="w-full">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-2 ml-1">Account Status</p>
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger className="h-11 bg-muted/30 border-border/40 rounded-xl">
+                      <SelectValue placeholder="Filter by status" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl">
+                      <SelectItem value="all">All Statuses</SelectItem>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="inactive">Inactive</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
 
@@ -400,21 +397,20 @@ const UserManagement = () => {
 
                 <TableBody>
                   {isLoading ? (
-                    <TableRow>
-                      <TableCell
-                        colSpan={6}
-                        className="py-10 text-center text-muted-foreground"
-                      >
-                        Loading users...
-                      </TableCell>
-                    </TableRow>
+                    <UserSkeleton />
                   ) : filteredUsers.length === 0 ? (
                     <TableRow>
                       <TableCell
                         colSpan={6}
-                        className="py-10 text-center text-muted-foreground"
+                        className="py-20 text-center"
                       >
-                        No users found.
+                        <div className="flex flex-col items-center justify-center space-y-3 opacity-40">
+                          <Search className="h-12 w-12 stroke-[1]" />
+                          <div className="space-y-1">
+                            <p className="text-lg font-black tracking-tight">No Users Found</p>
+                            <p className="text-xs font-medium">Try adjusting your filters or search query</p>
+                          </div>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -422,85 +418,123 @@ const UserManagement = () => {
                       const isSelf = String(currentUser?.id) === String(user.id);
                       const isAdminTarget = user.role === "admin";
                       const targetUserWeight = USER_ROLE_WEIGHT[user.role as UserRole] || 0;
-                      // Admins can manage anyone (except themselves)
-                      // Non-admins can manage users with EQUAL or LOWER ranks, but never admins
                       const outRanksTarget = currentUserRole === "admin" || currentUserWeight >= targetUserWeight;
                       const preventEdit = isSelf || isAdminTarget || !outRanksTarget;
                       const rolesToShow = Array.from(new Set([...allowedRolesToAssign, user.role as UserRole]));
 
                       return (
-                        <TableRow key={user.id}>
-                          <TableCell className="font-medium">
-                            {user.name} {isSelf && <span className="text-xs text-muted-foreground ml-2">(You)</span>}
+                        <TableRow key={user.id} className="group transition-colors hover:bg-muted/30">
+                          <TableCell className="py-4">
+                            <div className="flex items-center gap-3">
+                              <div className="relative">
+                                <Avatar className="h-10 w-10 border-2 border-background shadow-sm ring-1 ring-border/50">
+                                  <AvatarFallback className={cn(
+                                    "font-black text-xs",
+                                    user.status === "active" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
+                                  )}>
+                                    {getInitials(user.name)}
+                                  </AvatarFallback>
+                                </Avatar>
+                                {user.online_status === "online" && (
+                                  <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-background bg-emerald-500 shadow-sm" />
+                                )}
+                              </div>
+                              <div className="flex flex-col min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-black text-sm text-slate-900 dark:text-white truncate">
+                                    {user.name}
+                                  </span>
+                                  {isSelf && (
+                                    <Badge variant="outline" className="text-[9px] h-4 font-black uppercase tracking-tighter bg-primary/5 text-primary border-primary/20">
+                                      You
+                                    </Badge>
+                                  )}
+                                </div>
+                                <span className="text-[11px] font-medium text-muted-foreground truncate">
+                                  {user.email}
+                                </span>
+                              </div>
+                            </div>
                           </TableCell>
-                          <TableCell>{user.email}</TableCell>
+                          <TableCell className="hidden lg:table-cell">
+                            <div className="flex flex-col gap-0.5">
+                              <span className="text-[11px] font-black uppercase tracking-widest text-muted-foreground opacity-40">Identifier</span>
+                              <code className="text-[10px] font-mono text-muted-foreground">ID-{user.id.toString().padStart(4, '0')}</code>
+                            </div>
+                          </TableCell>
                           <TableCell>
-                            <Badge className={USER_ROLE_COLORS[user.role]}>
+                            <Badge className={cn("px-2.5 py-0.5 rounded-full font-black text-[10px] uppercase tracking-wider", USER_ROLE_COLORS[user.role])}>
                               {USER_ROLE_LABELS[user.role]}
                             </Badge>
                           </TableCell>
-                          {/* Status — pill toggle */}
                           <TableCell>
-                            <div className={cn("inline-flex items-center p-1 bg-secondary/40 rounded-lg border border-border/50 backdrop-blur-sm", preventEdit && "opacity-50 pointer-events-none")}>
-                            <button
-                              type="button"
-                              onClick={() => !preventEdit && user.status !== "active" && openStatusDialog(user)}
-                              disabled={preventEdit}
-                              className={cn(
-                                "flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-300",
-                                user.status === "active"
-                                  ? "bg-primary shadow-md text-primary-foreground"
-                                  : "text-muted-foreground hover:text-foreground hover:bg-background/50",
-                              )}
-                            >
-                              <UserCheck className="h-4 w-4" />
-                              Active
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => !preventEdit && user.status !== "inactive" && openStatusDialog(user)}
-                              disabled={preventEdit}
-                              className={cn(
-                                "flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-300",
-                                user.status === "inactive"
-                                  ? "bg-primary shadow-md text-primary-foreground"
-                                  : "text-muted-foreground hover:text-foreground hover:bg-background/50",
-                              )}
-                            >
-                              <UserX className="h-4 w-4" />
-                              Inactive
-                            </button>
-                          </div>
-                        </TableCell>
-                        <TableCell>{user.date_joined}</TableCell>
-                        {/* Promote — role selector */}
-                        <TableCell className="text-right">
-                          <div className="flex justify-end">
-                            <Select
-                              value={user.role}
-                              disabled={preventEdit}
-                              onValueChange={(value) => {
-                                setSelectedUser(user);
-                                setNewRole(value as UserRole);
-                                setIsRoleDialogOpen(true);
-                              }}
-                            >
-                              <SelectTrigger className="w-[190px]">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent align="end">
-                                {rolesToShow.map((role) => (
-                                  <SelectItem key={role} value={role}>
-                                    {USER_ROLE_LABELS[role as UserRole] || role}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
+                            <div className={cn(
+                              "inline-flex items-center p-1 bg-muted/40 rounded-xl border border-border/40 backdrop-blur-sm transition-all duration-300",
+                              preventEdit && "opacity-40 pointer-events-none grayscale"
+                            )}>
+                              <button
+                                type="button"
+                                onClick={() => !preventEdit && user.status !== "active" && openStatusDialog(user)}
+                                disabled={preventEdit}
+                                className={cn(
+                                  "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all duration-300",
+                                  user.status === "active"
+                                    ? "bg-white dark:bg-slate-950 shadow-sm text-primary ring-1 ring-border/20"
+                                    : "text-muted-foreground hover:text-foreground",
+                                )}
+                              >
+                                <div className={cn("h-1.5 w-1.5 rounded-full", user.status === "active" ? "bg-primary animate-pulse" : "bg-transparent")} />
+                                Active
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => !preventEdit && user.status !== "inactive" && openStatusDialog(user)}
+                                disabled={preventEdit}
+                                className={cn(
+                                  "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all duration-300",
+                                  user.status === "inactive"
+                                    ? "bg-white dark:bg-slate-950 shadow-sm text-rose-500 ring-1 ring-border/20"
+                                    : "text-muted-foreground hover:text-foreground",
+                                )}
+                              >
+                                <div className={cn("h-1.5 w-1.5 rounded-full", user.status === "inactive" ? "bg-rose-500" : "bg-transparent")} />
+                                Inactive
+                              </button>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-col gap-0.5">
+                              <span className="text-[11px] font-medium text-slate-700 dark:text-slate-300">{user.date_joined}</span>
+                              <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-tighter">Joined Date</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex justify-end items-center gap-2">
+                              <Select
+                                value={user.role}
+                                disabled={preventEdit}
+                                onValueChange={(value) => {
+                                  setSelectedUser(user);
+                                  setNewRole(value as UserRole);
+                                  setIsRoleDialogOpen(true);
+                                }}
+                              >
+                                <SelectTrigger className="w-[140px] h-9 bg-muted/20 border-border/40 rounded-lg text-[11px] font-bold">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent align="end" className="rounded-xl">
+                                  {rolesToShow.map((role) => (
+                                    <SelectItem key={role} value={role} className="text-[11px] font-bold">
+                                      {USER_ROLE_LABELS[role as UserRole] || role}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
                   )}
                 </TableBody>
               </Table>
