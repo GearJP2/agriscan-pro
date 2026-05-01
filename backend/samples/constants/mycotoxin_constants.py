@@ -63,15 +63,11 @@ EU_THRESHOLDS = {
         "source": "EU guidance value - Table 2, Gruber-Dorninger et al. 2019",
     },
     "FB1": {
-        "low": 0,
-        "high": 0,
+        "low": 2000,
+        "high": 4000,
         "unit": "ug/kg",
         "has_data": True,
-        "flagged": True,
-        "flag_note": (
-            "Paper uses total fumonisins (B1+B2+B3), not FB1 alone; "
-            "this threshold may overstate the safe range for isolated FB1."
-        ),
+        "flagged": False,
         "source": (
             "EU guidance value (total FUM) - Table 2, "
             "Gruber-Dorninger et al. 2019"
@@ -94,13 +90,12 @@ EU_THRESHOLDS = {
         "source": "EU guidance value - Table 2, Gruber-Dorninger et al. 2019",
     },
     "T-2": {
-        "low": 0,
-        "high": 0,
+        "low": 100,
+        "high": 200,
         "unit": "ug/kg",
-        "has_data": False,
-        "flagged": True,
-        "flag_note": "Threshold data is not available in the selected source table.",
-        "source": None,
+        "has_data": True,
+        "flagged": False,
+        "source": "EU guidance value - Table 2, Gruber-Dorninger et al. 2019",
     },
     "AFG1": {
         "low": 0,

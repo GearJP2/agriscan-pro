@@ -90,35 +90,31 @@ class SampleFilteringTests(SampleTestMixin, TestCase):
         self.assertTrue(returned_statuses.issubset({'pending', 'completed'}))
         self.assertGreaterEqual(len(results), 2)
 
-    def test_filter_by_threshold_risk_level(self):
-        """Risk filters should use mycotoxin threshold-derived risk levels."""
-        high_sample = Sample.objects.get(sample_id='FILTER-002')
-        low_sample = Sample.objects.get(sample_id='FILTER-001')
-        MycotoxinResult.objects.create(
-            sample=high_sample,
-            toxin_type='AFB1',
-            value=25,
-            unit='ug_kg',
-        )
-        MycotoxinResult.objects.create(
-            sample=low_sample,
-            toxin_type='AFB1',
-            value=1,
-            unit='ug_kg',
-        )
+    def test_filter_by_sample_type(self):
+        """Filtering by sample_type should return only matching samples."""
+        field_sample = Sample.objects.get(sample_id='FILTER-001')
+        field_sample.sample_type = 'field'
+        field_sample.save()
+        
+        market_sample = Sample.objects.get(sample_id='FILTER-002')
+        market_sample.sample_type = 'market'
+        market_sample.save()
 
         url = reverse('sample-list')
-        high_response = self.client.get(url, {'risk_level': 'high'})
-        self.assertEqual(high_response.status_code, status.HTTP_200_OK)
-        high_ids = [s['sample_id'] for s in self._get_results(high_response.data)]
-        self.assertIn('FILTER-002', high_ids)
-        self.assertNotIn('FILTER-001', high_ids)
+        
+        # Single type filter
+        response = self.client.get(url, {'sample_type': 'field'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        ids = [s['sample_id'] for s in self._get_results(response.data)]
+        self.assertIn('FILTER-001', ids)
+        self.assertNotIn('FILTER-002', ids)
 
-        low_response = self.client.get(url, {'risk_level': 'low'})
-        self.assertEqual(low_response.status_code, status.HTTP_200_OK)
-        low_ids = [s['sample_id'] for s in self._get_results(low_response.data)]
-        self.assertIn('FILTER-001', low_ids)
-        self.assertNotIn('FILTER-002', low_ids)
+        # Multiple types filter
+        response = self.client.get(url, {'sample_type': 'field,market'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        ids = [s['sample_id'] for s in self._get_results(response.data)]
+        self.assertIn('FILTER-001', ids)
+        self.assertIn('FILTER-002', ids)
 
     def test_search_by_sample_id(self):
         """Search query should find samples matching the sample_id."""

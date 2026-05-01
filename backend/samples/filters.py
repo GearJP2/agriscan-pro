@@ -25,39 +25,10 @@ def _filter_date_range(queryset, date_from: str | None, date_to: str | None):
     return queryset
 
 
-def _filter_risk_level(queryset, value: str):
-    """Filter by threshold-derived risk levels (high/low/medium/safe)."""
-    requested = {token for token in value.split(",") if token}
-    if not requested:
-        return queryset
-
-    risk_filter = Q()
-    if "high" in requested:
-        risk_filter |= Exists(
-            MycotoxinResult.objects.filter(
-                sample=OuterRef("pk"),
-                risk_level__in=["high", "critical"],
-            )
-        )
-    if requested.intersection({"low", "medium"}):
-        risk_filter |= Exists(
-            MycotoxinResult.objects.filter(
-                sample=OuterRef("pk"),
-                risk_level="detected",
-            )
-        )
-    if "safe" in requested:
-        risk_filter |= (
-            Exists(
-                MycotoxinResult.objects.filter(
-                    sample=OuterRef("pk"),
-                    risk_level="safe",
-                )
-            )
-            | ~Exists(MycotoxinResult.objects.filter(sample=OuterRef("pk")))
-        )
-
-    return queryset.filter(risk_filter) if risk_filter else queryset
+def _filter_sample_type(queryset, value: str):
+    """Filter by one or more comma-separated sample type values."""
+    types = [t for t in value.split(",") if t]
+    return queryset.filter(sample_type__in=types) if types else queryset
 
 
 def apply_sample_filters(queryset, params):
@@ -67,10 +38,12 @@ def apply_sample_filters(queryset, params):
 
     for field in ("region", "province"):
         if value := params.get(field):
-            queryset = queryset.filter(**{field: value})
+            values = [v for v in value.split(",") if v]
+            queryset = queryset.filter(**{f"{field}__in": values}) if values else queryset
 
     if vegetation := params.get("vegetation"):
-        queryset = queryset.filter(vegetation_variety=vegetation)
+        values = [v for v in vegetation.split(",") if v]
+        queryset = queryset.filter(vegetation_variety__in=values) if values else queryset
 
     queryset = _filter_date_range(
         queryset,
@@ -78,7 +51,7 @@ def apply_sample_filters(queryset, params):
         params.get("date_to"),
     )
 
-    if risk_level := params.get("risk_level"):
-        queryset = _filter_risk_level(queryset, risk_level)
+    if sample_type := params.get("sample_type"):
+        queryset = _filter_sample_type(queryset, sample_type)
 
     return queryset

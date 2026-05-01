@@ -45,7 +45,10 @@ class TestDataService:
     @staticmethod
     def generate_test_samples(*, user, seed: int = 42) -> dict:
         """
-        Create 30 test samples with a mix of positive and negative results.
+        Create 100 test samples with a balanced mix (approx 50/50 Positive/Negative):
+        - 5 Incomplete (Pending) - Negative
+        - 50 Multi-Toxin Positive (2-4 toxins) - Positive
+        - 45 Baseline (Negative / Safe) - Negative
 
         Returns a summary dict of the operation.
         """
@@ -53,16 +56,29 @@ class TestDataService:
         created_ids = []
         today = timezone.now().date()
 
-        # 20 positive, 10 negative
-        counts = {"positive": 20, "negative": 10}
-        total_to_create = counts["positive"] + counts["negative"]
+        # Categorized counts for 50/50 split
+        counts = {
+            "pending": 5,
+            "multi_positive": 50,
+            "baseline_negative": 45
+        }
+        total_to_create = sum(counts.values())
 
         try:
             with transaction.atomic():
                 for i in range(total_to_create):
-                    is_positive = i < counts["positive"]
+                    # 1. Determine Category and Status
+                    if i < counts["pending"]:
+                        category = "pending"
+                        status = "pending"
+                    elif i < counts["pending"] + counts["multi_positive"]:
+                        category = "multi_positive"
+                        status = "completed"
+                    else:
+                        category = "baseline_negative"
+                        status = "completed"
 
-                    # 1. Generate Metadata
+                    # 2. Generate Metadata
                     region = rng.choice(list(REGIONS_PROVINCES.keys()))
                     province = rng.choice(REGIONS_PROVINCES[region])
                     variety = rng.choice(VARIETIES)
@@ -78,7 +94,7 @@ class TestDataService:
                         district="Test District",
                         vegetation_variety=variety,
                         collection_date=collection_date,
-                        status="completed",
+                        status=status,
                         purpose="target surveillance",
                         sample_type="field",
                         processing_type="raw",
@@ -87,47 +103,66 @@ class TestDataService:
                     )
                     created_ids.append(sample_id)
 
-                    # 2. Add Process Log
-                    ProcessLog.objects.create(
-                        sample=sample,
-                        state="completed",
-                        notes="Generated for system testing.",
-                        conducted_by=user.username or "System"
-                    )
+                    # 3. Process Logic
+                    if status == "completed":
+                        ProcessLog.objects.create(
+                            sample=sample,
+                            state="completed",
+                            notes=f"Generated for {category} testing.",
+                            conducted_by=user.username or "System"
+                        )
 
-                    # 3. Add Result
-                    toxin = rng.choice(TOXINS_WITH_DATA)
-                    thresholds = EU_THRESHOLDS[toxin]
-
-                    if is_positive:
-                        # Value between 1.2x and 3.0x the low threshold to landing in High/Critical
-                        value = thresholds["low"] * rng.uniform(1.2, 3.0)
-                    else:
-                        value = 0.0
-
-                    # Model's save() method auto-calculates risk_level
-                    MycotoxinResult.objects.create(
-                        sample=sample,
-                        toxin_type=toxin,
-                        value=round(value, 2),
-                        unit=thresholds.get("unit", "ug/kg"),
-                        eu_threshold_low=thresholds["low"],
-                        eu_threshold_high=thresholds["high"]
-                    )
+                        # 4. Add Results based on Category
+                        if category == "multi_positive":
+                            # Pick 2-4 random toxins
+                            num_toxins = rng.randint(2, 4)
+                            chosen_toxins = rng.sample(TOXINS_WITH_DATA, num_toxins)
+                            for toxin in chosen_toxins:
+                                thresholds = EU_THRESHOLDS[toxin]
+                                value = thresholds["low"] * rng.uniform(1.1, 4.0)
+                                MycotoxinResult.objects.create(
+                                    sample=sample,
+                                    toxin_type=toxin,
+                                    value=round(value, 2),
+                                    unit=thresholds.get("unit", "ug/kg"),
+                                    eu_threshold_low=thresholds["low"],
+                                    eu_threshold_high=thresholds["high"]
+                                )
+                        elif category == "baseline_negative":
+                            # Pure Negative / Safe (Value 0 or very low)
+                            toxin = rng.choice(TOXINS_WITH_DATA)
+                            thresholds = EU_THRESHOLDS[toxin]
+                            
+                            # 80% Zero, 20% Very Low (Trace)
+                            if rng.random() > 0.8:
+                                value = thresholds["low"] * rng.uniform(0.01, 0.3)
+                            else:
+                                value = 0.0
+                                
+                            MycotoxinResult.objects.create(
+                                sample=sample,
+                                toxin_type=toxin,
+                                value=round(value, 2),
+                                unit=thresholds.get("unit", "ug/kg"),
+                                eu_threshold_low=thresholds["low"],
+                                eu_threshold_high=thresholds["high"]
+                            )
 
             logger.warning(
                 "sample.test_data_generated",
                 extra={
                     "user": user.username,
                     "count": total_to_create,
+                    "categories": counts,
                     "sample_ids": created_ids
                 }
             )
 
             return {
                 "created": total_to_create,
-                "positive": counts["positive"],
-                "negative": counts["negative"],
+                "categories": counts,
+                "positive": counts["multi_positive"],
+                "negative": counts["pending"] + counts["baseline_negative"],
                 "sample_ids": created_ids
             }
 
