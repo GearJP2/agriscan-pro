@@ -9,6 +9,7 @@ import {
 } from 'react';
 import { format } from 'date-fns';
 import { ArrowDown, ArrowUp, ArrowUpDown, Bell, BellOff, Trash2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 import {
   AlertDialog,
@@ -40,6 +41,8 @@ interface SampleTableProps {
   isAdmin?: boolean;
   isSelectionMode?: boolean;
   onBulkDeleteSamples?: (sampleIds: string[]) => void;
+  watchlistOnly?: boolean;
+  onToggleWatchlistOnly?: () => void;
 }
 
 type SortField =
@@ -98,10 +101,10 @@ const SampleRow = memo(
     return (
       <TableRow
         className={cn(
-          'group relative h-16 cursor-pointer border-l-4 border-l-transparent transition-all duration-200',
-          'hover:bg-primary/[0.02] hover:border-l-primary/50 hover:shadow-[inset_4px_0_0_0_hsl(var(--primary)/0.5)]',
-          isWatching && 'bg-info/[0.03] border-l-info/40',
-          isSelected && 'bg-primary/[0.08] border-l-primary z-10 shadow-sm',
+          'group relative h-16 cursor-pointer border-l-4 border-l-transparent transition-all duration-300',
+          'hover:bg-primary/[0.03] hover:border-l-primary hover:shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] dark:hover:shadow-[0_4px_20px_-4px_rgba(0,0,0,0.5)]',
+          isWatching && 'bg-info/[0.04] border-l-info/60',
+          isSelected && 'bg-primary/[0.08] border-l-primary z-10 shadow-md',
           isSelectionMode && 'hover:ring-1 hover:ring-primary/20',
         )}
         onClick={handleRowClick}
@@ -123,36 +126,13 @@ const SampleRow = memo(
           </TableCell>
         )}
         <TableCell>
-          <div className="flex items-center gap-3">
-            {!isSelectionMode && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    className={cn(
-                      'rounded-md p-1.5 transform',
-                      isWatching
-                        ? 'bg-primary/10 text-primary ring-1 ring-primary/20'
-                        : 'text-muted-foreground hover:bg-muted opacity-0 group-hover:opacity-100 transition-opacity',
-                    )}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      onToggleWatch(sample.sample_id);
-                    }}
-                    type="button"
-                  >
-                    {isWatching ? (
-                      <Bell className="h-3.5 w-3.5 fill-current" />
-                    ) : (
-                      <BellOff className="h-3.5 w-3.5 opacity-60" />
-                    )}
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  {isWatching ? 'Remove from watchlist' : 'Add to watchlist'}
-                </TooltipContent>
-              </Tooltip>
-            )}
-            <span className="font-medium text-foreground">{sample.sample_id}</span>
+          <div className="flex items-center gap-2">
+            <div className={cn(
+              "h-2 w-2 rounded-full",
+              hasAboveThresholdResults(sample) ? "bg-danger animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.5)]" :
+                hasMeasuredResults(sample) ? "bg-info" : "bg-muted"
+            )} />
+            <span className="font-semibold text-foreground tracking-tight">{sample.sample_id}</span>
           </div>
         </TableCell>
         <TableCell>{sample.region}</TableCell>
@@ -182,6 +162,45 @@ const SampleRow = memo(
             )}
           </div>
         </TableCell>
+        <TableCell className="w-12">
+          <div className="flex justify-center">
+            {!isSelectionMode && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    className={cn(
+                      'rounded-md p-1.5 transform transition-all duration-300',
+                      isWatching
+                        ? 'bg-info/10 text-info ring-1 ring-info/20 opacity-100'
+                        : 'text-muted-foreground hover:bg-muted opacity-0 group-hover:opacity-100',
+                    )}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onToggleWatch(sample.sample_id);
+                    }}
+                    type="button"
+                  >
+                    <motion.div
+                      initial={false}
+                      animate={{ scale: isWatching ? 1.1 : 1 }}
+                      whileHover={{ scale: 1.15 }}
+                      whileTap={{ scale: 0.9 }}
+                    >
+                      {isWatching ? (
+                        <Bell className="h-4 w-4 fill-current" />
+                      ) : (
+                        <BellOff className="h-4 w-4 opacity-60" />
+                      )}
+                    </motion.div>
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {isWatching ? 'Remove from watchlist' : 'Add to watchlist'}
+                </TooltipContent>
+              </Tooltip>
+            )}
+          </div>
+        </TableCell>
       </TableRow>
     );
   },
@@ -195,7 +214,10 @@ const SampleTable = ({
   isAdmin = false,
   isSelectionMode = false,
   onBulkDeleteSamples,
+  watchlistOnly = false,
+  onToggleWatchlistOnly,
 }: SampleTableProps) => {
+  console.log('SampleTable: current watchlistOnly prop is', watchlistOnly);
   const [sortField, setSortField] = useState<SortField | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -250,22 +272,20 @@ const SampleTable = ({
       completed: 'Completed',
     };
 
-    const colorMap: Record<string, { bg: string; text: string }> = {
-      registered: { bg: 'bg-slate-200', text: 'text-slate-800' },
-      preparing: { bg: 'bg-amber-100', text: 'text-amber-700' },
-      prepared: { bg: 'bg-cyan-100', text: 'text-cyan-700' },
-      analyzing: { bg: 'bg-blue-100', text: 'text-blue-700' },
-      recorded: { bg: 'bg-emerald-100', text: 'text-emerald-700' },
-      completed: { bg: 'bg-success/20', text: 'text-success' },
+    const colorMap: Record<string, string> = {
+      registered: 'bg-slate-500/10 text-slate-600 border-slate-500/20',
+      preparing: 'bg-amber-500/10 text-amber-600 border-amber-500/20',
+      prepared: 'bg-cyan-500/10 text-cyan-600 border-cyan-500/20',
+      analyzing: 'bg-blue-500/10 text-blue-600 border-blue-500/20',
+      recorded: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20',
+      completed: 'bg-success/10 text-success border-success/20',
     };
 
     const label = latestState ? stateLabels[latestState] : 'Not Started';
-    const colors = latestState
-      ? colorMap[latestState]
-      : { bg: 'bg-slate-200', text: 'text-slate-800' };
+    const classes = latestState ? colorMap[latestState] : 'bg-slate-500/10 text-slate-600 border-slate-500/20';
 
     return (
-      <Badge className={`${colors.bg} ${colors.text} border-0`}>
+      <Badge variant="outline" className={cn("font-semibold px-2.5 py-0.5 rounded-full backdrop-blur-sm transition-all duration-300", classes)}>
         {label}
       </Badge>
     );
@@ -387,9 +407,9 @@ const SampleTable = ({
     : 0;
   const virtualEndIndex = shouldVirtualize
     ? Math.min(
-        sortedSamples.length,
-        virtualStartIndex + visibleRowCount + TABLE_OVERSCAN_ROWS * 2,
-      )
+      sortedSamples.length,
+      virtualStartIndex + visibleRowCount + TABLE_OVERSCAN_ROWS * 2,
+    )
     : sortedSamples.length;
   const visibleSamples = sortedSamples.slice(virtualStartIndex, virtualEndIndex);
   const topSpacerHeight = shouldVirtualize
@@ -398,7 +418,7 @@ const SampleTable = ({
   const bottomSpacerHeight = shouldVirtualize
     ? (sortedSamples.length - virtualEndIndex) * TABLE_ROW_HEIGHT
     : 0;
-  const columnCount = isSelectionMode ? 9 : 8;
+  const columnCount = isSelectionMode ? 10 : 9;
 
   const SortableHeader = ({
     field,
@@ -465,7 +485,7 @@ const SampleTable = ({
           </div>
         )}
         <div
-          className="relative max-h-[70vh] overflow-auto"
+          className="relative max-h-[70vh] overflow-auto scrollbar-thin scrollbar-thumb-muted-foreground/20 hover:scrollbar-thumb-muted-foreground/40"
           onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
           ref={scrollContainerRef}
         >
@@ -519,9 +539,36 @@ const SampleTable = ({
                 <SortableHeader className="w-[140px]" field="status">
                   Status
                 </SortableHeader>
-                <SortableHeader className="w-[140px]" field="risk">
+                <SortableHeader className="w-[100px]" field="risk">
                   Risk
                 </SortableHeader>
+                <TableHead className={cn(
+                  "sticky top-0 z-30 bg-card w-12 text-center transition-all duration-300 px-0",
+                  watchlistOnly && "bg-info/10"
+                )}>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      console.log('Watchlist header clicked, toggling:', !watchlistOnly);
+                      onToggleWatchlistOnly?.();
+                    }}
+                    className={cn(
+                      "flex items-center justify-center w-full h-12 hover:text-info transition-colors group cursor-pointer",
+                      watchlistOnly ? "text-info" : "opacity-70"
+                    )}
+                    title={watchlistOnly ? "Show all samples" : "Show watchlist only"}
+                  >
+                    <motion.div
+                      animate={{ 
+                        scale: watchlistOnly ? [1, 1.2, 1] : 1,
+                        rotate: watchlistOnly ? [0, 15, -15, 0] : 0
+                      }}
+                      transition={{ duration: 0.4 }}
+                    >
+                      <Bell className={cn("h-4 w-4", watchlistOnly && "fill-current")} />
+                    </motion.div>
+                  </button>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

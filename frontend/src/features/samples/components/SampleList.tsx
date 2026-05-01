@@ -2,15 +2,15 @@ import { useState, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, Download, ChevronDown, Loader2, ShieldCheck, Wrench, FlaskConical, Trash2 } from 'lucide-react';
+import { AlertTriangle, Download, ChevronDown, Loader2, ShieldCheck, Wrench, FlaskConical, Trash2, LayoutGrid, CheckCircle2, AlertCircle, Clock, X } from 'lucide-react';
 import ExcelJS from 'exceljs';
 import StatsCard from '@/components/StatsCard';
 import FilterBar from '@/components/FilterBar';
 import SampleTable from './SampleTable';
 import SampleDetailModal from './SampleDetailModal';
 import AddSampleForm from './AddSampleForm';
+import UnifiedImportForm from './UnifiedImportForm';
 import RequestInvestigationForm from './RequestInvestigationForm';
-import ImportResultsForm from './ImportResultsForm';
 import { Button } from '@/components/ui/button';
 import {
     DropdownMenu,
@@ -40,12 +40,15 @@ import { getThresholdRiskLevel } from '@/lib/mycotoxinRisk';
 import { AxiosError } from 'axios';
 
 import { useDeferredMount } from '@/hooks/useDeferredMount';
+import SampleTableSkeleton from './SampleTableSkeleton';
+import { Badge } from '@/components/ui/badge';
+import { SAMPLE_TYPE_LABELS, SampleType } from '@/types/sample';
 
 const SampleList = () => {
     const { isAdmin, isAuthenticated, role } = useAuth();
     const isDeferredMounted = useDeferredMount(200); // Sample list is lighter than dashboard, so 200ms is enough
     const navigate = useNavigate();
-    const { isWatching } = useWatchlist();
+    const { isWatching, watchlist } = useWatchlist();
     const [isSelectionMode, setIsSelectionMode] = useState(false);
     const [exportOpen, setExportOpen] = useState(false);
     const [filters, setFilters] = useState<FilterState>({
@@ -54,7 +57,7 @@ const SampleList = () => {
         district: [],
         vegetation: [],
         status: [],
-        risk: [],
+        sampleType: [],
         search: '',
         watchlistOnly: false,
         dateFrom: null,
@@ -205,15 +208,15 @@ const SampleList = () => {
         isLoading,
         error,
     } = useQuery({
-        queryKey: ['samples-list', filters],
+        queryKey: ['samples-list', { ...filters, watchlistOnly: undefined }],
         queryFn: () =>
             sampleAPI.getSamples(undefined, 100, {
                 search: filters.search || undefined,
                 status: filters.status.length ? filters.status : undefined,
-                region: filters.region.length ? filters.region[0] : undefined,
-                province: filters.province.length ? filters.province[0] : undefined,
-                vegetation: filters.vegetation.length ? filters.vegetation[0] : undefined,
-                riskLevel: filters.risk.length ? filters.risk : undefined,
+                region: filters.region.length ? filters.region : undefined,
+                province: filters.province.length ? filters.province : undefined,
+                vegetation: filters.vegetation.length ? filters.vegetation : undefined,
+                sampleType: filters.sampleType.length ? filters.sampleType : undefined,
                 dateFrom: filters.dateFrom || undefined,
                 dateTo: filters.dateTo || undefined,
             }),
@@ -227,13 +230,36 @@ const SampleList = () => {
     const [selectedSample, setSelectedSample] = useState<Sample | null>(null);
     const [modalOpen, setModalOpen] = useState(false);
 
+    const activeFilters = useMemo(() => {
+        const chips: { key: keyof FilterState; value: string; label: string }[] = [];
+        
+        filters.region.forEach(v => chips.push({ key: 'region', value: v, label: v }));
+        filters.vegetation.forEach(v => chips.push({ key: 'vegetation', value: v, label: v }));
+        filters.status.forEach(v => chips.push({ key: 'status', value: v, label: v }));
+        filters.sampleType.forEach(v => chips.push({ key: 'sampleType', value: v, label: SAMPLE_TYPE_LABELS[v as SampleType] || v }));
+        
+        if (filters.search) chips.push({ key: 'search', value: filters.search, label: `Search: ${filters.search}` });
+        if (filters.watchlistOnly) chips.push({ key: 'watchlistOnly', value: 'true', label: 'Watchlist' });
+        
+        return chips;
+    }, [filters]);
+
+    const removeFilter = (key: keyof FilterState, value: string) => {
+        const current = filters[key];
+        if (Array.isArray(current)) {
+            setFilters({ ...filters, [key]: current.filter(v => v !== value) });
+        } else {
+            setFilters({ ...filters, [key]: key === 'search' ? '' : false });
+        }
+    };
+
     const filteredSamples = useMemo(() => {
         // backend already handles most filters; only watchlist is applied client‑side
         if (filters.watchlistOnly) {
             return samples.filter(s => isWatching(s.sample_id));
         }
         return samples;
-    }, [filters, samples, isWatching]);
+    }, [filters, samples, isWatching, watchlist]);
 
     // Get export data
     const getExportData = () => {
@@ -410,16 +436,83 @@ const SampleList = () => {
         <div className="min-h-screen bg-background">
             <main className="container py-8">
                 {/* Page Title */}
-                <div className="mb-8">
-                    <h1 className="text-3xl font-bold text-foreground">Sample List</h1>
-                    <p className="mt-2 text-muted-foreground">
-                        Detailed list of all collected agricultural samples and their status
-                    </p>
+                <div className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
+                    <div>
+                        <h1 className="text-4xl font-extrabold text-foreground tracking-tight">Sample List</h1>
+                        <p className="mt-2 text-muted-foreground max-w-2xl">
+                            Real-time agricultural monitoring hub. Manage, analyze, and track sample lifecycles across regions.
+                        </p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <div className="flex -space-x-2">
+                            {/* Visual flourish: little user avatars or status dots if we had them */}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Quick Stats Dashboard */}
+                <div className="grid gap-4 md:grid-cols-4 mb-8">
+                    <StatsCard 
+                        title="Total Samples" 
+                        value={stats.total} 
+                        icon={LayoutGrid} 
+                        variant="default"
+                    />
+                    <StatsCard 
+                        title="Completed" 
+                        value={stats.completed} 
+                        icon={CheckCircle2} 
+                        variant="success"
+                    />
+                    <StatsCard 
+                        title="In Analysis" 
+                        value={stats.inProgress} 
+                        icon={Clock} 
+                        variant="warning"
+                    />
+                    <StatsCard 
+                        title="Flagged Risk" 
+                        value={stats.flagged} 
+                        icon={AlertCircle} 
+                        variant="danger"
+                    />
                 </div>
 
                 {/* Filters */}
-                <div className="mb-6">
+                <div className="mb-6 space-y-4">
                     <FilterBar filters={filters} onFilterChange={setFilters} />
+                    
+                    {activeFilters.length > 0 && (
+                        <div className="flex flex-wrap items-center gap-2 animate-in fade-in slide-in-from-top-2 duration-300">
+                            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mr-1">Active Filters:</span>
+                            {activeFilters.map((chip) => (
+                                <Badge 
+                                    key={`${chip.key}-${chip.value}`} 
+                                    variant="secondary" 
+                                    className="gap-1 pl-2 pr-1 py-1 h-7 border-primary/10 bg-primary/5 hover:bg-primary/10 transition-colors"
+                                >
+                                    {chip.label}
+                                    <button 
+                                        onClick={() => removeFilter(chip.key, chip.value)}
+                                        className="rounded-full hover:bg-primary/20 p-0.5 transition-colors"
+                                    >
+                                        <X className="h-3 w-3" />
+                                    </button>
+                                </Badge>
+                            ))}
+                            <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                onClick={() => setFilters({
+                                    region: [], province: [], district: [], vegetation: [], status: [], sampleType: [],
+                                    search: '', watchlistOnly: false, dateFrom: null, dateTo: null
+                                })}
+                                className="h-7 px-2 text-xs text-muted-foreground hover:text-primary"
+                            >
+                                Clear all
+                            </Button>
+                        </div>
+                    )}
                 </div>
 
                 {/* Results Summary */}
@@ -430,17 +523,6 @@ const SampleList = () => {
                         {isLoading && <Loader2 className="ml-2 h-4 w-4 animate-spin inline" />}
                     </p>
                     <div className="flex items-center gap-2">
-                        <Button
-                            variant={isSelectionMode ? "default" : "outline"}
-                            className={cn(
-                                "gap-2 transition-all duration-200",
-                                isSelectionMode ? "bg-primary text-primary-foreground shadow-md ring-2 ring-primary/20" : ""
-                            )}
-                            onClick={() => setIsSelectionMode(!isSelectionMode)}
-                        >
-                            <ChevronDown className={cn("h-4 w-4 transition-transform duration-300", isSelectionMode ? "rotate-180" : "")} />
-                            {isSelectionMode ? 'Exit Selection' : 'Select Samples'}
-                        </Button>
                         <DropdownMenu open={exportOpen} onOpenChange={(open) => {
                             if (open && !isAuthenticated) {
                                 window.dispatchEvent(new CustomEvent('open-login-modal'));
@@ -467,83 +549,28 @@ const SampleList = () => {
                                 </DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>
-                        <ImportResultsForm
+                        <UnifiedImportForm
                             sampleIds={filteredSamples.map((sample) => sample.sample_id)}
                             onSuccess={handleImportResultsSuccess}
                         />
                         <RequestInvestigationForm />
                         {isAuthenticated && USER_ROLE_WEIGHT[role as keyof typeof USER_ROLE_WEIGHT] >= USER_ROLE_WEIGHT['research_assistant'] && (
-                            <AddSampleForm
-                                onAddSample={handleAddSample}
-                                onAddMultipleSamples={handleAddMultipleSamples}
-                            />
+                            <div className="flex items-center gap-2">
+                                <AddSampleForm onSuccess={handleImportResultsSuccess} />
+                                <Button
+                                    variant={isSelectionMode ? "destructive" : "outline"}
+                                    className={cn(
+                                        "gap-2 transition-all duration-200",
+                                        !isSelectionMode && "text-danger hover:text-danger hover:bg-danger/5 border-danger/20 hover:border-danger/40"
+                                    )}
+                                    onClick={() => setIsSelectionMode(!isSelectionMode)}
+                                >
+                                    <Trash2 className={cn("h-4 w-4 transition-all duration-300", isSelectionMode && "scale-110")} />
+                                    {isSelectionMode ? 'Cancel' : 'Delete sample'}
+                                </Button>
+                            </div>
                         )}
                         
-                        {isAdmin && (
-                            <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                    <Button variant="outline" className="gap-2 border-primary/20 hover:border-primary/40 bg-primary/5">
-                                        <ShieldCheck className="h-4 w-4 text-primary" />
-                                        Admin Tools
-                                        <ChevronDown className="h-4 w-4" />
-                                    </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="w-[200px]">
-                                    <AlertDialog>
-                                        <AlertDialogTrigger asChild>
-                                            <div className="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50">
-                                                <FlaskConical className="mr-2 h-4 w-4" />
-                                                Generate Test Data
-                                            </div>
-                                        </AlertDialogTrigger>
-                                        <AlertDialogContent>
-                                            <AlertDialogHeader>
-                                                <AlertDialogTitle>Generate Test Samples?</AlertDialogTitle>
-                                                <AlertDialogDescription>
-                                                    This will create <span className="font-bold text-foreground">30 mock samples</span> (20 positive, 10 negative) with the "TEST-" prefix. 
-                                                    This is safe for production use as it helps verify analytics and filters.
-                                                </AlertDialogDescription>
-                                            </AlertDialogHeader>
-                                            <AlertDialogFooter>
-                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                <AlertDialogAction onClick={() => generateTestSamplesMutation.mutate(undefined)}>
-                                                    Generate
-                                                </AlertDialogAction>
-                                            </AlertDialogFooter>
-                                        </AlertDialogContent>
-                                    </AlertDialog>
-                                    
-                                    <DropdownMenuSeparator />
-                                    
-                                    <AlertDialog>
-                                        <AlertDialogTrigger asChild>
-                                            <div className="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-destructive hover:text-destructive-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 text-destructive">
-                                                <Trash2 className="mr-2 h-4 w-4" />
-                                                Purge Test Data
-                                            </div>
-                                        </AlertDialogTrigger>
-                                        <AlertDialogContent>
-                                            <AlertDialogHeader>
-                                                <AlertDialogTitle>Delete All Test Samples?</AlertDialogTitle>
-                                                <AlertDialogDescription>
-                                                    Are you sure you want to delete <span className="font-bold text-destructive">ALL samples</span> starting with the "TEST-" prefix? 
-                                                    This action cannot be undone.
-                                                </AlertDialogDescription>
-                                            </AlertDialogHeader>
-                                            <AlertDialogFooter>
-                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                <AlertDialogAction 
-                                                    onClick={() => deleteTestSamplesMutation.mutate()}
-                                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                                >
-                                                    Delete All
-                                                </AlertDialogAction>
-                                            </AlertDialogFooter>
-                                        </AlertDialogContent>
-                                    </AlertDialog>
-                                </DropdownMenuContent>
-                            </DropdownMenu>
-                        )}
                     </div>
                 </div>
 
@@ -556,10 +583,7 @@ const SampleList = () => {
                             <p className="mt-2 text-red-800">Failed to fetch samples from the server. Please try again later.</p>
                         </div>
                     ) : (isLoading || !isDeferredMounted) ? (
-                        <div className="flex flex-col items-center justify-center h-96 space-y-4">
-                            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                            <p className="text-sm text-muted-foreground animate-pulse font-medium">Loading sample records...</p>
-                        </div>
+                        <SampleTableSkeleton />
                     ) : (
                         <SampleTable 
                             samples={filteredSamples} 
@@ -567,6 +591,11 @@ const SampleList = () => {
                             isAdmin={isAdmin} 
                             isSelectionMode={isSelectionMode}
                             onBulkDeleteSamples={(sampleIds) => bulkDeleteSamplesMutation.mutate(sampleIds)} 
+                            watchlistOnly={filters.watchlistOnly}
+                            onToggleWatchlistOnly={() => {
+                                console.log('SampleList: Toggling watchlistOnly from', filters.watchlistOnly);
+                                setFilters({ ...filters, watchlistOnly: !filters.watchlistOnly });
+                            }}
                         />
                     )}
 
@@ -583,6 +612,78 @@ const SampleList = () => {
                         onUpdateSample={handleUpdateSample}
                         onMycotoxinResultChange={handleMycotoxinResultChange}
                     />
+
+                    {/* Admin Tools Floating Action Button */}
+                    {isAdmin && (
+                        <div className="fixed bottom-8 right-8 z-50">
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button 
+                                        size="icon" 
+                                        className="h-14 w-14 rounded-full shadow-2xl shadow-primary/40 hover:scale-110 transition-all duration-300 group"
+                                    >
+                                        <Wrench className="h-6 w-6 transition-transform group-hover:rotate-45 duration-500" />
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" side="top" sideOffset={15} className="w-[200px] p-2 rounded-2xl shadow-xl border-primary/10">
+                                    <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                            <div className="relative flex cursor-pointer select-none items-center rounded-xl px-3 py-2.5 text-sm outline-none transition-colors hover:bg-primary/10 hover:text-primary">
+                                                <FlaskConical className="mr-2 h-4 w-4" />
+                                                Generate Test Data
+                                            </div>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent className="rounded-3xl">
+                                            <AlertDialogHeader>
+                                                <AlertDialogTitle>Generate Test Samples?</AlertDialogTitle>
+                                                <AlertDialogDescription>
+                                                    This will create <span className="font-bold text-foreground">30 mock samples</span> (20 positive, 10 negative).
+                                                    Safe for verifying analytics.
+                                                </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                                <AlertDialogCancel className="rounded-xl">Cancel</AlertDialogCancel>
+                                                <AlertDialogAction 
+                                                    className="rounded-xl"
+                                                    onClick={() => generateTestSamplesMutation.mutate(undefined)}
+                                                >
+                                                    Generate
+                                                </AlertDialogAction>
+                                            </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                    </AlertDialog>
+                                    
+                                    <DropdownMenuSeparator className="my-2" />
+                                    
+                                    <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                            <div className="relative flex cursor-pointer select-none items-center rounded-xl px-3 py-2.5 text-sm outline-none transition-colors hover:bg-destructive/10 hover:text-destructive text-destructive">
+                                                <Trash2 className="mr-2 h-4 w-4" />
+                                                Purge Test Data
+                                            </div>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent className="rounded-3xl">
+                                            <AlertDialogHeader>
+                                                <AlertDialogTitle>Delete All Test Samples?</AlertDialogTitle>
+                                                <AlertDialogDescription>
+                                                    Are you sure you want to delete <span className="font-bold text-destructive">ALL samples</span> starting with the "TEST-" prefix?
+                                                </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                                <AlertDialogCancel className="rounded-xl">Cancel</AlertDialogCancel>
+                                                <AlertDialogAction 
+                                                    onClick={() => deleteTestSamplesMutation.mutate()}
+                                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90 rounded-xl"
+                                                >
+                                                    Delete All
+                                                </AlertDialogAction>
+                                            </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                    </AlertDialog>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        </div>
+                    )}
                 </>
             </main>
         </div>

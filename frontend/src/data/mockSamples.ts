@@ -170,3 +170,4 @@ export const vegetationTypes = [
   'Other'
 ];
 export const statuses = ['pending', 'in_progress', 'completed', 'flagged'];
+export const sampleTypes = ['field', 'market', 'storage', 'export'];

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, useMutation } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -65,8 +65,7 @@ const formSchema = z.object({
 type FormValues = z.infer<typeof formSchema>;
 
 interface AddSampleFormProps {
-  onAddSample: (sample: Sample) => void;
-  onAddMultipleSamples: (samples: Sample[]) => void;
+  onSuccess?: () => void;
 }
 
 type ImportStage = 'idle' | 'parsing' | 'reviewing' | 'importing' | 'success' | 'error';
@@ -272,7 +271,7 @@ const groupImportErrors = (errors: string[]) => {
     .sort((a, b) => b.count - a.count);
 };
 
-const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps) => {
+const AddSampleForm = ({ onSuccess }: AddSampleFormProps) => {
   const { isAuthenticated } = useAuth();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -280,6 +279,26 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
   const [filePreview, setFilePreview] = useState<string[][]>([]);
   const [fileError, setFileError] = useState<string | null>(null);
   const [availableDistricts, setAvailableDistricts] = useState<string[]>([]);
+
+  const createSampleMutation = useMutation({
+    mutationFn: (newSample: Partial<Sample>) => sampleAPI.createSample(newSample),
+    onSuccess: () => {
+      onSuccess?.();
+      setOpen(false);
+      form.reset();
+      toast({
+        title: 'Sample Registered',
+        description: 'New sample has been added successfully.',
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Registration Failed',
+        description: error.response?.data?.detail || 'Failed to create sample.',
+        variant: 'destructive',
+      });
+    },
+  });
   
   // Advanced import states
   const [advancedFile, setAdvancedFile] = useState<File | null>(null);
@@ -390,8 +409,7 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
       conducted_by: 'Automated by system',
     };
 
-    const newSample: Sample = {
-      sample_id: '',
+    const newSample: Partial<Sample> = {
       region,
       province: values.province,
       district: values.district,
@@ -407,9 +425,7 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
       additional_info: values.notes,
     };
 
-    onAddSample(newSample);
-    form.reset();
-    setOpen(false);
+    createSampleMutation.mutate(newSample);
   };
 
   const parseFileData = (file: File): Promise<string[][]> => {
@@ -1479,32 +1495,18 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
       setOpen(newOpen);
     }}>
       <DialogTrigger asChild>
-        <Button className="gap-2">
-          <Plus className="h-4 w-4" />
-          Add Sample
+        <Button variant="outline" className="gap-2 border-primary/20 hover:border-primary/50 transition-colors">
+          <Plus className="h-4 w-4 text-primary" />
+          Add New Samples
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Register New Sample</DialogTitle>
-          <DialogDescription>
-            Add a sample manually or import from CSV/Excel (supports both simple samples and research data with mycotoxins).
-          </DialogDescription>
+          <DialogTitle>Register New Samples</DialogTitle>
+            Use this to create a new sample record by filling in the details manually.
         </DialogHeader>
 
-        <Tabs defaultValue="manual" className="mt-4">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="manual" className="gap-2">
-              <FileText className="h-4 w-4" />
-              Manual Entry
-            </TabsTrigger>
-            <TabsTrigger value="upload" className="gap-2">
-              <Upload className="h-4 w-4" />
-              File Upload
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="manual" className="mt-6">
+          <div className="mt-6">
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
@@ -1744,327 +1746,8 @@ const AddSampleForm = ({ onAddSample, onAddMultipleSamples }: AddSampleFormProps
                 </Button>
               </form>
             </Form>
-          </TabsContent>
-
-          <TabsContent value="upload" className="mt-6 space-y-4">
-            {(importStatus === 'parsing' || importStatus === 'importing') && (
-              <div className="rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/5 via-background to-primary/10 p-6 shadow-sm">
-                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 ring-8 ring-primary/5">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                </div>
-
-                <div className="mt-5 text-center">
-                  <p className="text-lg font-semibold text-foreground">
-                    {importStatus === 'parsing' ? 'Preparing import preview' : 'Importing samples'}
-                  </p>
-                  <p className="mt-1 text-sm text-muted-foreground">{importProgress.phaseMessage}</p>
-                </div>
-
-                <div className="mt-6 space-y-3">
-                  <Progress value={importProgressValue} className="h-2.5" />
-                  <div className="flex items-center justify-between text-xs text-muted-foreground">
-                    <span>
-                      {importProgress.total > 0
-                        ? `${importProgress.processed} / ${importProgress.total} completed`
-                        : 'Initializing import'}
-                    </span>
-                    <span>{importProgressValue}%</span>
-                  </div>
-
-                  {importProgress.currentSample && (
-                    <div className="rounded-xl border border-border/60 bg-background/80 px-4 py-3 text-sm">
-                      <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Current item</p>
-                      <p className="mt-1 truncate font-medium text-foreground">{importProgress.currentSample}</p>
-                    </div>
-                  )}
-
-                  {importStatus === 'importing' && (
-                    <div className="grid grid-cols-2 gap-3 pt-1 sm:grid-cols-4">
-                      <div className="rounded-xl border border-border/60 bg-background/70 p-3 text-center">
-                        <p className="text-xs text-muted-foreground">Queued</p>
-                        <p className="mt-1 text-lg font-semibold text-foreground">{Math.max(importProgress.total - importProgress.processed, 0)}</p>
-                      </div>
-                      <div className="rounded-xl border border-border/60 bg-background/70 p-3 text-center">
-                        <p className="text-xs text-muted-foreground">Imported</p>
-                        <p className="mt-1 text-lg font-semibold text-emerald-600">{importProgress.successCount}</p>
-                      </div>
-                      <div className="rounded-xl border border-border/60 bg-background/70 p-3 text-center">
-                        <p className="text-xs text-muted-foreground">Errors</p>
-                        <p className="mt-1 text-lg font-semibold text-destructive">{importProgress.failureCount}</p>
-                      </div>
-                      <div className="flex items-center justify-center gap-1 rounded-xl border border-border/60 bg-background/70 p-3">
-                        <span className="h-2.5 w-2.5 animate-bounce rounded-full bg-primary [animation-delay:-0.3s]" />
-                        <span className="h-2.5 w-2.5 animate-bounce rounded-full bg-primary [animation-delay:-0.15s]" />
-                        <span className="h-2.5 w-2.5 animate-bounce rounded-full bg-primary" />
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {importStatus === 'idle' && (
-              <>
-                <label className="block">
-                  <div className="rounded-lg border-2 border-dashed border-border p-8 text-center hover:border-primary/50 transition-colors cursor-pointer hover:bg-muted/30">
-                    <Upload className="mx-auto h-12 w-12 text-muted-foreground mb-3" />
-                    <p className="text-sm font-medium text-foreground">Upload CSV or Excel file</p>
-                    <p className="text-xs text-muted-foreground mt-2">
-                      Simple samples: Province, District, Variety, Date<br />
-                      With mycotoxins: Also include DON, AFB1, FB1, T-2, ZEA, OTA columns<br />
-                      Auto-detects file type and processes accordingly
-                    </p>
-                    {uploadFile && (
-                      <div className="mt-4 pt-4 border-t border-border">
-                        <p className="text-xs font-medium text-foreground mb-1">Selected file:</p>
-                        <p className="text-xs text-primary font-semibold break-all">{uploadFile.name}</p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {(uploadFile.size / 1024 / 1024).toFixed(2)} MB
-                        </p>
-                      </div>
-                    )}
-                    <input
-                      type="file"
-                      accept=".csv,.xlsx,.xls"
-                      onChange={handleFileChange}
-                      className="hidden"
-                    />
-                  </div>
-                </label>
-
-                {fileError && (
-                  <div className="flex items-center gap-2 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
-                    <AlertCircle className="h-4 w-4" />
-                    {fileError}
-                  </div>
-                )}
-
-                {filePreview.length > 0 && (
-                  <div className="rounded-lg border bg-card">
-                    <div className="border-b bg-muted/50 px-4 py-2">
-                      <p className="text-sm font-medium">Preview (first {filePreview.length - 1} rows)</p>
-                    </div>
-                    <div className="overflow-x-auto p-4 max-h-64 overflow-y-auto">
-                      <table className="w-full text-xs">
-                        <thead>
-                          <tr className="border-b sticky top-0 bg-muted">
-                            {filePreview[0]?.map((header, i) => (
-                              <th key={i} className="px-2 py-1 text-left font-medium text-muted-foreground whitespace-nowrap">
-                                {header}
-                              </th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {filePreview.slice(1).map((row, rowIndex) => (
-                            <tr key={rowIndex} className="border-b last:border-0 hover:bg-muted/30">
-                              {row.map((cell, cellIndex) => (
-                                <td key={cellIndex} className="px-2 py-1 max-w-[200px] overflow-hidden text-ellipsis whitespace-nowrap">
-                                  {cell}
-                                </td>
-                              ))}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
-
-                {filePreview.length > 0 && (
-                  <Button
-                    onClick={handleFileUpload}
-                    className="w-full gap-2"
-                    disabled={filePreview.length < 2}
-                  >
-                    <Upload className="h-4 w-4" />
-                    Import {Math.max(0, filePreview.length - 1)} Samples
-                  </Button>
-                )}
-              </>
-            )}
-
-            {importStatus === 'error' && (
-              <div className="space-y-4 rounded-2xl border border-destructive/25 bg-destructive/5 p-5">
-                <div className="flex items-start gap-3">
-                  <div className="rounded-full bg-destructive/10 p-2">
-                    <AlertCircle className="h-5 w-5 text-destructive" />
-                  </div>
-                  <div>
-                    <p className="text-base font-semibold text-foreground">Import needs attention</p>
-                    <p className="mt-1 text-sm text-muted-foreground">{importProgress.phaseMessage || 'Some parts of the import failed. Review the details below before retrying.'}</p>
-                  </div>
-                </div>
-
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <div className="rounded-xl border border-border/60 bg-background/80 p-3">
-                    <p className="text-xs text-muted-foreground">Processed</p>
-                    <p className="mt-1 text-xl font-semibold text-foreground">{importProgress.processed}</p>
-                  </div>
-                  <div className="rounded-xl border border-border/60 bg-background/80 p-3">
-                    <p className="text-xs text-muted-foreground">Imported</p>
-                    <p className="mt-1 text-xl font-semibold text-emerald-600">{importProgress.successCount}</p>
-                  </div>
-                  <div className="rounded-xl border border-border/60 bg-background/80 p-3">
-                    <p className="text-xs text-muted-foreground">Failed</p>
-                    <p className="mt-1 text-xl font-semibold text-destructive">{Math.max(importProgress.failureCount, importErrors.length)}</p>
-                  </div>
-                </div>
-
-                {importErrors.length > 0 && (
-                  <div className="rounded-xl border border-destructive/20 bg-background/80 p-3">
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Error details</p>
-                    {groupedImportErrors.length > 0 && (
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {groupedImportErrors.slice(0, 5).map((group) => (
-                          <Badge key={group.reason} variant="outline" className="text-xs">
-                            {group.reason}: {group.count}
-                          </Badge>
-                        ))}
-                      </div>
-                    )}
-                    <div className="mt-3 max-h-52 space-y-2 overflow-y-auto pr-1">
-                      {importErrors.slice(0, 8).map((error, index) => (
-                        <div key={`${error}-${index}`} className="rounded-lg border border-destructive/10 bg-destructive/5 px-3 py-2 text-sm text-foreground">
-                          {error}
-                        </div>
-                      ))}
-                    </div>
-                    {importErrors.length > 8 && (
-                      <p className="mt-3 text-xs text-muted-foreground">Showing 8 of {importErrors.length} errors.</p>
-                    )}
-                    {failedRows.length > 0 && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="mt-3 gap-2"
-                        onClick={downloadFailedRowsReport}
-                      >
-                        <Download className="h-4 w-4" />
-                        Download Failed Rows ({failedRows.length})
-                      </Button>
-                    )}
-                  </div>
-                )}
-
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      if (parsedData.length > 0) {
-                        setImportStatus('reviewing');
-                      } else {
-                        setImportStatus('idle');
-                      }
-                      setFileError(null);
-                      resetImportFeedback();
-                    }}
-                  >
-                    {parsedData.length > 0 ? 'Back to Review' : 'Choose Another File'}
-                  </Button>
-                  {parsedData.length > 0 && (
-                    <Button onClick={handleImportReview} className="gap-2">
-                      <Upload className="h-4 w-4" />
-                      Retry Import
-                    </Button>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {importStatus === 'reviewing' && parsedData.length > 0 && (
-              <div className="space-y-4">
-                <div className="grid gap-3 grid-cols-3">
-                  <div className="rounded-lg border border-border p-3">
-                    <p className="text-xs text-muted-foreground">Total Samples</p>
-                    <p className="text-xl font-bold text-foreground">{parsedData.length}</p>
-                  </div>
-                  <div className="rounded-lg border border-border p-3">
-                    <p className="text-xs text-muted-foreground">With Results</p>
-                    <p className="text-xl font-bold text-foreground">
-                      {parsedData.filter((p: any) => p.mycotoxins?.length > 0).length}
-                    </p>
-                  </div>
-                  <div className="rounded-lg border border-border p-3">
-                    <p className="text-xs text-muted-foreground">Total Results</p>
-                    <p className="text-xl font-bold text-foreground">
-                      {parsedData.reduce((sum: number, p: any) => sum + (p.mycotoxins?.length || 0), 0)}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="max-h-96 overflow-y-auto space-y-2 border rounded-lg p-3">
-                  {parsedData.slice(0, 20).map((item: any, idx: number) => (
-                    <div key={idx} className="rounded-lg border border-border p-3 text-sm">
-                      <div className="flex items-start justify-between mb-1">
-                        <p className="font-medium text-foreground">
-                          {item.sample?.additional_info || item.additional_info || `${item.sample?.province || item.province}, ${item.sample?.district || item.district}`}
-                        </p>
-                        {item.mycotoxins?.length > 0 && (
-                          <Badge variant="secondary" className="text-xs">{item.mycotoxins.length} tests</Badge>
-                        )}
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        {item.sample?.vegetation_variety || item.vegetation_variety}
-                      </p>
-                      {item.mycotoxins?.length > 0 && (
-                        <div className="mt-2 space-y-1">
-                          {item.mycotoxins.map((tox: any, i: number) => (
-                            <div key={i} className="flex items-center gap-2 text-xs">
-                              {tox.dangerous ? (
-                                <AlertTriangle className="h-3 w-3 text-red-500" />
-                              ) : (
-                                <Check className="h-3 w-3 text-green-500" />
-                              )}
-                              <span>{tox.name}: {tox.intensity}/{tox.threshold}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-                {parsedData.length > 20 && (
-                  <p className="text-xs text-muted-foreground text-center">
-                    ... and {parsedData.length - 20} more samples
-                  </p>
-                )}
-
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setImportStatus('idle');
-                      setParsedData([]);
-                    }}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    onClick={handleImportReview}
-                    disabled={parsedData.length === 0 || isImporting}
-                    className="flex-1 gap-2"
-                  >
-                    {isImporting && <Loader2 className="h-4 w-4 animate-spin" />}
-                    Import {parsedData.length} Samples
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {importStatus === 'success' && (
-              <div className="rounded-lg border border-green-200 bg-green-50 p-8 text-center">
-                <Check className="mx-auto h-12 w-12 text-green-600 mb-3" />
-                <p className="text-lg font-semibold text-green-900">Import Successful!</p>
-                <p className="text-sm text-green-800 mt-2">
-                  All samples have been imported and are ready for processing.
-                </p>
-              </div>
-            )}
-          </TabsContent>
-        </Tabs>
-      </DialogContent>
+          </div>
+        </DialogContent>
     </Dialog>
   );
 };

@@ -65,6 +65,17 @@ export const PROCESSING_TYPE_LABELS: Record<ProcessingType, string> = {
   fermented: 'Fermented',
 };
 
+export type SampleType = 'field' | 'market' | 'storage' | 'export';
+
+export const SAMPLE_TYPES: SampleType[] = ['field', 'market', 'storage', 'export'];
+
+export const SAMPLE_TYPE_LABELS: Record<SampleType, string> = {
+  field: 'Field',
+  market: 'Market',
+  storage: 'Storage',
+  export: 'Export',
+};
+
 export interface Sample {
   sample_id: string;
   region: string;
@@ -78,7 +89,7 @@ export interface Sample {
   risk_level?: RiskLevel;
   status: 'pending' | 'in_progress' | 'completed' | 'flagged';
   purpose?: 'routine' | 'complaint driven' | 'target surveillance';
-  sample_type?: 'field' | 'market' | 'storage' | 'export';
+  sample_type?: SampleType;
   processing_type?: ProcessingType;
   collected_by?: string;
   additional_info?: string;
@@ -92,7 +103,7 @@ export interface FilterState {
   district: string[];
   vegetation: string[];
   status: string[];
-  risk: RiskLevel[];
+  sampleType: SampleType[];
   search: string;
   watchlistOnly: boolean;
   dateFrom: string | null;

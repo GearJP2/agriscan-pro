@@ -151,10 +151,10 @@ export const sampleAPI = {
     filters?: {
       search?: string;
       status?: string[];
-      region?: string;
-      province?: string;
-      vegetation?: string;
-      riskLevel?: RiskLevel[];
+      region?: string[];
+      province?: string[];
+      vegetation?: string[];
+      sampleType?: string[];
       dateFrom?: string;
       dateTo?: string;
     },
@@ -168,11 +168,14 @@ export const sampleAPI = {
       if (filters.search) params.append("search", filters.search);
       if (filters.status?.length)
         params.append("status", filters.status.join(","));
-      if (filters.region) params.append("region", filters.region);
-      if (filters.province) params.append("province", filters.province);
-      if (filters.vegetation) params.append("vegetation", filters.vegetation);
-      if (filters.riskLevel?.length)
-        params.append("risk_level", filters.riskLevel.join(","));
+      if (filters.region?.length)
+        params.append("region", filters.region.join(","));
+      if (filters.province?.length)
+        params.append("province", filters.province.join(","));
+      if (filters.vegetation?.length)
+        params.append("vegetation", filters.vegetation.join(","));
+      if (filters.sampleType?.length)
+        params.append("sample_type", filters.sampleType.join(","));
       if (filters.dateFrom) params.append("date_from", filters.dateFrom);
       if (filters.dateTo) params.append("date_to", filters.dateTo);
     }
@@ -184,10 +187,10 @@ export const sampleAPI = {
   async getAllSamples(filters?: {
     search?: string;
     status?: string[];
-    region?: string;
-    province?: string;
-    vegetation?: string;
-    riskLevel?: RiskLevel[];
+    region?: string[];
+    province?: string[];
+    vegetation?: string[];
+    sampleType?: string[];
     dateFrom?: string;
     dateTo?: string;
   }) {
