@@ -1,6 +1,6 @@
 import axios, { AxiosError, AxiosHeaders } from "axios";
 import type { Sample, ProcessLog, RiskLevel } from "@/types/sample";
-import type { AnalyticsOverviewResponse, CoContaminationResponse } from "@/types/dashboard";
+import type { AnalyticsOverviewResponse, CoContaminationResponse, HealthSummary } from "@/types/dashboard";
 import {
   clearAccessToken,
   clearSessionHint,
@@ -427,6 +427,11 @@ export const analyticsAPI = {
     return response.data as AnalyticsOverviewResponse;
   },
 
+  async generatePublicHealthSummary(context: Record<string, unknown>) {
+    const response = await apiClient.post("/samples/analytics/public-health-summary/", context);
+    return response.data as Pick<HealthSummary, "riskDrivers">;
+  },
+
   async getEnvironmentalCorrelation(filters?: Record<string, string | string[]>) {
     const params = new URLSearchParams();
     if (filters) {
@@ -462,4 +467,3 @@ export const notificationAPI = {
 };
 
 export default apiClient;
-

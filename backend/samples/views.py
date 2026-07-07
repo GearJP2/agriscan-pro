@@ -28,6 +28,11 @@ from .serializers import (
 from core.task_dispatcher import dispatch_task
 from .tasks import process_sample_file
 from .services.analytics_service import AnalyticsService
+from .services.llm_summary_service import (
+    LLMSummaryNotConfigured,
+    LLMSummaryService,
+    LLMSummaryServiceError,
+)
 
 logger = logging.getLogger('agriscan.samples')
 
@@ -538,4 +543,26 @@ class SampleViewSet(viewsets.ModelViewSet):
     def analytics_environmental_correlation(self, request):
         """Stub for weather/moisture correlation chart."""
         data = AnalyticsService.get_environmental_correlation(request.query_params)
+        return Response(data, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['post'], url_path='analytics/public-health-summary')
+    def analytics_public_health_summary(self, request):
+        """Generate LLM public health risk drivers from aggregate dashboard context."""
+        try:
+            data = LLMSummaryService.generate_public_health_summary(request.data)
+        except LLMSummaryNotConfigured:
+            return Response(
+                {'detail': 'LLM summary provider is not configured.'},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        except LLMSummaryServiceError as exc:
+            logger.warning(
+                'public_health_summary.generation_failed',
+                extra={'error': str(exc), 'user': request.user.username},
+            )
+            return Response(
+                {'detail': 'Unable to generate LLM public health summary.'},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
         return Response(data, status=status.HTTP_200_OK)

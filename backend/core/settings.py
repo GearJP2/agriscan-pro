@@ -25,12 +25,11 @@ from django.core.exceptions import ImproperlyConfigured
 from corsheaders.defaults import default_headers
 from dotenv import load_dotenv
 
-# Load environment variables from .env file (only for local development if not already provided by host)
-if not os.environ.get("DB_HOST"):
-    load_dotenv()
-
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Load local backend/.env values without overriding real deployment secrets.
+load_dotenv(BASE_DIR / ".env", override=False)
 
 # Default auto field to avoid models.W042 warnings (Django 3.2+)
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
@@ -84,6 +83,12 @@ ALLOWED_HOSTS = build_allowed_hosts(_ALLOWED_HOSTS, debug=DEBUG)
 # Trusted proxies for X-Forwarded-For validation
 TRUSTED_PROXIES = [p.strip() for p in os.environ.get("TRUSTED_PROXIES", "").split(",") if p.strip()]
 
+# Server-side LLM provider config for public health dashboard summaries.
+LLM_SUMMARY_ENDPOINT = os.environ.get("LLM_SUMMARY_ENDPOINT", "")
+LLM_SUMMARY_MODEL = os.environ.get("LLM_SUMMARY_MODEL", "")
+LLM_SUMMARY_API_KEY = os.environ.get("LLM_SUMMARY_API_KEY", "")
+LLM_SUMMARY_TIMEOUT_SECONDS = int(os.environ.get("LLM_SUMMARY_TIMEOUT_SECONDS", "20"))
+LLM_SUMMARY_MAX_OUTPUT_TOKENS = int(os.environ.get("LLM_SUMMARY_MAX_OUTPUT_TOKENS", "1024"))
 
 # Application definition
 

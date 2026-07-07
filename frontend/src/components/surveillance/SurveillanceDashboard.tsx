@@ -27,6 +27,7 @@ import {
   buildSurveillanceAnalytics,
   getQuarterDateRange,
 } from '@/lib/sampleAnalytics';
+import { generatePublicHealthRiskDrivers } from '@/lib/llmSummary';
 
 import { useDeferredMount } from '@/hooks/useDeferredMount';
 import { hasAboveThresholdResults } from '@/lib/mycotoxinRisk';
@@ -202,6 +203,30 @@ export default function SurveillanceDashboard() {
     return buildSurveillanceAnalytics(samples, filters, thresholdOverrides);
   }, [samples, filters, isDeferredMounted, thresholdOverrides]);
 
+  const localPublicHealthSummary = useMemo(() => {
+    if (!analytics) return null;
+    return isSimulating && overviewData?.public_health_summary
+      ? overviewData.public_health_summary
+      : analytics.publicHealthSummary;
+  }, [analytics, isSimulating, overviewData?.public_health_summary]);
+
+  const { data: llmPublicHealthSummary, isFetching: isGeneratingPublicHealthSummary } = useQuery({
+    queryKey: [
+      'surveillance-public-health-llm-summary',
+      filters,
+      overviewData?.kpis,
+      localPublicHealthSummary,
+    ],
+    queryFn: () => generatePublicHealthRiskDrivers({
+      summary: localPublicHealthSummary!,
+      filters,
+      kpis: overviewData?.kpis,
+    }),
+    enabled: isAuthenticated && Boolean(localPublicHealthSummary),
+    staleTime: 1000 * 60 * 10,
+    retry: 1,
+  });
+
   const rankingAnalytics = useMemo(() => {
     if (!isDeferredMounted || samples.length === 0) return null;
     return buildSurveillanceAnalytics(samples, rankingFilters, thresholdOverrides);
@@ -307,10 +332,9 @@ export default function SurveillanceDashboard() {
               <h2 className="text-sm font-black tracking-normal text-slate-500 dark:text-white/60">Public Health Risk Summary</h2>
             </div>
             <PublicHealthSummary 
-              summary={isSimulating && overviewData?.public_health_summary 
-                ? overviewData.public_health_summary 
-                : analytics.publicHealthSummary
-              } 
+              summary={llmPublicHealthSummary ?? localPublicHealthSummary ?? analytics.publicHealthSummary}
+              isGenerating={isGeneratingPublicHealthSummary && !llmPublicHealthSummary}
+              isLlmGenerated={Boolean(llmPublicHealthSummary)}
             />
 
             {/* Section 2: KPI Summary - Re-engineered for Province-Specific Context */}
