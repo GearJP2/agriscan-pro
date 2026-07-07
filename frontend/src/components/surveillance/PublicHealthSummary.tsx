@@ -2,7 +2,13 @@ import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import type { HealthSummary } from '@/types/dashboard';
 
-export default function PublicHealthSummary({ summary }: { summary: HealthSummary }) {
+interface PublicHealthSummaryProps {
+  summary: HealthSummary;
+  isGenerating?: boolean;
+  isLlmGenerated?: boolean;
+}
+
+export default function PublicHealthSummary({ summary, isGenerating = false, isLlmGenerated = false }: PublicHealthSummaryProps) {
   const { riskDrivers, affectedCommodities, impactedPopulations } = summary;
 
   return (
@@ -15,8 +21,10 @@ export default function PublicHealthSummary({ summary }: { summary: HealthSummar
               <div className="flex items-center justify-between gap-4">
                 <h3 className="text-lg font-black text-foreground tracking-tight">Key Risk Drivers</h3>
                 <div className="inline-flex items-center gap-2 rounded-xl bg-warning/5 border border-warning/20 px-3 py-1.5 shrink-0">
-                  <div className="w-1.5 h-1.5 rounded-full bg-warning animate-pulse"></div>
-                  <span className="text-[9px] text-warning font-black tracking-normal">Engine Active</span>
+                  <div className={cn('w-1.5 h-1.5 rounded-full bg-warning', isGenerating && 'animate-pulse')}></div>
+                  <span className="text-[9px] text-warning font-black tracking-normal">
+                    {isGenerating ? 'LLM Drafting' : isLlmGenerated ? 'LLM Summary' : 'Local Summary'}
+                  </span>
                 </div>
               </div>
 

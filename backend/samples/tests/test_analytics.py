@@ -1,8 +1,10 @@
 from django.contrib.auth import get_user_model
+from django.test import override_settings
 from django.test import TestCase
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
+from unittest.mock import Mock, patch
 
 from ..models import MycotoxinResult, Sample
 
@@ -89,3 +91,99 @@ class AnalyticsEndpointsTests(TestCase):
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(response.data.get('requires_tmd_api'))
+
+    @override_settings(
+        LLM_SUMMARY_ENDPOINT='',
+        LLM_SUMMARY_MODEL='',
+        LLM_SUMMARY_API_KEY='',
+    )
+    def test_public_health_summary_requires_provider_config(self):
+        url = reverse('sample-analytics-public-health-summary')
+        response = self.client.post(url, {}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
+
+    @override_settings(
+        LLM_SUMMARY_ENDPOINT='https://llm.example/v1/chat/completions',
+        LLM_SUMMARY_MODEL='free-model',
+        LLM_SUMMARY_API_KEY='test-key',
+        LLM_SUMMARY_TIMEOUT_SECONDS=5,
+    )
+    @patch('samples.services.llm_summary_service.requests.post')
+    def test_public_health_summary_uses_configured_provider(self, mock_post):
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'choices': [
+                {
+                    'message': {
+                        'content': '{"riskDrivers":["Driver one","Driver two","Driver three","Driver four"]}',
+                    },
+                },
+            ],
+        }
+        mock_post.return_value = mock_response
+
+        url = reverse('sample-analytics-public-health-summary')
+        response = self.client.post(
+            url,
+            {
+                'kpis': {'total_samples': 2},
+                'affectedCommodities': [{'name': 'maize', 'pct': 50}],
+                'impactedPopulations': [{'group': 'Farming communities', 'severity': 'High'}],
+                'baselineRiskDrivers': ['Existing local driver'],
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data['riskDrivers']), 4)
+        mock_post.assert_called_once()
+        self.assertEqual(
+            mock_post.call_args.kwargs['headers']['Authorization'],
+            'Bearer test-key',
+        )
+
+    @override_settings(
+        LLM_SUMMARY_ENDPOINT='https://generativelanguage.googleapis.com/v1beta2/models/gem',
+        LLM_SUMMARY_MODEL='gemini-2.5-flash',
+        LLM_SUMMARY_API_KEY='test-key',
+        LLM_SUMMARY_TIMEOUT_SECONDS=5,
+    )
+    @patch('samples.services.llm_summary_service.requests.post')
+    def test_public_health_summary_supports_gemini_provider(self, mock_post):
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'candidates': [
+                {
+                    'content': {
+                        'parts': [
+                            {
+                                'text': '{"riskDrivers":["Driver one","Driver two","Driver three","Driver four"]}',
+                            },
+                        ],
+                    },
+                },
+            ],
+        }
+        mock_post.return_value = mock_response
+
+        url = reverse('sample-analytics-public-health-summary')
+        response = self.client.post(
+            url,
+            {
+                'kpis': {'total_samples': 2},
+                'affectedCommodities': [{'name': 'maize', 'pct': 50}],
+                'impactedPopulations': [{'group': 'Farming communities', 'severity': 'High'}],
+                'baselineRiskDrivers': ['Existing local driver'],
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data['riskDrivers']), 4)
+        self.assertEqual(
+            mock_post.call_args.args[0],
+            'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',
+        )
+        self.assertEqual(mock_post.call_args.kwargs['headers']['x-goog-api-key'], 'test-key')
