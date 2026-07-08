@@ -139,3 +139,39 @@ export interface CoContaminationResponse {
     links: Array<{ source: string; target: string; value: number }>;
   };
 }
+
+export interface EnvironmentalPoint {
+  date: string;
+  temperatureC: number | null;
+  relativeHumidityPct: number | null;
+  precipitationMmHour: number | null;
+  soilTemperatureC: number | null;
+}
+
+export interface EnvironmentalCorrelationResponse {
+  source: string;
+  location: {
+    label: string;
+    latitude: number;
+    longitude: number;
+  };
+  parameters: Record<string, { label: string; unit: string }>;
+  request: {
+    start: string;
+    end: string;
+    maxDays: number;
+  };
+  summary: {
+    temperatureC: number | null;
+    relativeHumidityPct: number | null;
+    precipitationMmHour: number | null;
+    precipitationTotalMm: number | null;
+    soilTemperatureC: number | null;
+  };
+  cache?: {
+    status: 'hit' | 'miss';
+    ttlHours: number;
+  };
+  points: EnvironmentalPoint[];
+  message?: string;
+}

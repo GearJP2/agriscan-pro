@@ -173,12 +173,6 @@ export default function CoContaminationAnalysis({
 
   return (
     <div className="space-y-6" aria-label="Co-contamination Analysis">
-      {/* Section Divider */}
-      <div className="flex items-center gap-3 mb-4 mt-12">
-        <div className="h-5 w-1.5 bg-primary/40 rounded-full"></div>
-        <h2 className="text-sm font-black tracking-normal text-slate-500 dark:text-white/60">Analytics & Trends</h2>
-      </div>
-
       <Card className="glass-card border-2 border-border dark:border-white/10 overflow-hidden shadow-none bg-card dark:bg-card">
         <CardHeader className="pb-4 px-6 pt-6 bg-slate-100/30 dark:bg-card border-b border-border/5 shadow-none">
            <div className="flex items-center justify-between">

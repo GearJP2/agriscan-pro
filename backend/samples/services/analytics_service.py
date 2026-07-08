@@ -57,6 +57,11 @@ class AnalyticsService:
         # Group by province for Regional Risk
         province_data = qs.values('province', 'region').annotate(
             sample_count=Count('id', distinct=True),
+            positive_count=Count(
+                'id',
+                filter=Q(mycotoxin_results__isnull=False),
+                distinct=True
+            ),
             above_threshold_count=Count(
                 'id',
                 filter=Q(mycotoxin_results__risk_level__in=ABOVE_THRESHOLD_RISK_LEVELS),
@@ -69,7 +74,12 @@ class AnalyticsService:
 
         for pd in province_data:
             sample_count = pd['sample_count']
+            positive_count = pd['positive_count']
             above_threshold = pd['above_threshold_count']
+            positive_pct = (
+                (positive_count / sample_count * 100)
+                if sample_count > 0 else 0
+            )
             above_pct = (
                 (above_threshold / sample_count * 100)
                 if sample_count > 0 else 0
@@ -90,8 +100,8 @@ class AnalyticsService:
                 'name': pd['province'],
                 'region': pd['region'],
                 'sampleCount': sample_count,
-                'positiveCount': above_threshold,
-                'positivePct': round(above_pct, 1),
+                'positiveCount': positive_count,
+                'positivePct': round(positive_pct, 1),
                 'aboveThresholdPct': round(above_pct, 1),
                 'riskLevel': risk_level,
                 'dominantToxin': 'Unknown',
@@ -267,6 +277,8 @@ class AnalyticsService:
             province = sample.province or 'unknown'
             total_by_commodity[variety] += 1
             above_by_province_total[province] += 1
+            if sample.mycotoxin_results.all():
+                positive_by_province[province] += 1
 
             is_above = False
             for result in sample.mycotoxin_results.all():
@@ -296,7 +308,6 @@ class AnalyticsService:
                 above_by_region[sample.region] += 1
                 above_by_commodity[variety] += 1
                 above_by_province[province] += 1
-                positive_by_province[province] += 1
 
         # Find highest risk commodity in simulation
         highest_risk_commodity = "N/A"

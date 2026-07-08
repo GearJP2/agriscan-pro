@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, Suspense, lazy } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import type { DashboardFilters, AnalyticsOverviewResponse, CoContaminationResponse } from '@/types/dashboard';
+import type { DashboardFilters, AnalyticsOverviewResponse, CoContaminationResponse, EnvironmentalCorrelationResponse } from '@/types/dashboard';
 import DashboardFilterBar from './DashboardFilterBar';
 import KPICards from './KPICards';
 import RegionalRiskRanking from './RegionalRiskRanking';
@@ -9,6 +9,7 @@ import MycotoxinAnalysis from './MycotoxinAnalysis';
 import CoContaminationAnalysis from './CoContaminationAnalysis';
 import DynamicThresholdControl from './DynamicThresholdControl';
 import EnvironmentalKinetics from './EnvironmentalKinetics';
+import type { MapViewMode } from './RegionalRiskMap';
 import {
   Loader2,
   AlertTriangle,
@@ -75,7 +76,8 @@ export default function SurveillanceDashboard() {
   const isDeferredMounted = useDeferredMount(400);
   const [filters, setFilters] = useState<DashboardFilters>(DEFAULT_FILTERS);
   const selectedProvince = filters.provinces[0] || null;
-  const [mapViewMode, setMapViewMode] = useState<'risk' | 'samples'>('risk');
+  const [mapSelectedProvince, setMapSelectedProvince] = useState<string | null>(null);
+  const [mapViewMode, setMapViewMode] = useState<MapViewMode>('risk');
 
   // State for Threshold Simulator overrides
   const [thresholdOverrides, setThresholdOverrides] = useState<Record<string, Record<string, number>>>({});
@@ -149,6 +151,25 @@ export default function SurveillanceDashboard() {
       return analyticsAPI.getCoContamination(apiFilters);
     },
     enabled: isAuthenticated,
+  });
+
+  const environmentalProvince = mapSelectedProvince || selectedProvince;
+
+  const { data: environmentalData, isLoading: isEnvironmentalLoading, isError: isEnvironmentalError } = useQuery<EnvironmentalCorrelationResponse>({
+    queryKey: ['surveillance-environmental-correlation', filters, environmentalProvince],
+    queryFn: () => {
+      const apiFilters = {
+        region: filters.regions,
+        province: environmentalProvince ? [environmentalProvince] : filters.provinces,
+        vegetation_variety: filters.commodities,
+        date_from: filters.dateRange.from,
+        date_to: filters.dateRange.to
+      };
+      return analyticsAPI.getEnvironmentalCorrelation(apiFilters);
+    },
+    enabled: isAuthenticated && Boolean(filters.dateRange.from && filters.dateRange.to),
+    staleTime: 1000 * 60 * 60,
+    retry: 1,
   });
 
   const filterOptions = useMemo(() => buildFilterOptions(samples), [samples]);
@@ -237,11 +258,21 @@ export default function SurveillanceDashboard() {
     const matchesQuarter = currentQuarterRange
       && currentQuarterRange.from === nextFilters.dateRange.from
       && currentQuarterRange.to === nextFilters.dateRange.to;
+    setMapSelectedProvince(nextFilters.provinces[0] || null);
 
     setFilters({
       ...nextFilters,
       quarter: matchesQuarter || nextFilters.quarter === ALL_TIME_QUARTER ? nextFilters.quarter : CUSTOM_RANGE_QUARTER,
     });
+  };
+
+  const handleProvinceFilterSelect = (province: string) => {
+    const nextProvince = filters.provinces.includes(province) ? null : province;
+    setMapSelectedProvince(nextProvince);
+    setFilters((prev) => ({
+      ...prev,
+      provinces: nextProvince ? [nextProvince] : [],
+    }));
   };
 
   if (!isAuthenticated) {
@@ -413,16 +444,20 @@ export default function SurveillanceDashboard() {
               <div className="grid grid-cols-1 lg:grid-cols-[65%_35%] gap-4">
                 <Suspense fallback={<MapSkeleton />}>
                   <RegionalRiskMap
-                    selectedProvince={selectedProvince}
+                    selectedProvince={mapSelectedProvince || selectedProvince}
                     onSelectProvince={(p) => {
-                      setFilters(prev => ({
-                        ...prev,
-                        provinces: prev.provinces.includes(p) ? [] : [p]
-                      }));
+                      if (mapViewMode === 'risk' || mapViewMode === 'samples') {
+                        handleProvinceFilterSelect(p);
+                        return;
+                      }
+
+                      setMapSelectedProvince(prev => prev === p ? null : p);
                     }}
                     provinceRiskData={regionalRankingData ? regionalRankingData.provinces : (rankingAnalytics?.provinceRiskData || [])}
                     viewMode={mapViewMode}
                     onViewModeChange={setMapViewMode}
+                    environmentalData={environmentalData}
+                    isEnvironmentalLoading={isEnvironmentalLoading}
                   />
                 </Suspense>
                 <div className="flex flex-col gap-4">
@@ -432,14 +467,9 @@ export default function SurveillanceDashboard() {
                   />
                   <RegionalRiskRanking
                     selectedProvince={selectedProvince}
-                    onSelectProvince={(p) => {
-                      setFilters(prev => ({
-                        ...prev,
-                        provinces: prev.provinces.includes(p) ? [] : [p]
-                      }));
-                    }}
+                    onSelectProvince={handleProvinceFilterSelect}
                     provinces={regionalRankingData ? regionalRankingData.provinces : (rankingAnalytics?.provinceRiskData || [])}
-                    viewMode={mapViewMode}
+                    viewMode={mapViewMode === 'samples' ? 'samples' : 'risk'}
                   />
                 </div>
               </div>
@@ -464,10 +494,7 @@ export default function SurveillanceDashboard() {
               }
             />
 
-            <EnvironmentalKinetics />
-
-            {/* Section 5: Co-contamination Analysis */}
-            <div className="grid grid-cols-1 gap-6">
+            <div className="mt-6 grid grid-cols-1 gap-6">
               {coContamData ? (
                 <CoContaminationAnalysis
                   coContamSummary={analytics.coContamSummary}
@@ -480,6 +507,17 @@ export default function SurveillanceDashboard() {
                 <ChartSkeleton />
               )}
             </div>
+
+            {/* Section 5: Environmental Analysis */}
+            <div className="flex items-center gap-3 mb-4 mt-12">
+              <div className="h-5 w-1.5 bg-primary/40 rounded-full" />
+              <h2 className="text-sm font-black tracking-normal text-slate-500 dark:text-white/60">Environmental Analysis</h2>
+            </div>
+            <EnvironmentalKinetics
+              data={environmentalData}
+              isLoading={isEnvironmentalLoading}
+              isError={isEnvironmentalError}
+            />
           </>
         )}
 

@@ -75,6 +75,22 @@ class Sample(models.Model):
         return f"{self.sample_id} - {self.vegetation_variety}"
 
 
+class ExternalDataCache(models.Model):
+    source = models.CharField(max_length=50, db_index=True)
+    cache_key = models.CharField(max_length=255, unique=True)
+    payload = models.JSONField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField(db_index=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['source', 'expires_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.source}:{self.cache_key}"
+
+
 class ProcessLog(models.Model):
     PROCESS_STATE_CHOICES = (
         ('registered', 'Registered'),

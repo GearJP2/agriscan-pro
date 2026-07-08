@@ -52,6 +52,9 @@ class AnalyticsEndpointsTests(TestCase):
         self.assertGreaterEqual(len(response.data['provinces']), 2)
         bangkok = next(p for p in response.data['provinces'] if p['name'] == 'Bangkok')
         self.assertEqual(bangkok['positiveCount'], 1)
+        chiang_mai = next(p for p in response.data['provinces'] if p['name'] == 'Chiang Mai')
+        self.assertEqual(chiang_mai['positiveCount'], 1)
+        self.assertEqual(chiang_mai['aboveThresholdPct'], 0.0)
 
     def test_overview_filters_by_province(self):
         url = reverse('sample-analytics-overview')
@@ -87,10 +90,64 @@ class AnalyticsEndpointsTests(TestCase):
         )
 
     def test_environmental_correlation(self):
+        mock_payload = {
+            'properties': {
+                'parameter': {
+                    'T2M': {'2026042000': 30.0, '2026042012': 32.0},
+                    'RH2M': {'2026042000': 70.0, '2026042012': 74.0},
+                    'PRECTOTCORR': {'2026042000': 0.1, '2026042012': 0.3},
+                    'TS': {'2026042000': 31.0, '2026042012': 33.0},
+                },
+            },
+        }
+        mock_response = Mock()
+        mock_response.json.return_value = mock_payload
+        mock_response.raise_for_status.return_value = None
+
         url = reverse('sample-analytics-environmental-correlation')
-        response = self.client.get(url)
+        with patch('samples.services.nasa_power_service.requests.get', return_value=mock_response) as mock_get:
+            response = self.client.get(url, {'province': 'Bangkok'})
+            cached_response = self.client.get(url, {'province': 'Bangkok'})
+
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertTrue(response.data.get('requires_tmd_api'))
+        self.assertEqual(response.data['source'], 'NASA POWER')
+        self.assertEqual(response.data['cache']['status'], 'miss')
+        self.assertEqual(response.data['location']['label'], 'Bangkok')
+        self.assertEqual(response.data['summary']['temperatureC'], 31.0)
+        self.assertEqual(response.data['summary']['relativeHumidityPct'], 72.0)
+        self.assertEqual(response.data['summary']['precipitationMmHour'], 0.2)
+        self.assertEqual(response.data['summary']['soilTemperatureC'], 32.0)
+        self.assertEqual(len(response.data['points']), 1)
+        self.assertEqual(cached_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(cached_response.data['cache']['status'], 'hit')
+        self.assertEqual(cached_response.data['summary']['temperatureC'], 31.0)
+        self.assertEqual(mock_get.call_count, 1)
+        self.assertIn('T2M,RH2M,PRECTOTCORR,TS', mock_get.call_args.kwargs['params']['parameters'])
+
+    def test_environmental_correlation_uses_requested_province_without_samples(self):
+        mock_payload = {
+            'properties': {
+                'parameter': {
+                    'T2M': {'2026042000': 30.0},
+                    'RH2M': {'2026042000': 70.0},
+                    'PRECTOTCORR': {'2026042000': 0.1},
+                    'TS': {'2026042000': 31.0},
+                },
+            },
+        }
+        mock_response = Mock()
+        mock_response.json.return_value = mock_payload
+        mock_response.raise_for_status.return_value = None
+
+        url = reverse('sample-analytics-environmental-correlation')
+        with patch('samples.services.nasa_power_service.requests.get', return_value=mock_response) as mock_get:
+            response = self.client.get(url, {'province': 'Narathiwat'})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['location']['label'], 'Narathiwat')
+        self.assertNotEqual(response.data['location']['label'], 'Thailand centroid')
+        self.assertEqual(mock_get.call_args.kwargs['params']['latitude'], 6.4254)
+        self.assertEqual(mock_get.call_args.kwargs['params']['longitude'], 101.8253)
 
     @override_settings(
         LLM_SUMMARY_ENDPOINT='',

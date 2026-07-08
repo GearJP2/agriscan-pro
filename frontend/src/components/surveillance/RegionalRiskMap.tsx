@@ -3,11 +3,11 @@ import { createPortal } from 'react-dom';
 import { MapContainer, TileLayer, GeoJSON, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Maximize2, X, Layers, Database, ZoomIn, ZoomOut, Table as TableIcon } from 'lucide-react';
-import type { ProvinceRisk } from '@/types/dashboard';
+import { Maximize2, X, Layers, Database, ZoomIn, ZoomOut, Table as TableIcon, CloudSun, Droplets, Thermometer, Waves } from 'lucide-react';
+import type { EnvironmentalCorrelationResponse, ProvinceRisk } from '@/types/dashboard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useTheme } from 'next-themes';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 // Normalize province names for matching: lowercase + strip spaces
 const normalizeName = (s: string) => s.toLowerCase().replace(/\s+/g, '');
@@ -21,7 +21,21 @@ const RISK_COLORS: Record<string, string> = {
 };
 
 // Sequential Blue scale for Sample counts
-const SAMPLE_COLORS = ['#eff6ff', '#bfdbfe', '#60a5fa', '#2563eb', '#1e3a8a'];
+const SAMPLE_COLORS = ['#60a5fa', '#3b82f6', '#2563eb', '#1d4ed8', '#172554'];
+const ENVIRONMENT_COLORS = ['#ecfeff', '#a5f3fc', '#22d3ee', '#0891b2', '#164e63'];
+
+export type MapViewMode = 'risk' | 'samples' | 'temperature' | 'humidity' | 'rainfall' | 'soilTemperature';
+
+const NASA_MODES: MapViewMode[] = ['temperature', 'humidity', 'rainfall', 'soilTemperature'];
+
+const VIEW_LABELS: Record<MapViewMode, string> = {
+  risk: 'Positive samples (%)',
+  samples: 'Positive sample count',
+  temperature: 'Air temperature (C)',
+  humidity: 'Relative humidity (%)',
+  rainfall: 'Rainfall (mm/hour)',
+  soilTemperature: 'Earth skin temperature (C)',
+};
 
 // Highlight a specific province by zooming to it
 function HighlightProvince({ province, geoData }: { province: string | null; geoData: any }) {
@@ -94,11 +108,21 @@ interface Props {
   selectedProvince: string | null;
   onSelectProvince: (province: string) => void;
   provinceRiskData: ProvinceRisk[];
-  viewMode: 'risk' | 'samples';
-  onViewModeChange: (mode: 'risk' | 'samples') => void;
+  viewMode: MapViewMode;
+  onViewModeChange: (mode: MapViewMode) => void;
+  environmentalData?: EnvironmentalCorrelationResponse;
+  isEnvironmentalLoading?: boolean;
 }
 
-export default function RegionalRiskMap({ selectedProvince, onSelectProvince, provinceRiskData, viewMode, onViewModeChange }: Props) {
+export default function RegionalRiskMap({
+  selectedProvince,
+  onSelectProvince,
+  provinceRiskData,
+  viewMode,
+  onViewModeChange,
+  environmentalData,
+  isEnvironmentalLoading = false,
+}: Props) {
   const [geoData, setGeoData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -116,8 +140,13 @@ export default function RegionalRiskMap({ selectedProvince, onSelectProvince, pr
     return map;
   }, [provinceRiskData]);
 
-  const maxSamples = useMemo(() => {
-    return Math.max(...provinceRiskData.map(p => p.sampleCount), 1);
+  const maxPositiveSamples = useMemo(() => {
+    return Math.max(
+      ...provinceRiskData.map((province) => (
+        province.positiveCount ?? Math.round((province.sampleCount * province.aboveThresholdPct) / 100)
+      )),
+      1,
+    );
   }, [provinceRiskData]);
 
   // Pick tile layer based on theme
@@ -167,26 +196,39 @@ export default function RegionalRiskMap({ selectedProvince, onSelectProvince, pr
   };
 
   const getSampleColor = (count: number) => {
-    if (count === 0) return isDark ? '#374151' : '#d1d5db';
-    // Scaling based on local distribution of positive samples
-    const maxRiskSamples = provinceRiskData.reduce((acc, p) => {
-      const positiveCount = p.positiveCount ?? Math.round((p.sampleCount * p.aboveThresholdPct) / 100);
-      return Math.max(acc, positiveCount);
-    }, 0);
-    const ratio = count / (maxRiskSamples || 1);
-    const idx = Math.min(Math.floor(ratio * SAMPLE_COLORS.length), SAMPLE_COLORS.length - 1);
+    if (count <= 0) return isDark ? '#334155' : '#e2e8f0';
+    const ratio = count / maxPositiveSamples;
+    const idx = Math.min(
+      Math.max(Math.ceil(ratio * SAMPLE_COLORS.length) - 1, 0),
+      SAMPLE_COLORS.length - 1,
+    );
     return SAMPLE_COLORS[idx];
   };
+
+  const isNasaMode = NASA_MODES.includes(viewMode);
+  const environmentalMetric = useMemo(() => {
+    if (!environmentalData) return null;
+    const metrics = {
+      temperature: { value: environmentalData.summary.temperatureC, unit: 'C', label: 'Air temperature' },
+      humidity: { value: environmentalData.summary.relativeHumidityPct, unit: '%', label: 'Relative humidity' },
+      rainfall: { value: environmentalData.summary.precipitationMmHour, unit: 'mm/hour', label: 'Rainfall' },
+      soilTemperature: { value: environmentalData.summary.soilTemperatureC, unit: 'C', label: 'Earth skin temperature' },
+    };
+    return viewMode in metrics ? metrics[viewMode as keyof typeof metrics] : null;
+  }, [environmentalData, viewMode]);
 
   const borderColor = isDark ? '#1f2937' : '#e5e7eb';
 
   const style = useCallback((feature: any) => {
     const name = feature?.properties?.NAME_1 || feature?.properties?.name || '';
     const risk = findProvinceRisk(name);
+    const normName = normalizeName(name);
+    const normSelected = selectedProvince ? normalizeName(selectedProvince) : null;
+    const isSelected = normSelected && (normName === normSelected || normName.includes(normSelected) || normSelected.includes(normName));
     
     let fillColor = isDark ? '#374151' : '#d1d5db';
     if (risk) {
-      if (viewMode === 'risk') {
+      if (viewMode === 'risk' || isNasaMode) {
         fillColor = getRiskColor(risk.aboveThresholdPct);
       } else {
         const positiveCount = risk.positiveCount ?? Math.round((risk.sampleCount * risk.aboveThresholdPct) / 100);
@@ -194,9 +236,9 @@ export default function RegionalRiskMap({ selectedProvince, onSelectProvince, pr
       }
     }
 
-    const normName = normalizeName(name);
-    const normSelected = selectedProvince ? normalizeName(selectedProvince) : null;
-    const isSelected = normSelected && (normName === normSelected || normName.includes(normSelected) || normSelected.includes(normName));
+    if (isNasaMode && isSelected && environmentalMetric?.value != null) {
+      fillColor = ENVIRONMENT_COLORS[3];
+    }
 
     return {
       fillColor,
@@ -205,7 +247,7 @@ export default function RegionalRiskMap({ selectedProvince, onSelectProvince, pr
       color: isSelected ? '#fbbf24' : borderColor,
       fillOpacity: isSelected ? 0.9 : 0.7,
     };
-  }, [findProvinceRisk, selectedProvince, isDark, borderColor, viewMode, provinceRiskData]);
+  }, [findProvinceRisk, selectedProvince, isDark, borderColor, viewMode, maxPositiveSamples, isNasaMode, environmentalMetric]);
 
   const onEachFeature = useCallback((feature: any, layer: L.Layer) => {
     const name = feature?.properties?.NAME_1 || feature?.properties?.name || '';
@@ -213,14 +255,33 @@ export default function RegionalRiskMap({ selectedProvince, onSelectProvince, pr
 
     if (risk) {
       const positiveCount = risk.positiveCount ?? Math.round((risk.sampleCount * risk.aboveThresholdPct) / 100);
+      const countLabel = viewMode === 'samples' ? 'Positive Samples' : 'Above Threshold';
+      const displayedCount = viewMode === 'samples'
+        ? positiveCount
+        : Math.round((risk.sampleCount * risk.aboveThresholdPct) / 100);
+      const nasaLine = isNasaMode
+        ? selectedProvince && normalizeName(name) === normalizeName(selectedProvince) && environmentalMetric?.value != null
+          ? `<div class="mt-1 flex justify-between gap-4"><span>${environmentalMetric.label}:</span> <span class="font-mono text-primary font-bold">${environmentalMetric.value} ${environmentalMetric.unit}</span></div>`
+          : '<div class="mt-1 text-[10px] text-muted-foreground">Click to load NASA statistics</div>'
+        : '';
       layer.bindTooltip(
         `<div class="text-sm p-1">
           <div class="font-bold border-b border-border/50 pb-1 mb-1">${risk.name}</div>
           <div class="flex justify-between gap-4"><span>Total Samples:</span> <span class="font-mono text-muted-foreground">${risk.sampleCount}</span></div>
-          <div class="flex justify-between gap-4"><span>Above Threshold:</span> <span class="font-mono text-primary font-bold">${positiveCount}</span></div>
+          <div class="flex justify-between gap-4"><span>${countLabel}:</span> <span class="font-mono text-primary font-bold">${displayedCount}</span></div>
           <div class="flex justify-between gap-4"><span>Risk Rate:</span> <span class="font-mono text-destructive font-bold">${risk.aboveThresholdPct}%</span></div>
           <div class="mt-1 text-[10px] text-muted-foreground"> Dominant: ${risk.dominantToxin}</div>
+          ${nasaLine}
         </div>`,
+        { sticky: true, className: `p-0 border-2 border-border dark:border-white/10 ${isDark ? 'leaflet-tooltip-dark' : ''}` }
+      );
+    } else if (isNasaMode) {
+      const selected = selectedProvince && normalizeName(name) === normalizeName(selectedProvince);
+      const metricLine = selected && environmentalMetric?.value != null
+        ? `<div class="font-mono font-bold">${environmentalMetric.value} ${environmentalMetric.unit}</div>`
+        : '<div class="text-xs text-muted-foreground">Click to load NASA statistics</div>';
+      layer.bindTooltip(
+        `<div class="text-sm p-1"><div class="font-bold">${name}</div>${metricLine}</div>`,
         { sticky: true, className: `p-0 border-2 border-border dark:border-white/10 ${isDark ? 'leaflet-tooltip-dark' : ''}` }
       );
     }
@@ -235,10 +296,11 @@ export default function RegionalRiskMap({ selectedProvince, onSelectProvince, pr
         if (geoJsonRef.current) geoJsonRef.current.resetStyle(e.target);
       },
       click: () => {
-        if (risk) onSelectProvince(risk.name);
+        if (isNasaMode) onSelectProvince(name);
+        else if (risk) onSelectProvince(risk.name);
       },
     });
-  }, [findProvinceRisk, onSelectProvince, isDark]);
+  }, [findProvinceRisk, onSelectProvince, isDark, isNasaMode, selectedProvince, environmentalMetric]);
 
   const mapContent = (ref: React.MutableRefObject<L.GeoJSON | null>) => (
     <MapContainer
@@ -272,25 +334,51 @@ export default function RegionalRiskMap({ selectedProvince, onSelectProvince, pr
       
       {/* Absolute Overlays inside map area */}
       <div className="absolute top-4 right-4 z-[1000]">
-        <Tabs value={viewMode} onValueChange={(v) => onViewModeChange(v as 'risk' | 'samples')}>
-          <TabsList className="bg-background/80 backdrop-blur-md border border-border/50 h-10 p-1 rounded-lg">
-            <TabsTrigger value="risk" className="text-xs px-3 h-8 border border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary transition-all font-semibold">
-              <Layers className="w-4 h-4 mr-1.5" /> Positive/all sample (%)
-            </TabsTrigger>
-            <TabsTrigger value="samples" className="text-xs px-3 h-8 border border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary transition-all font-semibold">
-              <TableIcon className="w-4 h-4 mr-1.5" /> Number of positive sample
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
+        <Select value={viewMode} onValueChange={(value) => onViewModeChange(value as MapViewMode)}>
+          <SelectTrigger className="w-[230px] h-10 bg-background/90 backdrop-blur-md border-border">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="risk"><span className="flex items-center gap-2"><Layers className="w-4 h-4" />{VIEW_LABELS.risk}</span></SelectItem>
+            <SelectItem value="samples"><span className="flex items-center gap-2"><TableIcon className="w-4 h-4" />{VIEW_LABELS.samples}</span></SelectItem>
+            <SelectItem value="temperature"><span className="flex items-center gap-2"><Thermometer className="w-4 h-4" />{VIEW_LABELS.temperature}</span></SelectItem>
+            <SelectItem value="humidity"><span className="flex items-center gap-2"><Droplets className="w-4 h-4" />{VIEW_LABELS.humidity}</span></SelectItem>
+            <SelectItem value="rainfall"><span className="flex items-center gap-2"><Waves className="w-4 h-4" />{VIEW_LABELS.rainfall}</span></SelectItem>
+            <SelectItem value="soilTemperature"><span className="flex items-center gap-2"><CloudSun className="w-4 h-4" />{VIEW_LABELS.soilTemperature}</span></SelectItem>
+          </SelectContent>
+        </Select>
       </div>
+
+      {isNasaMode && (
+        <div className="absolute top-16 right-4 z-[900] w-[230px] bg-background/90 backdrop-blur-md border border-border rounded-lg p-3 shadow-sm">
+          <div className="text-[10px] font-bold text-muted-foreground">NASA POWER · {environmentalData?.location.label || selectedProvince || 'Select a province'}</div>
+          <div className="mt-1 text-2xl font-black">
+            {isEnvironmentalLoading ? 'Loading...' : environmentalMetric?.value != null ? `${environmentalMetric.value} ${environmentalMetric.unit}` : '--'}
+          </div>
+          <div className="text-xs text-muted-foreground">{environmentalMetric?.label || VIEW_LABELS[viewMode]}</div>
+        </div>
+      )}
     </MapContainer>
   );
 
   const legend = (
     <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
-      <div className="text-[10px] font-bold text-muted-foreground tracking-normal">{viewMode === 'risk' ? 'Risk Severity' : 'Sample Intensity'}</div>
+      <div className="text-[10px] font-bold text-muted-foreground tracking-normal">{isNasaMode ? 'Risk severity + selected NASA statistic' : viewMode === 'risk' ? 'Risk Severity' : 'Sample Intensity'}</div>
       <div className="flex items-center gap-4">
-        {viewMode === 'risk' ? (
+        {isNasaMode ? (
+          <>
+            {Object.entries(RISK_COLORS).map(([level, color]) => (
+              <div key={level} className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full border border-border" style={{ backgroundColor: color }} />
+                <span className="text-[10px] text-muted-foreground capitalize font-medium">{level}</span>
+              </div>
+            ))}
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full border border-border" style={{ backgroundColor: ENVIRONMENT_COLORS[3] }} />
+              <span className="text-[10px] text-muted-foreground font-medium">Selected NASA value</span>
+            </div>
+          </>
+        ) : viewMode === 'risk' ? (
           Object.entries(RISK_COLORS).map(([level, color]) => (
             <div key={level} className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-full border border-border" style={{ backgroundColor: color }} />
@@ -299,11 +387,13 @@ export default function RegionalRiskMap({ selectedProvince, onSelectProvince, pr
           ))
         ) : (
           <div className="flex items-center gap-1">
-            <span className="text-[10px] text-muted-foreground mr-1">Low</span>
+            <span className="w-2.5 h-2.5 border border-border mr-1" style={{ backgroundColor: isDark ? '#475569' : '#e2e8f0' }} />
+            <span className="text-[10px] text-muted-foreground mr-2">0</span>
+            <span className="text-[10px] text-muted-foreground mr-1">1</span>
             <div className="flex gap-px h-2.5 items-center">
               {SAMPLE_COLORS.map(c => <div key={c} className="w-4 h-full" style={{ backgroundColor: c }} />)}
             </div>
-            <span className="text-[10px] text-muted-foreground ml-1">High ({maxSamples})</span>
+            <span className="text-[10px] text-muted-foreground ml-1">{maxPositiveSamples} positive</span>
           </div>
         )}
       </div>
@@ -322,9 +412,11 @@ export default function RegionalRiskMap({ selectedProvince, onSelectProvince, pr
                 <span className="text-[10px] text-muted-foreground font-bold tracking-normal">Surveillance Metadata</span>
                 <span className="text-[10px] text-primary/60 font-black">•</span>
                 <span className="text-[10px] text-primary/80 font-black italic">
-                  {viewMode === 'risk' 
-                    ? "Color mapped to % risk rate per province" 
-                    : "Color mapped to absolute count of risk samples"}
+                  {isNasaMode
+                    ? `Selected province · ${VIEW_LABELS[viewMode]}`
+                    : viewMode === 'risk'
+                      ? "Color mapped to % risk rate per province"
+                      : "Color mapped to absolute count of risk samples"}
                 </span>
               </div>
             </div>

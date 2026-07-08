@@ -90,6 +90,11 @@ LLM_SUMMARY_API_KEY = os.environ.get("LLM_SUMMARY_API_KEY", "")
 LLM_SUMMARY_TIMEOUT_SECONDS = int(os.environ.get("LLM_SUMMARY_TIMEOUT_SECONDS", "20"))
 LLM_SUMMARY_MAX_OUTPUT_TOKENS = int(os.environ.get("LLM_SUMMARY_MAX_OUTPUT_TOKENS", "1024"))
 
+# NASA POWER environmental data for dashboard kinetics.
+NASA_POWER_TIMEOUT_SECONDS = int(os.environ.get("NASA_POWER_TIMEOUT_SECONDS", "20"))
+NASA_POWER_MAX_DAYS = int(os.environ.get("NASA_POWER_MAX_DAYS", "14"))
+NASA_POWER_CACHE_TTL_HOURS = int(os.environ.get("NASA_POWER_CACHE_TTL_HOURS", "24"))
+
 # Application definition
 
 INSTALLED_APPS = [

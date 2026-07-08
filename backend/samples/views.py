@@ -33,6 +33,7 @@ from .services.llm_summary_service import (
     LLMSummaryService,
     LLMSummaryServiceError,
 )
+from .services.nasa_power_service import NasaPowerService, NasaPowerServiceError
 
 logger = logging.getLogger('agriscan.samples')
 
@@ -541,8 +542,23 @@ class SampleViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'], url_path='analytics/environmental-correlation')
     def analytics_environmental_correlation(self, request):
-        """Stub for weather/moisture correlation chart."""
-        data = AnalyticsService.get_environmental_correlation(request.query_params)
+        """NASA POWER weather and soil kinetics for the dashboard filter context."""
+        try:
+            data = NasaPowerService.get_environmental_correlation(request.query_params)
+        except NasaPowerServiceError as exc:
+            logger.warning(
+                'environmental_correlation.nasa_power_failed',
+                extra={'error': str(exc), 'user': request.user.username},
+            )
+            return Response(
+                {
+                    'source': 'NASA POWER',
+                    'data': [],
+                    'requires_nasa_power': True,
+                    'message': 'NASA POWER environmental data is temporarily unavailable.',
+                },
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
         return Response(data, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=['post'], url_path='analytics/public-health-summary')
