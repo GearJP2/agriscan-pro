@@ -58,6 +58,7 @@ task.md
 .project
 .classpath
 .c9/
+.env
 
 # Temporary and Log files
 *.log
