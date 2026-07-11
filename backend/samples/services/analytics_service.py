@@ -374,16 +374,20 @@ class AnalyticsService:
             ]
         }
 
-    @staticmethod
-    def get_environmental_correlation(filters: dict) -> dict:
-        """
-        Stub for scatter plot. Returns a warning flag about TMD API requirement.
-        """
-        return {
-            'data': [],
-            'requires_tmd_api': True,
-            'message': (
-                'Weather correlation requires integration with the Thai '
-                'Meteorological Department API for historical moisture/rainfall data.'
-            )
-        }
+
+# Historical TMD placeholder kept for context. The live environmental endpoint
+# now routes through NasaPowerService from samples.views.
+#
+# @staticmethod
+# def get_environmental_correlation(filters: dict) -> dict:
+#     """
+#     Stub for scatter plot. Returns a warning flag about TMD API requirement.
+#     """
+#     return {
+#         'data': [],
+#         'requires_tmd_api': True,
+#         'message': (
+#             'Weather correlation requires integration with the Thai '
+#             'Meteorological Department API for historical moisture/rainfall data.'
+#         )
+#     }

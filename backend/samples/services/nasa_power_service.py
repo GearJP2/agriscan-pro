@@ -2,6 +2,7 @@ from collections import Counter
 from datetime import timedelta
 import hashlib
 import json
+import logging
 
 import requests
 from django.conf import settings
@@ -11,6 +12,8 @@ from django.utils.dateparse import parse_date
 from ..models import ExternalDataCache, Sample
 from .analytics_service import AnalyticsService
 
+
+logger = logging.getLogger('agriscan.samples')
 
 NASA_POWER_PARAMETERS = ['T2M', 'RH2M', 'PRECTOTCORR', 'TS']
 NASA_POWER_ENDPOINT = 'https://power.larc.nasa.gov/api/temporal/hourly/point'
@@ -194,13 +197,17 @@ class NasaPowerService:
 
     @staticmethod
     def _date_window(filters: dict) -> tuple[str, str]:
-        date_to = parse_date(filters.get('date_to') or '') or Sample.objects.order_by('-collection_date').values_list('collection_date', flat=True).first()
+        date_to = (
+            parse_date(filters.get('date_to') or '')
+            or Sample.objects.order_by('-collection_date').values_list('collection_date', flat=True).first()
+        )
         if date_to is None:
-            from django.utils import timezone
-
             date_to = timezone.now().date()
 
-        date_from = parse_date(filters.get('date_from') or '') or date_to - timedelta(days=settings.NASA_POWER_MAX_DAYS - 1)
+        date_from = (
+            parse_date(filters.get('date_from') or '')
+            or date_to - timedelta(days=settings.NASA_POWER_MAX_DAYS - 1)
+        )
         max_start = date_to - timedelta(days=settings.NASA_POWER_MAX_DAYS - 1)
         if date_from < max_start:
             date_from = max_start
@@ -291,6 +298,10 @@ class NasaPowerService:
             response.raise_for_status()
             payload = response.json()
         except (requests.RequestException, ValueError) as exc:
+            logger.warning(
+                'environmental_correlation.nasa_power_request_failed',
+                extra={'error': str(exc)},
+            )
             raise NasaPowerServiceError('NASA POWER request failed.') from exc
 
         parameter_data = payload.get('properties', {}).get('parameter', {})

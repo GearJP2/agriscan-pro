@@ -77,6 +77,10 @@ class LLMSummaryService:
                 timeout=settings.LLM_SUMMARY_TIMEOUT_SECONDS,
             )
         except requests.RequestException as exc:
+            logger.warning(
+                'public_health_summary.llm_provider_request_failed',
+                extra={'error': str(exc)},
+            )
             raise LLMSummaryServiceError('LLM provider request failed.') from exc
 
         if response.status_code >= 400:
@@ -90,11 +94,14 @@ class LLMSummaryService:
             data = response.json()
         except ValueError as exc:
             raise LLMSummaryServiceError('LLM provider returned invalid JSON.') from exc
-        content = (
-            data.get('choices', [{}])[0]
-            .get('message', {})
-            .get('content', '')
-        )
+        choices = data.get('choices')
+        first_choice = choices[0] if isinstance(choices, list) and choices else {}
+        if not isinstance(first_choice, dict):
+            first_choice = {}
+        message = first_choice.get('message', {})
+        if not isinstance(message, dict):
+            message = {}
+        content = message.get('content', '') or first_choice.get('text', '')
         return cls._parse_risk_drivers(content)
 
     @staticmethod
@@ -135,6 +142,10 @@ class LLMSummaryService:
                 timeout=settings.LLM_SUMMARY_TIMEOUT_SECONDS,
             )
         except requests.RequestException as exc:
+            logger.warning(
+                'public_health_summary.gemini_provider_request_failed',
+                extra={'error': str(exc)},
+            )
             raise LLMSummaryServiceError('Gemini provider request failed.') from exc
 
         if response.status_code >= 400:
@@ -148,11 +159,16 @@ class LLMSummaryService:
             data = response.json()
         except ValueError as exc:
             raise LLMSummaryServiceError('Gemini provider returned invalid JSON.') from exc
-        parts = (
-            data.get('candidates', [{}])[0]
-            .get('content', {})
-            .get('parts', [])
-        )
+        candidates = data.get('candidates')
+        first_candidate = candidates[0] if isinstance(candidates, list) and candidates else {}
+        if not isinstance(first_candidate, dict):
+            first_candidate = {}
+        candidate_content = first_candidate.get('content', {})
+        if not isinstance(candidate_content, dict):
+            candidate_content = {}
+        parts = candidate_content.get('parts', [])
+        if not isinstance(parts, list):
+            parts = []
         content = '\n'.join(
             part.get('text', '')
             for part in parts
