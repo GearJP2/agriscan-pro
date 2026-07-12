@@ -537,7 +537,10 @@ class SampleViewSet(viewsets.ModelViewSet):
     def analytics_threshold_simulation(self, request):
         """Simulate overriding of toxin thresholds."""
         overrides = request.data.get('overrides', {})
-        data = AnalyticsService.simulate_threshold(overrides, request.query_params)
+        try:
+            data = AnalyticsService.simulate_threshold(overrides, request.query_params)
+        except ValueError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         return Response(data, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=['get'], url_path='analytics/environmental-correlation')

@@ -168,6 +168,18 @@ def _normalize_province_name(value: str | None) -> str | None:
 
 class NasaPowerService:
     @staticmethod
+    def _validate_parameter_data(parameter_data: dict | None) -> None:
+        if not isinstance(parameter_data, dict) or not parameter_data:
+            raise NasaPowerServiceError('NASA POWER returned an invalid payload.')
+
+        has_hourly_values = any(
+            isinstance(parameter_data.get(parameter), dict) and parameter_data.get(parameter)
+            for parameter in NASA_POWER_PARAMETERS
+        )
+        if not has_hourly_values:
+            raise NasaPowerServiceError('NASA POWER returned an invalid payload.')
+
+    @staticmethod
     def _cache_key(params: dict) -> str:
         stable = json.dumps(params, sort_keys=True, separators=(',', ':'))
         return hashlib.sha256(stable.encode('utf-8')).hexdigest()
@@ -304,7 +316,8 @@ class NasaPowerService:
             )
             raise NasaPowerServiceError('NASA POWER request failed.') from exc
 
-        parameter_data = payload.get('properties', {}).get('parameter', {})
+        parameter_data = payload.get('properties', {}).get('parameter')
+        cls._validate_parameter_data(parameter_data)
         points = cls._daily_points(parameter_data)
 
         result = {
