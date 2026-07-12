@@ -2,11 +2,13 @@ from django.contrib.auth import get_user_model
 from django.test import override_settings
 from django.test import TestCase
 from django.urls import reverse
+import requests
 from rest_framework import status
 from rest_framework.test import APIClient
 from unittest.mock import Mock, patch
 
-from ..models import MycotoxinResult, Sample
+from ..models import ExternalDataCache, MycotoxinResult, Sample
+from ..services.llm_summary_service import LLMSummaryService
 
 User = get_user_model()
 
@@ -149,6 +151,70 @@ class AnalyticsEndpointsTests(TestCase):
         self.assertEqual(mock_get.call_args.kwargs['params']['latitude'], 6.4254)
         self.assertEqual(mock_get.call_args.kwargs['params']['longitude'], 101.8253)
 
+    def test_environmental_correlation_returns_502_on_request_exception(self):
+        url = reverse('sample-analytics-environmental-correlation')
+
+        with patch(
+            'samples.services.nasa_power_service.requests.get',
+            side_effect=requests.RequestException('boom'),
+        ):
+            response = self.client.get(url, {'province': 'Bangkok'})
+
+        self.assertEqual(response.status_code, status.HTTP_502_BAD_GATEWAY)
+        self.assertEqual(
+            response.data,
+            {
+                'source': 'NASA POWER',
+                'data': [],
+                'requires_nasa_power': True,
+                'message': 'NASA POWER environmental data is temporarily unavailable.',
+            },
+        )
+
+    def test_environmental_correlation_rejects_invalid_payloads_without_caching(self):
+        url = reverse('sample-analytics-environmental-correlation')
+        invalid_payloads = [
+            {'properties': {}},
+            {
+                'properties': {
+                    'parameter': {
+                        'T2M': {},
+                        'RH2M': {},
+                        'PRECTOTCORR': {},
+                        'TS': {},
+                    },
+                },
+            },
+        ]
+
+        for payload in invalid_payloads:
+            mock_response = Mock()
+            mock_response.json.return_value = payload
+            mock_response.raise_for_status.return_value = None
+
+            with self.subTest(payload=payload), patch(
+                'samples.services.nasa_power_service.requests.get',
+                side_effect=[mock_response, mock_response],
+            ) as mock_get:
+                first_response = self.client.get(url, {'province': 'Bangkok'})
+                second_response = self.client.get(url, {'province': 'Bangkok'})
+
+                self.assertEqual(first_response.status_code, status.HTTP_502_BAD_GATEWAY)
+                self.assertEqual(second_response.status_code, status.HTTP_502_BAD_GATEWAY)
+                self.assertEqual(first_response.data['source'], 'NASA POWER')
+                self.assertEqual(first_response.data['message'], 'NASA POWER environmental data is temporarily unavailable.')
+                self.assertTrue(first_response.data['requires_nasa_power'])
+                self.assertEqual(mock_get.call_count, 2)
+                self.assertFalse(ExternalDataCache.objects.filter(source='NASA_POWER').exists())
+
+    def test_threshold_simulation_returns_400_for_invalid_overrides(self):
+        url = reverse('sample-analytics-threshold-simulation')
+
+        response = self.client.post(url, {'overrides': ['AFB1']}, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data['detail'], 'overrides must be a dictionary')
+
     @override_settings(
         LLM_SUMMARY_ENDPOINT='',
         LLM_SUMMARY_MODEL='',
@@ -244,3 +310,23 @@ class AnalyticsEndpointsTests(TestCase):
             'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',
         )
         self.assertEqual(mock_post.call_args.kwargs['headers']['x-goog-api-key'], 'test-key')
+
+    def test_parse_risk_drivers_falls_back_to_line_parsing_for_prose(self):
+        content = '\n'.join([
+            '1. Elevated humidity around stored maize lots',
+            '2. Delayed drying after harvest in the north',
+            '- Informal storage handling for smallholder batches',
+            '* Inconsistent screening before distribution',
+        ])
+
+        result = LLMSummaryService._parse_risk_drivers(content)
+
+        self.assertEqual(
+            result,
+            [
+                'Elevated humidity around stored maize lots',
+                'Delayed drying after harvest in the north',
+                'Informal storage handling for smallholder batches',
+                'Inconsistent screening before distribution',
+            ],
+        )
