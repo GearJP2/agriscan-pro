@@ -500,7 +500,7 @@ jobs:
         run: |
           gh attestation verify backend-bundle.tar.gz \
             --repo "${{ github.repository }}" \
-            --signer-workflow ".github/workflows/ci-cd.yml" \
+            --signer-workflow "${{ github.repository }}/.github/workflows/ci-cd.yml" \
             --source-ref "refs/heads/main" \
             --cert-oidc-issuer "https://token.actions.githubusercontent.com" \
             --predicate-type "https://slsa.dev/provenance/v1"
@@ -526,7 +526,7 @@ jobs:
         run: |
           gh attestation verify frontend-dist.tar.gz \
             --repo "${{ github.repository }}" \
-            --signer-workflow ".github/workflows/ci-cd.yml" \
+            --signer-workflow "${{ github.repository }}/.github/workflows/ci-cd.yml" \
             --source-ref "refs/heads/main" \
             --cert-oidc-issuer "https://token.actions.githubusercontent.com" \
             --predicate-type "https://slsa.dev/provenance/v1"
