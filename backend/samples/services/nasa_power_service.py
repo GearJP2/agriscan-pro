@@ -187,7 +187,6 @@ class NasaPowerService:
     @staticmethod
     def _get_cached_payload(cache_key: str) -> dict | None:
         now = timezone.now()
-        ExternalDataCache.objects.filter(source='NASA_POWER', expires_at__lte=now).delete()
         cached = ExternalDataCache.objects.filter(
             source='NASA_POWER',
             cache_key=cache_key,

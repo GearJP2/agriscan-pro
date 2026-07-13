@@ -313,6 +313,12 @@ CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = "UTC"
+CELERY_BEAT_SCHEDULE = {
+    "prune-expired-nasa-power-cache": {
+        "task": "samples.tasks.prune_expired_nasa_power_cache",
+        "schedule": timedelta(hours=1),
+    },
+}
 # ─────────────────────────────────────────────────────────────────────────────
 
 

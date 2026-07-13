@@ -1,7 +1,10 @@
 from django.contrib.auth import get_user_model
+from django.conf import settings
 from django.test import override_settings
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
+from datetime import timedelta
 import requests
 from rest_framework import status
 from rest_framework.test import APIClient
@@ -9,6 +12,9 @@ from unittest.mock import Mock, patch
 
 from ..models import ExternalDataCache, MycotoxinResult, Sample
 from ..services.llm_summary_service import LLMSummaryService
+from ..services.nasa_power_service import NasaPowerService
+from ..tasks import prune_expired_nasa_power_cache
+from core.celery import app as celery_app
 
 User = get_user_model()
 
@@ -206,6 +212,49 @@ class AnalyticsEndpointsTests(TestCase):
                 self.assertTrue(first_response.data['requires_nasa_power'])
                 self.assertEqual(mock_get.call_count, 2)
                 self.assertFalse(ExternalDataCache.objects.filter(source='NASA_POWER').exists())
+
+    def test_nasa_cache_read_ignores_but_does_not_delete_expired_payload(self):
+        cache = ExternalDataCache.objects.create(
+            source='NASA_POWER',
+            cache_key='expired-nasa-cache',
+            payload={'stale': True},
+            expires_at=timezone.now() - timedelta(minutes=1),
+        )
+
+        self.assertIsNone(NasaPowerService._get_cached_payload(cache.cache_key))
+        self.assertTrue(ExternalDataCache.objects.filter(pk=cache.pk).exists())
+
+    def test_prune_expired_nasa_power_cache_task(self):
+        expired_nasa = ExternalDataCache.objects.create(
+            source='NASA_POWER',
+            cache_key='expired-nasa-cache',
+            payload={},
+            expires_at=timezone.now() - timedelta(minutes=1),
+        )
+        fresh_nasa = ExternalDataCache.objects.create(
+            source='NASA_POWER',
+            cache_key='fresh-nasa-cache',
+            payload={},
+            expires_at=timezone.now() + timedelta(minutes=1),
+        )
+        expired_other = ExternalDataCache.objects.create(
+            source='OTHER',
+            cache_key='expired-other-cache',
+            payload={},
+            expires_at=timezone.now() - timedelta(minutes=1),
+        )
+
+        self.assertEqual(prune_expired_nasa_power_cache.run(), 1)
+        self.assertFalse(ExternalDataCache.objects.filter(pk=expired_nasa.pk).exists())
+        self.assertTrue(ExternalDataCache.objects.filter(pk=fresh_nasa.pk).exists())
+        self.assertTrue(ExternalDataCache.objects.filter(pk=expired_other.pk).exists())
+
+    def test_nasa_cache_prune_task_is_registered_and_scheduled(self):
+        task_name = 'samples.tasks.prune_expired_nasa_power_cache'
+
+        self.assertEqual(prune_expired_nasa_power_cache.name, task_name)
+        self.assertIn(task_name, celery_app.tasks)
+        self.assertEqual(settings.CELERY_BEAT_SCHEDULE['prune-expired-nasa-power-cache']['task'], task_name)
 
     def test_threshold_simulation_returns_400_for_invalid_overrides(self):
         url = reverse('sample-analytics-threshold-simulation')

@@ -6,10 +6,22 @@ import boto3
 import openpyxl
 from celery import shared_task
 from django.conf import settings
+from django.utils import timezone
 
-from .models import Sample, ProcessLog
+from .models import ExternalDataCache, ProcessLog, Sample
 
 logger = logging.getLogger('agriscan.samples')
+
+
+@shared_task(name='samples.tasks.prune_expired_nasa_power_cache')
+def prune_expired_nasa_power_cache() -> int:
+    """Remove expired NASA POWER cache rows outside dashboard requests."""
+    deleted_count, _ = ExternalDataCache.objects.filter(
+        source='NASA_POWER',
+        expires_at__lte=timezone.now(),
+    ).delete()
+    logger.info('task.nasa_power_cache_pruned', extra={'deleted_count': deleted_count})
+    return deleted_count
 
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=30)
