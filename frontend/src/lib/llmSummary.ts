@@ -1,5 +1,6 @@
 import type { DashboardFilters, HealthSummary } from '@/types/dashboard';
 import { analyticsAPI } from '@/lib/api';
+import { isBrowserLlmFallbackEnabled } from '@/lib/llmFallbackGate';
 
 const DEFAULT_LLM_SUMMARY_ENDPOINT = 'https://text.pollinations.ai/openai';
 const DEFAULT_LLM_TEXT_ENDPOINT = 'https://text.pollinations.ai';
@@ -128,6 +129,10 @@ async function requestPlainTextSummary(model: string, prompt: string) {
 export async function generatePublicHealthRiskDrivers(context: PublicHealthSummaryContext) {
   const endpoint = import.meta.env.VITE_LLM_SUMMARY_ENDPOINT || DEFAULT_LLM_SUMMARY_ENDPOINT;
   const model = import.meta.env.VITE_LLM_SUMMARY_MODEL || DEFAULT_LLM_SUMMARY_MODEL;
+  const browserFallbackEnabled = isBrowserLlmFallbackEnabled({
+    DEV: Boolean(import.meta.env.DEV),
+    VITE_ENABLE_BROWSER_LLM_FALLBACK: import.meta.env.VITE_ENABLE_BROWSER_LLM_FALLBACK,
+  });
   const prompt = buildPrompt(context);
 
   let riskDrivers: string[] = [];
@@ -138,7 +143,7 @@ export async function generatePublicHealthRiskDrivers(context: PublicHealthSumma
   } catch (error) {
     console.warn('public_health_summary.backend_failed', error);
 
-    if (!import.meta.env.DEV) {
+    if (!browserFallbackEnabled) {
       throw error;
     }
 

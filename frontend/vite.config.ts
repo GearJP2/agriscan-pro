@@ -6,7 +6,8 @@ import { cloudflare } from "@cloudflare/vite-plugin";
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
   const deployTarget = process.env.DEPLOY_TARGET;
-  const useCloudflare = deployTarget !== "aws";
+  const isTest = mode === "test" || process.env.VITEST === "true";
+  const useCloudflare = deployTarget !== "aws" && !isTest;
 
   return {
     server: {
