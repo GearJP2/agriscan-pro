@@ -242,10 +242,8 @@ In addition to the local variables above, production requires:
 | `FORCE_SSL` | Set `False` when CloudFront terminates TLS |
 | `JWT_REFRESH_COOKIE_SECURE` | `True` in production |
 | `AWS_STORAGE_BUCKET_NAME` | S3 bucket name |
-| `SRE_MONITOR_KEY` | Protects system metrics on `/health/` |
 | `MONITOR_ACCESS_MIN_ROLE` | Minimum role for monitor access |
 | `KV_REST_API_URL` / `KV_REST_API_TOKEN` | AgriScan Monitor Vercel KV sync |
-| `GATEWAY_API_KEY` | Agent gateway auth — required on startup |
 
 ---
 
@@ -270,8 +268,6 @@ agriscan-pro/
 │       ├── lib/              # API clients, auth helpers, token storage
 │       └── contexts/         # AuthContext and other providers
 │
-├── agents-orchestrator/      # WIP: multi-agent task orchestration (local only)
-├── .mcp/                     # WIP: MCP server integrations (local only)
 ├── .github/workflows/        # CI/CD — backend tests, lint, EB deploy
 └── CLAUDE.md                 # Project instructions for Claude Code
 ```
@@ -285,7 +281,6 @@ agriscan-pro/
 | `ImproperlyConfigured` during EB `container_commands` | Use `get-config environment` to load env vars before running `manage.py`; see [CLAUDE.md](CLAUDE.md#troubleshooting-beanstalk-deployments) |
 | Redis `SSL: CERTIFICATE_VERIFY_FAILED` | Set `REDIS_SSL_CERT_REQS=required` and use `rediss://` URL for ElastiCache |
 | CORS errors in local dev | Ensure `CORS_ALLOWED_ORIGINS=http://localhost:5173` in `backend/.env` |
-| `401 Unauthorized` on `/health/` system metrics | Supply `?key=<SRE_MONITOR_KEY>` header |
 | Google OAuth `invalid_state` error | Clear session/cookies; state is server-side with a TTL — expired states are rejected |
 
 ---

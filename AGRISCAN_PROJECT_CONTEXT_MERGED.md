@@ -61,7 +61,6 @@ VITE_MONITOR_URL        # URL of the monitor application (frontend)
 - **Cache/Broker**: Amazon ElastiCache (Redis OSS v7) with TLS
 - **Storage**: Amazon S3 (via IAM Instance Profile)
 - **Hosting**: AWS Elastic Beanstalk (AL2023) - `Agriscanpro-backend-env`
-- **Agent System**: Node.js orchestrator (in development - local only)
 - **Auth**: JWT (via rest_framework_simplejwt)
 
 ### Key URLs
@@ -125,24 +124,6 @@ agriscan-pro/
 │   │   ├── report-notify.md
 │   │   └── security-monitor.md
 │   └── settings.json         # Claude Code workspace settings
-│
-├── agents-orchestrator/      # 🚧 WIP - Local development only
-│   ├── orchestrator.js       # Main orchestration engine
-│   ├── api-gateway.js        # REST API for agents
-│   ├── lib/                  # Supporting libraries
-│   ├── workflows/            # Workflow definitions (4 examples)
-│   ├── examples/             # Runnable examples
-│   ├── package.json
-│   └── README.md
-│
-├── .mcp/                     # 🚧 WIP - MCP Server implementations
-│   ├── servers/
-│   │   ├── jira-server.js    # Jira integration
-│   │   ├── linear-server.js  # Linear integration
-│   │   ├── slack-server.js   # Slack integration
-│   │   ├── github-server.js  # GitHub integration
-│   │   └── database-server.js # PostgreSQL operations
-│   └── .env.example
 │
 ├── .gitignore                # Git ignore rules
 ├── CLAUDE.md                 # This file
@@ -352,8 +333,6 @@ npm run test:e2e
 
 ### Agent Tests (when implemented)
 ```bash
-# Test agent system
-node agents-orchestrator/examples/simple-task.js
 ```
 
 ---
@@ -410,8 +389,7 @@ node agents-orchestrator/examples/simple-task.js
 - **Clean Architecture**: CSV ingestion logic in `SampleIngestionService` — thin views; ingestion filters by CSV display IDs (no full table scan)
 - **Security**: `IsOwnerOrAdmin` permission class — role-based object-level access control (admin/head_researcher/researcher full access; others owner-only write)
 - **Production Hardening**: HSTS (1yr), SSL redirect, Secure/HttpOnly cookies, `SECURE_PROXY_SSL_HEADER` for EB ALB — all gated on `DEBUG=False`
-- **SRE Health Check**: `GET /health/` reports DB+Redis latency and system saturation; system metrics gated on `SRE_MONITOR_KEY` env var
-- **Agent Gateway Security**: `GATEWAY_API_KEY` required (fail-fast on startup if unset); path traversal closed with alphanumeric sanitization on workflow names
+- **Health Check**: `GET /health/` reports database and optional Redis status plus task mode.
 - **Secure Profile Management**: Hardened password reset via hashed OTPs; 2-step email verification; JWT session blacklisting after OTP reset/email-change events; Redis-based rate/attempt limiting; OTP invalidation on new password reset requests prevents replay attacks.
 - **Role-Based Route Protection**: `ProtectedRoute` supports `minRole`/`allowedRoles` props; `/samples` restricted to `research_assistant` and above; `user` role blocked at both frontend route and backend `IsOwnerOrAdmin.has_permission`
 - **Profile Page Redesign**: Clinical registry-style UI — hero card, Registry Metadata, Output Analytics (live stats), inline email editing with password confirmation; email backend auto-detects dev (console) vs prod (SMTP)
@@ -433,10 +411,7 @@ node agents-orchestrator/examples/simple-task.js
 
 
 ### 🚧 In Development (Local Only)
-- **Agent Orchestrator** (`agents-orchestrator/`) - Multi-agent task execution system
-- **MCP Servers** (`.mcp/`) - External service integrations
-
-These are NOT yet committed to production and are for local development only. See `ORCHESTRATOR_SUMMARY.md` for details.
+- Agent-orchestrator and MCP-server source are not present in the current worktree. `ORCHESTRATOR_SUMMARY.md` is retained as historical context only.
 
 ### 📋 Future Planned
 - Real-time notifications (WebSocket)
@@ -466,7 +441,6 @@ These are NOT yet committed to production and are for local development only. Se
 - CORS: `CORS_ALLOW_ALL_ORIGINS = DEBUG` — locked down in production via `CORS_ALLOWED_ORIGINS` env var (always includes CloudFront URL)
 - Production security headers active when `DEBUG=False`: HSTS (if SSL enabled), SSL redirect (if `FORCE_SSL=True`), Secure/HttpOnly cookies, `SECURE_PROXY_SSL_HEADER`
 - Role escalation protection in `UserSerializer.validate_role` — Researcher+ only, no self-promotion
-- Agent gateway requires `GATEWAY_API_KEY` header; workflow path traversal blocked by alphanumeric sanitization
 
 ### Required Environment Variables (Production)
 ```
@@ -477,8 +451,6 @@ DB_NAME=agriscan        # initial DB name on the new RDS instance
 DB_USER / DB_PASSWORD
 REDIS_URL               # rediss:// for ElastiCache TLS
 CORS_ALLOWED_ORIGINS    # Comma-separated frontend URLs
-GATEWAY_API_KEY         # Agent orchestrator auth — REQUIRED (fails to start without it)
-SRE_MONITOR_KEY         # Protects system metrics on /health/ endpoint
 EMAIL_HOST_USER         # SMTP user — if unset, falls back to console backend (OTP prints to terminal)
 EMAIL_HOST_PASSWORD     # SMTP password / App Password
 DEFAULT_FROM_EMAIL      # Sender display name + address
@@ -584,9 +556,7 @@ curl -H "Authorization: Bearer {token}" http://localhost:8000/api/samples/
 |------|---------|
 | `README.md` | Project overview and setup |
 | `CLAUDE.md` | This file - Claude instructions |
-| `ORCHESTRATOR_SUMMARY.md` | Agent system documentation |
-| `agents-orchestrator/README.md` | Orchestrator API documentation |
-| `agents-orchestrator/QUICK_START.md` | Agent system quick start |
+| `ORCHESTRATOR_SUMMARY.md` | Historical context for removed agent-system work |
 
 ---
 
@@ -594,7 +564,7 @@ curl -H "Authorization: Bearer {token}" http://localhost:8000/api/samples/
 
 ### Context to Provide
 When asking Claude Code to work on this project, mention:
-- **Which component**: frontend, backend, or agents
+- **Which component**: frontend or backend
 - **What to modify**: models, views, components, etc.
 - **Current behavior**: what works now
 - **Desired behavior**: what you want to change
@@ -614,22 +584,6 @@ Before committing code changes:
 4. Test API endpoints with sample data
 
 ---
-
-## 🔗 Integration Points (When Ready)
-
-These are documented but not yet integrated:
-
-### To Integrate Agents
-1. Start orchestrator: `npm start` (in `agents-orchestrator/`)
-2. Create Django task model to track agent jobs
-3. Add endpoint that calls orchestrator API
-4. Update tests to include agent workflows
-
-### To Integrate MCP Servers
-1. Configure credentials in `.mcp/.env`
-2. Start MCP servers
-3. Create agent implementations that use MCP tools
-4. Test with example scripts
 
 ---
 
@@ -768,8 +722,6 @@ graph TD
   `SampleViewSet.bulk_create`, `add_mycotoxin_result`, and `SampleIngestionService.process_csv_results` now run inside `transaction.atomic()`.
 - [x] **17. `CONTRIBUTING.md`, `SECURITY.md`, `ARCHITECTURE.md`**
   Created at repository root with development setup, PR guidelines, security disclosure policy, and system architecture overview.
-- [x] **18. WIP banners on `agents-orchestrator` + `.mcp`, consolidate entrypoint scripts**
-  `README.md` has a `[!WARNING]` block; `orchestrator.js`, `api-gateway.js`, and `start.sh` print WIP banners at startup.
 - [x] **20. Audit log table**
   `AuditLog` model created in `core/models.py` with `JSONField` for changes. Wired into `SampleViewSet.destroy()` and `bulk_delete()`.
 - [x] **21. Revert `USER_SECURITY_FIELD_ROLES` and `USER_DIRECTORY_VIEW_ROLES` regression (C1)**

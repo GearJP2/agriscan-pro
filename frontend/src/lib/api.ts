@@ -16,7 +16,7 @@ import { logger } from "@/lib/logger";
 const API_BASE_URL: string =
   import.meta.env.VITE_API_URL ||
   import.meta.env.VITE_API_BASE_URL ||
-  (import.meta.env.DEV ? "http://localhost:8080/api" : "/api");
+  (import.meta.env.DEV ? "http://localhost:8000/api" : "/api");
 
 const baseClientConfig = {
   baseURL: API_BASE_URL,

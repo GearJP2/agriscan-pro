@@ -18,7 +18,7 @@ This project uses Docker Compose to run the full-stack application with Django b
 3. Access the application:
    - Frontend: http://localhost:5173
    - Backend API: http://localhost:8080
-   - Database: localhost:5432 (user: agriscan_user, pass: agriscan_pass, db: agriscan)
+   - Database: localhost:5433 (user: agriscan_user, pass: agriscan_pass, db: agriscan)
 
 4. To stop the services:
    ```

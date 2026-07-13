@@ -1,6 +1,6 @@
 /**
  * Mycotoxin Constants - Single Source of Truth for Frontend
- * Mirroring backend/samples/constants/mycotoxin_constants.py
+ * Mirroring backend/samples/constants/mycotoxin_constants.py.
  */
 
 export interface ToxinMetadata {
@@ -14,81 +14,81 @@ export interface ToxinMetadata {
 }
 
 export const MYCOTOXIN_REGISTRY: Record<string, ToxinMetadata> = {
-  AFB1: { 
-    name: 'Aflatoxin B1', 
-    shortName: 'AFB1', 
-    defaultThreshold: 5, 
-    maxThreshold: 50, 
-    unit: 'ug/kg', 
-    source: 'EU 2023/915' 
+  AFB1: {
+    name: 'Aflatoxin B1',
+    shortName: 'AFB1',
+    defaultThreshold: 5,
+    maxThreshold: 20,
+    unit: 'ug/kg',
+    source: 'Gruber-Dorninger et al. 2019, Table 2',
   },
-  DON: { 
-    name: 'Deoxynivalenol', 
-    shortName: 'DON', 
-    defaultThreshold: 1250, 
-    maxThreshold: 5000, 
-    unit: 'ug/kg', 
-    source: 'EU 2023/915' 
+  DON: {
+    name: 'Deoxynivalenol',
+    shortName: 'DON',
+    defaultThreshold: 900,
+    maxThreshold: 8000,
+    unit: 'ug/kg',
+    source: 'Gruber-Dorninger et al. 2019, Table 2',
   },
-  FB1: { 
-    name: 'Fumonisin B1', 
-    shortName: 'FB1', 
-    defaultThreshold: 0, 
-    maxThreshold: 5000, 
-    unit: 'ug/kg', 
-    source: 'Adjusted to 0 for strict surveillance', 
-    isUncertain: true 
+  FB1: {
+    name: 'Fumonisin B1',
+    shortName: 'FB1',
+    defaultThreshold: 2000,
+    maxThreshold: 4000,
+    unit: 'ug/kg',
+    source: 'Gruber-Dorninger et al. 2019, Table 2',
   },
-  ZEA: { 
-    name: 'Zearalenone', 
-    shortName: 'ZEA', 
-    defaultThreshold: 200, 
-    maxThreshold: 2000, 
-    unit: 'ug/kg', 
-    source: 'EU 2023/915' 
+  ZEA: {
+    name: 'Zearalenone',
+    shortName: 'ZEA',
+    defaultThreshold: 100,
+    maxThreshold: 2000,
+    unit: 'ug/kg',
+    source: 'Gruber-Dorninger et al. 2019, Table 2',
   },
-  OTA: { 
-    name: 'Ochratoxin A', 
-    shortName: 'OTA', 
-    defaultThreshold: 5, 
-    maxThreshold: 100, 
-    unit: 'ug/kg', 
-    source: 'EU 2023/915' 
+  OTA: {
+    name: 'Ochratoxin A',
+    shortName: 'OTA',
+    defaultThreshold: 50,
+    maxThreshold: 250,
+    unit: 'ug/kg',
+    source: 'Gruber-Dorninger et al. 2019, Table 2',
   },
-  'T-2': { 
-    name: 'T-2 Toxin', 
-    shortName: 'T-2', 
-    defaultThreshold: 50, 
-    maxThreshold: 500, 
-    unit: 'ug/kg', 
-    source: 'EU 2023/915' 
+  'T-2': {
+    name: 'T-2 Toxin',
+    shortName: 'T-2',
+    defaultThreshold: 100,
+    maxThreshold: 200,
+    unit: 'ug/kg',
+    source: 'Gruber-Dorninger et al. 2019, Table 2',
   },
-  AFG1: { 
-    name: 'Aflatoxin G1', 
-    shortName: 'AFG1', 
-    defaultThreshold: 0, 
-    maxThreshold: 50, 
-    unit: 'ug/kg', 
-    source: 'No Information', 
-    isUncertain: true 
+  AFG1: {
+    name: 'Aflatoxin G1',
+    shortName: 'AFG1',
+    defaultThreshold: 0,
+    maxThreshold: 0,
+    unit: 'ug/kg',
+    source: 'No threshold data',
+    isUncertain: true,
   },
-  AFG2: { 
-    name: 'Aflatoxin G2', 
-    shortName: 'AFG2', 
-    defaultThreshold: 0, 
-    maxThreshold: 50, 
-    unit: 'ug/kg', 
-    source: 'No Information', 
-    isUncertain: true 
+  AFG2: {
+    name: 'Aflatoxin G2',
+    shortName: 'AFG2',
+    defaultThreshold: 0,
+    maxThreshold: 0,
+    unit: 'ug/kg',
+    source: 'No threshold data',
+    isUncertain: true,
   },
-  AFM1: { 
-    name: 'Aflatoxin M1', 
-    shortName: 'AFM1', 
-    defaultThreshold: 0.5, 
-    maxThreshold: 10, 
-    unit: 'ug/kg', 
-    source: 'EU 2023/915' 
-  }
+  AFM1: {
+    name: 'Aflatoxin M1',
+    shortName: 'AFM1',
+    defaultThreshold: 0,
+    maxThreshold: 0,
+    unit: 'ug/kg',
+    source: 'No threshold data',
+    isUncertain: true,
+  },
 };
 
 // Aliases for data import mapping

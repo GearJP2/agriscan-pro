@@ -1,14 +1,3 @@
 {
-  "exceptions": [
-    {
-      "id": "CVE-2026-3219",
-      "package": "pip",
-      "affected_version": "26.0.1",
-      "status": "active",
-      "justification": "No fixed pip release is available yet. Exception is temporary and monitored.",
-      "added_on": "2026-04-27",
-      "review_on": "2026-05-27",
-      "owner": "backend-maintainers"
-    }
-  ]
+  "exceptions": []
 }
