@@ -75,39 +75,47 @@ try {
   const sampleTableModule = await server.ssrLoadModule(
     "/src/features/samples/components/SampleTable.tsx",
   );
+  const watchlistModule = await server.ssrLoadModule(
+    "/src/contexts/WatchlistContext.tsx",
+  );
   const SampleTable = sampleTableModule.default;
+  const { WatchlistProvider } = watchlistModule;
   const sampleTableMarkup = renderToString(
-    React.createElement(SampleTable, {
-      samples: [
-        {
-          sample_id: "SMK-001",
-          region: "Central",
-          province: "Bangkok",
-          district: "Dusit",
-          vegetation_variety: "Rice",
-          collection_date: "2026-04-24",
-          status: "completed",
-          mycotoxin_results: [
-            {
-              name: "AFB1",
-              intensity: 8,
-              dangerous: false,
-              threshold: 5,
-              unit: "ppb",
-            },
-          ],
-          process_logs: [
-            {
-              id: "log-001",
-              timestamp: "2026-04-24T10:00:00Z",
-              state: "completed",
-              conducted_by: "Smoke Test",
-            },
-          ],
-        },
-      ],
-      onSelectSample: () => {},
-    }),
+    React.createElement(
+      WatchlistProvider,
+      null,
+      React.createElement(SampleTable, {
+        samples: [
+          {
+            sample_id: "SMK-001",
+            region: "Central",
+            province: "Bangkok",
+            district: "Dusit",
+            vegetation_variety: "Rice",
+            collection_date: "2026-04-24",
+            status: "completed",
+            mycotoxin_results: [
+              {
+                name: "AFB1",
+                intensity: 8,
+                dangerous: false,
+                threshold: 5,
+                unit: "ppb",
+              },
+            ],
+            process_logs: [
+              {
+                id: "log-001",
+                timestamp: "2026-04-24T10:00:00Z",
+                state: "completed",
+                conducted_by: "Smoke Test",
+              },
+            ],
+          },
+        ],
+        onSelectSample: () => {},
+      }),
+    ),
   );
   assert.match(sampleTableMarkup, /SMK-001/);
 
