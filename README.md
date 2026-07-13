@@ -52,6 +52,12 @@ cd frontend
 npm install
 ```
 
+Optional development-only frontend environment variables:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `VITE_ENABLE_BROWSER_LLM_FALLBACK` | not set (`false`) | Must be explicitly set to `true` to allow browser-side fallback requests to public LLM endpoints when backend summary generation fails in development mode. |
+
 ---
 
 ## Configuration
