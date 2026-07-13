@@ -76,9 +76,9 @@ class NotificationService:
         eligible_roles = [
             r for r, w in User.USER_ROLE_WEIGHTS.items() if w >= min_weight
         ]
-        
+
         eligible_users = User.objects.filter(
-            is_active=True, 
+            is_active=True,
             role__in=eligible_roles
         )
 

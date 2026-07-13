@@ -163,7 +163,7 @@ class NotificationViewSetTest(APITestCase):
         resp = self.client.post(url)
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
         self.assertTrue(resp.data["is_read"])
-        
+
         # Count should decrease
         url_count = reverse("notification-unread-count")
         resp_count = self.client.get(url_count)

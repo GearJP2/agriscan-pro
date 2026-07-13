@@ -5,6 +5,7 @@ from django.utils import timezone
 from samples.models import Sample, ProcessLog, MycotoxinResult
 from samples.utils import generate_sequential_sample_id
 
+
 class Command(BaseCommand):
     help = 'Seeds the database with demo agricultural samples'
 
@@ -22,16 +23,16 @@ class Command(BaseCommand):
         toxins = ['Aflatoxin B1', 'Ochratoxin A', 'Deoxynivalenol', 'Zearalenone']
 
         self.stdout.write('Seeding samples...')
-        
+
         for i in range(20):
             region = random.choice(regions)
             province = random.choice(provinces[region])
             variety = random.choice(varieties)
             s_type = random.choice(sample_types)
-            
+
             collection_date = timezone.now() - timedelta(days=random.randint(1, 60))
             sample_id, seq = generate_sequential_sample_id(collection_date)
-            
+
             sample = Sample.objects.create(
                 sample_id=sample_id,
                 sequence_number=seq,
@@ -43,7 +44,7 @@ class Command(BaseCommand):
                 collection_date=collection_date,
                 status='active'
             )
-            
+
             # Add some process logs
             num_logs = random.randint(1, len(states))
             for j in range(num_logs):
@@ -51,9 +52,9 @@ class Command(BaseCommand):
                     sample=sample,
                     state=states[j],
                     conducted_by='Admin User',
-                    timestamp=collection_date + timedelta(hours=j*2)
+                    timestamp=collection_date + timedelta(hours=j * 2)
                 )
-            
+
             # If completed, add some results
             if num_logs >= 5:
                 for toxin in toxins:

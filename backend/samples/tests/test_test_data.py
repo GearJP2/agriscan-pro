@@ -3,7 +3,7 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from ..models import MycotoxinResult, Sample
+from ..models import Sample
 from ..services.test_data_service import TEST_PREFIX, TestDataService
 from ._mixins import SampleTestMixin
 
@@ -31,7 +31,7 @@ class TestDataServiceTests(SampleTestMixin, TestCase):
         for s in Sample.objects.filter(sample_id__startswith=TEST_PREFIX, status='completed'):
             if s.mycotoxin_results.count() >= 2:
                 multi_positive_count += 1
-        
+
         self.assertEqual(multi_positive_count, 50)
 
     def test_generate_is_deterministic_with_same_seed(self):

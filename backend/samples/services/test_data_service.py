@@ -132,13 +132,13 @@ class TestDataService:
                             # Pure Negative / Safe (Value 0 or very low)
                             toxin = rng.choice(TOXINS_WITH_DATA)
                             thresholds = EU_THRESHOLDS[toxin]
-                            
+
                             # 80% Zero, 20% Very Low (Trace)
                             if rng.random() > 0.8:
                                 value = thresholds["low"] * rng.uniform(0.01, 0.3)
                             else:
                                 value = 0.0
-                                
+
                             MycotoxinResult.objects.create(
                                 sample=sample,
                                 toxin_type=toxin,

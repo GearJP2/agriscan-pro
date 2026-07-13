@@ -89,7 +89,9 @@ class GoogleOAuthTests(TestCase):
     ):
         """Callback should accept and pass code_verifier to token exchange."""
         auth_response = self.client.get(
-            f"{self.google_auth_url}?code_challenge=iMnq5o6zALKXGivsnlom_0F5_WYda32GHkxlV7mq7hQ&code_challenge_method=S256"
+            f"{self.google_auth_url}?code_challenge="
+            "iMnq5o6zALKXGivsnlom_0F5_WYda32GHkxlV7mq7hQ&"
+            "code_challenge_method=S256"
         )
         valid_state = auth_response.data["state"]
 

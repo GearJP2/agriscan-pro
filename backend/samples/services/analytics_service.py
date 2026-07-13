@@ -237,7 +237,7 @@ class AnalyticsService:
         }
 
     @staticmethod
-    def simulate_threshold(overrides: dict, filters: dict) -> dict:
+    def simulate_threshold(overrides: dict, filters: dict) -> dict:  # noqa: C901
         """
         Dynamically recalculate risk levels based on overridden thresholds per-variety.
         overrides format: { 'AFB1': { 'maize': 10, 'peanuts': 5 } }

@@ -3,4 +3,3 @@ NOTIFICATION_TYPES = (
     ("sample_status", "Sample Status"),
     ("system", "System"),
 )
-

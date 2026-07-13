@@ -18,7 +18,7 @@ def create_risk_alert_notification(sender, instance, created, **kwargs):
         )
         # Link to the sample details page on the frontend
         link = f"/samples/{instance.sample.id}"
-        
+
         NotificationService.dispatch_to_role(
             role="researcher",
             notification_type="risk_alert",

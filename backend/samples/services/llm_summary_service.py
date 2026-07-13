@@ -132,12 +132,12 @@ class LLMSummaryService:
                             'parts': [{'text': prompt}],
                         },
                     ],
-                'generationConfig': {
-                    'temperature': 0.2,
-                    'maxOutputTokens': settings.LLM_SUMMARY_MAX_OUTPUT_TOKENS,
-                    'responseMimeType': 'application/json',
-                    'thinkingConfig': {'thinkingBudget': 0},
-                },
+                    'generationConfig': {
+                        'temperature': 0.2,
+                        'maxOutputTokens': settings.LLM_SUMMARY_MAX_OUTPUT_TOKENS,
+                        'responseMimeType': 'application/json',
+                        'thinkingConfig': {'thinkingBudget': 0},
+                    },
                 },
                 timeout=settings.LLM_SUMMARY_TIMEOUT_SECONDS,
             )

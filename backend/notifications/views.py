@@ -1,4 +1,4 @@
-from rest_framework import viewsets, permissions, status
+from rest_framework import viewsets, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.utils import timezone
@@ -58,7 +58,7 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
             notification.is_read = True
             notification.read_at = timezone.now()
             notification.save(update_fields=["is_read", "read_at"])
-            
+
         return Response(self.get_serializer(notification).data)
 
     @action(detail=False, methods=["post"])

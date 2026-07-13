@@ -5,10 +5,6 @@ dedicated function. Risk-level filtering is the most involved branch because
 it derives from MycotoxinResult rows rather than a column on Sample itself.
 """
 
-from django.db.models import Exists, OuterRef, Q
-
-from .models import MycotoxinResult
-
 
 def _filter_status(queryset, value: str):
     """Filter by one or more comma-separated status values."""

@@ -18,7 +18,7 @@ class SampleAdmin(admin.ModelAdmin):
             self.message_user(request, "Successfully seeded 20 demo samples.", messages.SUCCESS)
         except Exception as e:
             self.message_user(request, f"Error seeding data: {str(e)}", messages.ERROR)
-    
+
     seed_demo_data_action.short_description = "Seed 20 Demo Samples"
 
 

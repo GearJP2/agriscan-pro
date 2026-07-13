@@ -395,11 +395,11 @@ class SampleViewSet(viewsets.ModelViewSet):
 
         task = dispatch_task(process_sample_file, kwargs={'key': key, 'uploaded_by_username': request.user.username})
         logger.info('sample.upload.confirmed', extra={'key': key, 'task_id': task.id, 'user': request.user.username})
-        
+
         # If the task completed synchronously, we can adjust the response status.
         if getattr(task, 'status', None) in ['success', 'failed', 'partial']:
             return Response({'task_id': task.id, 'status': task.status}, status=status.HTTP_200_OK)
-        
+
         return Response({'task_id': task.id, 'status': 'queued'}, status=status.HTTP_202_ACCEPTED)
 
     @action(detail=False, methods=['get'], url_path='task_status/(?P<task_id>[^/.]+)')

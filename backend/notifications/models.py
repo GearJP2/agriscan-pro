@@ -16,17 +16,41 @@ class Notification(models.Model):
         help_text="The user who will receive this notification"
     )
     notification_type = models.CharField(
-        max_length=20, 
+        max_length=20,
         choices=NOTIFICATION_TYPES,
-        help_text="Category of the notification used for frontend routing and grouping"
+        help_text="Category of the notification used for frontend routing and grouping",
     )
-    title = models.CharField(max_length=255, help_text="Short, descriptive title of the notification")
-    message = models.TextField(help_text="Detailed notification body explaining the event")
-    link = models.CharField(max_length=255, blank=True, help_text="Optional frontend route to direct the user to upon click")
-    metadata = models.JSONField(default=dict, blank=True, help_text="Contextual key-value pairs (e.g., sample_id, risk_level)")
-    is_read = models.BooleanField(default=False, db_index=True, help_text="Indicates if the user has acknowledged this notification")
-    read_at = models.DateTimeField(null=True, blank=True, help_text="Timestamp when the notification was marked as read")
-    created_at = models.DateTimeField(auto_now_add=True, help_text="Timestamp when the notification was generated")
+    title = models.CharField(
+        max_length=255,
+        help_text="Short, descriptive title of the notification",
+    )
+    message = models.TextField(
+        help_text="Detailed notification body explaining the event",
+    )
+    link = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Optional frontend route to direct the user to upon click",
+    )
+    metadata = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Contextual key-value pairs (e.g., sample_id, risk_level)",
+    )
+    is_read = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text="Indicates if the user has acknowledged this notification",
+    )
+    read_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Timestamp when the notification was marked as read",
+    )
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text="Timestamp when the notification was generated",
+    )
 
     class Meta:
         ordering = ["-created_at"]

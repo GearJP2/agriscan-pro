@@ -13,9 +13,9 @@ from rest_framework_simplejwt.token_blacklist.models import (
     OutstandingToken,
 )
 
-logger = logging.getLogger("agriscan.accounts")
-
 from .constants import USER_ROLE_WEIGHTS
+
+logger = logging.getLogger("agriscan.accounts")
 
 OAUTH_STATE_CACHE_PREFIX = "google_oauth_state"
 DEFAULT_OAUTH_STATE_TTL_SECONDS = 300

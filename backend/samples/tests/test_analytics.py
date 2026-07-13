@@ -232,7 +232,10 @@ class AnalyticsEndpointsTests(TestCase):
                 self.assertEqual(first_response.status_code, status.HTTP_502_BAD_GATEWAY)
                 self.assertEqual(second_response.status_code, status.HTTP_502_BAD_GATEWAY)
                 self.assertEqual(first_response.data['source'], 'NASA POWER')
-                self.assertEqual(first_response.data['message'], 'NASA POWER environmental data is temporarily unavailable.')
+                self.assertEqual(
+                    first_response.data['message'],
+                    'NASA POWER environmental data is temporarily unavailable.',
+                )
                 self.assertTrue(first_response.data['requires_nasa_power'])
                 self.assertEqual(mock_get.call_count, 2)
                 self.assertFalse(ExternalDataCache.objects.filter(source='NASA_POWER').exists())

@@ -36,6 +36,7 @@ def process_sample_file(self, key: str, uploaded_by_username: str):
         logger.error('task.process_sample_file.s3_error_retry', extra={'key': key, 'error': str(exc)})
         raise self.retry(exc=exc)
 
+
 def sync_process_sample_file(key: str, uploaded_by_username: str):
     """
     Synchronous execution logic for processing sample files.

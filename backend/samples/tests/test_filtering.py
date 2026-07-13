@@ -95,13 +95,13 @@ class SampleFilteringTests(SampleTestMixin, TestCase):
         field_sample = Sample.objects.get(sample_id='FILTER-001')
         field_sample.sample_type = 'field'
         field_sample.save()
-        
+
         market_sample = Sample.objects.get(sample_id='FILTER-002')
         market_sample.sample_type = 'market'
         market_sample.save()
 
         url = reverse('sample-list')
-        
+
         # Single type filter
         response = self.client.get(url, {'sample_type': 'field'})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
