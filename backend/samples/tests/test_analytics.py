@@ -12,7 +12,7 @@ from unittest.mock import Mock, patch
 
 from ..models import ExternalDataCache, MycotoxinResult, Sample
 from ..services.llm_summary_service import LLMSummaryService
-from ..services.nasa_power_service import NasaPowerService
+from ..services.nasa_power_service import DEFAULT_COORDINATES, NasaPowerService
 from ..tasks import prune_expired_nasa_power_cache
 from core.celery import app as celery_app
 
@@ -156,6 +156,30 @@ class AnalyticsEndpointsTests(TestCase):
         self.assertNotEqual(response.data['location']['label'], 'Thailand centroid')
         self.assertEqual(mock_get.call_args.kwargs['params']['latitude'], 6.4254)
         self.assertEqual(mock_get.call_args.kwargs['params']['longitude'], 101.8253)
+
+    def test_select_location_prefers_explicit_province(self):
+        location = NasaPowerService._select_location({'province': 'Narathiwat'})
+
+        self.assertEqual(location['label'], 'Narathiwat')
+        self.assertEqual(location['latitude'], 6.4254)
+        self.assertEqual(location['longitude'], 101.8253)
+
+    def test_select_location_uses_most_common_filtered_province(self):
+        Sample.objects.create(
+            sample_id='A-003', region='North', province='Chiang Mai',
+            vegetation_variety='rice', status='completed', collection_date='2026-04-22',
+        )
+
+        location = NasaPowerService._select_location({'region': 'North'})
+
+        self.assertEqual(location['label'], 'Chiang Mai')
+        self.assertEqual(location['latitude'], 18.7883)
+        self.assertEqual(location['longitude'], 98.9853)
+
+    def test_select_location_uses_default_coordinates_without_samples(self):
+        Sample.objects.all().delete()
+
+        self.assertEqual(NasaPowerService._select_location({}), DEFAULT_COORDINATES)
 
     def test_environmental_correlation_returns_502_on_request_exception(self):
         url = reverse('sample-analytics-environmental-correlation')

@@ -1,4 +1,3 @@
-from collections import Counter
 from datetime import timedelta
 import hashlib
 import json
@@ -6,6 +5,7 @@ import logging
 
 import requests
 from django.conf import settings
+from django.db.models import Count
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 
@@ -227,14 +227,12 @@ class NasaPowerService:
 
     @staticmethod
     def _select_location(filters: dict) -> dict:
-        qs = AnalyticsService._apply_filters(Sample.objects.all(), filters)
-        province_counts = Counter(qs.values_list('province', flat=True))
-
-        selected_province = None
         if filters.get('province'):
             selected_province = _normalize_province_name(filters.get('province').split(',')[0])
-        elif province_counts:
-            selected_province = _normalize_province_name(province_counts.most_common(1)[0][0])
+        else:
+            qs = AnalyticsService._apply_filters(Sample.objects.all(), filters)
+            province = qs.values('province').annotate(count=Count('id')).order_by('-count').first()
+            selected_province = _normalize_province_name(province['province']) if province else None
 
         coordinates = PROVINCE_COORDINATES.get(selected_province or '')
         if coordinates:
