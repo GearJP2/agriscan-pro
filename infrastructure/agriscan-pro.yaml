@@ -1,9 +1,9 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >-
   AgriScan Pro — Full Infrastructure Stack
-  Covers: VPC | Aurora PostgreSQL 16 Serverless v2 | ElastiCache Redis 7 TLS |
+  Covers: VPC | RDS PostgreSQL 16 | ElastiCache Redis 7 TLS |
           S3 (uploads + frontend) | IAM | Elastic Beanstalk Python 3.12 AL2023 | CloudFront SPA
-  Region: ap-southeast-1 (Singapore)
+  Region: ap-southeast-7 (Thailand — deploy with --region ap-southeast-7)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # PARAMETERS
@@ -73,17 +73,19 @@ Parameters:
     Type: String
     NoEcho: true
     MinLength: 16
-    Description: Aurora master password (min 16 chars, alphanumeric + symbols)
+    Description: RDS master password (min 16 chars, alphanumeric + symbols)
 
-  AuroraMinACU:
-    Type: Number
-    Default: 0.5
-    Description: Aurora Serverless v2 minimum ACUs (0.5 = minimum billable)
+  DBInstanceClass:
+    Type: String
+    Default: db.t4g.micro
+    AllowedValues: [db.t4g.micro, db.t4g.small, db.t4g.medium, db.t4g.large]
+    Description: RDS PostgreSQL instance class
 
-  AuroraMaxACU:
+  DBAllocatedStorage:
     Type: Number
-    Default: 8
-    Description: Aurora Serverless v2 maximum ACUs
+    Default: 20
+    MinValue: 20
+    Description: RDS gp3 storage in GiB
 
   # ── ElastiCache ─────────────────────────────────────────────────────────────
   CacheNodeType:
@@ -107,7 +109,7 @@ Parameters:
     Description: >-
       EB solution stack name. Verify the latest with:
       aws elasticbeanstalk list-available-solution-stacks --query
-      "SolutionStacks[?contains(@,'Python 3.12')]" --region ap-southeast-1
+      "SolutionStacks[?contains(@,'Python 3.12')]" --region ap-southeast-7
 
   EC2InstanceType:
     Type: String
@@ -168,8 +170,8 @@ Metadata:
         Parameters: [AppName, Environment]
       - Label: { default: "2 · Secrets" }
         Parameters: [DjangoSecretKey, GatewayApiKey, SreMonitorKey]
-      - Label: { default: "3 · Database (Aurora PostgreSQL 16 Serverless v2)" }
-        Parameters: [DBName, DBUser, DBPassword, AuroraMinACU, AuroraMaxACU]
+      - Label: { default: "3 · Database (RDS PostgreSQL 16)" }
+        Parameters: [DBName, DBUser, DBPassword, DBInstanceClass, DBAllocatedStorage]
       - Label: { default: "4 · Cache (ElastiCache Redis 7 + TLS — optional)" }
         Parameters: [EnableRedis, CacheNodeType]
       - Label: { default: "5 · Compute (Elastic Beanstalk)" }
@@ -215,7 +217,7 @@ Resources:
       VpcId: !Ref VPC
       InternetGatewayId: !Ref InternetGateway
 
-  # Public subnets — used by EB ALB + EB instances (PubliclyAccessible DB also mapped here)
+  # Public subnets — used by the EB instance
   PublicSubnet1:
     Type: AWS::EC2::Subnet
     Properties:
@@ -238,7 +240,7 @@ Resources:
         - Key: Name
           Value: !Sub ${AppName}-public-2
 
-  # Private subnets — ElastiCache Redis (not internet-routable)
+  # Private subnets — RDS and optional ElastiCache Redis (not internet-routable)
   PrivateSubnet1:
     Type: AWS::EC2::Subnet
     Properties:
@@ -291,45 +293,26 @@ Resources:
   # SECURITY GROUPS
   # ═══════════════════════════════════════════════════════════════════════════
 
-  # ALB — public-facing, accepts HTTP/HTTPS from anywhere
-  ALBSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: !Sub ${AppName} ALB — allow HTTP/HTTPS from internet
-      VpcId: !Ref VPC
-      SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: 80
-          ToPort: 80
-          CidrIp: 0.0.0.0/0
-        - IpProtocol: tcp
-          FromPort: 443
-          ToPort: 443
-          CidrIp: 0.0.0.0/0
-      Tags:
-        - Key: Name
-          Value: !Sub ${AppName}-alb-sg
-
-  # EB EC2 instances — only accepts traffic from the ALB
+  # EB EC2 instance — public HTTP endpoint in this single-instance deployment
   EBInstanceSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: !Sub ${AppName} EB instances — allow HTTP from ALB
+      GroupDescription: !Sub ${AppName} EB instance — allow HTTP from internet
       VpcId: !Ref VPC
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 80
           ToPort: 80
-          SourceSecurityGroupId: !Ref ALBSecurityGroup
+          CidrIp: 0.0.0.0/0
       Tags:
         - Key: Name
           Value: !Sub ${AppName}-eb-sg
 
-  # Aurora — only accepts PostgreSQL connections from EB instances
+  # RDS — only accepts PostgreSQL connections from EB instances
   RDSSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: !Sub ${AppName} Aurora — allow 5432 from EB instances
+      GroupDescription: !Sub ${AppName} RDS — allow 5432 from EB instances
       VpcId: !Ref VPC
       SecurityGroupIngress:
         - IpProtocol: tcp
@@ -356,57 +339,43 @@ Resources:
           Value: !Sub ${AppName}-cache-sg
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # DATABASE — Aurora PostgreSQL 16 Serverless v2
-  # Matches README: Aurora PostgreSQL Serverless v2 (v16.1), publicly accessible
+  # DATABASE — RDS PostgreSQL 16, single-AZ provisioned instance
   # DeletionPolicy: Snapshot prevents accidental data loss on stack delete
   # ═══════════════════════════════════════════════════════════════════════════
 
   DBSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
     Properties:
-      DBSubnetGroupDescription: !Sub ${AppName} Aurora subnet group
+      DBSubnetGroupDescription: !Sub ${AppName} RDS subnet group
       SubnetIds:
-        - !Ref PublicSubnet1
-        - !Ref PublicSubnet2
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
       Tags:
         - Key: Name
           Value: !Sub ${AppName}-db-subnet-group
 
-  AuroraCluster:
-    Type: AWS::RDS::DBCluster
+  RDSInstance:
+    Type: AWS::RDS::DBInstance
     DeletionPolicy: Snapshot
     UpdateReplacePolicy: Snapshot
     Properties:
-      DBClusterIdentifier: !Sub ${AppName}-cluster
-      Engine: aurora-postgresql
-      EngineVersion: '16.1'
+      DBInstanceClass: !Ref DBInstanceClass
+      Engine: postgres
+      EngineVersion: '16'
+      DBInstanceIdentifier: agriscanpro-db   # Matches CLAUDE.md instance name
+      AllocatedStorage: !Ref DBAllocatedStorage
+      StorageType: gp3
       DatabaseName: !Ref DBName
       MasterUsername: !Ref DBUser
       MasterUserPassword: !Ref DBPassword
       DBSubnetGroupName: !Ref DBSubnetGroup
-      VpcSecurityGroupIds:
+      VPCSecurityGroups:
         - !Ref RDSSecurityGroup
-      ServerlessV2ScalingConfiguration:
-        MinCapacity: !Ref AuroraMinACU
-        MaxCapacity: !Ref AuroraMaxACU
       BackupRetentionPeriod: 7
       StorageEncrypted: true
       EnableCloudwatchLogsExports:
         - postgresql
-      Tags:
-        - Key: Name
-          Value: !Sub ${AppName}-aurora
-        - Key: Environment
-          Value: !Ref Environment
-
-  AuroraInstance:
-    Type: AWS::RDS::DBInstance
-    Properties:
-      DBClusterIdentifier: !Ref AuroraCluster
-      DBInstanceClass: db.serverless
-      Engine: aurora-postgresql
-      DBInstanceIdentifier: agriscanpro-db   # Matches CLAUDE.md instance name
-      PubliclyAccessible: true               # Matches README — accessible for dev/migration
+      PubliclyAccessible: false
       Tags:
         - Key: Name
           Value: !Sub ${AppName}-db-instance
@@ -586,7 +555,7 @@ Resources:
         - arn:aws:iam::aws:policy/AWSElasticBeanstalkManagedUpdatesCustomerRolePolicy
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # ELASTIC BEANSTALK — Application + Environment
+  # ELASTIC BEANSTALK — single EC2 instance (no Application Load Balancer)
   # Platform: Python 3.12 AL2023 (matches .elasticbeanstalk/config.yml)
   # App name: agriscan-backend-v2 (matches config.yml application_name)
   # Env name: Agriscanpro-backend-env (matches config.yml environment)
@@ -605,7 +574,7 @@ Resources:
   EBEnvironment:
     Type: AWS::ElasticBeanstalk::Environment
     DependsOn:
-      - AuroraInstance
+      - RDSInstance
       - EBInstanceProfile
       - EBServiceRole
     Properties:
@@ -625,19 +594,13 @@ Resources:
           OptionName: Subnets
           Value: !Join [',', [!Ref PublicSubnet1, !Ref PublicSubnet2]]
         - Namespace: aws:ec2:vpc
-          OptionName: ELBSubnets
-          Value: !Join [',', [!Ref PublicSubnet1, !Ref PublicSubnet2]]
-        - Namespace: aws:ec2:vpc
           OptionName: AssociatePublicIpAddress
           Value: 'true'
 
-        # ── Environment type: Application Load Balancer ───────────────────────
+        # ── Environment type: one public EC2 instance ─────────────────────────
         - Namespace: aws:elasticbeanstalk:environment
           OptionName: EnvironmentType
-          Value: LoadBalanced
-        - Namespace: aws:elasticbeanstalk:environment
-          OptionName: LoadBalancerType
-          Value: application
+          Value: SingleInstance
         - Namespace: aws:elasticbeanstalk:environment
           OptionName: ServiceRole
           Value: !Ref EBServiceRole
@@ -646,10 +609,6 @@ Resources:
         - Namespace: aws:autoscaling:launchconfiguration
           OptionName: SecurityGroups
           Value: !Ref EBInstanceSecurityGroup
-        - Namespace: aws:elbv2:loadbalancer
-          OptionName: SecurityGroups
-          Value: !Ref ALBSecurityGroup
-
         # ── Instance ─────────────────────────────────────────────────────────
         - Namespace: aws:autoscaling:launchconfiguration
           OptionName: InstanceType
@@ -657,25 +616,6 @@ Resources:
         - Namespace: aws:autoscaling:launchconfiguration
           OptionName: IamInstanceProfile
           Value: !Ref EBInstanceProfile
-
-        # ── Auto Scaling ─────────────────────────────────────────────────────
-        - Namespace: aws:autoscaling:asg
-          OptionName: MinSize
-          Value: !Ref EBMinInstances
-        - Namespace: aws:autoscaling:asg
-          OptionName: MaxSize
-          Value: !Ref EBMaxInstances
-
-        # ── Rolling deployment (minimise downtime) ───────────────────────────
-        - Namespace: aws:elasticbeanstalk:command
-          OptionName: DeploymentPolicy
-          Value: RollingWithAdditionalBatch
-        - Namespace: aws:elasticbeanstalk:command
-          OptionName: BatchSizeType
-          Value: Percentage
-        - Namespace: aws:elasticbeanstalk:command
-          OptionName: BatchSize
-          Value: '30'
 
         # ── Health check ─────────────────────────────────────────────────────
         - Namespace: aws:elasticbeanstalk:environment:process:default
@@ -746,11 +686,11 @@ Resources:
 
         - Namespace: aws:elasticbeanstalk:application:environment
           OptionName: DB_HOST
-          Value: !GetAtt AuroraCluster.Endpoint.Address
+          Value: !GetAtt RDSInstance.Endpoint.Address
 
         - Namespace: aws:elasticbeanstalk:application:environment
           OptionName: DB_PORT
-          Value: !GetAtt AuroraCluster.Endpoint.Port
+          Value: !GetAtt RDSInstance.Endpoint.Port
 
         # ── Redis / Celery ────────────────────────────────────────────────────
         # ASYNC_TASKS_ENABLED controls whether Redis + Celery are used.
@@ -865,7 +805,7 @@ Resources:
         Enabled: true
         HttpVersion: http2and3
         DefaultRootObject: index.html
-        # PriceClass_200 = NA + EU + Asia Pacific (includes ap-southeast-1 edge POPs)
+        # PriceClass_200 = NA + EU + Asia Pacific edge locations
         PriceClass: PriceClass_200
         Aliases: !If
           - HasFrontendDomain
@@ -913,15 +853,15 @@ Outputs:
 
   # ── Database ──────────────────────────────────────────────────────────────
 
-  AuroraEndpoint:
-    Description: Aurora cluster writer endpoint — set as DB_HOST
-    Value: !GetAtt AuroraCluster.Endpoint.Address
+  RDSEndpoint:
+    Description: RDS instance endpoint — set as DB_HOST
+    Value: !GetAtt RDSInstance.Endpoint.Address
     Export:
       Name: !Sub ${AppName}-db-host
 
-  AuroraPort:
-    Description: Aurora cluster port
-    Value: !GetAtt AuroraCluster.Endpoint.Port
+  RDSPort:
+    Description: RDS instance port
+    Value: !GetAtt RDSInstance.Endpoint.Port
 
   # ── Redis ─────────────────────────────────────────────────────────────────
 

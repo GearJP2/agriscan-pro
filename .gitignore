@@ -71,5 +71,6 @@ yarn-error.log*
 *.bak
 *.old
 .codex
+.codegraph/
 .logs_temp/
 flake8_*.txt

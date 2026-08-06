@@ -15,6 +15,7 @@
 - **Analytics Dashboard** — Overview KPIs, co-contamination intersections, and interactive threshold simulation
 - **Role-Based Access Control** — Five hierarchical roles (admin → head_researcher → researcher → research_assistant → user) enforced at both API and frontend route levels
 - **JWT + Google OAuth 2.0** — Memory-only access tokens, httpOnly refresh cookie rotation with blacklist invalidation, server-side OAuth state validation
+- **Notifications** — Per-user risk and system notifications with unread counts and read-state actions
 - **Background Tasks** — Celery workers for async CSV ingestion and monitor synchronization via ElastiCache Redis
 - **SRE Health Check** — `GET /health/` reports DB and Redis latency and system saturation metrics
 
@@ -161,6 +162,7 @@ Core endpoint groups:
 ```text
 /api/accounts/   Authentication (login, register, Google OAuth, password reset, profile)
 /api/samples/    Sample CRUD, analytics, bulk import, S3 upload, Celery task polling
+/api/notifications/ Per-user notifications and read-state actions
 /health/         SRE health check
 ```
 
@@ -255,7 +257,9 @@ agriscan-pro/
 │   ├── accounts/             # Auth, user management, Google OAuth
 │   ├── samples/              # Core business logic — samples, mycotoxin results
 │   │   ├── constants/        # Toxin registry, EU thresholds, risk policy
-│   │   └── services/         # CSV ingestion, S3 presigned URLs
+│   │   ├── services/         # Ingestion, analytics, NASA POWER, S3, test data
+│   │   └── tasks.py          # Optional Celery work
+│   ├── notifications/        # Per-user risk and system notifications
 │   ├── core/                 # Settings, URL routing, permissions, Celery
 │   ├── .ebextensions/        # AWS EB container commands (migrate, collectstatic)
 │   └── .platform/            # AL2023 hooks (Celery worker startup)
@@ -263,6 +267,7 @@ agriscan-pro/
 ├── frontend/                 # React + TypeScript (Vite)
 │   └── src/
 │       ├── components/       # Reusable UI components
+│       ├── features/         # Sample, user, dashboard, and notification flows
 │       ├── pages/            # Route-level page components
 │       ├── hooks/            # Custom React hooks
 │       ├── lib/              # API clients, auth helpers, token storage

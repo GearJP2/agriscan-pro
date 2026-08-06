@@ -27,7 +27,8 @@ refer to `README.md` and `docs/` for operator-facing detail.
 | Samples and risk | `backend/samples/` | Sample CRUD, imports, toxin registry, risk logic, analytics, Celery tasks. |
 | Notifications | `backend/notifications/` | Risk-alert notification model, service, and signals. |
 | Backend config | `backend/core/settings.py`, `backend/core/celery.py` | Environment parsing, Celery, REST and security settings. |
-| Dashboard | `frontend/src/components/surveillance/` | Surveillance, co-contamination, NASA POWER, and public-health views. |
+| Dashboard | `frontend/src/components/surveillance/`, `frontend/src/features/dashboard/` | Surveillance, co-contamination, NASA POWER, public-health, and overview views. |
+| Feature UI | `frontend/src/features/{samples,users,notifications}/` | Sample workflows, user/profile management, and notification polling/state. |
 | API and UI logic | `frontend/src/lib/`, `frontend/src/contexts/` | Axios client, auth state, risk helpers, LLM fallback gate. |
 | CI/CD | `.github/workflows/ci-cd.yml` | Tests, scans, artifacts, attestations, verification, and main-only deployment. |
 
@@ -43,6 +44,8 @@ refer to `README.md` and `docs/` for operator-facing detail.
 - `SampleViewSet` stays thin. Put filtering in `samples/filters.py`, ingestion
   and integrations in `samples/services/`, and background work in
   `samples/tasks.py`.
+- `TestDataService` creates and removes only `TEST-`-prefixed sample data;
+  retain that marker when changing test-data generation or cleanup.
 - Long-running uploads and cache cleanup must run through Celery when request
   latency or database writes would otherwise affect dashboard reads.
 - NASA POWER cache reads only accept rows whose `expires_at` is in the future.
@@ -109,6 +112,8 @@ Core groups:
   password reset, profile, users, and provider management.
 - `/api/samples/`: sample CRUD, process logs, mycotoxin results, imports,
   presigned uploads, task status, analytics, and threshold simulation.
+- `/api/notifications/`: authenticated users' notifications, unread counts,
+  and read-state actions.
 - `/health/`: liveness and dependency health data.
 
 Generate the authoritative schema with:
