@@ -195,8 +195,12 @@ AWS_S3_FILE_OVERWRITE = False  # Auto-append suffix if name collision
 AWS_DEFAULT_ACL = None  # Use bucket policy instead of ACL
 AWS_S3_SIGNATURE_VERSION = "s3v4"
 
-STORAGES = {
-    "default": {
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
+
+_default_storage: dict[str, object]
+if AWS_STORAGE_BUCKET_NAME:
+    _default_storage = {
         "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
         "OPTIONS": {
             "bucket_name": AWS_STORAGE_BUCKET_NAME,
@@ -206,7 +210,18 @@ STORAGES = {
             "access_key": AWS_ACCESS_KEY_ID,  # Will be None if not provided
             "secret_key": AWS_SECRET_ACCESS_KEY,  # Will be None if not provided
         },
-    },
+    }
+else:
+    _default_storage = {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+        "OPTIONS": {
+            "location": MEDIA_ROOT,
+            "base_url": MEDIA_URL,
+        },
+    }
+
+STORAGES = {
+    "default": _default_storage,
     # WhiteNoise serves static files (Django admin CSS/JS) with gzip + cache headers
     "staticfiles": {
         "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
