@@ -76,7 +76,7 @@ class BulkImportResultsTests(SampleTestMixin, TestCase):
     def test_bulk_import_results_reports_failed_rows_without_full_rollback(self):
         """A failed source row should not roll back successfully imported rows."""
         second_sample = Sample.objects.create(
-            sample_id='TEST-002',
+            sample_id='SAM-2026-002',
             region='Central',
             province='Bangkok',
             district='Chatuchak',

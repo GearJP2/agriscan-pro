@@ -391,6 +391,17 @@ class SampleIngestionService:
             outcome["skipped"] = True
             return outcome
 
+        raw_id = (display_id or sid).strip().upper()
+        if raw_id.startswith("TEST-"):
+            outcome["skipped"] = True
+            outcome["failed_row"] = {
+                "row_number": row_number,
+                "sample_id": display_id or sid,
+                "error": "The 'TEST-' prefix is reserved for system-generated test data.",
+                "row_data": row,
+            }
+            return outcome
+
         sample = sample_map.get(sid)
         if not sample:
             outcome["skipped"] = True
@@ -411,7 +422,7 @@ class SampleIngestionService:
         try:
             with transaction.atomic():
                 # Per-row savepoint isolates failures so partial imports survive.
-                # See SAMPLE_IMPORT_FORMAT.md for the response contract.
+                # See docs/V1/SAMPLE_IMPORT_FORMAT.md for the response contract.
                 locked = Sample.objects.select_for_update().get(pk=sample.pk)
                 analyzed_at = cls.extract_analyzed_datetime(row)
                 created_for_row, updated_for_row = cls._apply_results_to_sample(

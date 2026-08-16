@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, Suspense, lazy } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import type { DashboardFilters, AnalyticsOverviewResponse, CoContaminationResponse, EnvironmentalCorrelationResponse } from '@/types/dashboard';
+import type { DashboardFilters, DashboardContractResponse, EnvironmentalCorrelationResponse } from '@/types/dashboard';
 import DashboardFilterBar from './DashboardFilterBar';
 import KPICards from './KPICards';
 import RegionalRiskRanking from './RegionalRiskRanking';
@@ -19,19 +19,17 @@ import {
   Wheat,
   Bell
 } from 'lucide-react';
-import { sampleAPI, analyticsAPI } from '@/lib/api';
+import { analyticsAPI } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   ALL_TIME_QUARTER,
   CUSTOM_RANGE_QUARTER,
-  buildFilterOptions,
-  buildSurveillanceAnalytics,
+  buildSurveillanceAnalyticsFromSections,
   getQuarterDateRange,
 } from '@/lib/sampleAnalytics';
-import { generatePublicHealthRiskDrivers } from '@/lib/llmSummary';
+import { getSnapshotFreshness, loadDashboardSnapshot } from '@/lib/dashboardSnapshot';
 
 import { useDeferredMount } from '@/hooks/useDeferredMount';
-import { hasAboveThresholdResults } from '@/lib/mycotoxinRisk';
 
 // Lazy-load the map (it pulls in Leaflet + GeoJSON which is heavy)
 const RegionalRiskMap = lazy(() => import('./RegionalRiskMap'));
@@ -71,6 +69,17 @@ const DEFAULT_FILTERS: DashboardFilters = {
   quarter: ALL_TIME_QUARTER,
 };
 
+function isEnvironmentalCorrelationResponse(
+  value: Record<string, unknown>,
+): boolean {
+  return typeof value.source === 'string'
+    && typeof value.location === 'object'
+    && value.location !== null
+    && typeof value.summary === 'object'
+    && value.summary !== null
+    && Array.isArray(value.points);
+}
+
 export default function SurveillanceDashboard() {
   const { isAuthenticated } = useAuth();
   const isDeferredMounted = useDeferredMount(400);
@@ -78,79 +87,55 @@ export default function SurveillanceDashboard() {
   const selectedProvince = filters.provinces[0] || null;
   const [mapSelectedProvince, setMapSelectedProvince] = useState<string | null>(null);
   const [mapViewMode, setMapViewMode] = useState<MapViewMode>('risk');
+  const [manualApiFallback, setManualApiFallback] = useState(false);
 
   // State for Threshold Simulator overrides
   const [thresholdOverrides, setThresholdOverrides] = useState<Record<string, Record<string, number>>>({});
   const isSimulating = Object.keys(thresholdOverrides).length > 0;
 
-  // 1. Legacy full samples call for un-migrated components (Heatmap, PublicHealthSummary)
-  const { data: samples = [], isLoading, error } = useQuery({
-    queryKey: ['surveillance-dashboard-samples'],
-    queryFn: () => sampleAPI.getAllSamples(),
-    enabled: isAuthenticated,
+  const staticEnabled = import.meta.env.VITE_STATIC_DASHBOARD_ENABLED === 'true';
+  const snapshotBaseUrl = import.meta.env.VITE_DASHBOARD_SNAPSHOT_URL || '/dashboard-data';
+  const { data: snapshot, isLoading, error } = useQuery({
+    queryKey: ['dashboard-snapshot-v1', snapshotBaseUrl],
+    queryFn: () => loadDashboardSnapshot(snapshotBaseUrl),
+    enabled: staticEnabled,
+    staleTime: 60 * 60 * 1000,
+    gcTime: 24 * 60 * 60 * 1000,
+    retry: 1,
+    refetchOnWindowFocus: false,
   });
 
-  // 2. Dashboard Analytics V2: Overview / Simulated Overview
-  // We separate the "Specific" overview (filtered by province) from the "Regional" overview (ranking/map)
-  const rankingFilters = useMemo(() => ({
-    ...filters,
-    provinces: [] // Don't filter the ranking list/map by specific province selection
-  }), [filters.regions, filters.commodities, filters.dateRange, filters.quarter]);
-
-  const { data: overviewData } = useQuery<AnalyticsOverviewResponse>({
-    // Cache keys separate real from simulated data automatically
-    queryKey: ['surveillance-overview', filters, isSimulating ? thresholdOverrides : 'baseline'],
-    queryFn: async () => {
-      // Map filters matching the backend expected snake_case layout where necessary
-      const apiFilters = {
-        region: filters.regions,
-        province: filters.provinces,
-        vegetation_variety: filters.commodities,
-        date_from: filters.dateRange.from,
-        date_to: filters.dateRange.to
-      };
-
-      if (isSimulating) {
-        return analyticsAPI.simulateThreshold(thresholdOverrides, apiFilters);
-      }
-      return analyticsAPI.getOverview(apiFilters);
-    },
-    enabled: isAuthenticated,
+  const apiFilters = useMemo(() => ({
+    region: filters.regions,
+    province: filters.provinces,
+    vegetation_variety: filters.commodities,
+    date_from: filters.dateRange.from,
+    date_to: filters.dateRange.to,
+  }), [filters]);
+  const hasAdvancedFilters = filters.regions.length > 0
+    || filters.provinces.length > 0
+    || filters.commodities.length > 0
+    || filters.quarter !== ALL_TIME_QUARTER;
+  const { data: dynamicData, isError: isDynamicError } = useQuery<DashboardContractResponse>({
+    queryKey: ['dashboard-aggregate', apiFilters, isSimulating ? thresholdOverrides : 'baseline'],
+    queryFn: () => isSimulating
+      ? analyticsAPI.simulateDashboard(thresholdOverrides, apiFilters)
+      : analyticsAPI.getDashboard(apiFilters),
+    enabled: isAuthenticated && (hasAdvancedFilters || isSimulating),
+    retry: 1,
+    refetchOnWindowFocus: false,
   });
-
-  const { data: regionalRankingData } = useQuery<AnalyticsOverviewResponse>({
-    queryKey: ['surveillance-regional-ranking', rankingFilters, isSimulating ? thresholdOverrides : 'baseline'],
-    queryFn: async () => {
-      const apiFilters = {
-        region: rankingFilters.regions,
-        province: [],
-        vegetation_variety: rankingFilters.commodities,
-        date_from: rankingFilters.dateRange.from,
-        date_to: rankingFilters.dateRange.to
-      };
-
-      if (isSimulating) {
-        return analyticsAPI.simulateThreshold(thresholdOverrides, apiFilters);
-      }
-      return analyticsAPI.getOverview(apiFilters);
-    },
-    enabled: isAuthenticated,
-  });
-
-  // 3. Dashboard Analytics V2: Co-contamination (UpSet Plot)
-  const { data: coContamData } = useQuery<CoContaminationResponse>({
-    queryKey: ['surveillance-cocontamination', filters],
-    queryFn: () => {
-      const apiFilters = {
-        region: filters.regions,
-        province: filters.provinces,
-        vegetation_variety: filters.commodities,
-        date_from: filters.dateRange.from,
-        date_to: filters.dateRange.to
-      };
-      return analyticsAPI.getCoContamination(apiFilters);
-    },
-    enabled: isAuthenticated,
+  const {
+    data: fallbackData,
+    isLoading: isFallbackLoading,
+    isError: isFallbackError,
+    refetch: refetchFallback,
+  } = useQuery<DashboardContractResponse>({
+    queryKey: ['dashboard-aggregate-fallback'],
+    queryFn: () => analyticsAPI.getDashboard(),
+    enabled: isAuthenticated && (!staticEnabled || manualApiFallback),
+    retry: 1,
+    refetchOnWindowFocus: false,
   });
 
   const environmentalProvince = mapSelectedProvince || selectedProvince;
@@ -167,15 +152,21 @@ export default function SurveillanceDashboard() {
       };
       return analyticsAPI.getEnvironmentalCorrelation(apiFilters);
     },
-    enabled: isAuthenticated && Boolean(filters.dateRange.from && filters.dateRange.to),
+    enabled: isAuthenticated && Boolean(environmentalProvince && filters.dateRange.from && filters.dateRange.to),
     staleTime: 1000 * 60 * 60,
     retry: 1,
   });
 
-  const filterOptions = useMemo(() => buildFilterOptions(samples), [samples]);
+  const baselineSections = snapshot?.sections ?? fallbackData?.sections;
+  const activeSections = dynamicData?.sections ?? baselineSections;
+  const filterOptions = useMemo(() => ({
+    commodities: baselineSections?.filter_options.commodities ?? [],
+    regions: baselineSections?.filter_options.regions ?? [],
+    quarters: [ALL_TIME_QUARTER, CUSTOM_RANGE_QUARTER],
+    dateRange: baselineSections?.filter_options.date_range ?? { from: '', to: '' },
+  }), [baselineSections]);
 
   useEffect(() => {
-    if (samples.length === 0) return;
     if (!filters.dateRange.from || !filters.dateRange.to) {
       setFilters((current) => ({
         ...current,
@@ -183,7 +174,7 @@ export default function SurveillanceDashboard() {
         quarter: ALL_TIME_QUARTER,
       }));
     }
-  }, [samples, filters.dateRange.from, filters.dateRange.to, filterOptions.dateRange]);
+  }, [filters.dateRange.from, filters.dateRange.to, filterOptions.dateRange]);
 
   useEffect(() => {
     if (filters.quarter === ALL_TIME_QUARTER) {
@@ -219,39 +210,19 @@ export default function SurveillanceDashboard() {
     });
   }, [filters.quarter, filterOptions.dateRange]);
 
-  const analytics = useMemo(() => {
-    if (!isDeferredMounted || samples.length === 0) return null;
-    return buildSurveillanceAnalytics(samples, filters, thresholdOverrides);
-  }, [samples, filters, isDeferredMounted, thresholdOverrides]);
-
-  const localPublicHealthSummary = useMemo(() => {
-    if (!analytics) return null;
-    return isSimulating && overviewData?.public_health_summary
-      ? overviewData.public_health_summary
-      : analytics.publicHealthSummary;
-  }, [analytics, isSimulating, overviewData?.public_health_summary]);
-
-  const { data: llmPublicHealthSummary, isFetching: isGeneratingPublicHealthSummary } = useQuery({
-    queryKey: [
-      'surveillance-public-health-llm-summary',
-      filters,
-      overviewData?.kpis,
-      localPublicHealthSummary,
-    ],
-    queryFn: () => generatePublicHealthRiskDrivers({
-      summary: localPublicHealthSummary!,
-      filters,
-      kpis: overviewData?.kpis,
-    }),
-    enabled: isAuthenticated && Boolean(localPublicHealthSummary),
-    staleTime: 1000 * 60 * 10,
-    retry: 1,
-  });
-
-  const rankingAnalytics = useMemo(() => {
-    if (!isDeferredMounted || samples.length === 0) return null;
-    return buildSurveillanceAnalytics(samples, rankingFilters, thresholdOverrides);
-  }, [samples, rankingFilters, isDeferredMounted, thresholdOverrides]);
+  const analytics = useMemo(() => activeSections
+    ? buildSurveillanceAnalyticsFromSections(activeSections)
+    : null, [activeSections]);
+  const overviewData = activeSections?.overview;
+  const regionalRankingData = activeSections?.regional;
+  const coContamData = activeSections?.co_contamination;
+  const snapshotEnvironmental = snapshot?.sections.environmental;
+  const snapshotEnvironmentalData = snapshotEnvironmental
+    && snapshotEnvironmental.status !== 'unavailable'
+    && isEnvironmentalCorrelationResponse(snapshotEnvironmental.data)
+    ? snapshotEnvironmental.data as unknown as EnvironmentalCorrelationResponse
+    : undefined;
+  const displayedEnvironmentalData = environmentalData ?? snapshotEnvironmentalData;
 
   const handleFilterChange = (nextFilters: DashboardFilters) => {
     const currentQuarterRange = getQuarterDateRange(nextFilters.quarter);
@@ -275,33 +246,40 @@ export default function SurveillanceDashboard() {
     }));
   };
 
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen bg-background">
-        <main className="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="rounded-xl border border-dashed border-border bg-card p-12 text-center text-muted-foreground">
-            Sign in to load live dashboard data from the sample list.
-          </div>
-        </main>
-      </div>
-    );
-  }
-
-  if (error) {
+  if ((error && staticEnabled && !fallbackData) || (!isLoading && !isFallbackLoading && !activeSections)) {
     return (
       <div className="min-h-screen bg-background">
         <main className="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="rounded-xl border border-danger/30 bg-danger/5 p-12 text-center">
             <AlertTriangle className="mx-auto mb-4 h-10 w-10 text-danger" />
             <h2 className="text-xl font-semibold text-foreground">Unable to load dashboard data</h2>
-            <p className="mt-2 text-sm text-muted-foreground">The dashboard could not fetch samples from the system.</p>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Public dashboard data is temporarily unavailable.
+              {isAuthenticated ? ' You can load the authenticated aggregate view manually.' : ''}
+            </p>
+            {isAuthenticated && (
+              <button
+                type="button"
+                className="mt-5 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-60"
+                onClick={() => {
+                  if (manualApiFallback) void refetchFallback();
+                  else setManualApiFallback(true);
+                }}
+                disabled={isFallbackLoading}
+              >
+                {isFallbackLoading ? 'Loading aggregate data…' : isFallbackError ? 'Retry API' : 'Load from API'}
+              </button>
+            )}
+            {isAuthenticated && isFallbackError && (
+              <p className="mt-3 text-sm text-danger">The aggregate API is also unavailable. Please try again later.</p>
+            )}
           </div>
         </main>
       </div>
     );
   }
 
-  if (isLoading || (!filters.dateRange.from && samples.length > 0)) {
+  if (isLoading || isFallbackLoading || (!filters.dateRange.from && Boolean(filterOptions.dateRange.from))) {
     return (
       <div className="min-h-screen bg-background">
         <main className="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -313,12 +291,12 @@ export default function SurveillanceDashboard() {
     );
   }
 
-  if (samples.length === 0) {
+  if (!activeSections || activeSections.overview.kpis.total_samples === 0) {
     return (
       <div className="min-h-screen bg-background">
         <main className="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="rounded-xl border border-dashed border-border bg-card p-12 text-center text-muted-foreground">
-            No samples are available yet. Add records in the sample list to populate this dashboard.
+            No aggregate dashboard data is available yet.
           </div>
         </main>
       </div>
@@ -329,13 +307,25 @@ export default function SurveillanceDashboard() {
     <div className="min-h-screen bg-background dashboard-wrapper font-['Plus_Jakarta_Sans']">
 
       <main className="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 pt-0 pb-12 space-y-8">
-        <DashboardFilterBar
-          filters={filters}
-          onChange={handleFilterChange}
-          commodityOptions={filterOptions.commodities}
-          regionOptions={filterOptions.regions}
-          quarterOptions={filterOptions.quarters}
-        />
+        {isAuthenticated ? (
+          <DashboardFilterBar
+            filters={filters}
+            onChange={handleFilterChange}
+            commodityOptions={filterOptions.commodities}
+            regionOptions={filterOptions.regions}
+            quarterOptions={filterOptions.quarters}
+          />
+        ) : (
+          <div className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">
+            Sign in to use advanced filters, threshold simulation, and province environmental data.
+          </div>
+        )}
+
+        {isDynamicError && (
+          <div role="alert" className="rounded-xl border border-warning/30 bg-warning/5 p-4 text-sm text-foreground">
+            The selected dashboard view could not be refreshed. The last available baseline remains visible.
+          </div>
+        )}
 
         {/* Deferred Content Area */}
         {!isDeferredMounted || !analytics ? (
@@ -351,7 +341,7 @@ export default function SurveillanceDashboard() {
             </div>
             <ChartSkeleton />
           </div>
-        ) : analytics.filteredSamples.length === 0 ? (
+        ) : activeSections.overview.kpis.total_samples === 0 ? (
           <div className="rounded-xl border border-dashed border-border bg-card p-12 text-center text-muted-foreground">
             No sample data matched the selected filters.
           </div>
@@ -363,9 +353,9 @@ export default function SurveillanceDashboard() {
               <h2 className="text-sm font-black tracking-normal text-slate-500 dark:text-white/60">Public Health Risk Summary</h2>
             </div>
             <PublicHealthSummary 
-              summary={llmPublicHealthSummary ?? localPublicHealthSummary ?? analytics.publicHealthSummary}
-              isGenerating={isGeneratingPublicHealthSummary && !llmPublicHealthSummary}
-              isLlmGenerated={Boolean(llmPublicHealthSummary)}
+              summary={analytics.publicHealthSummary}
+              isGenerating={false}
+              isLlmGenerated={false}
             />
 
             {/* Section 2: KPI Summary - Re-engineered for Province-Specific Context */}
@@ -446,6 +436,7 @@ export default function SurveillanceDashboard() {
                   <RegionalRiskMap
                     selectedProvince={mapSelectedProvince || selectedProvince}
                     onSelectProvince={(p) => {
+                      if (!isAuthenticated) return;
                       if (mapViewMode === 'risk' || mapViewMode === 'samples') {
                         handleProvinceFilterSelect(p);
                         return;
@@ -453,22 +444,24 @@ export default function SurveillanceDashboard() {
 
                       setMapSelectedProvince(prev => prev === p ? null : p);
                     }}
-                    provinceRiskData={regionalRankingData ? regionalRankingData.provinces : (rankingAnalytics?.provinceRiskData || [])}
+                    provinceRiskData={regionalRankingData?.provinces ?? analytics.provinceRiskData}
                     viewMode={mapViewMode}
                     onViewModeChange={setMapViewMode}
-                    environmentalData={environmentalData}
-                    isEnvironmentalLoading={isEnvironmentalLoading}
+                    environmentalData={displayedEnvironmentalData}
+                    isEnvironmentalLoading={isEnvironmentalLoading && !snapshotEnvironmentalData}
                   />
                 </Suspense>
                 <div className="flex flex-col gap-4">
-                  <DynamicThresholdControl
-                    onOverridesChange={setThresholdOverrides}
-                    commodityOptions={filterOptions.commodities}
-                  />
+                  {isAuthenticated && (
+                    <DynamicThresholdControl
+                      onOverridesChange={setThresholdOverrides}
+                      commodityOptions={filterOptions.commodities}
+                    />
+                  )}
                   <RegionalRiskRanking
                     selectedProvince={selectedProvince}
                     onSelectProvince={handleProvinceFilterSelect}
-                    provinces={regionalRankingData ? regionalRankingData.provinces : (rankingAnalytics?.provinceRiskData || [])}
+                    provinces={regionalRankingData?.provinces ?? analytics.provinceRiskData}
                     viewMode={mapViewMode === 'samples' ? 'samples' : 'risk'}
                   />
                 </div>
@@ -487,11 +480,9 @@ export default function SurveillanceDashboard() {
               heatmapData={analytics.heatmapData}
               heatmapRegions={analytics.heatmapRegions}
               heatmapCommodities={analytics.heatmapCommodities}
-              affectedSampleCount={
-                isSimulating 
-                  ? overviewData?.kpis?.total_samples || 0
-                  : analytics.filteredSamples.filter((sample) => hasAboveThresholdResults(sample)).length
-              }
+              affectedSampleCount={Math.round(
+                (overviewData?.kpis.total_samples ?? 0) * (overviewData?.kpis.above_threshold_pct ?? 0) / 100,
+              )}
             />
 
             <div className="mt-6 grid grid-cols-1 gap-6">
@@ -514,9 +505,9 @@ export default function SurveillanceDashboard() {
               <h2 className="text-sm font-black tracking-normal text-slate-500 dark:text-white/60">Environmental Analysis</h2>
             </div>
             <EnvironmentalKinetics
-              data={environmentalData}
-              isLoading={isEnvironmentalLoading}
-              isError={isEnvironmentalError}
+              data={displayedEnvironmentalData}
+              isLoading={isEnvironmentalLoading && !snapshotEnvironmentalData}
+              isError={isEnvironmentalError && !snapshotEnvironmentalData}
             />
           </>
         )}
@@ -524,7 +515,8 @@ export default function SurveillanceDashboard() {
         {/* Footer */}
         <footer className="border-t border-border pt-4 pb-8 text-center">
           <p className="text-xs text-muted-foreground">
-            AgriscanPro Mycotoxin Risk Surveillance Dashboard · {analytics?.filteredSamples.length.toLocaleString() ?? 0} samples in view · {filters.quarter === CUSTOM_RANGE_QUARTER ? `${filters.dateRange.from} to ${filters.dateRange.to}` : filters.quarter}
+            AgriscanPro Mycotoxin Risk Surveillance Dashboard · {overviewData?.kpis.total_samples.toLocaleString() ?? 0} samples in view · Last updated {snapshot ? new Date(snapshot.generated_at).toLocaleString() : 'from API'}
+            {snapshot && getSnapshotFreshness(snapshot) === 'stale' ? ' · Data may be delayed' : ''}
           </p>
         </footer>
       </main>

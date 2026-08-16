@@ -17,7 +17,7 @@ export interface KPIData {
 
 export interface ProvinceRisk {
   name: string;
-  nameEn: string;
+  nameEn?: string;
   region: string;
   riskLevel: 'low' | 'medium' | 'high' | 'critical';
   sampleCount: number;
@@ -174,4 +174,52 @@ export interface EnvironmentalCorrelationResponse {
   };
   points: EnvironmentalPoint[];
   message?: string;
+}
+
+export interface DashboardFilterOptionsSection {
+  commodities: string[];
+  regions: string[];
+  provinces: string[];
+  date_range: { from: string; to: string };
+}
+
+export interface DashboardSections {
+  filter_options: DashboardFilterOptionsSection;
+  overview: AnalyticsOverviewResponse;
+  regional: {
+    provinces: ProvinceRisk[];
+    regions: Array<{ name: string; sampleCount: number; aboveCount: number; aboveThresholdPct: number }>;
+    suppressed: number;
+  };
+  commodities: {
+    distribution: Array<{ name: string; sampleCount: number; aboveCount: number; pctAbove: number }>;
+    suppressed: number;
+  };
+  toxins: {
+    distribution: Array<{
+      name: string;
+      shortName: string;
+      sampleCount: number;
+      aboveCount: number;
+      score: number;
+    }>;
+  };
+  heatmap: { data: Array<HeatmapCell & { sampleCount: number }>; regions: string[]; commodities: string[] };
+  co_contamination: CoContaminationResponse & { summary: CoContamSummary };
+  public_health: HealthSummary;
+  environmental: { status: 'fresh' | 'stale' | 'unavailable'; data: Record<string, unknown> };
+}
+
+export interface DashboardSnapshot {
+  schema_version: 1;
+  snapshot_id: string;
+  generated_at: string;
+  data_through: string;
+  expires_at: string;
+  sections: DashboardSections;
+}
+
+export interface DashboardContractResponse {
+  schema_version: 1;
+  sections: DashboardSections;
 }

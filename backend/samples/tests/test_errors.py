@@ -23,7 +23,7 @@ class SampleErrorHandlingTests(SampleTestMixin, TestCase):
     def test_create_sample_missing_required_fields_returns_400_with_details(self):
         """Creating a sample with missing required fields should return 400 with field details."""
         url = reverse('sample-list')
-        invalid_data = {'sample_id': 'TEST-002'}
+        invalid_data = {'sample_id': 'SAM-2026-002'}
         response = self.client.post(url, invalid_data, format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('error', response.data)

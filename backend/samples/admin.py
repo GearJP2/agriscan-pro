@@ -11,15 +11,19 @@ class SampleAdmin(admin.ModelAdmin):
     actions = ['seed_demo_data_action']
 
     def seed_demo_data_action(self, request, queryset):
-        from django.core.management import call_command
         from django.contrib import messages
+        from .services.test_data_service import TestDataService
         try:
-            call_command('seed_demo_data')
-            self.message_user(request, "Successfully seeded 20 demo samples.", messages.SUCCESS)
+            result = TestDataService.generate_test_samples(user=request.user)
+            self.message_user(
+                request,
+                f"Successfully generated {result['created']} test samples.",
+                messages.SUCCESS,
+            )
         except Exception as e:
-            self.message_user(request, f"Error seeding data: {str(e)}", messages.ERROR)
+            self.message_user(request, f"Error generating test data: {str(e)}", messages.ERROR)
 
-    seed_demo_data_action.short_description = "Seed 20 Demo Samples"
+    seed_demo_data_action.short_description = "Generate Test Samples"
 
 
 @admin.register(ProcessLog)

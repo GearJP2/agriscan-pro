@@ -13,7 +13,11 @@ refer to `README.md` and `docs/` for operator-facing detail.
 - **Backend:** Django 5 / Django REST Framework on Python 3.12.
 - **Data:** PostgreSQL in production; SQLite for CI. Redis backs Celery and
   cache workloads; S3 stores uploaded files.
-- **Hosting:** AWS-only: Elastic Beanstalk backend; S3 and CloudFront frontend.
+- **Current hosting (V1):** Elastic Beanstalk backend, RDS, and an S3/CloudFront
+  frontend. See `docs/V1/` before changing deployed infrastructure.
+- **Target hosting (V2):** frontend, Django, and PostgreSQL run through
+  production Docker Compose on one EC2 instance. Migration to V2 is a separate
+  prerequisite and is not performed by the dashboard snapshot feature.
 - **Authentication:** JWT access token in memory, rotating httpOnly refresh
   cookie, Google OAuth, and five hierarchical roles.
 - **External analytics:** Backend-owned LLM public-health summaries and NASA
@@ -27,10 +31,13 @@ refer to `README.md` and `docs/` for operator-facing detail.
 | Samples and risk | `backend/samples/` | Sample CRUD, imports, toxin registry, risk logic, analytics, Celery tasks. |
 | Notifications | `backend/notifications/` | Risk-alert notification model, service, and signals. |
 | Backend config | `backend/core/settings.py`, `backend/core/celery.py` | Environment parsing, Celery, REST and security settings. |
-| Dashboard | `frontend/src/components/surveillance/`, `frontend/src/features/dashboard/` | Surveillance, co-contamination, NASA POWER, public-health, and overview views. |
+| Dashboard | `frontend/src/components/surveillance/` | Surveillance, co-contamination, NASA POWER, public-health, and overview views. |
+| Dashboard contract | `backend/samples/services/dashboard_payload_service.py`, `frontend/src/types/dashboard.ts` | Shared aggregate contract used by snapshots and authenticated analytics. |
+| Snapshot publication | `backend/samples/services/dashboard_snapshot_publisher.py`, `generate_dashboard_snapshot` | Privacy validation, deterministic JSON, checksum, version-first/manifest-last S3 publication. |
+| Snapshot delivery | `frontend/src/lib/dashboardSnapshot.ts`, `infrastructure/dashboard-snapshots.yaml` | Zod validation, scoped cache, private S3, CloudFront OAC, and fixed SSM command. |
 | Feature UI | `frontend/src/features/{samples,users,notifications}/` | Sample workflows, user/profile management, and notification polling/state. |
 | API and UI logic | `frontend/src/lib/`, `frontend/src/contexts/` | Axios client, auth state, risk helpers, LLM fallback gate. |
-| CI/CD | `.github/workflows/ci-cd.yml` | Tests, scans, artifacts, attestations, verification, and main-only deployment. |
+| CI/CD | `.github/workflows/ci-cd.yml`, `.github/workflows/dashboard-snapshot.yml` | Main delivery pipeline plus hourly OIDC/SSM snapshot scheduling. |
 
 ## Core Contracts
 
@@ -45,17 +52,39 @@ refer to `README.md` and `docs/` for operator-facing detail.
   and integrations in `samples/services/`, and background work in
   `samples/tasks.py`.
 - `TestDataService` creates and removes only `TEST-`-prefixed sample data;
-  retain that marker when changing test-data generation or cleanup.
+  that prefix is reserved and rejected by normal API/import paths. Test data
+  must not emit risk notifications, and cleanup must remove matching alerts.
+- Generated data must remain idempotent and deterministic when `seed` and
+  `as_of` are supplied. Use `generate_test_data` and `delete_test_data` for CLI
+  execution; missing users are attributed to `System`.
 - Long-running uploads and cache cleanup must run through Celery when request
   latency or database writes would otherwise affect dashboard reads.
-- NASA POWER cache reads only accept rows whose `expires_at` is in the future.
-  `prune_expired_nasa_power_cache` performs deletion on the Celery Beat schedule.
+- Interactive NASA POWER cache reads accept only unexpired rows. Snapshot
+  generation never calls NASA directly: it may reuse the matching latest cache
+  row as `fresh` or `stale`, otherwise the section is `unavailable`.
 - `NasaPowerService` selects an unfiltered fallback province with database
   aggregation; explicit province filters always take precedence.
 - Validate external NASA and LLM payloads at the service boundary and return
   controlled API errors rather than partial dashboard data.
 - Browser-side LLM fallback is development-only and requires
   `VITE_ENABLE_BROWSER_LLM_FALLBACK=true`.
+
+### Public dashboard snapshot rules
+
+- Anonymous dashboard rendering reads only CloudFront snapshot JSON and never
+  calls `/api` or downloads raw samples.
+- Advanced filters, simulations, environmental requests, and manual aggregate
+  fallback require authentication.
+- Public aggregates use a minimum group size of five. Apply primary and
+  complementary suppression, including sensitive non-zero subcounts and global
+  KPI counts; do not expose a value that can be recovered by subtraction.
+- Snapshot JSON must contain no raw rows, sample/user identifiers, collectors,
+  notes, logs, or audit fields. Keep the recursive deny-list validation.
+- Immutable versions are uploaded and verified before `manifest.json`. A failed
+  generation must leave the previous manifest unchanged.
+- Browser cache fallback is permitted only for transport failures, HTTP 429, or
+  HTTP 5xx. Schema, path, content-type, manifest, and checksum failures must be
+  surfaced rather than hidden by cached data.
 
 ## Development
 
@@ -85,7 +114,14 @@ environment files, AWS credentials, OAuth secrets, or token values.
 # Backend CI-equivalent checks
 cd backend
 flake8 .
-python manage.py test accounts samples core
+python manage.py test accounts samples core notifications
+
+# Snapshot contract and publication tests
+python manage.py test samples.tests.test_dashboard_snapshot
+
+# Test-data CLI
+python manage.py generate_test_data --seed 42 --as-of 2026-08-16
+python manage.py delete_test_data
 
 # Focused NASA service/cache tests
 python manage.py test samples.tests.test_analytics
@@ -98,6 +134,10 @@ npm run typecheck
 npm test
 DEPLOY_TARGET=aws npm run smoke
 DEPLOY_TARGET=aws NODE_ENV=production npm run build
+
+# Infrastructure and scheduled workflow
+cfn-lint ../infrastructure/dashboard-snapshots.yaml
+actionlint ../.github/workflows/dashboard-snapshot.yml
 ```
 
 For the local Docker backend, use `docker compose run --rm --no-deps backend`
@@ -112,6 +152,10 @@ Core groups:
   password reset, profile, users, and provider management.
 - `/api/samples/`: sample CRUD, process logs, mycotoxin results, imports,
   presigned uploads, task status, analytics, and threshold simulation.
+- `/api/samples/analytics/dashboard/`: canonical authenticated aggregate
+  dashboard contract.
+- `/api/samples/analytics/dashboard/simulate/`: authenticated aggregate
+  contract with threshold overrides.
 - `/api/notifications/`: authenticated users' notifications, unread counts,
   and read-state actions.
 - `/health/`: liveness and dependency health data.
@@ -127,6 +171,10 @@ cd backend && python manage.py spectacular --file schema.yml
 - Current workflow triggers on pull requests to `main`, pushes to `main`, and
   manual dispatch. A `develop` integration branch workflow is not configured
   yet.
+- `dashboard-snapshot.yml` runs hourly at minute 17 and by manual dispatch. It
+  assumes a GitHub OIDC role and may invoke only the stack-owned SSM document
+  against the configured production instance; do not replace it with generic
+  `AWS-RunShellScript` or long-lived AWS keys.
 - Tests run path-selectively. Backend uses Python 3.12; frontend uses Node 22.
 - Frontend audit blocks high and critical vulnerabilities. Do not weaken this
   with an allowlist unless a documented exception is unavoidable.
@@ -160,7 +208,10 @@ hooks with `bash -n`; keep worker and Beat startup changes idempotent.
 ## Supporting Documentation
 
 - `README.md`: installation, API overview, and operator quick start.
-- `docs/ARCHITECTURE.md`: system design details.
-- `docs/CI_Security_Workflow.md`: CI/CD and supply-chain controls.
-- `docs/SAMPLE_IMPORT_FORMAT.md`: import formats.
+- `docs/ARCHITECTURE.md`: versioned architecture index.
+- `docs/V1/ARCHITECTURE.md`: currently deployed EB/RDS/Redis/S3 architecture.
+- `docs/V2/ARCHITECTURE.md`: target single-EC2 runtime and snapshot deployment
+  contract.
+- `docs/V1/CI_Security_Workflow.md`: current CI/CD and supply-chain controls.
+- `docs/V1/SAMPLE_IMPORT_FORMAT.md`: current import formats.
 - `SECURITY.md`: vulnerability reporting policy.

@@ -28,6 +28,7 @@ from .serializers import (
 from core.task_dispatcher import dispatch_task
 from .tasks import process_sample_file
 from .services.analytics_service import AnalyticsService
+from .services.dashboard_payload_service import DashboardFilters, DashboardPayloadService
 from .services.llm_summary_service import (
     LLMSummaryNotConfigured,
     LLMSummaryService,
@@ -263,14 +264,15 @@ class SampleViewSet(viewsets.ModelViewSet):
                 else:
                     result = serializer.save(sample=sample)
 
-                # If results are recorded, mark the sample workflow as completed.
-                if sample.status != 'completed':
+                # If results are recorded, mark the sample workflow as completed if pending/in_progress.
+                # Preserve 'flagged' status so active risk investigations remain flagged.
+                if sample.status in ('pending', 'in_progress'):
                     sample.status = 'completed'
                     sample.updated_by = request.user
                     sample.save(update_fields=['status', 'updated_by', 'updated_at'])
 
                 latest_log = sample.process_logs.order_by('-timestamp').first()
-                if not latest_log or latest_log.state != 'completed':
+                if sample.status == 'completed' and (not latest_log or latest_log.state != 'completed'):
                     ProcessLog.objects.create(
                         sample=sample,
                         state='completed',
@@ -470,7 +472,7 @@ class SampleViewSet(viewsets.ModelViewSet):
                 actor=request.user,
                 action='bulk_delete',
                 model_name='Sample',
-                object_id=','.join(found_ids),
+                object_id='(multiple)',
                 changes={
                     'count': count,
                     'sample_ids': found_ids,
@@ -484,9 +486,25 @@ class SampleViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['post'])
     def generate_test_data(self, request):
-        """Generate 30 test samples - admin only"""
+        """Generate test samples - admin only"""
         seed = request.data.get('seed', 42)
-        result = TestDataService.generate_test_samples(user=request.user, seed=seed)
+        as_of_str = request.data.get('as_of')
+        as_of_date = None
+        if as_of_str:
+            try:
+                from datetime import datetime
+                as_of_date = datetime.strptime(as_of_str, '%Y-%m-%d').date()
+            except ValueError:
+                return Response(
+                    {'detail': f"Invalid date format for as_of: '{as_of_str}'. Use YYYY-MM-DD."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        result = TestDataService.generate_test_samples(
+            user=request.user,
+            seed=seed,
+            as_of=as_of_date,
+        )
 
         try:
             AuditLog.objects.create(
@@ -521,21 +539,47 @@ class SampleViewSet(viewsets.ModelViewSet):
 
     # ─── Dashboard Analytics V2 Endpoints ──────────────────────────────────────────
 
+    @action(detail=False, methods=['get'], url_path='analytics/dashboard')
+    def analytics_dashboard(self, request):
+        """Return the canonical aggregate dashboard contract."""
+        sections = DashboardPayloadService.build(
+            filters=DashboardFilters.from_mapping(request.query_params),
+            include_external=False,
+        )
+        return Response({'schema_version': 1, 'sections': sections}, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['post'], url_path='analytics/dashboard/simulate')
+    def analytics_dashboard_simulate(self, request):
+        """Return canonical aggregates using authenticated threshold overrides."""
+        filters_payload = request.data.get('filters', {})
+        overrides = request.data.get('threshold_overrides', request.data.get('overrides', {}))
+        try:
+            # Reuse validation and canonical threshold behavior from AnalyticsService.
+            AnalyticsService.validate_threshold_overrides(overrides)
+            sections = DashboardPayloadService.build(
+                filters=DashboardFilters.from_mapping(filters_payload),
+                threshold_overrides=overrides,
+                include_external=False,
+            )
+        except ValueError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({'schema_version': 1, 'sections': sections}, status=status.HTTP_200_OK)
+
     @action(detail=False, methods=['get'], url_path='analytics/overview')
     def analytics_overview(self, request):
-        """Dashboard Overview KPIs and Regional bounds."""
+        """Deprecated: use analytics/dashboard."""
         data = AnalyticsService.get_overview(request.query_params)
         return Response(data, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=['get'], url_path='analytics/co-contamination')
     def analytics_co_contamination(self, request):
-        """UpSet plot intersections and Network graph links."""
+        """Deprecated: use analytics/dashboard."""
         data = AnalyticsService.get_co_contamination(request.query_params)
         return Response(data, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=['post'], url_path='analytics/threshold-simulation')
     def analytics_threshold_simulation(self, request):
-        """Simulate overriding of toxin thresholds."""
+        """Deprecated: use analytics/dashboard/simulate."""
         overrides = request.data.get('overrides', {})
         try:
             data = AnalyticsService.simulate_threshold(overrides, request.query_params)

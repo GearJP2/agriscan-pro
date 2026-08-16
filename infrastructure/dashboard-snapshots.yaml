@@ -1,0 +1,194 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Dedicated private S3 and CloudFront delivery for AgriScan Pro dashboard snapshots
+
+Parameters:
+  AppName:
+    Type: String
+    Default: agriscan-pro
+  Environment:
+    Type: String
+    Default: production
+    AllowedValues: [production, staging]
+  SnapshotPrefix:
+    Type: String
+    Default: dashboard-data
+  PublisherRoleName:
+    Type: String
+    Description: Existing EC2 instance role allowed to publish snapshots
+  ProductionInstanceId:
+    Type: AWS::EC2::Instance::Id
+  GitHubRepository:
+    Type: String
+    Description: GitHub owner/repository allowed to assume the scheduler role
+  GitHubOidcProviderArn:
+    Type: String
+    Description: ARN of the existing token.actions.githubusercontent.com OIDC provider
+
+Resources:
+  SnapshotBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault: { SSEAlgorithm: AES256 }
+      VersioningConfiguration: { Status: Enabled }
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        IgnorePublicAcls: true
+        BlockPublicPolicy: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpireImmutableSnapshots
+            Status: Enabled
+            Prefix: !Sub '${SnapshotPrefix}/versions/'
+            ExpirationInDays: 30
+            NoncurrentVersionExpiration: { NoncurrentDays: 30 }
+
+  SnapshotOriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub '${AppName}-${Environment}-dashboard-snapshots'
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  SnapshotCachePolicy:
+    Type: AWS::CloudFront::CachePolicy
+    Properties:
+      CachePolicyConfig:
+        Name: !Sub '${AppName}-${Environment}-dashboard-snapshots'
+        DefaultTTL: 60
+        MinTTL: 0
+        MaxTTL: 31536000
+        ParametersInCacheKeyAndForwardedToOrigin:
+          CookiesConfig: { CookieBehavior: none }
+          EnableAcceptEncodingBrotli: true
+          EnableAcceptEncodingGzip: true
+          HeadersConfig: { HeaderBehavior: none }
+          QueryStringsConfig: { QueryStringBehavior: none }
+
+  SnapshotResponseHeadersPolicy:
+    Type: AWS::CloudFront::ResponseHeadersPolicy
+    Properties:
+      ResponseHeadersPolicyConfig:
+        Name: !Sub '${AppName}-${Environment}-dashboard-snapshots'
+        CorsConfig:
+          AccessControlAllowCredentials: false
+          AccessControlAllowHeaders: { Items: ['*'] }
+          AccessControlAllowMethods: { Items: [GET, HEAD, OPTIONS] }
+          AccessControlAllowOrigins: { Items: ['*'] }
+          AccessControlExposeHeaders: { Items: [ETag] }
+          AccessControlMaxAgeSec: 600
+          OriginOverride: true
+        SecurityHeadersConfig:
+          ContentTypeOptions: { Override: true }
+
+  SnapshotDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        HttpVersion: http2and3
+        PriceClass: PriceClass_200
+        Origins:
+          - Id: snapshot-s3
+            DomainName: !GetAtt SnapshotBucket.RegionalDomainName
+            OriginAccessControlId: !Ref SnapshotOriginAccessControl
+            S3OriginConfig: { OriginAccessIdentity: '' }
+        DefaultCacheBehavior:
+          TargetOriginId: snapshot-s3
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD, OPTIONS]
+          CachedMethods: [GET, HEAD, OPTIONS]
+          Compress: true
+          CachePolicyId: !Ref SnapshotCachePolicy
+          ResponseHeadersPolicyId: !Ref SnapshotResponseHeadersPolicy
+
+  SnapshotBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref SnapshotBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: CloudFrontReadOnly
+            Effect: Allow
+            Principal: { Service: cloudfront.amazonaws.com }
+            Action: s3:GetObject
+            Resource: !Sub '${SnapshotBucket.Arn}/${SnapshotPrefix}/*'
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub 'arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${SnapshotDistribution}'
+
+  SnapshotPublisherPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: !Sub '${AppName}-${Environment}-dashboard-snapshot-publisher'
+      Roles: [!Ref PublisherRoleName]
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action: [s3:ListBucket]
+            Resource: !GetAtt SnapshotBucket.Arn
+            Condition:
+              StringLike: { 's3:prefix': [!Sub '${SnapshotPrefix}/*'] }
+          - Effect: Allow
+            Action: [s3:GetObject, s3:PutObject]
+            Resource: !Sub '${SnapshotBucket.Arn}/${SnapshotPrefix}/*'
+
+  SnapshotCommandDocument:
+    Type: AWS::SSM::Document
+    Properties:
+      DocumentType: Command
+      DocumentFormat: YAML
+      UpdateMethod: NewVersion
+      Content:
+        schemaVersion: '2.2'
+        description: Generate the AgriScan Pro public dashboard snapshot
+        mainSteps:
+          - action: aws:runShellScript
+            name: generateDashboardSnapshot
+            inputs:
+              timeoutSeconds: '600'
+              runCommand:
+                - >-
+                  cd /opt/agriscan-pro && docker compose -f docker-compose.prod.yml
+                  exec -T backend python manage.py generate_dashboard_snapshot
+
+  GitHubSchedulerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: { Federated: !Ref GitHubOidcProviderArn }
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+                token.actions.githubusercontent.com:sub: !Sub 'repo:${GitHubRepository}:environment:${Environment}'
+      Policies:
+        - PolicyName: InvokeProductionSnapshotCommand
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: ssm:SendCommand
+                Resource:
+                  - !Sub 'arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:document/${SnapshotCommandDocument}'
+                  - !Sub 'arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:instance/${ProductionInstanceId}'
+              - Effect: Allow
+                Action: ssm:GetCommandInvocation
+                Resource: '*'
+
+Outputs:
+  SnapshotBucketName: { Value: !Ref SnapshotBucket }
+  CloudFrontBaseUrl: { Value: !Sub 'https://${SnapshotDistribution.DomainName}/${SnapshotPrefix}' }
+  GitHubSchedulerRoleArn: { Value: !GetAtt GitHubSchedulerRole.Arn }
+  SnapshotCommandDocumentName: { Value: !Ref SnapshotCommandDocument }

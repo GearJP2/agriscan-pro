@@ -104,7 +104,7 @@ jobs:
       - name: Run backend tests
         working-directory: backend
         run: |
-          python manage.py test accounts samples core
+          python manage.py test accounts samples core notifications
 
       - name: Run backend deploy smoke checks
         working-directory: backend

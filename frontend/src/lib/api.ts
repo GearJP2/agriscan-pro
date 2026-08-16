@@ -1,6 +1,6 @@
 import axios, { AxiosError, AxiosHeaders } from "axios";
 import type { Sample, ProcessLog, RiskLevel } from "@/types/sample";
-import type { AnalyticsOverviewResponse, CoContaminationResponse, EnvironmentalCorrelationResponse, HealthSummary } from "@/types/dashboard";
+import type { AnalyticsOverviewResponse, CoContaminationResponse, DashboardContractResponse, EnvironmentalCorrelationResponse, HealthSummary } from "@/types/dashboard";
 import {
   clearAccessToken,
   clearSessionHint,
@@ -394,6 +394,26 @@ export const userAPI = {
 
 
 export const analyticsAPI = {
+  async getDashboard(filters?: Record<string, string | string[]>) {
+    const params = new URLSearchParams();
+    Object.entries(filters ?? {}).forEach(([key, value]) => {
+      if (value) params.append(key, Array.isArray(value) ? value.join(",") : value);
+    });
+    const response = await apiClient.get(`/samples/analytics/dashboard/?${params.toString()}`);
+    return response.data as DashboardContractResponse;
+  },
+
+  async simulateDashboard(
+    thresholdOverrides: Record<string, Record<string, number>>,
+    filters?: Record<string, string | string[]>,
+  ) {
+    const response = await apiClient.post('/samples/analytics/dashboard/simulate/', {
+      filters,
+      threshold_overrides: thresholdOverrides,
+    });
+    return response.data as DashboardContractResponse;
+  },
+
   async getOverview(filters?: Record<string, string | string[]>) {
     const params = new URLSearchParams();
     if (filters) {

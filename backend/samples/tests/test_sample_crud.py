@@ -15,7 +15,7 @@ class SampleCRUDTests(SampleTestMixin, TestCase):
         url = reverse('sample-list')
         response = self.client.post(url, self.sample_data, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertTrue(Sample.objects.filter(sample_id='TEST-001').exists())
+        self.assertTrue(Sample.objects.filter(sample_id='SAM-2026-001').exists())
 
     def test_list_samples(self):
         """Listing samples should return 200 and include created samples."""
@@ -27,38 +27,38 @@ class SampleCRUDTests(SampleTestMixin, TestCase):
     def test_retrieve_sample(self):
         """Retrieving a single sample by sample_id should return 200."""
         Sample.objects.create(**self.sample_data, updated_by=self.user)
-        url = reverse('sample-detail', kwargs={'sample_id': 'TEST-001'})
+        url = reverse('sample-detail', kwargs={'sample_id': 'SAM-2026-001'})
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['sample_id'], 'TEST-001')
+        self.assertEqual(response.data['sample_id'], 'SAM-2026-001')
 
     def test_update_sample(self):
         """Updating a sample should return 200 and persist changes."""
         Sample.objects.create(**self.sample_data, updated_by=self.user)
-        url = reverse('sample-detail', kwargs={'sample_id': 'TEST-001'})
+        url = reverse('sample-detail', kwargs={'sample_id': 'SAM-2026-001'})
         response = self.client.patch(url, {'status': 'in_progress'}, format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(
-            Sample.objects.get(sample_id='TEST-001').status, 'in_progress'
+            Sample.objects.get(sample_id='SAM-2026-001').status, 'in_progress'
         )
 
     def test_non_admin_cannot_delete_sample(self):
         """Deleting a sample should require admin permissions."""
         Sample.objects.create(**self.sample_data, updated_by=self.user)
-        url = reverse('sample-detail', kwargs={'sample_id': 'TEST-001'})
+        url = reverse('sample-detail', kwargs={'sample_id': 'SAM-2026-001'})
         response = self.client.delete(url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-        self.assertTrue(Sample.objects.filter(sample_id='TEST-001').exists())
+        self.assertTrue(Sample.objects.filter(sample_id='SAM-2026-001').exists())
 
     def test_admin_can_delete_sample(self):
         """Admins should be able to delete samples."""
         Sample.objects.create(**self.sample_data, updated_by=self.user)
         admin_client = APIClient()
         admin_client.force_authenticate(user=self.admin_user)
-        url = reverse('sample-detail', kwargs={'sample_id': 'TEST-001'})
+        url = reverse('sample-detail', kwargs={'sample_id': 'SAM-2026-001'})
         response = admin_client.delete(url)
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
-        self.assertFalse(Sample.objects.filter(sample_id='TEST-001').exists())
+        self.assertFalse(Sample.objects.filter(sample_id='SAM-2026-001').exists())
 
     def test_create_without_sample_id_auto_generates_sequential_id(self):
         """When sample_id is omitted, API should generate SAM-YYYY-XXX sequential IDs."""
@@ -117,7 +117,7 @@ class SampleCRUDEdgeCaseTests(SampleTestMixin, TestCase):
         """Creating a sample through the API should auto-create a 'registered' process log."""
         url = reverse('sample-list')
         self.client.post(url, self.sample_data, format='json')
-        sample = Sample.objects.get(sample_id='TEST-001')
+        sample = Sample.objects.get(sample_id='SAM-2026-001')
         self.assertTrue(
             ProcessLog.objects.filter(sample=sample, state='registered').exists()
         )

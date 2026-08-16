@@ -96,7 +96,8 @@ const SampleList = () => {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['samples-list'] });
-            queryClient.invalidateQueries({ queryKey: ['samples-dashboard'] });
+            queryClient.invalidateQueries({ queryKey: ['dashboard-aggregate'] });
+            queryClient.invalidateQueries({ queryKey: ['dashboard-aggregate-fallback'] });
         },
     });
 
@@ -104,7 +105,8 @@ const SampleList = () => {
         mutationFn: (sampleIds: string[]) => sampleAPI.bulkDeleteSamples(sampleIds),
         onSuccess: (data) => {
             queryClient.invalidateQueries({ queryKey: ['samples-list'] });
-            queryClient.invalidateQueries({ queryKey: ['samples-dashboard'] });
+            queryClient.invalidateQueries({ queryKey: ['dashboard-aggregate'] });
+            queryClient.invalidateQueries({ queryKey: ['dashboard-aggregate-fallback'] });
             const notFoundMsg = data.not_found?.length
                 ? ` (${data.not_found.length} IDs not found)`
                 : '';
@@ -127,7 +129,8 @@ const SampleList = () => {
         mutationFn: (seed?: number) => sampleAPI.generateTestSamples(seed),
         onSuccess: (data) => {
             queryClient.invalidateQueries({ queryKey: ['samples-list'] });
-            queryClient.invalidateQueries({ queryKey: ['samples-dashboard'] });
+            queryClient.invalidateQueries({ queryKey: ['dashboard-aggregate'] });
+            queryClient.invalidateQueries({ queryKey: ['dashboard-aggregate-fallback'] });
             toast({
                 title: 'Test Data Generated',
                 description: `Successfully created ${data.created} samples (${data.positive} positive, ${data.negative} negative).`,
@@ -147,7 +150,8 @@ const SampleList = () => {
         mutationFn: () => sampleAPI.deleteTestSamples(),
         onSuccess: (data) => {
             queryClient.invalidateQueries({ queryKey: ['samples-list'] });
-            queryClient.invalidateQueries({ queryKey: ['samples-dashboard'] });
+            queryClient.invalidateQueries({ queryKey: ['dashboard-aggregate'] });
+            queryClient.invalidateQueries({ queryKey: ['dashboard-aggregate-fallback'] });
             toast({
                 title: 'Test Data Purged',
                 description: `Successfully deleted ${data.deleted} test samples.`,

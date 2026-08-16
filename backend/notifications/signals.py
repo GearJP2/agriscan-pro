@@ -10,6 +10,10 @@ def create_risk_alert_notification(sender, instance, created, **kwargs):
     if not created:
         return
 
+    # Skip notification dispatch for generated test data
+    if instance.sample.sample_id.startswith("TEST-"):
+        return
+
     if instance.risk_level in ("high", "critical"):
         title = f"Risk Alert: {instance.risk_level.capitalize()} Mycotoxin Detected"
         message = (

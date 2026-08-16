@@ -1,18 +1,20 @@
+from datetime import date
 from django.test import TestCase
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from ..models import Sample
+from notifications.models import Notification
+from ..models import MycotoxinResult, ProcessLog, Sample
 from ..services.test_data_service import TEST_PREFIX, TestDataService
 from ._mixins import SampleTestMixin
 
 
 class TestDataServiceTests(SampleTestMixin, TestCase):
-    """Smoke tests for the TestDataService logic."""
+    """Tests for the TestDataService logic."""
 
     def test_generate_samples_creates_correct_count_and_split(self):
-        """Service should create 100 samples with a balanced 50/50 split."""
+        """Service should create 100 samples with a balanced 50/50 split across all 4 statuses."""
         result = TestDataService.generate_test_samples(user=self.admin_user)
 
         self.assertEqual(result['created'], 100)
@@ -22,27 +24,72 @@ class TestDataServiceTests(SampleTestMixin, TestCase):
 
         self.assertEqual(Sample.objects.filter(sample_id__startswith=TEST_PREFIX).count(), 100)
 
-        # Pending samples should have status='pending' and NO results
-        pending_samples = Sample.objects.filter(sample_id__startswith=TEST_PREFIX, status='pending')
-        self.assertEqual(pending_samples.count(), 5)
+        # Status distribution assertions
+        self.assertEqual(Sample.objects.filter(sample_id__startswith=TEST_PREFIX, status='pending').count(), 5)
+        self.assertEqual(Sample.objects.filter(sample_id__startswith=TEST_PREFIX, status='in_progress').count(), 5)
+        self.assertEqual(Sample.objects.filter(sample_id__startswith=TEST_PREFIX, status='completed').count(), 85)
+        self.assertEqual(Sample.objects.filter(sample_id__startswith=TEST_PREFIX, status='flagged').count(), 5)
 
-        # Multi-positive samples should have 2+ results
-        multi_positive_count = 0
-        for s in Sample.objects.filter(sample_id__startswith=TEST_PREFIX, status='completed'):
-            if s.mycotoxin_results.count() >= 2:
-                multi_positive_count += 1
+        # All results must use 'ug_kg' unit
+        for result_obj in MycotoxinResult.objects.filter(sample__sample_id__startswith=TEST_PREFIX):
+            self.assertEqual(result_obj.unit, 'ug_kg')
 
-        self.assertEqual(multi_positive_count, 50)
+        # risk_level must be computed correctly (not left as 'unclassified')
+        # Positive samples (multi_positive + flagged) should have 'high' or 'critical' risk
+        above_threshold = MycotoxinResult.objects.filter(
+            sample__sample_id__startswith=TEST_PREFIX,
+            risk_level__in=['high', 'critical'],
+        ).count()
+        self.assertGreater(
+            above_threshold,
+            0,
+            "No above-threshold risk_levels found — bulk_create may be skipping save()",
+        )
 
-    def test_generate_is_deterministic_with_same_seed(self):
-        """Repeated generation with the same seed should produce identical IDs."""
-        result1 = TestDataService.generate_test_samples(user=self.admin_user, seed=99)
-        TestDataService.delete_test_samples(user=self.admin_user)
-        result2 = TestDataService.generate_test_samples(user=self.admin_user, seed=99)
+        # Baseline negative samples with value=0 should be 'safe'
+        safe_results = MycotoxinResult.objects.filter(
+            sample__sample_id__startswith=TEST_PREFIX,
+            value=0.0,
+            risk_level='safe',
+        ).count()
+        zero_results = MycotoxinResult.objects.filter(
+            sample__sample_id__startswith=TEST_PREFIX,
+            value=0.0,
+        ).count()
+        self.assertEqual(safe_results, zero_results, "Zero-value results should all have risk_level='safe'")
+
+        # No results should remain as 'unclassified' for toxins with threshold data
+        unclassified = MycotoxinResult.objects.filter(
+            sample__sample_id__startswith=TEST_PREFIX,
+            risk_level='unclassified',
+        ).count()
+        self.assertEqual(unclassified, 0, "Found 'unclassified' results — risk_level was not computed")
+
+        # No risk alert notifications should have been dispatched for TEST- samples
+        self.assertEqual(Notification.objects.count(), 0)
+
+        valid_process_states = {value for value, _label in ProcessLog.PROCESS_STATE_CHOICES}
+        generated_states = set(ProcessLog.objects.values_list('state', flat=True))
+        self.assertLessEqual(generated_states, valid_process_states)
+
+    def test_generate_is_deterministic_with_same_seed_and_as_of(self):
+        """Repeated generation with the same seed and as_of date should produce identical IDs and dates."""
+        fixed_date = date(2026, 3, 1)
+        result1 = TestDataService.generate_test_samples(user=self.admin_user, seed=99, as_of=fixed_date)
+        result2 = TestDataService.generate_test_samples(user=self.admin_user, seed=99, as_of=fixed_date)
 
         self.assertEqual(result1['sample_ids'], result2['sample_ids'])
 
-    def test_delete_samples_only_removes_prefixed_rows(self):
+    def test_generate_with_user_none_succeeds(self):
+        """Service should support CLI execution with user=None without raising AttributeError."""
+        result = TestDataService.generate_test_samples(user=None, seed=42)
+        self.assertEqual(result['created'], 100)
+        first_sample = Sample.objects.filter(sample_id__startswith=TEST_PREFIX).first()
+        self.assertIsNone(first_sample.updated_by)
+        first_log = ProcessLog.objects.filter(sample=first_sample).first()
+        self.assertEqual(first_log.conducted_by, "System")
+
+    def test_delete_samples_only_removes_prefixed_rows_and_notifications(self):
         """Deletion should target ONLY sample_ids starting with TEST-."""
         real_id = 'REAL-001'
         Sample.objects.create(**{**self.sample_data, 'sample_id': real_id}, updated_by=self.user)
