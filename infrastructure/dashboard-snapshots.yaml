@@ -157,8 +157,11 @@ Resources:
               timeoutSeconds: '600'
               runCommand:
                 - >-
-                  cd /opt/agriscan-pro && docker compose -f docker-compose.prod.yml
-                  exec -T backend python manage.py generate_dashboard_snapshot
+                  docker compose
+                  --env-file /home/ubuntu/agriscan-pro/.env.ec2
+                  -f /home/ubuntu/agriscan-pro/docker-compose.ec2.yml
+                  exec -T backend
+                  python manage.py generate_dashboard_snapshot
 
   GitHubSchedulerRole:
     Type: AWS::IAM::Role

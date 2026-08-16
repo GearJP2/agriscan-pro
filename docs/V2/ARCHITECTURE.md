@@ -1,7 +1,7 @@
 # AgriScan Pro V2 Architecture
 
 V2 targets one production EC2 instance running frontend, Django backend, and
-PostgreSQL with `docker-compose.prod.yml`. The instance is managed through SSM
+PostgreSQL with `/home/ubuntu/agriscan-pro/docker-compose.ec2.yml`. The instance is managed through SSM
 and publishes public-safe aggregate dashboard snapshots to a dedicated private
 S3 bucket served by CloudFront Origin Access Control.
 
@@ -22,7 +22,7 @@ dashboard payload service. Redis and Celery are not required by this feature.
 - Migrate frontend/backend from Elastic Beanstalk and the frontend asset bucket
   to the single EC2 Docker Compose runtime.
 - Back up RDS, restore PostgreSQL on the VM, and rehearse recovery.
-- Configure `/opt/agriscan-pro`, SSM Agent, the instance role, production
+- Configure `/home/ubuntu/agriscan-pro`, SSM Agent, the instance role, production
   container environment, TLS/routing, and monitoring.
 - Remove Redis/Celery only after all remaining workloads have replacements.
 
@@ -41,6 +41,7 @@ the production EC2 role, and configure the workflow from the stack outputs:
 - production EC2 instance ID → `PRODUCTION_INSTANCE_ID`
 
 The stack-owned SSM document contains the fixed Docker Compose management
-command. The GitHub role cannot invoke the generic shell-command document.
+command using `.env.ec2` and `docker-compose.ec2.yml`. The GitHub role cannot
+invoke the generic shell-command document.
 CloudFront permits cross-origin public reads of validated aggregate JSON while
 the S3 bucket remains private.

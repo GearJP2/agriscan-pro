@@ -72,6 +72,16 @@ Restart after config changes:
 docker compose --env-file .env.ec2 -f docker-compose.ec2.yml up -d --build
 ```
 
+Generate a dashboard snapshot after the snapshot stack and `.env.ec2` are
+configured:
+
+```bash
+docker compose --env-file .env.ec2 -f docker-compose.ec2.yml exec -T backend \
+  python manage.py generate_dashboard_snapshot --dry-run
+docker compose --env-file .env.ec2 -f docker-compose.ec2.yml exec -T backend \
+  python manage.py generate_dashboard_snapshot
+```
+
 Backup PostgreSQL:
 
 ```bash
