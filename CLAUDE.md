@@ -27,7 +27,7 @@ refer to `README.md` and `docs/` for operator-facing detail.
 | Samples and risk | `backend/samples/` | Sample CRUD, imports, toxin registry, risk logic, analytics, Celery tasks. |
 | Notifications | `backend/notifications/` | Risk-alert notification model, service, and signals. |
 | Backend config | `backend/core/settings.py`, `backend/core/celery.py` | Environment parsing, Celery, REST and security settings. |
-| Dashboard | `frontend/src/components/surveillance/`, `frontend/src/features/dashboard/` | Surveillance, co-contamination, NASA POWER, public-health, and overview views. |
+| Dashboard | `frontend/src/components/surveillance/` | Surveillance, co-contamination, NASA POWER, public-health, and overview views. |
 | Feature UI | `frontend/src/features/{samples,users,notifications}/` | Sample workflows, user/profile management, and notification polling/state. |
 | API and UI logic | `frontend/src/lib/`, `frontend/src/contexts/` | Axios client, auth state, risk helpers, LLM fallback gate. |
 | CI/CD | `.github/workflows/ci-cd.yml` | Tests, scans, artifacts, attestations, verification, and main-only deployment. |
@@ -160,7 +160,7 @@ hooks with `bash -n`; keep worker and Beat startup changes idempotent.
 ## Supporting Documentation
 
 - `README.md`: installation, API overview, and operator quick start.
-- `docs/ARCHITECTURE.md`: system design details.
-- `docs/CI_Security_Workflow.md`: CI/CD and supply-chain controls.
-- `docs/SAMPLE_IMPORT_FORMAT.md`: import formats.
+- `docs/ARCHITECTURE.md`: versioned architecture index.
+- `docs/V1/CI_Security_Workflow.md`: current CI/CD and supply-chain controls.
+- `docs/V1/SAMPLE_IMPORT_FORMAT.md`: current import formats.
 - `SECURITY.md`: vulnerability reporting policy.
