@@ -68,6 +68,10 @@ class TestDataServiceTests(SampleTestMixin, TestCase):
         # No risk alert notifications should have been dispatched for TEST- samples
         self.assertEqual(Notification.objects.count(), 0)
 
+        valid_process_states = {value for value, _label in ProcessLog.PROCESS_STATE_CHOICES}
+        generated_states = set(ProcessLog.objects.values_list('state', flat=True))
+        self.assertLessEqual(generated_states, valid_process_states)
+
     def test_generate_is_deterministic_with_same_seed_and_as_of(self):
         """Repeated generation with the same seed and as_of date should produce identical IDs and dates."""
         fixed_date = date(2026, 3, 1)

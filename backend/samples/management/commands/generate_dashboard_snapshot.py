@@ -51,7 +51,7 @@ class Command(BaseCommand):
                 )
                 data_through = Sample.objects.aggregate(value=Max('updated_at'))['value'] or generated_at
                 if options['dry_run']:
-                    snapshot, _manifest = DashboardSnapshotPublisher.build_documents(
+                    snapshot, manifest = DashboardSnapshotPublisher.build_documents(
                         sections,
                         generated_at=generated_at,
                         data_through=data_through,
@@ -59,7 +59,7 @@ class Command(BaseCommand):
                     )
                     self.stdout.write(json.dumps({
                         'snapshot_id': snapshot['snapshot_id'],
-                        'checksum_sha256': snapshot['checksum_sha256'],
+                        'checksum_sha256': manifest['checksum_sha256'],
                         'bytes': len(DashboardSnapshotPublisher.serialize(snapshot)),
                     }, sort_keys=True))
                     return

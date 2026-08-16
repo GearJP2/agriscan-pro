@@ -71,18 +71,18 @@ class DashboardSnapshotPublisher:
         generated_at = generated_at or timezone.now()
         data_through = data_through or generated_at
         expires_at = generated_at + timedelta(hours=2)
-        checksum = hashlib.sha256(cls.serialize(sections)).hexdigest()
+        sections_checksum = hashlib.sha256(cls.serialize(sections)).hexdigest()
         timestamp = generated_at.strftime('%Y-%m-%dT%H-%M-%SZ')
-        snapshot_id = f'{timestamp}-{checksum[:12]}'
+        snapshot_id = f'{timestamp}-{sections_checksum[:12]}'
         snapshot = {
             'schema_version': SCHEMA_VERSION,
             'snapshot_id': snapshot_id,
             'generated_at': generated_at.isoformat().replace('+00:00', 'Z'),
             'data_through': data_through.isoformat().replace('+00:00', 'Z'),
             'expires_at': expires_at.isoformat().replace('+00:00', 'Z'),
-            'checksum_sha256': checksum,
             'sections': sections,
         }
+        checksum = hashlib.sha256(cls.serialize(snapshot)).hexdigest()
         manifest = {
             'schema_version': SCHEMA_VERSION,
             'snapshot_id': snapshot_id,
@@ -111,12 +111,12 @@ class DashboardSnapshotPublisher:
             Body=snapshot_body,
             ContentType='application/json',
             CacheControl=self.VERSION_CACHE_CONTROL,
-            Metadata={'checksum-sha256': snapshot['checksum_sha256']},
+            Metadata={'checksum-sha256': manifest['checksum_sha256']},
         )
         uploaded = self.client.head_object(Bucket=self.bucket, Key=version_key)
         if uploaded.get('ContentLength') != len(snapshot_body):
             raise RuntimeError('Uploaded dashboard snapshot size does not match.')
-        if uploaded.get('Metadata', {}).get('checksum-sha256') != snapshot['checksum_sha256']:
+        if uploaded.get('Metadata', {}).get('checksum-sha256') != manifest['checksum_sha256']:
             raise RuntimeError('Uploaded dashboard snapshot checksum metadata does not match.')
         self.client.put_object(
             Bucket=self.bucket,

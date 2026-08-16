@@ -19,7 +19,7 @@ jobs:
     timeout-minutes: 15
     environment: production
     steps:
-      - uses: aws-actions/configure-aws-credentials@v4
+      - uses: aws-actions/configure-aws-credentials@ec61189d14ec14c8efccab744f656cffd0e33f37
         with:
           role-to-assume: ${{ secrets.AWS_DASHBOARD_SNAPSHOT_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
@@ -74,5 +74,5 @@ jobs:
           [[ "$version_type" = application/json* ]]
           jq -e '.schema_version == 1 and (.sections | type == "object")' "$version" >/dev/null
           expected=$(jq -r '.checksum_sha256' "$body")
-          actual=$(jq -cSj '.sections' "$version" | sha256sum | cut -d' ' -f1)
+          actual=$(sha256sum "$version" | cut -d' ' -f1)
           test "$actual" = "$expected"

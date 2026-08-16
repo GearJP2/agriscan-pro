@@ -54,7 +54,6 @@ describe('dashboard snapshot schema v1', () => {
       generated_at: '2026-08-16T11:17:00Z',
       data_through: '2026-08-16T11:16:59Z',
       expires_at: '2026-08-16T13:17:00Z',
-      checksum_sha256: checksum,
       sections: emptySections,
     });
     expect(getSnapshotFreshness(snapshot, new Date('2026-08-16T12:00:00Z'))).toBe('fresh');
@@ -82,7 +81,6 @@ describe('dashboard snapshot schema v1', () => {
       snapshot_id: manifest.snapshot_id,
       generated_at: manifest.generated_at,
       expires_at: manifest.expires_at,
-      checksum_sha256: manifest.checksum_sha256,
       data_through: '2026-08-16T11:16:59Z',
       sections: emptySections,
     };
@@ -123,6 +121,38 @@ describe('dashboard snapshot schema v1', () => {
 
     await expect(loadDashboardSnapshot('https://dash.example/dashboard-data'))
       .rejects.toThrow('outside the configured snapshot path');
+  });
+
+  it('rejects a version whose exact response bytes do not match the manifest checksum', async () => {
+    vi.stubGlobal('crypto', {
+      subtle: { digest: vi.fn().mockResolvedValue(new Uint8Array(32).buffer) },
+    });
+    const manifest = {
+      schema_version: 1,
+      snapshot_id: 'snapshot',
+      generated_at: '2026-08-16T11:17:00Z',
+      expires_at: '2026-08-16T13:17:00Z',
+      snapshot_url: '/dashboard-data/versions/snapshot.json',
+      checksum_sha256: checksum,
+    };
+    const snapshot = {
+      schema_version: 1,
+      snapshot_id: 'snapshot',
+      generated_at: manifest.generated_at,
+      data_through: '2026-08-16T11:16:59Z',
+      expires_at: manifest.expires_at,
+      sections: { ...emptySections, environmental: { status: 'fresh', data: { tiny: 1e-7 } } },
+    };
+    vi.stubGlobal('fetch', vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify(manifest), {
+        status: 200, headers: { 'content-type': 'application/json' },
+      }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(snapshot), {
+        status: 200, headers: { 'content-type': 'application/json' },
+      })));
+
+    await expect(loadDashboardSnapshot('https://dash.example/dashboard-data'))
+      .rejects.toThrow('checksum failed');
   });
 
   it('rejects an HTML fallback instead of treating it as snapshot JSON', async () => {

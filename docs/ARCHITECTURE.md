@@ -7,7 +7,5 @@ are not confused.
   optional Redis/Celery, S3, and CloudFront deployment.
 - [V2 architecture](V2/ARCHITECTURE.md) — target single-EC2 Docker Compose
   deployment with local PostgreSQL and static dashboard snapshots.
-- [Static dashboard implementation plan](../Plan.md) — snapshot contract,
-  privacy boundaries, rollout, and rollback.
 
 Supporting V1 operational documents are grouped in [`V1/`](V1/README.md).

@@ -27,7 +27,7 @@ dashboard payload service. Redis and Celery are not required by this feature.
 - Remove Redis/Celery only after all remaining workloads have replacements.
 
 These prerequisites are independent work. Static dashboard implementation does
-not perform or automate them. See [the implementation plan](../../Plan.md).
+not perform or automate them.
 
 ## Snapshot deployment contract
 

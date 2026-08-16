@@ -69,6 +69,17 @@ const DEFAULT_FILTERS: DashboardFilters = {
   quarter: ALL_TIME_QUARTER,
 };
 
+function isEnvironmentalCorrelationResponse(
+  value: Record<string, unknown>,
+): boolean {
+  return typeof value.source === 'string'
+    && typeof value.location === 'object'
+    && value.location !== null
+    && typeof value.summary === 'object'
+    && value.summary !== null
+    && Array.isArray(value.points);
+}
+
 export default function SurveillanceDashboard() {
   const { isAuthenticated } = useAuth();
   const isDeferredMounted = useDeferredMount(400);
@@ -205,6 +216,13 @@ export default function SurveillanceDashboard() {
   const overviewData = activeSections?.overview;
   const regionalRankingData = activeSections?.regional;
   const coContamData = activeSections?.co_contamination;
+  const snapshotEnvironmental = snapshot?.sections.environmental;
+  const snapshotEnvironmentalData = snapshotEnvironmental
+    && snapshotEnvironmental.status !== 'unavailable'
+    && isEnvironmentalCorrelationResponse(snapshotEnvironmental.data)
+    ? snapshotEnvironmental.data as unknown as EnvironmentalCorrelationResponse
+    : undefined;
+  const displayedEnvironmentalData = environmentalData ?? snapshotEnvironmentalData;
 
   const handleFilterChange = (nextFilters: DashboardFilters) => {
     const currentQuarterRange = getQuarterDateRange(nextFilters.quarter);
@@ -429,8 +447,8 @@ export default function SurveillanceDashboard() {
                     provinceRiskData={regionalRankingData?.provinces ?? analytics.provinceRiskData}
                     viewMode={mapViewMode}
                     onViewModeChange={setMapViewMode}
-                    environmentalData={environmentalData}
-                    isEnvironmentalLoading={isEnvironmentalLoading}
+                    environmentalData={displayedEnvironmentalData}
+                    isEnvironmentalLoading={isEnvironmentalLoading && !snapshotEnvironmentalData}
                   />
                 </Suspense>
                 <div className="flex flex-col gap-4">
@@ -487,9 +505,9 @@ export default function SurveillanceDashboard() {
               <h2 className="text-sm font-black tracking-normal text-slate-500 dark:text-white/60">Environmental Analysis</h2>
             </div>
             <EnvironmentalKinetics
-              data={environmentalData}
-              isLoading={isEnvironmentalLoading}
-              isError={isEnvironmentalError}
+              data={displayedEnvironmentalData}
+              isLoading={isEnvironmentalLoading && !snapshotEnvironmentalData}
+              isError={isEnvironmentalError && !snapshotEnvironmentalData}
             />
           </>
         )}

@@ -216,7 +216,6 @@ export interface DashboardSnapshot {
   generated_at: string;
   data_through: string;
   expires_at: string;
-  checksum_sha256: string;
   sections: DashboardSections;
 }
 

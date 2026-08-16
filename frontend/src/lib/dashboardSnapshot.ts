@@ -94,7 +94,6 @@ export const dashboardSnapshotSchema = z.object({
   generated_at: dateTime,
   data_through: dateTime,
   expires_at: dateTime,
-  checksum_sha256: z.string().regex(/^[a-f0-9]{64}$/),
   sections: dashboardSectionsSchema,
 }).strict();
 
@@ -102,7 +101,7 @@ const CACHE_KEY = 'agriscan-dashboard-snapshot-v1';
 
 class DashboardSnapshotUnavailableError extends Error {}
 
-async function fetchJson(url: string | URL) {
+async function fetchText(url: string | URL) {
   let response: Response;
   try {
     response = await fetch(url, { headers: { Accept: 'application/json' } });
@@ -121,22 +120,16 @@ async function fetchJson(url: string | URL) {
   if (!contentType.toLowerCase().includes('application/json')) {
     throw new Error(`Dashboard snapshot request failed (${response.status}, ${contentType || 'unknown content type'}).`);
   }
-  return response.json() as Promise<unknown>;
+  return response.text();
 }
 
-function stableStringify(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`;
-  if (value && typeof value === 'object') {
-    return `{${Object.entries(value as Record<string, unknown>)
-      .sort(([left], [right]) => left.localeCompare(right))
-      .map(([key, child]) => `${JSON.stringify(key)}:${stableStringify(child)}`).join(',')}}`;
-  }
-  return JSON.stringify(value);
+async function fetchJson(url: string | URL) {
+  return JSON.parse(await fetchText(url)) as unknown;
 }
 
-async function sha256(value: unknown) {
+async function sha256(value: string) {
   if (!globalThis.crypto?.subtle) return null;
-  const bytes = new TextEncoder().encode(stableStringify(value));
+  const bytes = new TextEncoder().encode(value);
   const digest = await globalThis.crypto.subtle.digest('SHA-256', bytes);
   return [...new Uint8Array(digest)].map((part) => part.toString(16).padStart(2, '0')).join('');
 }
@@ -179,12 +172,13 @@ export async function loadDashboardSnapshot(baseUrl: string): Promise<DashboardS
     if (snapshotUrl.origin !== base.origin || !snapshotUrl.pathname.startsWith(`${base.pathname}versions/`)) {
       throw new Error('Dashboard snapshot URL is outside the configured snapshot path.');
     }
-    const snapshot = dashboardSnapshotSchema.parse(await fetchJson(snapshotUrl)) as DashboardSnapshot;
-    if (snapshot.snapshot_id !== manifest.snapshot_id || snapshot.checksum_sha256 !== manifest.checksum_sha256) {
+    const snapshotBody = await fetchText(snapshotUrl);
+    const digest = await sha256(snapshotBody);
+    if (digest && digest !== manifest.checksum_sha256) throw new Error('Dashboard snapshot checksum failed.');
+    const snapshot = dashboardSnapshotSchema.parse(JSON.parse(snapshotBody)) as DashboardSnapshot;
+    if (snapshot.snapshot_id !== manifest.snapshot_id) {
       throw new Error('Dashboard manifest and snapshot do not match.');
     }
-    const digest = await sha256(snapshot.sections);
-    if (digest && digest !== snapshot.checksum_sha256) throw new Error('Dashboard snapshot checksum failed.');
     writeCachedSnapshot(key, snapshot);
     return snapshot;
   } catch (error) {

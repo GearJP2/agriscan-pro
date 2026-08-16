@@ -422,7 +422,7 @@ class SampleIngestionService:
         try:
             with transaction.atomic():
                 # Per-row savepoint isolates failures so partial imports survive.
-                # See SAMPLE_IMPORT_FORMAT.md for the response contract.
+                # See docs/V1/SAMPLE_IMPORT_FORMAT.md for the response contract.
                 locked = Sample.objects.select_for_update().get(pk=sample.pk)
                 analyzed_at = cls.extract_analyzed_datetime(row)
                 created_for_row, updated_for_row = cls._apply_results_to_sample(

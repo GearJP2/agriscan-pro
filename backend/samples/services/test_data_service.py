@@ -153,7 +153,7 @@ class TestDataService:
                         logs_to_create.append(
                             ProcessLog(
                                 sample=sample,
-                                state="received",
+                                state="preparing",
                                 notes="Sample received in test laboratory.",
                                 conducted_by=username,
                             )
@@ -172,7 +172,7 @@ class TestDataService:
                         logs_to_create.append(
                             ProcessLog(
                                 sample=sample,
-                                state="flagged",
+                                state="recorded",
                                 notes="High contamination detected - flagged for review.",
                                 conducted_by=username,
                             )

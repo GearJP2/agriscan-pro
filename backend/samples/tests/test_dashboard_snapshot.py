@@ -169,14 +169,15 @@ class DashboardPayloadTests(TestCase):
             DashboardSnapshotPublisher(client=fake).publish(sections)
         self.assertFalse(any(key.endswith('manifest.json') for _kind, key in fake.calls))
 
-    def test_checksum_covers_canonical_sections(self):
+    def test_checksum_covers_exact_snapshot_bytes(self):
         sections = DashboardPayloadService.build(filters=DashboardFilters(), include_external=False)
+        sections['environmental']['data'] = {'tiny_value': 1e-7}
         generated = datetime(2026, 8, 16, 11, 17, tzinfo=dt_timezone.utc)
         snapshot, manifest = DashboardSnapshotPublisher.build_documents(
             sections, generated_at=generated
         )
-        expected = hashlib.sha256(DashboardSnapshotPublisher.serialize(sections)).hexdigest()
-        self.assertEqual(snapshot['checksum_sha256'], expected)
+        expected = hashlib.sha256(DashboardSnapshotPublisher.serialize(snapshot)).hexdigest()
+        self.assertNotIn('checksum_sha256', snapshot)
         self.assertEqual(manifest['checksum_sha256'], expected)
         self.assertTrue(snapshot['snapshot_id'].startswith('2026-08-16T11-17-00Z-'))
 

@@ -214,6 +214,4 @@ hooks with `bash -n`; keep worker and Beat startup changes idempotent.
   contract.
 - `docs/V1/CI_Security_Workflow.md`: current CI/CD and supply-chain controls.
 - `docs/V1/SAMPLE_IMPORT_FORMAT.md`: current import formats.
-- `Plan.md`: implementation, privacy, rollout, rollback, and acceptance scope.
-- `Issue.md`: audited issue registry and remediation checklist.
 - `SECURITY.md`: vulnerability reporting policy.
