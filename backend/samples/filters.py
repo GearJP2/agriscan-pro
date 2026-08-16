@@ -37,7 +37,7 @@ def apply_sample_filters(queryset, params):
             values = [v for v in value.split(",") if v]
             queryset = queryset.filter(**{f"{field}__in": values}) if values else queryset
 
-    if vegetation := params.get("vegetation"):
+    if vegetation := (params.get("vegetation") or params.get("vegetation_variety")):
         values = [v for v in vegetation.split(",") if v]
         queryset = queryset.filter(vegetation_variety__in=values) if values else queryset
 

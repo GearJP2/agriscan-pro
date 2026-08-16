@@ -88,6 +88,12 @@ def sync_process_sample_file(key: str, uploaded_by_username: str):
         if not sample_id:
             errors.append({'row': i + 2, 'detail': 'sample_id ว่างเปล่า'})
             continue
+        if sample_id.upper().startswith("TEST-"):
+            errors.append({
+                'row': i + 2,
+                'detail': "The 'TEST-' prefix is reserved for system-generated test data.",
+            })
+            continue
         if sample_id in existing_ids:
             errors.append({'row': i + 2, 'detail': f"sample_id '{sample_id}' มีอยู่แล้ว"})
             continue

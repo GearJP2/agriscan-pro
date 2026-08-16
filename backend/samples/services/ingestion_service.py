@@ -391,6 +391,17 @@ class SampleIngestionService:
             outcome["skipped"] = True
             return outcome
 
+        raw_id = (display_id or sid).strip().upper()
+        if raw_id.startswith("TEST-"):
+            outcome["skipped"] = True
+            outcome["failed_row"] = {
+                "row_number": row_number,
+                "sample_id": display_id or sid,
+                "error": "The 'TEST-' prefix is reserved for system-generated test data.",
+                "row_data": row,
+            }
+            return outcome
+
         sample = sample_map.get(sid)
         if not sample:
             outcome["skipped"] = True

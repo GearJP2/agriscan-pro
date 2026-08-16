@@ -177,12 +177,18 @@ class SampleCreateUpdateSerializer(serializers.ModelSerializer):
         return value
 
     def validate_sample_id(self, value):
-        """Validate sample ID format"""
+        """Validate sample ID format and ensure TEST- prefix is reserved."""
         if value in (None, ''):
             return ''
         if not isinstance(value, str):
             raise serializers.ValidationError("Sample ID must be a string")
-        return value.strip()
+        clean_value = value.strip()
+        if clean_value.startswith("TEST-"):
+            if not self.instance or self.instance.sample_id != clean_value:
+                raise serializers.ValidationError(
+                    "The 'TEST-' prefix is reserved for system-generated test data."
+                )
+        return clean_value
 
     def validate_province(self, value):
         """Validate province is not empty"""
