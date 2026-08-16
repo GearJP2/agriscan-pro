@@ -45,7 +45,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { sampleAPI } from '@/lib/api';
 import { getDetectedMycotoxinHeaders, hasAnyMycotoxinColumns, parseResearchDataFile } from '@/lib/dataImport';
 import { Sample, ProcessLog, PROCESSING_TYPES, PROCESSING_TYPE_LABELS, ProcessingType } from '@/types/sample';
-import { vegetationTypes } from '@/data/mockSamples';
+import { vegetationTypes } from '@/constants/sampleConstants';
 import { getAllProvinces, getDistrictsByProvince, getRegionByProvince } from '@/data/thailandLocations';
 
 const formSchema = z.object({
@@ -1285,7 +1285,8 @@ const AddSampleForm = ({ onSuccess }: AddSampleFormProps) => {
       if (successCount > 0) {
         await Promise.all([
           queryClient.invalidateQueries({ queryKey: ['samples-list'] }),
-          queryClient.invalidateQueries({ queryKey: ['samples-dashboard'] }),
+          queryClient.invalidateQueries({ queryKey: ['dashboard-aggregate'] }),
+          queryClient.invalidateQueries({ queryKey: ['dashboard-aggregate-fallback'] }),
         ]);
       }
 

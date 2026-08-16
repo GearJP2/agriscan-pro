@@ -4,7 +4,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { FilterState, SampleType, SAMPLE_TYPE_LABELS } from '@/types/sample';
-import { regions, vegetationTypes, statuses, sampleTypes } from '@/data/mockSamples';
+import { regions, vegetationTypes, statuses, sampleTypes } from '@/constants/sampleConstants';
 import { useState } from 'react';
 import { useWatchlist } from '@/hooks/useWatchlist';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -28,7 +28,7 @@ type FilterKey = 'region' | 'vegetation' | 'status' | 'sampleType';
 
 interface FilterSectionProps {
   title: string;
-  items: string[];
+  items: readonly string[];
   filterKey: FilterKey;
   labelFn?: (item: string) => string;
   filters: FilterState;
