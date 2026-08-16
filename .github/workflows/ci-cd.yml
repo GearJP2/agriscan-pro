@@ -636,7 +636,7 @@ jobs:
             exit 1
           fi
           echo "Checking backend health: ${BACKEND_HEALTH_URL}"
-          curl --fail --retry 30 --retry-delay 10 --max-time 10 "${BACKEND_HEALTH_URL}"
+          curl --fail --retry 2 --retry-delay 10 --max-time 10 "${BACKEND_HEALTH_URL}"
         env:
           BACKEND_HEALTH_URL: ${{ vars.BACKEND_HEALTH_URL }}
 
