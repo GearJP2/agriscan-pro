@@ -1,4 +1,4 @@
-# CI/CD Security Hardening Implementation
+# V1 CI/CD Security Hardening Implementation
 
 ## Overview
 

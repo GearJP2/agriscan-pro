@@ -1,4 +1,4 @@
-# Agriscan Pro Docker Setup
+# Agriscan Pro V1 Docker Setup
 
 This project uses Docker Compose to run the full-stack application with Django backend, React frontend, and PostgreSQL database.
 

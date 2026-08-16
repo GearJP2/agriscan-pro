@@ -58,6 +58,8 @@ Optional development-only frontend environment variables:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `VITE_ENABLE_BROWSER_LLM_FALLBACK` | not set (`false`) | Must be explicitly set to `true` to allow browser-side fallback requests to public LLM endpoints when backend summary generation fails in development mode. |
+| `VITE_STATIC_DASHBOARD_ENABLED` | not set (`false`) | Read the public dashboard baseline from CloudFront when `true`. |
+| `VITE_DASHBOARD_SNAPSHOT_URL` | `/dashboard-data` | CloudFront snapshot prefix containing `manifest.json`. |
 
 ---
 
@@ -85,6 +87,9 @@ Key variables for local development:
 | `GOOGLE_CLIENT_SECRET` | No | — | Google OAuth client secret |
 | `INITIAL_ADMIN_EMAILS` | No | — | Comma-separated emails auto-promoted to admin |
 | `CORS_ALLOWED_ORIGINS` | No | `http://localhost:5173` | Allowed frontend origins |
+| `DASHBOARD_SNAPSHOT_ENABLED` | No | `False` | Allows the management command to publish public aggregates |
+| `DASHBOARD_SNAPSHOT_BUCKET` | Publish only | — | Dedicated snapshot bucket (never the frontend asset bucket) |
+| `DASHBOARD_SNAPSHOT_MIN_GROUP_SIZE` | No | `5` | Minimum public aggregate group; values below 5 are rejected |
 
 See [backend/.env.example](backend/.env.example) for the full list including production S3, SMTP, and SRE variables.
 
@@ -142,6 +147,8 @@ POST /api/samples/bulk_import_results/
 GET  /api/samples/analytics/overview/             # Dashboard KPIs
 GET  /api/samples/analytics/co-contamination/     # Co-contamination network
 POST /api/samples/analytics/threshold-simulation/ # Threshold what-if analysis
+GET  /api/samples/analytics/dashboard/            # Canonical authenticated aggregate contract
+POST /api/samples/analytics/dashboard/simulate/   # Canonical authenticated simulation contract
 ```
 
 ---
@@ -167,6 +174,7 @@ Core endpoint groups:
 ```
 
 See [CLAUDE.md](CLAUDE.md#-api-endpoints) for the full endpoint list.
+See the [architecture index](docs/ARCHITECTURE.md) for current V1 and target V2 deployment designs.
 
 ---
 
