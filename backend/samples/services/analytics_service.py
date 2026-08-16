@@ -13,6 +13,27 @@ ABOVE_THRESHOLD_RISK_LEVELS = ['high', 'critical']
 class AnalyticsService:
 
     @staticmethod
+    def validate_threshold_overrides(overrides):
+        if not overrides:
+            return
+        if not isinstance(overrides, dict):
+            raise ValueError("overrides must be a dictionary")
+        for toxin, varieties in overrides.items():
+            if not isinstance(toxin, str):
+                raise ValueError("toxin names must be strings")
+            if not isinstance(varieties, dict):
+                raise ValueError(f"overrides[{toxin}] must be a dictionary of variety->threshold mappings")
+            for variety, threshold in varieties.items():
+                if not isinstance(variety, str):
+                    raise ValueError(f"variety names must be strings in overrides[{toxin}]")
+                try:
+                    val = float(threshold)
+                except (TypeError, ValueError):
+                    raise ValueError(f"threshold for {toxin}/{variety} must be numeric")
+                if val < 0:
+                    raise ValueError(f"threshold for {toxin}/{variety} must be non-negative")
+
+    @staticmethod
     def _apply_filters(queryset, filters):
         date_from = filters.get('date_from')
         date_to = filters.get('date_to')
@@ -41,15 +62,17 @@ class AnalyticsService:
         return queryset
 
     @staticmethod
-    def get_overview(filters: dict) -> dict:
+    def get_overview(filters: dict, queryset=None) -> dict:
         """
         Overview KPIs and province-level risks without fetching all samples.
         """
-        qs = Sample.objects.all()
+        qs = queryset if queryset is not None else Sample.objects.all()
         qs = AnalyticsService._apply_filters(qs, filters)
 
         total_samples = qs.count()
-        detected_samples = qs.filter(mycotoxin_results__isnull=False).distinct().count()
+        detected_samples = qs.filter(
+            mycotoxin_results__value__gt=0
+        ).distinct().count()
         above_threshold_samples = qs.filter(
             mycotoxin_results__risk_level__in=ABOVE_THRESHOLD_RISK_LEVELS
         ).distinct().count()
@@ -59,7 +82,7 @@ class AnalyticsService:
             sample_count=Count('id', distinct=True),
             positive_count=Count(
                 'id',
-                filter=Q(mycotoxin_results__isnull=False),
+                filter=Q(mycotoxin_results__value__gt=0),
                 distinct=True
             ),
             above_threshold_count=Count(
@@ -154,12 +177,14 @@ class AnalyticsService:
         }
 
     @staticmethod
-    def get_co_contamination(filters: dict) -> dict:
+    def get_co_contamination(filters: dict, queryset=None) -> dict:
         """
         UpSet plot data (intersections) and network data.
         """
-        qs = Sample.objects.prefetch_related('mycotoxin_results').filter(
-            mycotoxin_results__isnull=False
+        qs = (queryset if queryset is not None else Sample.objects.all()).prefetch_related(
+            'mycotoxin_results'
+        ).filter(
+            mycotoxin_results__value__gt=0
         ).distinct()
         qs = AnalyticsService._apply_filters(qs, filters)
 
@@ -173,10 +198,11 @@ class AnalyticsService:
         positive_count = 0
         for sample in qs:
             positive_count += 1
-            # Sort to ensure consistent combination keys
+            # Sort to ensure consistent combination keys, only include detected toxins (> 0)
             toxins = sorted({
                 result.toxin_type
                 for result in sample.mycotoxin_results.all()
+                if result.value is not None and result.value > 0
             })
 
             # Toxin per sample dist
@@ -237,28 +263,15 @@ class AnalyticsService:
         }
 
     @staticmethod
-    def simulate_threshold(overrides: dict, filters: dict) -> dict:  # noqa: C901
+    def simulate_threshold(overrides: dict, filters: dict, queryset=None) -> dict:  # noqa: C901
         """
         Dynamically recalculate risk levels based on overridden thresholds per-variety.
         overrides format: { 'AFB1': { 'maize': 10, 'peanuts': 5 } }
         """
-        # Validate overrides structure
-        if overrides:
-            if not isinstance(overrides, dict):
-                raise ValueError("overrides must be a dictionary")
-            for toxin, varieties in overrides.items():
-                if not isinstance(toxin, str):
-                    raise ValueError("toxin names must be strings")
-                if not isinstance(varieties, dict):
-                    raise ValueError(f"overrides[{toxin}] must be a dictionary of variety->threshold mappings")
-                for variety, threshold in varieties.items():
-                    if not isinstance(variety, str):
-                        raise ValueError(f"variety names must be strings in overrides[{toxin}]")
-                    try:
-                        float(threshold)
-                    except (TypeError, ValueError):
-                        raise ValueError(f"threshold for {toxin}/{variety} must be numeric")
-        qs = Sample.objects.prefetch_related('mycotoxin_results').all()
+        AnalyticsService.validate_threshold_overrides(overrides)
+        qs = (queryset if queryset is not None else Sample.objects.all()).prefetch_related(
+            'mycotoxin_results'
+        )
         qs = AnalyticsService._apply_filters(qs, filters)
 
         total_samples = 0
