@@ -16,6 +16,10 @@ refer to `README.md` and `docs/` for operator-facing detail.
 - **Current hosting (V2):** Django and PostgreSQL run through Docker Compose on
   one EC2 instance managed through SSM. The frontend remains on S3/CloudFront,
   and dashboard snapshots use a separate private S3 bucket and CloudFront.
+- **Production network (V2):** EC2 instance `i-00d57bf6d54db1428` has Elastic
+  IP `43.211.57.163`. The main CloudFront distribution routes `/api/*` and
+  `/health*` to its public DNS origin over HTTP port 80; the default behavior
+  continues to serve the frontend S3 origin.
 - **Historical hosting (V1):** Elastic Beanstalk, RDS, and optional Redis/Celery
   documentation is archived under `docs/V1/`.
 - **Authentication:** JWT access token in memory, rotating httpOnly refresh
@@ -185,6 +189,12 @@ cd backend && python manage.py spectacular --file schema.yml
   `${{ github.repository }}/.github/workflows/ci-cd.yml`.
 - GitHub Environment and branch-protection settings are remote configuration;
   they are not representable solely in this repository.
+- `BACKEND_HEALTH_URL` must use the stable main CloudFront endpoint
+  (`https://d3s961c8cl4lgn.cloudfront.net/health/`), not a direct EC2 address.
+- Keep Elastic IP `43.211.57.163` associated with the production instance. If
+  it is intentionally replaced, update the main CloudFront EC2 origin and
+  `.env.ec2` `ALLOWED_HOSTS`, then recreate the backend. SSM and snapshot jobs
+  continue to target the stable instance ID and do not depend on its public IP.
 
 ## Troubleshooting Beanstalk Deployments
 
