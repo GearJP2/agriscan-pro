@@ -95,6 +95,15 @@ NASA_POWER_TIMEOUT_SECONDS = int(os.environ.get("NASA_POWER_TIMEOUT_SECONDS", "2
 NASA_POWER_MAX_DAYS = int(os.environ.get("NASA_POWER_MAX_DAYS", "14"))
 NASA_POWER_CACHE_TTL_HOURS = int(os.environ.get("NASA_POWER_CACHE_TTL_HOURS", "24"))
 
+# Public aggregate dashboard snapshots. Publication still requires the explicit
+# management command; enabling this setting does not start a scheduler.
+DASHBOARD_SNAPSHOT_ENABLED = os.environ.get("DASHBOARD_SNAPSHOT_ENABLED", "False") == "True"
+DASHBOARD_SNAPSHOT_BUCKET = os.environ.get("DASHBOARD_SNAPSHOT_BUCKET", "")
+DASHBOARD_SNAPSHOT_PREFIX = os.environ.get("DASHBOARD_SNAPSHOT_PREFIX", "dashboard-data").strip("/")
+DASHBOARD_SNAPSHOT_MIN_GROUP_SIZE = max(
+    5, int(os.environ.get("DASHBOARD_SNAPSHOT_MIN_GROUP_SIZE", "5"))
+)
+
 # Application definition
 
 INSTALLED_APPS = [

@@ -12,6 +12,7 @@ import type {
   ThresholdData,
   ToxinDist,
   ToxinScore,
+  DashboardSections,
 } from '@/types/dashboard';
 import type { MycotoxinResult, ProcessState, RiskLevel, Sample } from '@/types/sample';
 import {
@@ -73,6 +74,66 @@ export interface SurveillanceAnalytics {
   networkData: NetworkData;
   toxinsPerSample: ToxinDist[];
   toxinColors: Record<string, string>;
+}
+
+export function buildSurveillanceAnalyticsFromSections(sections: DashboardSections): SurveillanceAnalytics {
+  const colors = buildToxinColors(sections.toxins.distribution.map((toxin) => ({
+    name: toxin.name,
+    shortName: toxin.shortName,
+    detectedCount: toxin.sampleCount,
+    dangerousCount: toxin.aboveCount,
+  })));
+  const total = sections.overview.kpis.total_samples;
+  return {
+    filteredSamples: [],
+    kpiData: { cards: [] },
+    provinceRiskData: sections.regional.provinces.map((item) => ({
+      ...item,
+      nameEn: item.nameEn ?? item.name,
+      dominantToxin: item.dominantToxin ?? 'Unknown',
+      dominantCommodity: item.dominantCommodity ?? 'Unknown',
+    })),
+    topProvinces: sections.regional.provinces.slice(0, 5).map((item, index) => ({
+      rank: index + 1,
+      province: item.name,
+      sampleCount: item.sampleCount,
+      aboveThresholdPct: item.aboveThresholdPct,
+      dominantToxin: item.dominantToxin ?? 'Unknown',
+      riskLevel: item.riskLevel === 'critical' ? 'critical' : 'high',
+    })),
+    publicHealthSummary: sections.public_health,
+    mycotoxinBarData: sections.toxins.distribution.map((item) => ({
+      name: item.name,
+      shortName: item.shortName,
+      score: item.score,
+      severity: getSeverityFromScore(item.score),
+    })),
+    commodityShare: sections.commodities.distribution.map((item, index) => ({
+      name: item.name,
+      value: Math.round(toPercent(item.sampleCount, total)),
+      color: TOXIN_PALETTE[index % TOXIN_PALETTE.length],
+    })),
+    thresholdByCommodity: sections.commodities.distribution.map((item) => ({
+      commodity: item.name,
+      pctAbove: item.pctAbove,
+      totalCount: item.sampleCount,
+      aboveCount: item.aboveCount,
+    })),
+    heatmapData: sections.heatmap.data,
+    heatmapRegions: sections.heatmap.regions,
+    heatmapCommodities: sections.heatmap.commodities,
+    coContamSummary: sections.co_contamination.summary,
+    coOccurrenceList: sections.co_contamination.intersections,
+    networkData: {
+      nodes: sections.co_contamination.network.nodes.map((node) => ({ ...node, color: colors[node.id] ?? getToxinColor(node.id) })),
+      links: sections.co_contamination.network.links,
+    },
+    toxinsPerSample: Object.entries(sections.co_contamination.toxins_per_sample).map(([count, value]) => ({
+      count,
+      pct: Number(value),
+    })),
+    toxinColors: colors,
+  };
 }
 
 interface CommodityStats {

@@ -1,0 +1,78 @@
+name: Dashboard snapshot
+
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: production-dashboard-snapshot
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DASHBOARD_SNAPSHOT_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Generate snapshot through SSM
+        id: command
+        env:
+          INSTANCE_ID: ${{ vars.PRODUCTION_INSTANCE_ID }}
+          DOCUMENT_NAME: ${{ vars.DASHBOARD_SNAPSHOT_SSM_DOCUMENT }}
+        run: |
+          command_id=$(aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name "$DOCUMENT_NAME" \
+            --timeout-seconds 600 \
+            --query Command.CommandId --output text)
+          echo "command_id=$command_id" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for generation
+        env:
+          COMMAND_ID: ${{ steps.command.outputs.command_id }}
+          INSTANCE_ID: ${{ vars.PRODUCTION_INSTANCE_ID }}
+        run: |
+          aws ssm wait command-executed --command-id "$COMMAND_ID" --instance-id "$INSTANCE_ID" || true
+          invocation=$(aws ssm get-command-invocation --command-id "$COMMAND_ID" --instance-id "$INSTANCE_ID" --output json)
+          status=$(jq -r '.Status' <<<"$invocation")
+          response_code=$(jq -r '.ResponseCode' <<<"$invocation")
+          jq -r '.StandardOutputContent, .StandardErrorContent' <<<"$invocation"
+          test "$status" = Success
+          test "$response_code" = 0
+
+      - name: Verify CloudFront manifest
+        env:
+          SNAPSHOT_URL: ${{ vars.DASHBOARD_SNAPSHOT_URL }}
+        run: |
+          headers=$(mktemp)
+          body=$(mktemp)
+          code=$(curl --silent --show-error --location --dump-header "$headers" --output "$body" --write-out '%{http_code}' "$SNAPSHOT_URL/manifest.json")
+          test "$code" = 200
+          grep -qi '^content-type:.*application/json' "$headers"
+          jq -e '.schema_version == 1 and (.snapshot_id | length > 0)' "$body" >/dev/null
+          generated=$(jq -r '.generated_at' "$body")
+          expires=$(jq -r '.expires_at' "$body")
+          now=$(date -u +%s)
+          age=$(( now - $(date -u -d "$generated" +%s) ))
+          test "$age" -ge 0
+          test "$age" -le 600
+          test "$(date -u -d "$expires" +%s)" -gt "$now"
+          origin=$(printf '%s' "$SNAPSHOT_URL" | sed -E 's#(https?://[^/]+).*#\1#')
+          version_path=$(jq -r '.snapshot_url' "$body")
+          version=$(mktemp)
+          version_type=$(curl --silent --show-error --location --output "$version" --write-out '%{content_type}' "$origin$version_path")
+          [[ "$version_type" = application/json* ]]
+          jq -e '.schema_version == 1 and (.sections | type == "object")' "$version" >/dev/null
+          expected=$(jq -r '.checksum_sha256' "$body")
+          actual=$(jq -cSj '.sections' "$version" | sha256sum | cut -d' ' -f1)
+          test "$actual" = "$expected"

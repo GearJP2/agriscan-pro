@@ -206,6 +206,21 @@ class NasaPowerService:
             },
         )
 
+    @classmethod
+    def get_cached_environmental_correlation(cls, filters: dict) -> dict | None:
+        """Return the latest matching cache entry without making a provider request."""
+        cache_key = cls._cache_key(cls._build_request_params(filters))
+        cached = ExternalDataCache.objects.filter(
+            source='NASA_POWER',
+            cache_key=cache_key,
+        ).first()
+        if cached is None:
+            return None
+        return {
+            'status': 'fresh' if cached.expires_at > timezone.now() else 'stale',
+            'data': cached.payload,
+        }
+
     @staticmethod
     def _date_window(filters: dict) -> tuple[str, str]:
         date_to = (
