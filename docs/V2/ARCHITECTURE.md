@@ -1,14 +1,15 @@
 # AgriScan Pro V2 Architecture
 
-V2 targets one production EC2 instance running frontend, Django backend, and
-PostgreSQL with `/home/ubuntu/agriscan-pro/docker-compose.ec2.yml`. The instance is managed through SSM
-and publishes public-safe aggregate dashboard snapshots to a dedicated private
-S3 bucket served by CloudFront Origin Access Control.
+V2 uses one production EC2 instance running Django and PostgreSQL with
+`/home/ubuntu/agriscan-pro/docker-compose.ec2.yml`. The instance is managed
+through SSM. The frontend remains in its dedicated S3 bucket behind CloudFront,
+and Django publishes public-safe aggregate dashboard snapshots to a separate
+private S3 bucket served by CloudFront Origin Access Control.
 
 ```text
-Browser ── CloudFront ── frontend on EC2
-   │             └────── /dashboard-data/* → private snapshot S3 bucket
-   └── authenticated /api/* ── Django ── local PostgreSQL
+Browser ── CloudFront ── frontend S3 bucket
+   ├── dashboard snapshot CloudFront ── private snapshot S3 bucket
+   └── authenticated /api/* ── EC2 Django ── local PostgreSQL
 
 GitHub Actions ── OIDC ── SSM Run Command ── EC2 management command ── S3
 ```
@@ -19,8 +20,8 @@ dashboard payload service. Redis and Celery are not required by this feature.
 
 ## Separate prerequisites
 
-- Migrate frontend/backend from Elastic Beanstalk and the frontend asset bucket
-  to the single EC2 Docker Compose runtime.
+- Keep the frontend and dashboard snapshots in separate S3 buckets so frontend
+  deployment cleanup cannot delete snapshots.
 - Back up RDS, restore PostgreSQL on the VM, and rehearse recovery.
 - Configure `/home/ubuntu/agriscan-pro`, SSM Agent, the instance role, production
   container environment, TLS/routing, and monitoring.

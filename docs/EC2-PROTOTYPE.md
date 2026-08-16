@@ -59,6 +59,27 @@ docker compose --env-file .env.ec2 -f docker-compose.ec2.yml exec backend python
 
 ## Operations
 
+### GitHub Actions deployment
+
+The main CI workflow deploys the exact tested commit through SSM. Configure:
+
+```text
+AWS_BACKEND_DEPLOY_ROLE_ARN=<GitHub OIDC deployment role ARN>
+AWS_REGION=ap-southeast-7
+PRODUCTION_INSTANCE_ID=<production EC2 instance ID>
+BACKEND_HEALTH_URL=http://<ec2-public-ip>/health/
+```
+
+The GitHub deployment role must be allowed to call `ssm:SendCommand` for only
+the production instance and the `AWS-RunShellScript` document, plus
+`ssm:GetCommandInvocation`. The EC2 instance must be online in Systems Manager,
+and the `ubuntu` user must belong to the `docker` group.
+
+The deployment fails rather than overwriting tracked changes on the instance.
+It fast-forwards the EC2 checkout to the workflow commit, rebuilds the Compose
+services, applies migrations, runs Django checks, and then verifies the public
+health endpoint.
+
 View logs:
 
 ```bash

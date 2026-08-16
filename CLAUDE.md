@@ -11,13 +11,13 @@ refer to `README.md` and `docs/` for operator-facing detail.
 
 - **Frontend:** React 18, TypeScript, Vite 7, Tailwind/shadcn-style components.
 - **Backend:** Django 5 / Django REST Framework on Python 3.12.
-- **Data:** PostgreSQL in production; SQLite for CI. Redis backs Celery and
-  cache workloads; S3 stores uploaded files.
-- **Current hosting (V1):** Elastic Beanstalk backend, RDS, and an S3/CloudFront
-  frontend. See `docs/V1/` before changing deployed infrastructure.
-- **Target hosting (V2):** frontend, Django, and PostgreSQL run through
-  production Docker Compose on one EC2 instance. Migration to V2 is a separate
-  prerequisite and is not performed by the dashboard snapshot feature.
+- **Data:** PostgreSQL runs with Django on the production EC2 Compose host;
+  SQLite is used for CI. S3 stores uploaded files where configured.
+- **Current hosting (V2):** Django and PostgreSQL run through Docker Compose on
+  one EC2 instance managed through SSM. The frontend remains on S3/CloudFront,
+  and dashboard snapshots use a separate private S3 bucket and CloudFront.
+- **Historical hosting (V1):** Elastic Beanstalk, RDS, and optional Redis/Celery
+  documentation is archived under `docs/V1/`.
 - **Authentication:** JWT access token in memory, rotating httpOnly refresh
   cookie, Google OAuth, and five hierarchical roles.
 - **External analytics:** Backend-owned LLM public-health summaries and NASA
@@ -209,7 +209,7 @@ hooks with `bash -n`; keep worker and Beat startup changes idempotent.
 
 - `README.md`: installation, API overview, and operator quick start.
 - `docs/ARCHITECTURE.md`: versioned architecture index.
-- `docs/V1/ARCHITECTURE.md`: currently deployed EB/RDS/Redis/S3 architecture.
+- `docs/V1/ARCHITECTURE.md`: historical EB/RDS/Redis/S3 architecture.
 - `docs/V2/ARCHITECTURE.md`: target single-EC2 runtime and snapshot deployment
   contract.
 - `docs/V1/CI_Security_Workflow.md`: current CI/CD and supply-chain controls.

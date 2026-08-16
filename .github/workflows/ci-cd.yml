@@ -44,6 +44,8 @@ jobs:
               - 'backend/**'
               - 'backend/requirements.txt'
               - 'backend/requirements-ci.txt'
+              - 'docker-compose.ec2.yml'
+              - '.env.ec2.example'
               - '.github/workflows/**'
             frontend:
               - 'frontend/**'
@@ -109,8 +111,6 @@ jobs:
       - name: Run backend deploy smoke checks
         working-directory: backend
         run: |
-          bash -n .platform/hooks/predeploy/01_django_setup.sh
-          bash -n .platform/hooks/postdeploy/01_start_celery.sh
           python manage.py check
           python manage.py collectstatic --noinput
           python - <<'PY'
@@ -128,7 +128,6 @@ jobs:
           print('Health check host OK')
           PY
           python -c "from core.wsgi import application; print('WSGI import OK')"
-          python -c "from core.celery import app; print('Celery import OK')"
 
       - name: Create backend deployment bundle
         run: |
@@ -563,35 +562,6 @@ jobs:
           name: backend-bundle
           path: .
 
-      - name: Extract backend bundle
-        run: |
-          tar -xzf backend-bundle.tar.gz
-
-      - name: Prepare EB CLI config for artifact deploy
-        working-directory: backend
-        run: |
-          if [ -f .elasticbeanstalk/config.yml ]; then
-            echo "Current EB config:"
-            cat .elasticbeanstalk/config.yml
-            # Disable EB CLI git source-control integration for artifact-based deploys.
-            sed -i '/^[[:space:]]*sc:[[:space:]]*git[[:space:]]*$/d' .elasticbeanstalk/config.yml
-            echo "Updated EB config:"
-            cat .elasticbeanstalk/config.yml
-          else
-            echo ".elasticbeanstalk/config.yml not found"
-            exit 1
-          fi
-
-      - name: Set up Python
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
-        with:
-          python-version: '3.12'
-
-      - name: Install EB CLI
-        run: |
-          python -m pip install --upgrade pip
-          pip install awsebcli==3.23.3
-
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@ec61189d14ec14c8efccab744f656cffd0e33f37
         with:
@@ -599,19 +569,65 @@ jobs:
           aws-region: ${{ vars.AWS_REGION }}
           role-session-name: agriscan-backend-${{ github.run_id }}
 
-      - name: Check EB Environment Status
+      - name: Deploy exact commit to EC2 through SSM
+        id: deploy-command
+        env:
+          INSTANCE_ID: ${{ vars.PRODUCTION_INSTANCE_ID }}
+          DEPLOY_SHA: ${{ github.sha }}
         run: |
-          cd backend
-          eb status Agriscanpro-backend-env
-
-      - name: Deploy to Elastic Beanstalk
-        run: |
-          cd backend
-          if ! eb deploy Agriscanpro-backend-env --timeout 30; then
-            echo "=== Deployment failed - fetching instance logs ==="
-            eb logs Agriscanpro-backend-env --all 2>&1 | head -300 || true
+          if [[ ! "$INSTANCE_ID" =~ ^i-[0-9a-f]+$ ]]; then
+            echo "PRODUCTION_INSTANCE_ID is invalid"
             exit 1
           fi
+          parameters=$(jq -cn --arg sha "$DEPLOY_SHA" '{commands:[
+            "set -eu",
+            "test -f /home/ubuntu/agriscan-pro/.env.ec2",
+            "test -f /home/ubuntu/agriscan-pro/docker-compose.ec2.yml",
+            "sudo -u ubuntu git -C /home/ubuntu/agriscan-pro diff --quiet",
+            "sudo -u ubuntu git -C /home/ubuntu/agriscan-pro diff --cached --quiet",
+            "sudo -u ubuntu git -C /home/ubuntu/agriscan-pro fetch origin " + $sha,
+            "sudo -u ubuntu git -C /home/ubuntu/agriscan-pro checkout main",
+            "sudo -u ubuntu git -C /home/ubuntu/agriscan-pro merge --ff-only " + $sha,
+            "test $(sudo -u ubuntu git -C /home/ubuntu/agriscan-pro rev-parse HEAD) = " + $sha,
+            "sudo -u ubuntu docker compose --env-file /home/ubuntu/agriscan-pro/.env.ec2 -f /home/ubuntu/agriscan-pro/docker-compose.ec2.yml up -d --build",
+            "sudo -u ubuntu docker compose --env-file /home/ubuntu/agriscan-pro/.env.ec2 -f /home/ubuntu/agriscan-pro/docker-compose.ec2.yml exec -T backend python manage.py migrate --noinput",
+            "sudo -u ubuntu docker compose --env-file /home/ubuntu/agriscan-pro/.env.ec2 -f /home/ubuntu/agriscan-pro/docker-compose.ec2.yml exec -T backend python manage.py check"
+          ]}')
+          command_id=$(aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name AWS-RunShellScript \
+            --comment "AgriScan backend deploy $DEPLOY_SHA" \
+            --timeout-seconds 1800 \
+            --parameters "$parameters" \
+            --query Command.CommandId \
+            --output text)
+          echo "command_id=$command_id" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for EC2 deployment
+        env:
+          COMMAND_ID: ${{ steps.deploy-command.outputs.command_id }}
+          INSTANCE_ID: ${{ vars.PRODUCTION_INSTANCE_ID }}
+        run: |
+          status=Pending
+          invocation='{}'
+          for _attempt in {1..120}; do
+            if ! invocation=$(aws ssm get-command-invocation \
+              --command-id "$COMMAND_ID" \
+              --instance-id "$INSTANCE_ID" \
+              --output json 2>/dev/null); then
+              sleep 15
+              continue
+            fi
+            status=$(jq -r '.Status' <<<"$invocation")
+            case "$status" in
+              Success|Cancelled|Failed|TimedOut|Cancelling) break ;;
+            esac
+            sleep 15
+          done
+          response_code=$(jq -r '.ResponseCode' <<<"$invocation")
+          jq -r '.StandardOutputContent, .StandardErrorContent' <<<"$invocation"
+          test "$status" = Success
+          test "$response_code" = 0
 
       - name: Backend health check
         run: |
@@ -624,7 +640,7 @@ jobs:
         env:
           BACKEND_HEALTH_URL: ${{ vars.BACKEND_HEALTH_URL }}
 
-      - name: Record backend artifact checksum
+      - name: Record backend source evidence checksum
         run: |
           sha256sum backend-bundle.tar.gz | tee backend-bundle.sha256
 
@@ -635,14 +651,15 @@ jobs:
           {
             echo "## Backend Deployment Summary"
             echo ""
-            echo "**Artifact:** \`backend-bundle\`"
-            echo "**Artifact SHA256:** \`${BACKEND_SHA256}\`"
+            echo "**Source evidence:** \`backend-bundle\`"
+            echo "**Source evidence SHA256:** \`${BACKEND_SHA256}\`"
             echo "**Commit:** \`${{ github.sha }}\`"
             echo "**Run ID:** \`${{ github.run_id }}\`"
             echo "**Run Attempt:** \`${{ github.run_attempt }}\`"
             echo "**Environment:** Production"
             echo "**Backend attestation:** Passed"
-            echo "**Elastic Beanstalk Environment:** \`Agriscanpro-backend-env\`"
+            echo "**EC2 instance:** \`${{ vars.PRODUCTION_INSTANCE_ID }}\`"
+            echo "**Deployment transport:** AWS Systems Manager Run Command"
             echo "**Backend Health URL:** \`${{ vars.BACKEND_HEALTH_URL }}\`"
             echo "**Timestamp:** $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
             echo ""

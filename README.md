@@ -219,19 +219,18 @@ cd frontend && npm run typecheck
 
 ## Deployment
 
-The backend deploys to AWS Elastic Beanstalk via GitHub Actions on every push to `main`.
+The backend deploys to the production EC2 Docker Compose host through AWS SSM
+after required checks pass on `main`. The frontend remains on S3/CloudFront.
 
 ### Manual deploy
 
 ```bash
-# Deploy backend to EB
-eb deploy Agriscanpro-backend-env
-
-# Check environment status
-eb status --verbose
-
-# Download logs
-eb logs --zip
+cd /home/ubuntu/agriscan-pro
+git pull --ff-only origin main
+docker compose --env-file .env.ec2 -f docker-compose.ec2.yml up -d --build
+docker compose --env-file .env.ec2 -f docker-compose.ec2.yml exec -T backend \
+  python manage.py migrate --noinput
+curl http://localhost/health/
 ```
 
 ### Frontend build
@@ -269,8 +268,8 @@ agriscan-pro/
 │   │   └── tasks.py          # Optional Celery work
 │   ├── notifications/        # Per-user risk and system notifications
 │   ├── core/                 # Settings, URL routing, permissions, Celery
-│   ├── .ebextensions/        # AWS EB container commands (migrate, collectstatic)
-│   └── .platform/            # AL2023 hooks (Celery worker startup)
+│   ├── .ebextensions/        # Legacy V1 Elastic Beanstalk configuration
+│   └── .platform/            # Legacy V1 Elastic Beanstalk hooks
 │
 ├── frontend/                 # React + TypeScript (Vite)
 │   └── src/
@@ -281,7 +280,7 @@ agriscan-pro/
 │       ├── lib/              # API clients, auth helpers, token storage
 │       └── contexts/         # AuthContext and other providers
 │
-├── .github/workflows/        # CI/CD — backend tests, lint, EB deploy
+├── .github/workflows/        # CI/CD — tests, EC2/SSM backend deploy, S3 frontend deploy
 └── CLAUDE.md                 # Project instructions for Claude Code
 ```
 
@@ -291,7 +290,7 @@ agriscan-pro/
 
 | Problem | Fix |
 |---------|-----|
-| `ImproperlyConfigured` during EB `container_commands` | Use `get-config environment` to load env vars before running `manage.py`; see [CLAUDE.md](CLAUDE.md#troubleshooting-beanstalk-deployments) |
+| EC2 deployment fails before Compose starts | Confirm the instance is online in SSM, `.env.ec2` exists, and the `ubuntu` user can run Docker |
 | Redis `SSL: CERTIFICATE_VERIFY_FAILED` | Set `REDIS_SSL_CERT_REQS=required` and use `rediss://` URL for ElastiCache |
 | CORS errors in local dev | Ensure `CORS_ALLOWED_ORIGINS=http://localhost:5173` in `backend/.env` |
 | Google OAuth `invalid_state` error | Clear session/cookies; state is server-side with a TTL — expired states are rejected |
