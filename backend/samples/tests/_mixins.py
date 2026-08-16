@@ -29,7 +29,7 @@ class SampleTestMixin:
         self.client.force_authenticate(user=self.user)
 
         self.sample_data = {
-            'sample_id': 'TEST-001',
+            'sample_id': 'SAM-2026-001',
             'region': 'Central',
             'province': 'Bangkok',
             'district': 'Chatuchak',
