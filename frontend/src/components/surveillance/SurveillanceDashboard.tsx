@@ -81,7 +81,9 @@ function isEnvironmentalCorrelationResponse(
 }
 
 export default function SurveillanceDashboard() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, role } = useAuth();
+  const canSimulateThresholds = isAuthenticated
+    && ['researcher', 'head_researcher', 'admin'].includes(role);
   const isDeferredMounted = useDeferredMount(400);
   const [filters, setFilters] = useState<DashboardFilters>(DEFAULT_FILTERS);
   const selectedProvince = filters.provinces[0] || null;
@@ -452,12 +454,12 @@ export default function SurveillanceDashboard() {
                   />
                 </Suspense>
                 <div className="flex flex-col gap-4">
-                  {isAuthenticated && (
-                    <DynamicThresholdControl
+                    {canSimulateThresholds && (
+                      <DynamicThresholdControl
                       onOverridesChange={setThresholdOverrides}
                       commodityOptions={filterOptions.commodities}
                     />
-                  )}
+                    )}
                   <RegionalRiskRanking
                     selectedProvince={selectedProvince}
                     onSelectProvince={handleProvinceFilterSelect}

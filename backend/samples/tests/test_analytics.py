@@ -28,6 +28,12 @@ class AnalyticsEndpointsTests(TestCase):
             role='research_assistant',
         )
         self.client.force_authenticate(user=self.user)
+        self.researcher = User.objects.create_user(
+            username='analytics_researcher',
+            email='analytics-researcher@example.com',
+            password='Password123',
+            role='researcher',
+        )
 
         self.sample1 = Sample.objects.create(
             sample_id='A-001', region='Central', province='Bangkok',
@@ -88,7 +94,9 @@ class AnalyticsEndpointsTests(TestCase):
                 "AFB1": {"rice": 1.0},
             },
         }
-        response = self.client.post(url, payload, format='json')
+        researcher_client = APIClient()
+        researcher_client.force_authenticate(user=self.researcher)
+        response = researcher_client.post(url, payload, format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn('kpis', response.data)
         self.assertEqual(response.data['kpis']['total_samples'], 2)
@@ -96,6 +104,11 @@ class AnalyticsEndpointsTests(TestCase):
         self.assertTrue(
             all(province['positiveCount'] == 1 for province in response.data['provinces'])
         )
+
+    def test_threshold_simulation_requires_researcher_role(self):
+        url = reverse('sample-analytics-threshold-simulation')
+        response = self.client.post(url, {'overrides': {}}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_environmental_correlation(self):
         mock_payload = {
@@ -286,7 +299,9 @@ class AnalyticsEndpointsTests(TestCase):
     def test_threshold_simulation_returns_400_for_invalid_overrides(self):
         url = reverse('sample-analytics-threshold-simulation')
 
-        response = self.client.post(url, {'overrides': ['AFB1']}, format='json')
+        researcher_client = APIClient()
+        researcher_client.force_authenticate(user=self.researcher)
+        response = researcher_client.post(url, {'overrides': ['AFB1']}, format='json')
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.data['detail'], 'overrides must be a dictionary')

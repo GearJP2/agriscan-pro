@@ -176,6 +176,7 @@ class MycotoxinResult(models.Model):
     )
     eu_threshold_low = models.FloatField(null=True, blank=True)
     eu_threshold_high = models.FloatField(null=True, blank=True)
+    is_below_lod = models.BooleanField(default=False)
     timestamp = models.DateTimeField(auto_now_add=True)
     notes = models.TextField(blank=True)
 

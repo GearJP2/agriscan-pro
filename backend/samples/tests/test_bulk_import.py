@@ -73,6 +73,74 @@ class BulkImportResultsTests(SampleTestMixin, TestCase):
         self.assertTrue(sample.mycotoxin_results.filter(toxin_type='AFB1').exists())
         self.assertTrue(sample.mycotoxin_results.filter(toxin_type='DON').exists())
 
+    def test_bulk_import_results_stores_extended_screening_panel(self):
+        """Headers from the dashboard screening CSV resolve to canonical toxins."""
+        url = reverse('sample-bulk-import-results')
+        csv_content = (
+            'Sample ID,15-Acetyl_DON,Aflatoxin B2,Alternariol,HT-2 toxin,Ochratoxin B\n'
+            f'{self.sample.sample_id},1.2,0.4,0.6,3.1,0.2\n'
+        )
+        upload = SimpleUploadedFile(
+            'extended_screening.csv', csv_content.encode('utf-8'), content_type='text/csv'
+        )
+
+        response = self.client.post(url, {'file': upload}, format='multipart')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['results_created'], 5)
+        self.assertSetEqual(
+            set(self.sample.mycotoxin_results.values_list('toxin_type', flat=True)),
+            {'15ADON', 'AFB2', 'ALT', 'HT2', 'OTB'},
+        )
+
+    def test_empty_screening_cell_is_recorded_as_below_lod(self):
+        url = reverse('sample-bulk-import-results')
+        csv_content = f'Sample ID,Aflatoxin B2,Patulin\n{self.sample.sample_id},,2.5\n'
+        upload = SimpleUploadedFile(
+            'below_lod.csv', csv_content.encode('utf-8'), content_type='text/csv'
+        )
+
+        response = self.client.post(url, {'file': upload}, format='multipart')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        below_lod = self.sample.mycotoxin_results.get(toxin_type='AFB2')
+        self.assertEqual(below_lod.value, 0)
+        self.assertTrue(below_lod.is_below_lod)
+        self.assertIn('below LOD', below_lod.notes)
+
+    def test_dashboard_import_creates_samples_then_updates_by_sample_id(self):
+        from ..services.ingestion_service import SampleIngestionService
+
+        csv_content = (
+            'Sample ID,Type,Sub-type,Location,Date of collection,Result (positive/negative),Aflatoxin B2,Patulin\n'
+            '13052026_Sample1_Rice_177.d,Food,White rice,Bangkok,2022,Positive,0.4,2.5\n'
+        )
+        upload = SimpleUploadedFile(
+            'dashboard.csv', csv_content.encode('utf-8'), content_type='text/csv'
+        )
+
+        first = SampleIngestionService.process_csv_results(
+            upload, None, create_missing_samples=True,
+        )
+        sample = Sample.objects.get(sample_id='13052026_Sample1_Rice_177.d')
+        self.assertEqual(first['created_samples'], 1)
+        self.assertEqual(sample.food_feed_type, 'food')
+        self.assertEqual(sample.sub_type, 'White rice')
+        self.assertEqual(sample.province, 'Bangkok')
+        self.assertEqual(str(sample.collection_date), '2022-01-01')
+        self.assertEqual(sample.mycotoxin_results.count(), 2)
+
+        updated_upload = SimpleUploadedFile(
+            'dashboard.csv', csv_content.replace('0.4', '0.8').encode('utf-8'), content_type='text/csv'
+        )
+        second = SampleIngestionService.process_csv_results(
+            updated_upload, None, create_missing_samples=True,
+        )
+        sample.refresh_from_db()
+        self.assertEqual(second['created_samples'], 0)
+        self.assertEqual(second['updated'], 2)
+        self.assertEqual(sample.mycotoxin_results.get(toxin_type='AFB2').value, 0.8)
+
     def test_bulk_import_results_reports_failed_rows_without_full_rollback(self):
         """A failed source row should not roll back successfully imported rows."""
         second_sample = Sample.objects.create(

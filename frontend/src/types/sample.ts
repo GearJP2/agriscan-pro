@@ -48,6 +48,7 @@ export interface MycotoxinResult {
   risk_level?: 'safe' | 'detected' | 'high' | 'critical' | 'unclassified';
   eu_threshold_low?: number | null;
   eu_threshold_high?: number | null;
+  is_below_lod?: boolean;
   threshold?: number | null;
   unit: string;
   method?: TestMethod;

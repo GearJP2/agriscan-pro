@@ -77,7 +77,7 @@ const MycotoxinResults = ({ results }: MycotoxinResultsProps) => {
                   'font-semibold',
                   isAboveThreshold ? 'text-danger' : 'text-foreground'
                 )}>
-                  {`${result.intensity} ${result.unit}`}
+                  {result.is_below_lod ? `Below LOD (${result.unit})` : `${result.intensity} ${result.unit}`}
                 </span>
               </div>
               {result.threshold !== undefined && result.threshold !== null && (

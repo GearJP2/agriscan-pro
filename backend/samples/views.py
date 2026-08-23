@@ -10,7 +10,7 @@ from rest_framework.response import Response
 
 from core.exceptions import SampleAlreadyExists
 from core.models import AuditLog
-from core.permissions import IsAdmin, IsOwnerOrAdmin
+from core.permissions import IsAdmin, IsAdminOrResearchRole, IsOwnerOrAdmin
 
 from .filters import apply_sample_filters
 from .models import ProcessLog, Sample
@@ -62,6 +62,8 @@ class SampleViewSet(viewsets.ModelViewSet):
     lookup_field = 'sample_id'
 
     def get_permissions(self):
+        if self.action in ['analytics_dashboard_simulate', 'analytics_threshold_simulation']:
+            return [IsAuthenticated(), IsAdminOrResearchRole()]
         if self.action in ['destroy', 'bulk_delete', 'generate_test_data', 'delete_test_data']:
             return [IsAuthenticated(), IsAdmin()]
         return [permission() for permission in self.permission_classes]
