@@ -9,7 +9,7 @@ from typing import Iterator
 from django.db import transaction
 from django.utils import timezone
 
-from ..constants.mycotoxin_constants import resolve_toxin_type
+from ..constants.mycotoxin_constants import EU_THRESHOLDS, get_risk_level, resolve_toxin_type
 from ..models import MycotoxinResult, ProcessLog, Sample
 
 logger = logging.getLogger("agriscan.samples")
@@ -417,29 +417,43 @@ class SampleIngestionService:
                 notes=notes,
             )
 
-        created_for_row, updated_for_row = 0, 0
+        existing_results = {
+            result.toxin_type: result for result in sample.mycotoxin_results.all()
+        }
+        created_results = []
+        updated_results = []
         for payload in results:
-            existing = sample.mycotoxin_results.filter(
-                toxin_type=payload["toxin_type"]
-            ).first()
+            existing = existing_results.get(payload["toxin_type"])
             if existing:
                 existing.value = payload["value"]
                 existing.unit = payload["unit"]
                 existing.notes = payload["notes"]
                 existing.is_below_lod = payload.get("is_below_lod", False)
-                existing.save()
-                updated_for_row += 1
+                existing.risk_level = get_risk_level(existing.toxin_type, existing.value)
+                updated_results.append(existing)
             else:
-                MycotoxinResult._default_manager.create(
+                threshold = EU_THRESHOLDS.get(payload["toxin_type"], {})
+                created_results.append(MycotoxinResult(
                     sample=sample,
                     toxin_type=payload["toxin_type"],
                     value=payload["value"],
                     unit=payload["unit"],
                     notes=payload["notes"],
                     is_below_lod=payload.get("is_below_lod", False),
-                )
-                created_for_row += 1
-        return created_for_row, updated_for_row
+                    eu_threshold_low=threshold.get("low"),
+                    eu_threshold_high=threshold.get("high"),
+                    risk_level=get_risk_level(payload["toxin_type"], payload["value"]),
+                ))
+
+        if created_results:
+            MycotoxinResult._default_manager.bulk_create(created_results, batch_size=1000)
+        if updated_results:
+            MycotoxinResult._default_manager.bulk_update(
+                updated_results,
+                ['value', 'unit', 'notes', 'is_below_lod', 'risk_level'],
+                batch_size=1000,
+            )
+        return len(created_results), len(updated_results)
 
     @classmethod
     def _process_row(

@@ -141,6 +141,23 @@ class BulkImportResultsTests(SampleTestMixin, TestCase):
         self.assertEqual(second['updated'], 2)
         self.assertEqual(sample.mycotoxin_results.get(toxin_type='AFB2').value, 0.8)
 
+    def test_dashboard_import_endpoint_creates_missing_samples(self):
+        url = reverse('sample-bulk-import-dashboard')
+        csv_content = (
+            'Sample ID,Type,Sub-type,Location,Date of collection,Result (positive/negative),Aflatoxin B2\n'
+            '13052026_Sample99_Rice_177.d,Food,White rice,Bangkok,2022,Positive,0.4\n'
+        )
+        upload = SimpleUploadedFile(
+            'dashboard.csv', csv_content.encode('utf-8'), content_type='text/csv'
+        )
+
+        response = self.client.post(url, {'file': upload}, format='multipart')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['samples_created'], 1)
+        self.assertEqual(response.data['results_created'], 1)
+        self.assertTrue(Sample.objects.filter(sample_id='13052026_Sample99_Rice_177.d').exists())
+
     def test_bulk_import_results_reports_failed_rows_without_full_rollback(self):
         """A failed source row should not roll back successfully imported rows."""
         second_sample = Sample.objects.create(
@@ -164,17 +181,17 @@ class BulkImportResultsTests(SampleTestMixin, TestCase):
             csv_content.encode('utf-8'),
             content_type='text/csv',
         )
-        original_create = MycotoxinResult._default_manager.create
+        original_bulk_create = MycotoxinResult._default_manager.bulk_create
 
-        def flaky_create(*args, **kwargs):
-            if kwargs.get('sample') == self.sample:
+        def flaky_bulk_create(objects, *args, **kwargs):
+            if objects and objects[0].sample_id == self.sample.id:
                 raise IntegrityError('simulated row failure')
-            return original_create(*args, **kwargs)
+            return original_bulk_create(objects, *args, **kwargs)
 
         with patch.object(
             MycotoxinResult._default_manager,
-            'create',
-            side_effect=flaky_create,
+            'bulk_create',
+            side_effect=flaky_bulk_create,
         ):
             response = self.client.post(url, {'file': upload}, format='multipart')
 

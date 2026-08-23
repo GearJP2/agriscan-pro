@@ -352,6 +352,36 @@ class SampleViewSet(viewsets.ModelViewSet):
         return Response(payload, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=['post'])
+    def bulk_import_dashboard(self, request):
+        """Import the supplied dashboard CSV, creating samples then upserting results by ID."""
+        uploaded_file = request.FILES.get('file')
+        if not uploaded_file:
+            return Response({'detail': 'file is required (CSV).'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            results = SampleIngestionService.process_csv_results(
+                uploaded_file, request.user, create_missing_samples=True,
+            )
+        except (ValueError, IntegrityError) as exc:
+            return Response({'detail': f'Import failed: {exc}'}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception:
+            logger.exception('sample.bulk_import_dashboard.unexpected_error')
+            return Response(
+                {'detail': 'An unexpected error occurred during dashboard import.'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        return Response({
+            'rows_processed': results.get('rows_processed', 0),
+            'samples_created': results.get('created_samples', 0),
+            'matched_samples': results.get('samples', 0),
+            'results_created': results.get('created', 0),
+            'results_updated': results.get('updated', 0),
+            'skipped_rows': results.get('skipped_rows', 0),
+            'failed_rows': results.get('failed_rows', []),
+        }, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['post'])
     def export_failed_rows(self, request):
         """
         Accepts a list of failed_rows (including row_data) and returns a CSV file response.
