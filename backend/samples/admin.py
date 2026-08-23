@@ -5,9 +5,9 @@ from .models import MycotoxinResult, ProcessLog, Sample
 
 @admin.register(Sample)
 class SampleAdmin(admin.ModelAdmin):
-    list_display = ['sample_id', 'region', 'province', 'status', 'collection_date']
-    list_filter = ['status', 'region', 'collection_date']
-    search_fields = ['sample_id', 'province', 'district', 'vegetation_variety']
+    list_display = ['sample_id', 'food_feed_type', 'sub_type', 'region', 'status', 'received_at']
+    list_filter = ['food_feed_type', 'status', 'region', 'collection_date']
+    search_fields = ['sample_id', 'province', 'district', 'sub_type', 'vegetation_variety']
     actions = ['seed_demo_data_action']
 
     def seed_demo_data_action(self, request, queryset):

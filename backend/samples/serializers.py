@@ -116,6 +116,7 @@ class ProcessLogSerializer(serializers.ModelSerializer):
 class SampleSerializer(serializers.ModelSerializer):
     process_logs = ProcessLogSerializer(many=True, read_only=True)
     mycotoxin_results = MycotoxinResultSerializer(many=True, read_only=True)
+    recorded_by = serializers.CharField(source='recorded_by.username', read_only=True)
 
     class Meta:
         model = Sample
@@ -125,23 +126,30 @@ class SampleSerializer(serializers.ModelSerializer):
             'region',
             'province',
             'district',
+            'food_feed_type',
+            'sub_type',
+            # Deprecated response alias retained so existing analytics clients
+            # continue working while they migrate to `sub_type`.
             'vegetation_variety',
             'collection_date',
+            'received_at',
             'status',
             'purpose',
             'sample_type',
             'processing_type',
-            'collected_by',
+            'recorded_by',
             'additional_info',
             'process_logs',
             'mycotoxin_results',
             'created_at',
             'updated_at',
         )
-        read_only_fields = ('id', 'created_at', 'updated_at')
+        read_only_fields = ('id', 'received_at', 'recorded_by', 'created_at', 'updated_at')
 
 
 class SampleCreateUpdateSerializer(serializers.ModelSerializer):
+    recorded_by = serializers.CharField(source='recorded_by.username', read_only=True)
+
     class Meta:
         model = Sample
         fields = (
@@ -149,18 +157,32 @@ class SampleCreateUpdateSerializer(serializers.ModelSerializer):
             'region',
             'province',
             'district',
-            'vegetation_variety',
+            'food_feed_type',
+            'sub_type',
             'collection_date',
+            'received_at',
             'status',
             'purpose',
             'sample_type',
             'processing_type',
-            'collected_by',
             'additional_info',
+            'recorded_by',
         )
         extra_kwargs = {
             'sample_id': {'required': False, 'allow_blank': True},
+            'food_feed_type': {'required': True},
+            'sub_type': {'required': True},
         }
+        read_only_fields = ('received_at', 'recorded_by')
+
+    def to_internal_value(self, data):
+        """Accept legacy import payloads while registering new samples with Food/Feed."""
+        data = data.copy() if hasattr(data, 'copy') else dict(data)
+        if not data.get('sub_type') and data.get('vegetation_variety'):
+            data['sub_type'] = data['vegetation_variety']
+        if not data.get('food_feed_type') and data.get('sub_type'):
+            data['food_feed_type'] = 'food'
+        return super().to_internal_value(data)
 
     def validate_collection_date(self, value):
         """Validate and normalize collection date"""
@@ -202,11 +224,16 @@ class SampleCreateUpdateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("District is required")
         return value.strip()
 
-    def validate_vegetation_variety(self, value):
-        """Validate vegetation variety is not empty"""
+    def validate_sub_type(self, value):
+        """Validate food/feed subtype is not empty."""
         if not value or not isinstance(value, str) or not value.strip():
-            raise serializers.ValidationError("Vegetation variety is required")
+            raise serializers.ValidationError("Sub-type is required")
         return value.strip()
+
+    def validate_food_feed_type(self, value):
+        if value not in {'food', 'feed'}:
+            raise serializers.ValidationError("Type must be either food or feed")
+        return value
 
     def validate_region(self, value):
         """Validate region is not empty"""
@@ -235,7 +262,9 @@ class SampleCreateUpdateSerializer(serializers.ModelSerializer):
             sample_id = (validated_data.get('sample_id') or '').strip()
             collection_date = validated_data.get('collection_date')
             if not sample_id:
-                generated_id, sequence_number = generate_sequential_sample_id(collection_date)
+                generated_id, sequence_number = generate_sequential_sample_id(
+                    collection_date, validated_data['sub_type']
+                )
                 validated_data['sample_id'] = generated_id
                 validated_data['sequence_number'] = sequence_number
             else:
@@ -245,19 +274,20 @@ class SampleCreateUpdateSerializer(serializers.ModelSerializer):
                 if parsed_seq > 0:
                     validated_data['sequence_number'] = parsed_seq
 
-            # Set defaults for empty/null fields
-            if not validated_data.get('purpose'):
-                validated_data['purpose'] = 'routine'
-            if not validated_data.get('sample_type'):
-                validated_data['sample_type'] = 'field'
-            if not validated_data.get('processing_type'):
-                validated_data['processing_type'] = 'raw'
-            if not validated_data.get('collected_by'):
-                validated_data['collected_by'] = 'Imported'
+            # Keep the legacy analytics field in sync until reporting is
+            # migrated to use sub_type directly.
+            validated_data['vegetation_variety'] = validated_data['sub_type']
             if not validated_data.get('additional_info'):
                 validated_data['additional_info'] = ''
 
             return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        # Keep historical reporting that still reads vegetation_variety in sync
+        # when an editor changes the new sub-type field.
+        if 'sub_type' in validated_data:
+            validated_data['vegetation_variety'] = validated_data['sub_type']
+        return super().update(instance, validated_data)
 
 
 class SampleListSerializer(serializers.ModelSerializer):
@@ -266,6 +296,7 @@ class SampleListSerializer(serializers.ModelSerializer):
     process_logs = ProcessLogSerializer(many=True, read_only=True)
     mycotoxin_results = MycotoxinResultSerializer(many=True, read_only=True)
     results_count = serializers.SerializerMethodField()
+    recorded_by = serializers.CharField(source='recorded_by.username', read_only=True)
 
     class Meta:
         model = Sample
@@ -275,8 +306,12 @@ class SampleListSerializer(serializers.ModelSerializer):
             'region',
             'province',
             'district',
+            'food_feed_type',
+            'sub_type',
             'vegetation_variety',
             'collection_date',
+            'received_at',
+            'recorded_by',
             'status',
             'risk_level',
             'results_count',

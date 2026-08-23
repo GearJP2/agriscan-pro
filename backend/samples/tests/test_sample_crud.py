@@ -70,9 +70,9 @@ class SampleCRUDTests(SampleTestMixin, TestCase):
 
         self.assertEqual(first.status_code, status.HTTP_201_CREATED)
         self.assertEqual(second.status_code, status.HTTP_201_CREATED)
-        self.assertTrue(first.data['sample_id'].startswith('SAM-2026-'))
-        self.assertEqual(first.data['sample_id'], 'SAM-2026-001')
-        self.assertEqual(second.data['sample_id'], 'SAM-2026-002')
+        self.assertTrue(first.data['sample_id'].startswith('RIC-2026-'))
+        self.assertEqual(first.data['sample_id'], 'RIC-2026-001')
+        self.assertEqual(second.data['sample_id'], 'RIC-2026-002')
 
 
 class SampleCRUDEdgeCaseTests(SampleTestMixin, TestCase):

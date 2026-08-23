@@ -66,6 +66,7 @@ export const PROCESSING_TYPE_LABELS: Record<ProcessingType, string> = {
 };
 
 export type SampleType = 'field' | 'market' | 'storage' | 'export';
+export type FoodFeedType = 'food' | 'feed';
 
 export const SAMPLE_TYPES: SampleType[] = ['field', 'market', 'storage', 'export'];
 
@@ -81,16 +82,22 @@ export interface Sample {
   region: string;
   province: string;
   district: string;
+  /** Legacy response field retained while historical analytics migrate. */
   vegetation_variety: string;
+  food_feed_type?: FoodFeedType;
+  sub_type?: string;
   collection_date: string;
+  received_at?: string;
   process_logs?: ProcessLog[];
   mycotoxin_results?: MycotoxinResult[];
   results_count?: number;
   risk_level?: RiskLevel;
   status: 'pending' | 'in_progress' | 'completed' | 'flagged';
-  purpose?: 'routine' | 'complaint driven' | 'target surveillance';
+  purpose?: 'research' | 'customer';
   sample_type?: SampleType;
   processing_type?: ProcessingType;
+  recorded_by?: string;
+  /** Deprecated compatibility field; new registrations use recorded_by. */
   collected_by?: string;
   additional_info?: string;
 }

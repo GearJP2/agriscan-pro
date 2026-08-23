@@ -41,11 +41,11 @@ const UnifiedImportForm = ({ sampleIds = [], onSuccess }: UnifiedImportFormProps
       'sample_id', 
       'province', 
       'district', 
-      'vegetation_variety', 
+      'food_feed_type',
+      'sub_type',
       'collection_date', 
       'purpose', 
       'sample_type', 
-      'collected_by',
       'AFB1', 'DON', 'FB1', 'ZEA', 'OTA', 'T-2' // Optional results
     ];
     
@@ -53,11 +53,11 @@ const UnifiedImportForm = ({ sampleIds = [], onSuccess }: UnifiedImportFormProps
       'S-001',
       'Bangkok',
       'Pathum Wan',
+      'food',
       'Corn',
       new Date().toISOString().split('T')[0],
-      'routine',
+      'research',
       'field',
-      'Staff Name',
       '', '', '', '', '', ''
     ];
 

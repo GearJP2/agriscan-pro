@@ -50,13 +50,13 @@ class SampleViewSet(viewsets.ModelViewSet):
     """
     queryset = (
         Sample.objects
-        .select_related('updated_by')
+        .select_related('updated_by', 'recorded_by')
         .prefetch_related('process_logs', 'mycotoxin_results')
         .all()
     )
     permission_classes = [IsAuthenticated, IsOwnerOrAdmin]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ['sample_id', 'region', 'vegetation_variety']
+    search_fields = ['sample_id', 'region', 'food_feed_type', 'sub_type']
     ordering_fields = ['collection_date', 'created_at', 'status']
     ordering = ['-collection_date']
     lookup_field = 'sample_id'
@@ -77,7 +77,12 @@ class SampleViewSet(viewsets.ModelViewSet):
         return apply_sample_filters(super().get_queryset(), self.request.query_params)
 
     def perform_create(self, serializer):
-        sample = serializer.save(updated_by=self.request.user)
+        sample = serializer.save(
+            updated_by=self.request.user,
+            recorded_by=self.request.user,
+            # Kept for ownership compatibility while old records exist.
+            collected_by=self.request.user.username,
+        )
         logger.info(
             'sample.created',
             extra={'sample_id': sample.sample_id, 'user': self.request.user.username},
