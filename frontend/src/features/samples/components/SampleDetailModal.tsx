@@ -147,22 +147,22 @@ const SampleDetailModal = ({ sample, open, onOpenChange, onUpdateSample, onMycot
                 <div className="flex flex-col gap-1 p-3 rounded-xl bg-background border border-border/40 shadow-sm transition-all hover:border-primary/20">
                   <div className="flex items-center gap-2 mb-1">
                     <Leaf className="h-4 w-4 text-primary opacity-70" />
-                    <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-tighter">Vegetation Species</span>
+                    <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-tighter">Food / Feed Type</span>
                   </div>
-                  <p className="font-bold text-foreground text-sm">{sample.vegetation_variety}</p>
-                  <p className="text-xs text-primary/60 font-medium">Standard Variety</p>
+                  <p className="font-bold text-foreground text-sm capitalize">{sample.food_feed_type || 'Legacy sample'}</p>
+                  <p className="text-xs text-primary/60 font-medium">{sample.sub_type || sample.vegetation_variety || 'Not specified'}</p>
                 </div>
 
                 {/* Collection Date */}
                 <div className="flex flex-col gap-1 p-3 rounded-xl bg-background border border-border/40 shadow-sm transition-all hover:border-primary/20">
                   <div className="flex items-center gap-2 mb-1">
                     <Calendar className="h-4 w-4 text-primary opacity-70" />
-                    <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-tighter">Registry Date</span>
+                    <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-tighter">Collection Date</span>
                   </div>
                   <p className="font-bold text-foreground text-sm">
                     {format(new Date(sample.collection_date), 'MMM dd, yyyy')}
                   </p>
-                  <p className="text-xs text-muted-foreground font-medium italic">Archive Entry</p>
+                  <p className="text-xs text-muted-foreground font-medium italic">Sample collection</p>
                 </div>
 
                 {/* Risk Status */}
@@ -269,10 +269,18 @@ const SampleDetailModal = ({ sample, open, onOpenChange, onUpdateSample, onMycot
                 <div className="flex items-start gap-3">
                   <User className="h-4 w-4 text-primary shrink-0 mt-0.5" />
                   <div>
-                    <p className="text-xs text-muted-foreground">Collected By</p>
+                    <p className="text-xs text-muted-foreground">Recorded By</p>
                     <p className="font-medium text-foreground text-sm">
-                      {sample.collected_by || 'Unknown'}
+                      {sample.recorded_by || 'System'}
                     </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3">
+                  <Calendar className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-xs text-muted-foreground">Received At</p>
+                    <p className="font-medium text-foreground text-sm">{sample.received_at ? format(new Date(sample.received_at), 'MMM dd, yyyy p') : 'Legacy sample'}</p>
                   </div>
                 </div>
 
