@@ -34,6 +34,8 @@ interface AuthContextType {
   user: AuthenticatedUser | null;
   role: UserRole | "guest";
   isAdmin: boolean;
+  /** Only this role can publish public website content. */
+  isContentAdmin: boolean;
   canAccessMonitor: boolean;
   isAuthenticated: boolean;
   isInitializing: boolean;
@@ -67,6 +69,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const isAdmin =
     isAuthenticated && (role === "admin" || role === "head_researcher");
+  const isContentAdmin = isAuthenticated && role === "admin";
 
   const canAccessMonitor =
     isAuthenticated && (user?.is_monitor_allowed || isAdmin);
@@ -221,6 +224,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         user,
         role,
         isAdmin,
+        isContentAdmin,
         canAccessMonitor,
         isAuthenticated,
         isInitializing,

@@ -1,4 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap');
 
 @tailwind base;
@@ -114,6 +115,10 @@
         --sidebar-border: 200 30% 18%;
         --sidebar-ring: 174 62% 45%;
     }
+}
+
+html[lang="th"] body {
+    font-family: 'Sarabun', 'Noto Sans Thai', sans-serif;
 }
 
 @layer base {
@@ -252,3 +257,41 @@
         opacity: 1;
     }
 }
+
+/* CoE-GFS source palette: burgundy, gold, charcoal and warm ivory. */
+.coe-theme {
+    --coe-primary: #9F1D20;
+    --coe-primary-dark: #7A1517;
+    --coe-gold: #F4B41A;
+    --coe-orange: #C97D2C;
+    --coe-charcoal: #2A3142;
+    --coe-muted: #6B6B6B;
+    --coe-ivory: #FAF5EC;
+    --coe-border: #E5DFD2;
+}
+
+.coe-theme [class~="bg-[#17382d]"],
+.coe-theme [class~="bg-[#245640]"] { background-color: var(--coe-primary) !important; }
+.coe-theme [class~="bg-[#eff2e8]"],
+.coe-theme [class~="bg-[#f0f1ea]"],
+.coe-theme [class~="bg-[#dfe7d5]"],
+.coe-theme [class~="bg-[#e1e8db]"] { background-color: var(--coe-ivory) !important; }
+.coe-theme [class~="bg-[#fafaf7]"] { background-color: #fff !important; }
+.coe-theme [class~="text-[#17382d]"] { color: var(--coe-charcoal) !important; }
+.coe-theme [class~="text-[#496257]"] { color: var(--coe-muted) !important; }
+.coe-theme [class~="text-[#9a6b37]"] { color: var(--coe-orange) !important; }
+.coe-theme [class*="border-[#17382d]"] { border-color: var(--coe-border) !important; }
+
+.coe-header {
+    background: linear-gradient(180deg, rgba(122, 21, 23, .96) 0%, rgba(159, 29, 32, .91) 100%) !important;
+    border-bottom-color: rgba(255, 255, 255, .12) !important;
+}
+.coe-header [class~="text-[#17382d]"],
+.coe-header [class~="text-[#365247]"] { color: #fff !important; }
+.coe-header [class~="text-[#9a6b37]"],
+.coe-header [class~="text-[#e5c987]"] { color: #F4B41A !important; }
+.coe-header [class~="bg-[#17382d]"] { background-color: #7A1517 !important; }
+.coe-header [class~="bg-[#fafaf7]"] { background-color: #9F1D20 !important; }
+
+.coe-footer { background-color: #1A1F2E !important; }
+.coe-footer [class~="text-[#e1c682]"] { color: #F4B41A !important; }
