@@ -316,16 +316,6 @@ export const sampleAPI = {
     return response.data;
   },
 
-  async bulkImportDashboard(file: File) {
-    const formData = new FormData();
-    formData.append("file", file);
-    const response = await apiClient.post("/samples/bulk_import_dashboard/", formData, {
-      headers: { "Content-Type": "multipart/form-data" },
-      timeout: 10 * 60 * 1000,
-    });
-    return response.data;
-  },
-
   async bulkCreateSamples(data: Partial<Sample>[]) {
     try {
       const response = await apiClient.post("/samples/bulk_create/", data);

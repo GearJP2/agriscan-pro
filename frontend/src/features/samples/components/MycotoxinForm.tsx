@@ -23,11 +23,18 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/hooks/use-toast';
 import { sampleAPI } from '@/lib/api';
-import { MYCOTOXIN_REGISTRY } from '@/constants/mycotoxins';
 
-const TOXIN_OPTIONS = Object.entries(MYCOTOXIN_REGISTRY)
-  .map(([value, toxin]) => ({ value, label: toxin.name }))
-  .sort((left, right) => left.label.localeCompare(right.label));
+const TOXIN_OPTIONS = [
+  { value: 'AFB1', label: 'Aflatoxin B1' },
+  { value: 'DON', label: 'Deoxynivalenol' },
+  { value: 'FB1', label: 'Fumonisin B1' },
+  { value: 'ZEA', label: 'Zearalenone' },
+  { value: 'OTA', label: 'Ochratoxin A' },
+  { value: 'T-2', label: 'T-2 Toxin' },
+  { value: 'AFG1', label: 'Aflatoxin G1' },
+  { value: 'AFG2', label: 'Aflatoxin G2' },
+  { value: 'AFM1', label: 'Aflatoxin M1' },
+] as const;
 
 const mycotoxinSchema = z.object({
   toxin_type: z.string().min(1, 'Toxin type is required'),

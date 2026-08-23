@@ -44,20 +44,21 @@ import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { sampleAPI } from '@/lib/api';
 import { getDetectedMycotoxinHeaders, hasAnyMycotoxinColumns, parseResearchDataFile } from '@/lib/dataImport';
-import { Sample, PROCESSING_TYPES, PROCESSING_TYPE_LABELS, ProcessingType } from '@/types/sample';
+import { Sample, ProcessLog, PROCESSING_TYPES, PROCESSING_TYPE_LABELS, ProcessingType } from '@/types/sample';
+import { vegetationTypes } from '@/constants/sampleConstants';
 import { getAllProvinces, getDistrictsByProvince, getRegionByProvince } from '@/data/thailandLocations';
 
 const formSchema = z.object({
   province: z.string().min(1, 'Province is required'),
   district: z.string().min(1, 'District is required'),
-  food_feed_type: z.enum(['food', 'feed'], { required_error: 'Type is required' }),
-  sub_type: z.string().min(1, 'Sub-type is required'),
+  vegetation_variety: z.string().min(1, 'Vegetation variety is required'),
   collection_date: z.date({
     required_error: "Collection date is required",
   }),
-  purpose: z.enum(['research', 'customer']).optional(),
-  sample_type: z.enum(['field', 'market', 'storage', 'export']).optional(),
+  purpose: z.enum(['routine', 'complaint driven', 'target surveillance'], { required_error: 'Purpose is required' }),
+  sample_type: z.enum(['field', 'market', 'storage', 'export'], { required_error: 'Sample type is required' }),
   processing_type: z.enum(['raw', 'dried', 'milled', 'processed', 'fermented']).optional(),
+  collected_by: z.string().min(1, 'Collector name is required'),
   notes: z.string().max(500).optional(),
 });
 
@@ -100,6 +101,10 @@ const generateImportSampleId = (rowNumber: number) => {
   const year = new Date().getFullYear();
   const stamp = Date.now().toString().slice(-6);
   return `SAM-${year}-${stamp}-${rowNumber.toString().padStart(4, '0')}`;
+};
+
+const generateLogId = () => {
+  return `LOG-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 };
 
 // Clean text by removing surrounding quotes
@@ -200,10 +205,11 @@ const normalizeSampleId = (rawValue: string, rowNumber: number): string => {
 
 const normalizePurpose = (rawValue: string): any => {
   const value = String(rawValue || '').trim().toLowerCase();
-  if (!value) return undefined;
-  if (value.includes('research') || value.includes('routine') || value.includes('target')) return 'research';
-  if (value.includes('customer') || value.includes('complaint')) return 'customer';
-  return undefined;
+  if (!value) return 'routine';
+  if (value === 'routine') return 'routine';
+  if (value === 'complaint driven' || value.includes('complaint')) return 'complaint driven';
+  if (value === 'target surveillance' || value.includes('target')) return 'target surveillance';
+  return 'routine';
 };
 
 const normalizeSampleType = (rawValue: string): any => {
@@ -212,7 +218,7 @@ const normalizeSampleType = (rawValue: string): any => {
   if (value.includes('market')) return 'market';
   if (value.includes('storage')) return 'storage';
   if (value.includes('export')) return 'export';
-  return undefined;
+  return 'field';
 };
 
 const normalizeProcessingType = (rawValue: string): any => {
@@ -222,7 +228,7 @@ const normalizeProcessingType = (rawValue: string): any => {
   if (value.includes('milled') || value.includes('mill')) return 'milled';
   if (value.includes('processed') || value.includes('process')) return 'processed';
   if (value.includes('fermented') || value.includes('ferment')) return 'fermented';
-  return undefined;
+  return 'raw';
 };
 
 const toBulkCreatePayload = (sample: any): Partial<Sample> => ({
@@ -230,14 +236,13 @@ const toBulkCreatePayload = (sample: any): Partial<Sample> => ({
   region: sample.region || 'Unknown',
   province: sample.province,
   district: sample.district,
-  food_feed_type: sample.food_feed_type || 'food',
-  sub_type: sample.sub_type || sample.vegetation_variety,
   vegetation_variety: sample.vegetation_variety,
   collection_date: sample.collection_date,
   status: sample.status || 'pending',
   purpose: sample.purpose || null,
   sample_type: sample.sample_type || null,
   processing_type: sample.processing_type || null,
+  collected_by: sample.collected_by || null,
   additional_info: sample.additional_info || '',
 });
 
@@ -320,13 +325,13 @@ const AddSampleForm = ({ onSuccess }: AddSampleFormProps) => {
     defaultValues: {
       province: '',
       district: '',
-      food_feed_type: undefined,
-      sub_type: '',
+      vegetation_variety: '',
       // @ts-ignore
       collection_date: undefined,
-      purpose: undefined,
-      sample_type: undefined,
+      purpose: 'routine',
+      sample_type: 'field',
       processing_type: undefined,
+      collected_by: '',
       notes: '',
     },
   });
@@ -388,23 +393,35 @@ const AddSampleForm = ({ onSuccess }: AddSampleFormProps) => {
   }, [selectedProvince, form]);
 
   const onSubmit = (values: FormValues) => {
+    const logId = generateLogId();
+    const timestamp = new Date().toISOString();
+
     // Convert Date object to YYYY-MM-DD
     const formattedDate = format(values.collection_date, 'yyyy-MM-dd');
 
     const region = getRegionByProvince(values.province) || 'Unknown';
 
+    const initialLog: ProcessLog = {
+      id: logId,
+      timestamp,
+      state: 'registered',
+      notes: values.notes,
+      conducted_by: 'Automated by system',
+    };
+
     const newSample: Partial<Sample> = {
       region,
       province: values.province,
       district: values.district,
-      food_feed_type: values.food_feed_type,
-      sub_type: values.sub_type,
+      vegetation_variety: values.vegetation_variety,
       collection_date: formattedDate,
+      process_logs: [initialLog],
       mycotoxin_results: [],
       status: 'pending',
       purpose: values.purpose,
       sample_type: values.sample_type,
       processing_type: values.processing_type as ProcessingType | undefined,
+      collected_by: values.collected_by,
       additional_info: values.notes,
     };
 
@@ -1552,33 +1569,24 @@ const AddSampleForm = ({ onSuccess }: AddSampleFormProps) => {
                 <div className="grid grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
-                    name="food_feed_type"
+                    name="vegetation_variety"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Type *</FormLabel>
+                        <FormLabel>Vegetation Variety *</FormLabel>
                         <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
                             <SelectTrigger>
-                              <SelectValue placeholder="Food or feed" />
+                              <SelectValue placeholder="Select variety" />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="food">Food</SelectItem>
-                            <SelectItem value="feed">Feed</SelectItem>
+                            {vegetationTypes.map(type => (
+                              <SelectItem key={type} value={type}>
+                                {type}
+                              </SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="sub_type"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Sub-type *</FormLabel>
-                        <FormControl><Input placeholder="e.g. Rice, maize feed, soybean meal" {...field} /></FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -1633,16 +1641,17 @@ const AddSampleForm = ({ onSuccess }: AddSampleFormProps) => {
                     name="purpose"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Purpose (Optional)</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value || ''}>
+                        <FormLabel>Purpose *</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
                             <SelectTrigger>
                               <SelectValue placeholder="Select purpose" />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="research">Research</SelectItem>
-                            <SelectItem value="customer">Customer</SelectItem>
+                            <SelectItem value="routine">Routine</SelectItem>
+                            <SelectItem value="complaint driven">Complaint Driven</SelectItem>
+                            <SelectItem value="target surveillance">Target Surveillance</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -1654,8 +1663,8 @@ const AddSampleForm = ({ onSuccess }: AddSampleFormProps) => {
                     name="sample_type"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Sample Type (Optional)</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value || ''}>
+                        <FormLabel>Sample Type *</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
                             <SelectTrigger>
                               <SelectValue placeholder="Select type" />
@@ -1700,7 +1709,19 @@ const AddSampleForm = ({ onSuccess }: AddSampleFormProps) => {
                   )}
                 />
 
-                <p className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">Recorded by your signed-in account automatically. The receive date is set when this sample is registered.</p>
+                <FormField
+                  control={form.control}
+                  name="collected_by"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Collected By *</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Collector's name" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
                 <FormField
                   control={form.control}

@@ -51,10 +51,9 @@ type SortField =
   | 'province'
   | 'district'
   | 'collection_date'
-  | 'received_at'
   | 'status'
   | 'risk'
-  | 'sub_type';
+  | 'vegetation_variety';
 type SortDirection = 'asc' | 'desc' | null;
 
 const TABLE_ROW_HEIGHT = 64;
@@ -140,13 +139,10 @@ const SampleRow = memo(
         <TableCell>{sample.province}</TableCell>
         <TableCell>{sample.district}</TableCell>
         <TableCell>
-          <div className="flex flex-wrap gap-1"><Badge variant="secondary" className="capitalize">{sample.food_feed_type || 'Legacy'}</Badge><span className="text-sm">{sample.sub_type || sample.vegetation_variety || '—'}</span></div>
+          <Badge variant="secondary">{sample.vegetation_variety}</Badge>
         </TableCell>
         <TableCell className="text-muted-foreground">
           {format(new Date(sample.collection_date), 'MMM dd, yyyy')}
-        </TableCell>
-        <TableCell className="text-muted-foreground">
-          {sample.received_at ? format(new Date(sample.received_at), 'MMM dd, yyyy') : '—'}
         </TableCell>
         <TableCell>{getStatusBadge(sample)}</TableCell>
         <TableCell>
@@ -352,19 +348,14 @@ const SampleTable = ({
             new Date(a.collection_date).getTime() -
             new Date(b.collection_date).getTime();
           break;
-        case 'received_at':
-          comparison =
-            new Date(a.received_at || 0).getTime() -
-            new Date(b.received_at || 0).getTime();
-          break;
         case 'status':
           comparison = a.status.localeCompare(b.status);
           break;
         case 'risk':
           comparison = getRiskScore(a) - getRiskScore(b);
           break;
-        case 'sub_type':
-          comparison = (a.sub_type || a.vegetation_variety || '').localeCompare(b.sub_type || b.vegetation_variety || '');
+        case 'vegetation_variety':
+          comparison = a.vegetation_variety.localeCompare(b.vegetation_variety);
           break;
       }
 
@@ -427,7 +418,7 @@ const SampleTable = ({
   const bottomSpacerHeight = shouldVirtualize
     ? (sortedSamples.length - virtualEndIndex) * TABLE_ROW_HEIGHT
     : 0;
-  const columnCount = isSelectionMode ? 11 : 10;
+  const columnCount = isSelectionMode ? 10 : 9;
 
   const SortableHeader = ({
     field,
@@ -538,15 +529,12 @@ const SampleTable = ({
                 </SortableHeader>
                 <SortableHeader
                   className="min-w-[200px]"
-                  field="sub_type"
+                  field="vegetation_variety"
                 >
-                  Food / Feed
+                  Variety
                 </SortableHeader>
                 <SortableHeader className="w-[140px]" field="collection_date">
-                  Collected
-                </SortableHeader>
-                <SortableHeader className="w-[140px]" field="received_at">
-                  Received
+                  Date
                 </SortableHeader>
                 <SortableHeader className="w-[140px]" field="status">
                   Status

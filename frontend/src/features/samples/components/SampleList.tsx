@@ -83,14 +83,13 @@ const SampleList = () => {
                 region: sample.region || 'Unknown',
                 province: sample.province,
                 district: sample.district,
-                food_feed_type: sample.food_feed_type || 'food',
-                sub_type: sample.sub_type || sample.vegetation_variety,
                 vegetation_variety: sample.vegetation_variety,
                 collection_date: sample.collection_date,
                 status: sample.status || 'pending',
                 purpose: sample.purpose || undefined,
                 sample_type: sample.sample_type || undefined,
                 processing_type: sample.processing_type || undefined,
+                collected_by: sample.collected_by || undefined,
                 additional_info: sample.additional_info || '',
             }));
             return sampleAPI.bulkCreateSamples(cleanedSamples);
@@ -268,7 +267,7 @@ const SampleList = () => {
 
     // Get export data
     const getExportData = () => {
-        const headers = ['Sample ID', 'Region', 'Province', 'District', 'Food / Feed', 'Sub-type', 'Collection Date', 'Received At', 'Status', 'Risk Level', 'Purpose', 'Sample Type', 'Recorded By', 'Additional Info', 'Last Updated By'];
+        const headers = ['Sample ID', 'Region', 'Province', 'District', 'Variety', 'Collection Date', 'Status', 'Risk Level', 'Purpose', 'Type', 'Collected By', 'Additional Info', 'Last Updated By'];
 
         const sortedForExport = [...filteredSamples].sort((a, b) =>
             a.sample_id.localeCompare(b.sample_id, undefined, { numeric: true, sensitivity: 'base' })
@@ -282,15 +281,13 @@ const SampleList = () => {
                 sample.region,
                 sample.province,
                 sample.district,
-                sample.food_feed_type || 'food',
-                sample.sub_type || sample.vegetation_variety,
+                sample.vegetation_variety,
                 sample.collection_date,
-                sample.received_at || '-',
                 sample.status,
                 getThresholdRiskLevel(sample),
                 sample.purpose || '-',
                 sample.sample_type || '-',
-                sample.recorded_by || '-',
+                sample.collected_by || '-',
                 sample.additional_info || '-',
                 lastLog?.conducted_by || '',
             ];

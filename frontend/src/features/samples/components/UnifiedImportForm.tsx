@@ -34,7 +34,6 @@ const UnifiedImportForm = ({ sampleIds = [], onSuccess }: UnifiedImportFormProps
   const [open, setOpen] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
-  const [uploadStage, setUploadStage] = useState('');
   const [importMode, setImportMode] = useState<'new' | 'update'>('new');
 
   const downloadRegistrationTemplate = () => {
@@ -42,11 +41,11 @@ const UnifiedImportForm = ({ sampleIds = [], onSuccess }: UnifiedImportFormProps
       'sample_id', 
       'province', 
       'district', 
-      'food_feed_type',
-      'sub_type',
+      'vegetation_variety', 
       'collection_date', 
       'purpose', 
       'sample_type', 
+      'collected_by',
       'AFB1', 'DON', 'FB1', 'ZEA', 'OTA', 'T-2' // Optional results
     ];
     
@@ -54,11 +53,11 @@ const UnifiedImportForm = ({ sampleIds = [], onSuccess }: UnifiedImportFormProps
       'S-001',
       'Bangkok',
       'Pathum Wan',
-      'food',
       'Corn',
       new Date().toISOString().split('T')[0],
-      'research',
+      'routine',
       'field',
+      'Staff Name',
       '', '', '', '', '', ''
     ];
 
@@ -142,36 +141,19 @@ const UnifiedImportForm = ({ sampleIds = [], onSuccess }: UnifiedImportFormProps
   const handleImport = async () => {
     if (!file) return;
     setIsUploading(true);
-    setUploadStage('Preparing the file…');
 
     try {
       const uploadFile = await toCsvFile(file);
-      setUploadStage('Checking the CSV format…');
-      const text = await uploadFile.text();
-      const [headers = []] = Papa.parse<string[]>(text, { skipEmptyLines: true }).data;
-      const normalizedHeaders = headers.map((header) => String(header ?? '').trim().toLowerCase());
-      const isDashboardScreeningCsv = ['sample id', 'type', 'sub-type'].every((header) =>
-        normalizedHeaders.includes(header),
-      );
-
-      if (isDashboardScreeningCsv) {
-        setUploadStage('Importing samples and mycotoxin results… this can take a few minutes for a full screening sheet.');
-        const result = await sampleAPI.bulkImportDashboard(uploadFile);
-        setUploadStage('Finalizing the import…');
-        toast({
-          title: 'Dashboard CSV Imported',
-          description: `${result.samples_created || 0} samples added; ${result.results_created || 0} results added and ${result.results_updated || 0} updated.`,
-        });
-      } else if (importMode === 'update') {
-        setUploadStage('Updating matched laboratory results…');
+      
+      if (importMode === 'update') {
         const result = await sampleAPI.bulkImportResults(uploadFile);
         toast({
           title: 'Lab Results Updated',
           description: `${result.results_updated || 0} results matched and updated.`,
         });
       } else {
-        setUploadStage('Registering new samples…');
-        // Standard registration CSV format.
+        // Read file content for parsing
+        const text = await uploadFile.text();
         const results = Papa.parse<string[]>(text, { skipEmptyLines: true });
         const headers = results.data[0];
         const rows = results.data.slice(1);
@@ -197,7 +179,6 @@ const UnifiedImportForm = ({ sampleIds = [], onSuccess }: UnifiedImportFormProps
       });
     } finally {
       setIsUploading(false);
-      setUploadStage('');
     }
   };
 
@@ -216,7 +197,7 @@ const UnifiedImportForm = ({ sampleIds = [], onSuccess }: UnifiedImportFormProps
             Unified Data Import
           </DialogTitle>
           <DialogDescription>
-            Choose how you want to import your data. The supplied Dashboard Results CSV is detected automatically and creates or updates records by Sample ID.
+            Choose how you want to import your data. Supported formats: CSV, XLSX.
           </DialogDescription>
         </DialogHeader>
 
@@ -327,12 +308,6 @@ const UnifiedImportForm = ({ sampleIds = [], onSuccess }: UnifiedImportFormProps
                 )}
                 {isUploading ? 'Processing...' : `Confirm ${importMode === 'new' ? 'Registration' : 'Result Update'}`}
               </Button>
-              {isUploading && (
-                <div className="flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-sm text-primary">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  {uploadStage}
-                </div>
-              )}
             </div>
           </div>
         </Tabs>
