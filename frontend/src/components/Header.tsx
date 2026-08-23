@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { Menu, X } from "lucide-react";
+import { ChevronDown, Menu, X } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import ThemeToggle from "./ThemeToggle";
@@ -9,6 +9,12 @@ import RoleSwitcher from "./RoleSwitcher";
 import { useAuth } from "@/contexts/AuthContext";
 import { USER_ROLE_WEIGHT } from "@/types/user";
 import { useLanguage } from "@/contexts/LanguageContext";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const Header = () => {
     const { isAuthenticated, isInitializing, user, role, canAccessMonitor } = useAuth();
@@ -21,25 +27,26 @@ const Header = () => {
         USER_ROLE_WEIGHT[user.role as keyof typeof USER_ROLE_WEIGHT] >=
         USER_ROLE_WEIGHT.research_assistant;
 
-    const labels = language === "th" ? ["หน้าแรก", "เกี่ยวกับเรา", "แดชบอร์ด", "โครงการ", "ผลงานตีพิมพ์", "ข่าวสาร", "พันธมิตรและเครือข่าย", "ติดต่อ", "รายการตัวอย่าง", "ผู้ใช้", "จัดการเนื้อหา"] : ["Home", "About Us", "Dashboard", "Projects", "Publications", "News", "Partners & Networks", "Contact", "Sample List", "Users", "Manage content"];
-    const links = [
-        { href: "/", label: labels[0], minWeight: 0 }, { href: "/about", label: labels[1], minWeight: 0 }, { href: "/dashboard", label: labels[2], minWeight: 0 }, { href: "/projects", label: labels[3], minWeight: 0 }, { href: "/publications", label: labels[4], minWeight: 0 }, { href: "/news", label: labels[5], minWeight: 0 }, { href: "/partners", label: labels[6], minWeight: 0 }, { href: "/contact", label: labels[7], minWeight: 0 }, { href: "/samples", label: labels[8], minWeight: USER_ROLE_WEIGHT.research_assistant }, { href: "/users", label: labels[9], minWeight: USER_ROLE_WEIGHT.researcher }, { href: "/manage", label: labels[10], minWeight: USER_ROLE_WEIGHT.admin },
-    ].filter((link) => {
-        const currentWeight = isAuthenticated
-            ? (USER_ROLE_WEIGHT[role as keyof typeof USER_ROLE_WEIGHT] ?? 0)
-            : 0;
-
-        return currentWeight >= link.minWeight;
-    });
+    const labels = language === "th" ? ["หน้าแรก", "เกี่ยวกับเรา", "แดชบอร์ด", "โครงการ", "ผลงานตีพิมพ์", "ข่าวสาร", "พันธมิตรและเครือข่าย", "ติดต่อ", "การคาดการณ์", "รายการตัวอย่าง", "ผู้ใช้", "จัดการเนื้อหา", "เครื่องมือวิจัย"] : ["Home", "About Us", "Dashboard", "Projects", "Publications", "News", "Partners & Networks", "Contact", "Predictions", "Sample List", "Users", "Manage content", "Research tools"];
+    const currentWeight = isAuthenticated ? (USER_ROLE_WEIGHT[role as keyof typeof USER_ROLE_WEIGHT] ?? 0) : 0;
+    const publicLinks = [
+        { href: "/", label: labels[0] }, { href: "/about", label: labels[1] }, { href: "/dashboard", label: labels[2] }, { href: "/projects", label: labels[3] }, { href: "/publications", label: labels[4] }, { href: "/news", label: labels[5] }, { href: "/partners", label: labels[6] }, { href: "/contact", label: labels[7] },
+    ];
+    const toolLinks: Array<{ href: string; label: string; minWeight: number; isExternal?: boolean }> = [
+        { href: "/prediction", label: labels[8], minWeight: USER_ROLE_WEIGHT.research_assistant },
+        { href: "/samples", label: labels[9], minWeight: USER_ROLE_WEIGHT.research_assistant },
+        { href: "/users", label: labels[10], minWeight: USER_ROLE_WEIGHT.researcher },
+        { href: "/manage", label: labels[11], minWeight: USER_ROLE_WEIGHT.admin },
+    ].filter((link) => currentWeight >= link.minWeight);
 
     // Add external Monitor link if allowed
     if (canAccessMonitor) {
-        links.push({
+        toolLinks.push({
             href: import.meta.env.VITE_MONITOR_URL,
             label: "Monitor",
             minWeight: 0,
             isExternal: true
-        } as any);
+        });
     }
 
     const isDashboard = location.pathname === "/dashboard";
@@ -58,7 +65,7 @@ const Header = () => {
                 </Link>
 
                 <div className="hidden xl:flex items-center gap-5 text-[12px] font-semibold text-[#365247] dark:text-slate-300">
-                    {links.map((link: any) => {
+                    {publicLinks.map((link: any) => {
                         const isActive = location.pathname === link.href;
 
                         if (link.isExternal) {
@@ -89,6 +96,14 @@ const Header = () => {
                             </Link>
                         );
                     })}
+                    {toolLinks.length > 0 && <DropdownMenu>
+                        <DropdownMenuTrigger className="flex items-center gap-1 transition-colors hover:text-[#e5c987]">{labels[12]} <ChevronDown className="h-3.5 w-3.5" /></DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="min-w-48 border-[#e5dfd2] bg-white p-1 text-[#2a3142] shadow-xl">
+                            {toolLinks.map((link: any) => <DropdownMenuItem key={link.href} asChild className="cursor-pointer rounded-md focus:bg-[#faf5ec] focus:text-[#9F1D20]">
+                                {link.isExternal ? <a href={link.href} target="_blank" rel="noopener noreferrer">{link.label}</a> : <Link to={link.href}>{link.label}</Link>}
+                            </DropdownMenuItem>)}
+                        </DropdownMenuContent>
+                    </DropdownMenu>}
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -110,7 +125,7 @@ const Header = () => {
                 </div>
             </div>
             {mobileOpen && <div className="border-t border-[#17382d]/10 bg-[#fafaf7] px-6 py-4 xl:hidden dark:bg-slate-950">
-                <div className="grid gap-3 text-sm font-semibold text-[#365247] dark:text-slate-300">{links.map((link: any) => link.isExternal ? <a key={link.href} href={link.href} target="_blank" rel="noopener noreferrer">{link.label}</a> : <Link key={link.href} to={link.href} onClick={() => setMobileOpen(false)}>{link.label}</Link>)}</div>
+                <div className="grid gap-3 text-sm font-semibold text-[#365247] dark:text-slate-300">{publicLinks.map((link: any) => <Link key={link.href} to={link.href} onClick={() => setMobileOpen(false)}>{link.label}</Link>)}{toolLinks.length > 0 && <p className="mt-2 text-xs uppercase tracking-[.12em] text-[#e5c987]">{labels[12]}</p>}{toolLinks.map((link: any) => link.isExternal ? <a key={link.href} href={link.href} target="_blank" rel="noopener noreferrer">{link.label}</a> : <Link key={link.href} to={link.href} onClick={() => setMobileOpen(false)}>{link.label}</Link>)}</div>
             </div>}
         </nav>
     );
