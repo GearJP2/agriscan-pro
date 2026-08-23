@@ -12,6 +12,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { LanguageProvider } from "@/contexts/LanguageContext";
 import { WatchlistProvider } from "@/contexts/WatchlistContext";
 import { cn } from "@/lib/utils";
 import { isPublicSitePath } from "@/lib/siteRoutes";
@@ -22,6 +23,7 @@ const Dashboard = lazy(
   () => import("@/components/surveillance/SurveillanceDashboard"),
 );
 const Homepage = lazy(() => import("./pages/Homepage"));
+const CoEGfsPage = lazy(() => import("./pages/CoEGfsPage"));
 const Doc = lazy(() => import("./pages/Doc"));
 const Prediction = lazy(() => import("./pages/Prediction"));
 const SampleList = lazy(
@@ -52,30 +54,33 @@ export const RouteLoadingFallback = () => (
 
 export const AppProviders = ({ children }: { children: ReactNode }) => (
   <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <WatchlistProvider>
-          <TooltipProvider>
-            <Toaster />
-            <Sonner />
-            {children}
-          </TooltipProvider>
-        </WatchlistProvider>
-      </AuthProvider>
-    </QueryClientProvider>
+    <LanguageProvider>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <WatchlistProvider>
+            <TooltipProvider>
+              <Toaster />
+              <Sonner />
+              {children}
+            </TooltipProvider>
+          </WatchlistProvider>
+        </AuthProvider>
+      </QueryClientProvider>
+    </LanguageProvider>
   </ThemeProvider>
 );
 
 export const AppRoutes = () => (
   <Routes>
     <Route path="/" element={<Homepage />} />
+    <Route path="/:page" element={<CoEGfsPage />} />
     <Route path="/doc" element={<Doc />} />
     <Route path="/dashboard" element={<Dashboard />} />
     <Route path="/auth/google/callback" element={<GoogleAuthCallback />} />
-    <Route path="/prediction" element={<Prediction />} />
     <Route path="/verify-email" element={<VerifyEmail />} />
 
     <Route element={<ProtectedRoute minRole="research_assistant" />}>
+      <Route path="/prediction" element={<Prediction />} />
       <Route path="/samples" element={<SampleList />} />
     </Route>
 
