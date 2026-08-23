@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Sarabun:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap');
 
 @tailwind base;
@@ -251,4 +251,203 @@
     to {
         opacity: 1;
     }
+}
+
+/* ==========================================================================
+   CoE-GFS Design System (docs/Design.md) — public site layer
+   Scoped under .coe-gfs so the authenticated app keeps AgriScan styling.
+   ========================================================================== */
+
+.coe-gfs {
+    --gfs-maroon: #7a1f1f;
+    --gfs-maroon-dark: #a51931;
+    --gfs-maroon-hover: #a52a2a;
+    --gfs-maroon-active: #b71c1c;
+    --gfs-gold: #FFC72C;
+    --gfs-canvas: #fdf7ef;
+    --gfs-surface: #ffffff;
+    --gfs-thumb: #f0e8dc;
+    --gfs-tint: rgba(122, 31, 31, 0.08);
+    --gfs-text-primary: #313131;
+    --gfs-text-secondary: #444444;
+    --gfs-text-muted: #666666;
+
+    background-color: var(--gfs-canvas);
+    color: var(--gfs-text-secondary);
+}
+
+.coe-gfs :focus-visible {
+    outline: 2px solid var(--gfs-gold);
+    outline-offset: 2px;
+}
+
+.coe-gfs h1,
+.coe-gfs h2,
+.coe-gfs h3 {
+    color: var(--gfs-maroon);
+}
+
+.skip-link {
+    position: absolute;
+    left: -9999px;
+    top: 0;
+    z-index: 10000000;
+    background: var(--gfs-gold, #FFC72C);
+    color: var(--gfs-maroon, #7a1f1f);
+    font-weight: 700;
+    padding: 10px 24px;
+    border-radius: 0 0 14px 0;
+}
+
+.skip-link:focus {
+    left: 0;
+}
+
+/* Pill buttons (Design.md §6) */
+.btn-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 24px;
+    border-radius: 9999px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease;
+}
+
+.btn-pill-primary {
+    background-color: var(--gfs-maroon);
+    color: var(--gfs-text-inverse, #ffffff);
+    border: 1.5px solid transparent;
+}
+
+.btn-pill-primary:hover {
+    background-color: var(--gfs-maroon-hover);
+    box-shadow: 0 4px 12px rgba(122, 31, 31, 0.3);
+    transform: translateY(-1px);
+}
+
+.btn-pill-outline {
+    background-color: transparent;
+    color: var(--gfs-maroon);
+    border: 1.5px solid var(--gfs-maroon);
+}
+
+.btn-pill-outline:hover {
+    background-color: var(--gfs-maroon);
+    color: var(--gfs-text-inverse, #ffffff);
+    transform: translateY(-1px);
+}
+
+/* Standardized content card (Design.md §6) */
+.content-card {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 480px;
+    max-height: 480px;
+    background-color: var(--gfs-surface);
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+    text-decoration: none;
+    color: inherit;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.content-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+.content-card-thumb {
+    width: 100%;
+    height: 200px;
+    flex-shrink: 0;
+    background-color: var(--gfs-thumb);
+    overflow: hidden;
+}
+
+.content-card-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.content-card-body {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    padding: 14px 16px 16px;
+    overflow: hidden;
+}
+
+.date-pill {
+    display: inline-block;
+    align-self: flex-start;
+    background-color: var(--gfs-gold);
+    color: var(--gfs-maroon);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    padding: 4px 10px;
+    border-radius: 9999px;
+    margin-bottom: 8px;
+}
+
+.card-title-clamp {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    min-height: 2.5em;
+    color: var(--gfs-maroon);
+    font-size: 0.92rem;
+    font-weight: 700;
+    line-height: 1.35;
+    margin: 0 0 6px 0;
+}
+
+.card-excerpt-clamp {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    color: var(--gfs-text-secondary);
+    font-size: 0.78rem;
+    line-height: 1.45;
+    margin: 0;
+}
+
+/* TH/EN language pill switcher (Design.md §5.1) */
+.coe-lang-switch {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 3px;
+    border: 1.5px solid rgba(122, 31, 31, 0.25);
+    border-radius: 9999px;
+    background-color: rgba(122, 31, 31, 0.08);
+}
+
+.coe-lang-switch button {
+    padding: 4px 12px;
+    border-radius: 9999px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--gfs-maroon);
+    transition: background 0.2s ease, color 0.2s ease;
+}
+
+.coe-lang-switch button:hover {
+    background-color: rgba(122, 31, 31, 0.12);
+}
+
+.coe-lang-switch button[data-active="true"] {
+    background-color: var(--gfs-gold);
+    color: var(--gfs-maroon);
 }
