@@ -1,6 +1,6 @@
 import { useState, FormEvent, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { Eye, EyeOff, Leaf, AlertCircle, Loader2 } from "lucide-react";
+import { Eye, EyeOff, Leaf, AlertCircle, Loader2, LogIn } from "lucide-react";
 import { beginGoogleOAuth, registerAccount } from "@/lib/authApi";
 import {
   Dialog,
@@ -180,8 +180,9 @@ const LoginModal = () => {
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <Button className="rounded-full px-6 font-semibold bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm transition-all duration-300 hover:shadow-md gradient-primary border-none">
-          Login / Sign up
+        <Button className="gap-2 rounded-gfs-pill border-[1.5px] border-transparent bg-gfs-maroon px-5 py-2.5 text-sm font-semibold text-white shadow-none transition-all duration-200 hover:bg-gfs-maroon-hover">
+          <LogIn className="h-4 w-4" />
+          <span className="hidden sm:inline">Researcher access</span>
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md p-0 overflow-hidden border-none bg-background rounded-2xl flex flex-col max-h-[90vh] md:h-auto min-h-[500px]">
@@ -204,8 +205,8 @@ const LoginModal = () => {
             </div>
           </div>
 
-          {/* Toggle Switch */}
-          <div className="flex justify-center mb-8">
+          {/* Registration is invitation-only; public visitors can only sign in. */}
+          <div className="hidden justify-center mb-8">
             <div className="bg-muted p-1 rounded-full inline-flex relative shadow-inner">
               <button
                 onClick={() => {

@@ -84,6 +84,10 @@ export const AppRoutes = () => (
       <Route path="/samples" element={<SampleList />} />
     </Route>
 
+    <Route element={<ProtectedRoute allowedRoles={["admin"]} />}>
+      <Route path="/manage" element={<Homepage />} />
+    </Route>
+
     <Route element={<ProtectedRoute minRole="researcher" />}>
       <Route path="/users" element={<UserManagement />} />
     </Route>
