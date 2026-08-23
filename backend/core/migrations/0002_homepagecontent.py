@@ -5,8 +5,11 @@ import django.db.models.deletion
 
 
 class Migration(migrations.Migration):
-    initial = True
-    dependencies = [migrations.swappable_dependency(settings.AUTH_USER_MODEL)]
+    dependencies = [
+        ("core", "0001_create_auditlog"),
+        migrations.swappable_dependency(settings.AUTH_USER_MODEL),
+    ]
+
     operations = [
         migrations.CreateModel(
             name="HomepageContent",
