@@ -14,7 +14,10 @@ interface DynamicThresholdControlProps {
 
 const TOXIN_METADATA = MYCOTOXIN_REGISTRY;
 
-const ACTIVE_TOXINS = Object.keys(TOXIN_METADATA);
+// Only toxins with a verified default threshold can be simulated.
+const ACTIVE_TOXINS = Object.entries(TOXIN_METADATA)
+  .filter(([, metadata]) => !metadata.isUncertain)
+  .map(([toxin]) => toxin);
 
 export default function DynamicThresholdControl({ onOverridesChange, commodityOptions }: DynamicThresholdControlProps) {
   const [isOpen, setIsOpen] = useState(false);
