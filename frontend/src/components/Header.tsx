@@ -68,12 +68,12 @@ const AppHeader = () => {
             isDashboard ? "max-w-[1920px] px-4 sm:px-6 lg:px-8" : "max-w-container-max px-gutter"
         )}>
             <div className="w-full rounded-2xl border border-white/20 dark:border-slate-800/50 bg-white/70 dark:bg-slate-950/70 backdrop-blur-xl flex justify-between items-center px-8 py-4">
-                <Link to="/" className="text-xl font-bold tracking-tighter text-slate-900 dark:text-white flex items-center gap-2">
-                    <span className="material-symbols-outlined text-primary" style={{ fontVariationSettings: '"FILL" 1' }}>biotech</span>
+                <Link to="/" className="text-xl font-bold tracking-tighter text-gfs-maroon dark:text-white flex items-center gap-2">
+                    <span className="material-symbols-outlined text-gfs-maroon dark:text-gfs-gold" style={{ fontVariationSettings: '"FILL" 1' }}>biotech</span>
                     AgriScan Pro
                 </Link>
 
-                <div className="hidden md:flex items-center gap-6 font-sans text-[13px] font-bold tracking-tight nav-container">
+                <div className="hidden md:flex items-center gap-6 font-sans text-[0.95rem] font-semibold tracking-tight nav-container">
                     {links.map((link: any) => {
                         const isActive = location.pathname === link.href;
 

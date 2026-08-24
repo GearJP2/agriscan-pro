@@ -189,14 +189,14 @@
         /* Adjusted to match hero spacing in proto */
     }
 
-    /* Premium Underline Animation */
+    /* Premium Underline Animation — gold accent per docs/Design.md */
     .underline-span {
-        @apply absolute -bottom-1 left-1/2 -translate-x-1/2 h-0.5 bg-primary rounded-full transition-all duration-300;
+        @apply absolute -bottom-1 left-1/2 -translate-x-1/2 h-0.5 bg-gfs-gold rounded-full transition-all duration-300;
         width: 0;
     }
 
     .nav-link-active {
-        @apply text-primary font-bold scale-110;
+        @apply text-gfs-maroon font-bold scale-110 dark:text-gfs-gold;
     }
 
     .nav-link-active .underline-span {
@@ -214,7 +214,7 @@
 
     /* Shared Interaction for all links */
     .nav-link:hover {
-        @apply text-primary scale-110 font-bold opacity-100;
+        @apply text-gfs-maroon-hover scale-110 font-bold opacity-100 dark:text-gfs-gold-light;
     }
 
     .nav-link:hover .underline-span {
