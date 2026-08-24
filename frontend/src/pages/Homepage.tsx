@@ -17,6 +17,7 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { apiClient, publicApiClient } from "@/lib/api";
+import { cn } from "@/lib/utils";
 
 type HomeContent = {
   eyebrow: string;
@@ -96,6 +97,22 @@ const partners = [
   ["🇸🇬", "Singapore", "SCIEX · Agilent · A*STAR · NTU"],
 ];
 
+/* Full international network (mirrors the /partners page content). */
+const partnerDirectory = [
+  ["🇮🇪", "Ireland", "University College Dublin"],
+  ["🇫🇷", "France", "L’institut Agro Dijon"],
+  ["🇧🇪", "Belgium", "Ghent University"],
+  ["🇨🇦", "Canada", "International Union of Food Science and Technology"],
+  ["🇳🇵", "Nepal", "Nepal Development Research Institute"],
+  ["🇵🇾", "Paraguay", "Microbioticos Paraguay"],
+  ["🇭🇰", "Hong Kong", "Hong Kong Baptist University"],
+  ["🇰🇷", "South Korea", "Yonsei University"],
+  ["🇻🇳", "Vietnam", "Phenikaa University · Nong Lam University · Hochiminh University"],
+  ["🇲🇾", "Malaysia", "Universiti Putra Malaysia"],
+  ["🇮🇩", "Indonesia", "Atma Jaya Catholic University of Indonesia · Universitas Indonesia"],
+  ["🇲🇲", "Myanmar", "Myanmar Institute of Strategic and International Studies"],
+];
+
 const Homepage = () => {
   const { isContentAdmin } = useAuth();
   const { language } = useLanguage();
@@ -104,6 +121,7 @@ const Homepage = () => {
   const [draft, setDraft] = useState<HomeContent>(defaultContent);
   const [editing, setEditing] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [partnersOpen, setPartnersOpen] = useState(false);
   const isThai = language === "th";
   const displayContent = isThai
     ? {
@@ -133,8 +151,9 @@ const Homepage = () => {
         statPartners: "พันธมิตรระดับนานาชาติ",
         newsEyebrow: "ข่าวสารและบทความ",
         newsTitle: "ข่าวสารล่าสุดจาก CoE-GFS",
-        projectsTitle: "งานวิจัยที่ทำให้ความปลอดภัยวัดได้",
+        projectsTitle: "โครงการวิจัยที่ทำให้ความปลอดภัยวัดได้",
         viewAll: "ดูทั้งหมด",
+        viewLess: "ย่อลง",
         readMore: "อ่านต่อ",
         explorePredictions: "สำรวจการคาดการณ์",
         partnersEyebrow: "พันธมิตรและเครือข่าย",
@@ -167,6 +186,7 @@ const Homepage = () => {
         newsTitle: "Latest from CoE-GFS",
         projectsTitle: "Research that makes safety measurable.",
         viewAll: "View all",
+        viewLess: "Show less",
         readMore: "Read more",
         explorePredictions: "Explore predictions",
         partnersEyebrow: "Partners & networks",
@@ -405,10 +425,32 @@ const Homepage = () => {
               </article>
             ))}
           </div>
-          <div className="mt-8 text-center">
-            <Link to="/partners" className="inline-flex items-center gap-2 text-sm font-bold text-gfs-maroon underline underline-offset-4 hover:text-gfs-maroon-hover">
-              {t.viewAll} <ArrowRight className="h-4 w-4" />
-            </Link>
+          <div className="mt-8 flex flex-col items-center">
+            <button
+              type="button"
+              onClick={() => setPartnersOpen((open) => !open)}
+              aria-expanded={partnersOpen}
+              className="inline-flex items-center gap-2 text-sm font-bold text-gfs-maroon underline underline-offset-4 transition-colors hover:text-gfs-maroon-hover"
+            >
+              {partnersOpen ? t.viewLess : t.viewAll}
+              <ArrowRight className={cn("h-4 w-4 transition-transform duration-300", partnersOpen && "rotate-90")} />
+            </button>
+            {partnersOpen && (
+              <div className="mt-6 w-full animate-[fadeIn_0.3s_ease-out] rounded-gfs-card border border-gfs-maroon/10 bg-gfs-surface p-5 shadow-gfs-card">
+                <p className="px-1 text-[0.72rem] font-bold uppercase tracking-[0.05em] text-gfs-maroon">{t.partnersTitle}</p>
+                <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {partnerDirectory
+                    .filter(([_, country]) => !partners.some(([, teaserCountry]) => teaserCountry === country))
+                    .map(([flag, country, names]) => (
+                      <article key={country} className="rounded-xl border border-gfs-maroon/10 bg-gfs-canvas p-5 transition-colors hover:bg-gfs-thumb/50">
+                        <span className="text-xl">{flag}</span>
+                        <h3 className="mt-3 text-sm font-bold text-gfs-maroon">{country}</h3>
+                        <p className="mt-1.5 text-xs leading-relaxed text-gfs-text-secondary">{names}</p>
+                      </article>
+                    ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </section>
