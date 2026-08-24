@@ -38,14 +38,14 @@ const CoeFooter = () => {
         <footer className="coe-gfs mt-auto bg-gfs-maroon px-6 py-12 text-white lg:px-8">
             <div className="mx-auto grid max-w-[1280px] gap-10 md:grid-cols-[1.5fr_1fr_1fr]">
                 <div>
-                    <Link to="/" className="text-xl font-bold tracking-tight">
+                    <Link to="/" className="text-xl font-bold tracking-tight text-white">
                         CoE<span className="text-gfs-gold">-</span>GFS
                     </Link>
-                    <p className="mt-4 max-w-sm text-sm leading-6 text-white/70">{t.tagline}</p>
+                    <p className="mt-4 max-w-sm text-sm leading-6 font-medium text-white/90">{t.tagline}</p>
                 </div>
                 <div>
                     <p className="text-xs font-bold uppercase tracking-[0.16em] text-gfs-gold">{t.platform}</p>
-                    <div className="mt-4 grid gap-2 text-sm text-white/75">
+                    <div className="mt-4 grid gap-2 text-sm font-medium text-white/85">
                         <Link to="/dashboard" className="transition-colors hover:text-gfs-gold">{t.dashboard}</Link>
                         <Link to="/prediction" className="transition-colors hover:text-gfs-gold">{t.predictions}</Link>
                         <Link to="/samples" className="transition-colors hover:text-gfs-gold">{t.samples}</Link>
@@ -53,13 +53,13 @@ const CoeFooter = () => {
                 </div>
                 <div>
                     <p className="text-xs font-bold uppercase tracking-[0.16em] text-gfs-gold">{t.research}</p>
-                    <div className="mt-4 grid gap-2 text-sm text-white/75">
+                    <div className="mt-4 grid gap-2 text-sm font-medium text-white/85">
                         <Link to="/doc" className="transition-colors hover:text-gfs-gold">{t.documentation}</Link>
                         <Link to="/contact" className="transition-colors hover:text-gfs-gold">{t.contact}</Link>
                     </div>
                 </div>
             </div>
-            <div className="mx-auto mt-10 max-w-[1280px] border-t border-white/15 pt-5 text-xs text-white/60">
+            <div className="mx-auto mt-10 max-w-[1280px] border-t border-white/25 pt-5 text-xs font-medium text-white/80">
                 © 2026 Center of Excellence in Global Food Security, Thammasat University. {t.rights}
             </div>
         </footer>

@@ -205,7 +205,7 @@
 
     /* Dynamic Nav Logic: When any part of the nav is hovered, the active link 'recedes' */
     .nav-container:hover .nav-link-active:not(:hover) {
-        @apply text-slate-600 dark:text-slate-400 font-semibold scale-100;
+        @apply text-gfs-text-muted dark:text-slate-400 font-semibold scale-100;
     }
 
     .nav-container:hover .nav-link-active:not(:hover) .underline-span {
@@ -256,24 +256,28 @@
 /* ==========================================================================
    CoE-GFS Design System (docs/Design.md) — public site layer
    Scoped under .coe-gfs so the authenticated app keeps AgriScan styling.
+   Base rules live in @layer base so Tailwind utilities (bg-*, text-*)
+   always override them.
    ========================================================================== */
 
-.coe-gfs {
-    --gfs-maroon: #7a1f1f;
-    --gfs-maroon-dark: #a51931;
-    --gfs-maroon-hover: #a52a2a;
-    --gfs-maroon-active: #b71c1c;
-    --gfs-gold: #FFC72C;
-    --gfs-canvas: #fdf7ef;
-    --gfs-surface: #ffffff;
-    --gfs-thumb: #f0e8dc;
-    --gfs-tint: rgba(122, 31, 31, 0.08);
-    --gfs-text-primary: #313131;
-    --gfs-text-secondary: #444444;
-    --gfs-text-muted: #666666;
+@layer base {
+    .coe-gfs {
+        --gfs-maroon: #7a1f1f;
+        --gfs-maroon-dark: #a51931;
+        --gfs-maroon-hover: #a52a2a;
+        --gfs-maroon-active: #b71c1c;
+        --gfs-gold: #FFC72C;
+        --gfs-canvas: #fdf7ef;
+        --gfs-surface: #ffffff;
+        --gfs-thumb: #f0e8dc;
+        --gfs-tint: rgba(122, 31, 31, 0.08);
+        --gfs-text-primary: #313131;
+        --gfs-text-secondary: #444444;
+        --gfs-text-muted: #666666;
 
-    background-color: var(--gfs-canvas);
-    color: var(--gfs-text-secondary);
+        background-color: var(--gfs-canvas);
+        color: var(--gfs-text-secondary);
+    }
 }
 
 .coe-gfs :focus-visible {
