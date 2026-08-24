@@ -18,6 +18,8 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { apiClient, publicApiClient } from "@/lib/api";
+import PartnerMap from "@/components/PartnerMap";
+import { partnerDirectory } from "@/constants/partners";
 
 type HomeContent = {
   eyebrow: string;
@@ -84,31 +86,6 @@ const projects = [
     body: "Funder: Horizon Europe · A global alliance for climate resilience.",
     image: "/assets/images/blog-3.jpg",
   },
-];
-
-/* Full international network — slides in the marquee and fills the
-   View all panel (mirrors the /partners page content). */
-const partnerDirectory = [
-  ["🇹🇭", "Thailand", "BIOTEC · MTEC · Prince of Songkla University · Mahidol University · Chulalongkorn University · Kasetsart University · Chiang Mai University · PTT Oil and Retail Business · Neogen Asia · MDPI Bangkok · FoSTAT"],
-  ["🇺🇸", "United States", "CRDF Global · University of British Columbia · Oregon State University · International Life Sciences Institute (ILSI)"],
-  ["🇬🇧", "United Kingdom", "Queen’s University Belfast · University of Liverpool · Bia Analytical"],
-  ["🇮🇹", "Italy", "University of Parma · Barilla Group · ISPA"],
-  ["🇦🇹", "Austria", "University of Vienna · BOKU · International Atomic Energy Agency"],
-  ["🇨🇳", "China", "China National Center for Food Safety Risk Assessment · Pribolab · Shaanxi University of Science and Technology · Wuhan Polytechnic University · Shandong Agricultural University"],
-  ["🇯🇵", "Japan", "Frontier Laboratories · Teiko University · Shizuoka University"],
-  ["🇸🇬", "Singapore", "SCIEX Singapore · Agilent Technologies Singapore · A*STAR · Nanyang Technological University"],
-  ["🇮🇪", "Ireland", "University College Dublin"],
-  ["🇫🇷", "France", "L’institut Agro Dijon"],
-  ["🇧🇪", "Belgium", "Ghent University"],
-  ["🇨🇦", "Canada", "International Union of Food Science and Technology"],
-  ["🇳🇵", "Nepal", "Nepal Development Research Institute"],
-  ["🇵🇾", "Paraguay", "Microbioticos Paraguay"],
-  ["🇭🇰", "Hong Kong", "Hong Kong Baptist University"],
-  ["🇰🇷", "South Korea", "Yonsei University"],
-  ["🇻🇳", "Vietnam", "Phenikaa University · Nong Lam University · Hochiminh University"],
-  ["🇲🇾", "Malaysia", "Universiti Putra Malaysia"],
-  ["🇮🇩", "Indonesia", "Atma Jaya Catholic University of Indonesia · Universitas Indonesia"],
-  ["🇲🇲", "Myanmar", "Myanmar Institute of Strategic and International Studies"],
 ];
 
 const Homepage = () => {
@@ -452,7 +429,19 @@ const Homepage = () => {
               {partnersOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
             </button>
             {partnersOpen && (
-              <div className="mt-4 w-full animate-[fadeIn_0.3s_ease-out] border-t border-gfs-maroon/10 pt-2">
+              <div className="mt-4 w-full animate-[fadeIn_0.3s_ease-out]">
+                <p className="mb-3 text-center text-xs font-medium text-gfs-text-muted">
+                  {isThai
+                    ? "กดที่ประเทศเพื่อเปิดตำแหน่งสถาบันพันธมิตรใน Google Maps"
+                    : "Click a country to open its partner institution in Google Maps"}
+                </p>
+                <div className="overflow-hidden rounded-gfs-card border border-gfs-maroon/10 shadow-gfs-card">
+                  <PartnerMap />
+                </div>
+              </div>
+            )}
+            {partnersOpen && (
+              <div className="mt-6 w-full animate-[fadeIn_0.3s_ease-out] border-t border-gfs-maroon/10 pt-2">
                 <div className="grid sm:grid-cols-2 lg:grid-cols-3">
                   {partnerDirectory.map(([flag, country, names]) => (
                     <div key={country} className="flex gap-3 border-b border-gfs-maroon/10 py-4 sm:pr-8">
