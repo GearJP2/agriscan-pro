@@ -4,6 +4,7 @@ import {
   ArrowRight,
   BarChart3,
   ChevronDown,
+  ChevronUp,
   Database,
   Edit3,
   FlaskConical,
@@ -17,7 +18,6 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { apiClient, publicApiClient } from "@/lib/api";
-import { cn } from "@/lib/utils";
 
 type HomeContent = {
   eyebrow: string;
@@ -414,7 +414,8 @@ const Homepage = () => {
             <h2 className="mt-2 text-2xl font-bold leading-[1.3] tracking-[-0.01em] text-gfs-maroon md:text-[2rem]">{t.partnersTitle}</h2>
             <p className="mx-auto mt-4 max-w-2xl text-sm leading-relaxed text-gfs-text-secondary">{t.partnersSubtitle}</p>
           </div>
-          {/* Sliding-window marquee: two copies, translateX(-50%) loops seamlessly */}
+          {/* Sliding-window marquee: two copies, translateX(-50%) loops seamlessly.
+              Typographic items — no card chrome, just a hairline band. */}
           <div className="group relative mt-10 overflow-hidden">
             <div
               aria-hidden="true"
@@ -424,21 +425,20 @@ const Homepage = () => {
               aria-hidden="true"
               className="pointer-events-none absolute inset-y-0 right-0 z-10 w-16 bg-gradient-to-l from-white to-transparent"
             />
-            <div className="flex w-max gap-5 animate-[gfs-marquee_55s_linear_infinite] group-hover:[animation-play-state:paused] motion-reduce:[animation:none]">
-              {[0, 1].map((copy) => (
-                <div key={copy} className="flex gap-5" aria-hidden={copy === 1}>
-                  {partnerDirectory.map(([flag, country, names]) => (
-                    <article
-                      key={`${copy}-${country}`}
-                      className="w-[250px] shrink-0 rounded-gfs-card border border-gfs-maroon/10 bg-gfs-surface p-5 shadow-gfs-card transition-colors hover:bg-gfs-thumb/50"
-                    >
-                      <span className="text-xl">{flag}</span>
-                      <h3 className="mt-3 text-sm font-bold text-gfs-maroon">{country}</h3>
-                      <p className="mt-1.5 line-clamp-3 text-xs leading-relaxed text-gfs-text-secondary">{names}</p>
-                    </article>
-                  ))}
-                </div>
-              ))}
+            <div className="border-y border-gfs-maroon/10 py-7">
+              <div className="flex w-max gap-12 animate-[gfs-marquee_55s_linear_infinite] group-hover:[animation-play-state:paused] motion-reduce:[animation:none]">
+                {[0, 1].map((copy) => (
+                  <div key={copy} className="flex gap-12" aria-hidden={copy === 1}>
+                    {partnerDirectory.map(([flag, country, names]) => (
+                      <article key={`${copy}-${country}`} className="w-[230px] shrink-0">
+                        <span className="text-lg leading-none">{flag}</span>
+                        <h3 className="mt-2 text-sm font-bold text-gfs-maroon">{country}</h3>
+                        <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-gfs-text-muted">{names}</p>
+                      </article>
+                    ))}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
           <div className="mt-8 flex flex-col items-center">
@@ -446,21 +446,22 @@ const Homepage = () => {
               type="button"
               onClick={() => setPartnersOpen((open) => !open)}
               aria-expanded={partnersOpen}
-              className="inline-flex items-center gap-2 text-sm font-bold text-gfs-maroon underline underline-offset-4 transition-colors hover:text-gfs-maroon-hover"
+              className="inline-flex items-center gap-1.5 text-sm font-bold text-gfs-maroon underline underline-offset-4 transition-colors hover:text-gfs-maroon-hover"
             >
               {partnersOpen ? t.viewLess : t.viewAll}
-              <ArrowRight className={cn("h-4 w-4 transition-transform duration-300", partnersOpen && "rotate-90")} />
+              {partnersOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
             </button>
             {partnersOpen && (
-              <div className="mt-6 w-full animate-[fadeIn_0.3s_ease-out] rounded-gfs-card border border-gfs-maroon/10 bg-gfs-surface p-5 shadow-gfs-card">
-                <p className="px-1 text-[0.72rem] font-bold uppercase tracking-[0.05em] text-gfs-maroon">{t.partnersTitle}</p>
-                <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              <div className="mt-4 w-full animate-[fadeIn_0.3s_ease-out] border-t border-gfs-maroon/10 pt-2">
+                <div className="grid sm:grid-cols-2 lg:grid-cols-3">
                   {partnerDirectory.map(([flag, country, names]) => (
-                    <article key={country} className="rounded-xl border border-gfs-maroon/10 bg-gfs-canvas p-5 transition-colors hover:bg-gfs-thumb/50">
-                      <span className="text-xl">{flag}</span>
-                      <h3 className="mt-3 text-sm font-bold text-gfs-maroon">{country}</h3>
-                      <p className="mt-1.5 text-xs leading-relaxed text-gfs-text-secondary">{names}</p>
-                    </article>
+                    <div key={country} className="flex gap-3 border-b border-gfs-maroon/10 py-4 sm:pr-8">
+                      <span aria-hidden="true">{flag}</span>
+                      <div>
+                        <h3 className="text-sm font-bold text-gfs-maroon">{country}</h3>
+                        <p className="mt-1 text-xs leading-relaxed text-gfs-text-secondary">{names}</p>
+                      </div>
+                    </div>
                   ))}
                 </div>
               </div>
