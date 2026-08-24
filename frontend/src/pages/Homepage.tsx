@@ -86,19 +86,17 @@ const projects = [
   },
 ];
 
-const partners = [
-  ["🇹🇭", "Thailand", "BIOTEC · Mahidol · PSU · Chulalongkorn · Kasetsart"],
-  ["🇺🇸", "United States", "CRDF · UBC · Oregon State · ILSI"],
-  ["🇬🇧", "United Kingdom", "Queen's Belfast · Liverpool · Bia Analytical"],
-  ["🇮🇹", "Italy", "Parma · Barilla · ISPA"],
-  ["🇦🇹", "Austria", "Vienna · BOKU · IAEA"],
-  ["🇨🇳", "China", "CFSA · Pribolab · Shaanxi · Wuhan"],
-  ["🇯🇵", "Japan", "Frontier · Teiko · Shizuoka"],
-  ["🇸🇬", "Singapore", "SCIEX · Agilent · A*STAR · NTU"],
-];
-
-/* Full international network (mirrors the /partners page content). */
+/* Full international network — slides in the marquee and fills the
+   View all panel (mirrors the /partners page content). */
 const partnerDirectory = [
+  ["🇹🇭", "Thailand", "BIOTEC · MTEC · Prince of Songkla University · Mahidol University · Chulalongkorn University · Kasetsart University · Chiang Mai University · PTT Oil and Retail Business · Neogen Asia · MDPI Bangkok · FoSTAT"],
+  ["🇺🇸", "United States", "CRDF Global · University of British Columbia · Oregon State University · International Life Sciences Institute (ILSI)"],
+  ["🇬🇧", "United Kingdom", "Queen’s University Belfast · University of Liverpool · Bia Analytical"],
+  ["🇮🇹", "Italy", "University of Parma · Barilla Group · ISPA"],
+  ["🇦🇹", "Austria", "University of Vienna · BOKU · International Atomic Energy Agency"],
+  ["🇨🇳", "China", "China National Center for Food Safety Risk Assessment · Pribolab · Shaanxi University of Science and Technology · Wuhan Polytechnic University · Shandong Agricultural University"],
+  ["🇯🇵", "Japan", "Frontier Laboratories · Teiko University · Shizuoka University"],
+  ["🇸🇬", "Singapore", "SCIEX Singapore · Agilent Technologies Singapore · A*STAR · Nanyang Technological University"],
   ["🇮🇪", "Ireland", "University College Dublin"],
   ["🇫🇷", "France", "L’institut Agro Dijon"],
   ["🇧🇪", "Belgium", "Ghent University"],
@@ -416,14 +414,32 @@ const Homepage = () => {
             <h2 className="mt-2 text-2xl font-bold leading-[1.3] tracking-[-0.01em] text-gfs-maroon md:text-[2rem]">{t.partnersTitle}</h2>
             <p className="mx-auto mt-4 max-w-2xl text-sm leading-relaxed text-gfs-text-secondary">{t.partnersSubtitle}</p>
           </div>
-          <div className="mt-10 grid gap-px overflow-hidden rounded-gfs-card border border-gfs-maroon/10 bg-gfs-maroon/10 shadow-gfs-card sm:grid-cols-2 lg:grid-cols-4">
-            {partners.map(([flag, country, names]) => (
-              <article key={country} className="bg-gfs-canvas p-6 transition-colors hover:bg-gfs-thumb/50">
-                <span className="text-2xl">{flag}</span>
-                <h3 className="mt-4 font-bold text-gfs-maroon">{country}</h3>
-                <p className="mt-2 text-xs leading-relaxed text-gfs-text-secondary">{names}</p>
-              </article>
-            ))}
+          {/* Sliding-window marquee: two copies, translateX(-50%) loops seamlessly */}
+          <div className="group relative mt-10 overflow-hidden">
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-y-0 left-0 z-10 w-16 bg-gradient-to-r from-white to-transparent"
+            />
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-y-0 right-0 z-10 w-16 bg-gradient-to-l from-white to-transparent"
+            />
+            <div className="flex w-max gap-5 animate-[gfs-marquee_55s_linear_infinite] group-hover:[animation-play-state:paused] motion-reduce:[animation:none]">
+              {[0, 1].map((copy) => (
+                <div key={copy} className="flex gap-5" aria-hidden={copy === 1}>
+                  {partnerDirectory.map(([flag, country, names]) => (
+                    <article
+                      key={`${copy}-${country}`}
+                      className="w-[250px] shrink-0 rounded-gfs-card border border-gfs-maroon/10 bg-gfs-surface p-5 shadow-gfs-card transition-colors hover:bg-gfs-thumb/50"
+                    >
+                      <span className="text-xl">{flag}</span>
+                      <h3 className="mt-3 text-sm font-bold text-gfs-maroon">{country}</h3>
+                      <p className="mt-1.5 line-clamp-3 text-xs leading-relaxed text-gfs-text-secondary">{names}</p>
+                    </article>
+                  ))}
+                </div>
+              ))}
+            </div>
           </div>
           <div className="mt-8 flex flex-col items-center">
             <button
@@ -438,16 +454,14 @@ const Homepage = () => {
             {partnersOpen && (
               <div className="mt-6 w-full animate-[fadeIn_0.3s_ease-out] rounded-gfs-card border border-gfs-maroon/10 bg-gfs-surface p-5 shadow-gfs-card">
                 <p className="px-1 text-[0.72rem] font-bold uppercase tracking-[0.05em] text-gfs-maroon">{t.partnersTitle}</p>
-                <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {partnerDirectory
-                    .filter(([_, country]) => !partners.some(([, teaserCountry]) => teaserCountry === country))
-                    .map(([flag, country, names]) => (
-                      <article key={country} className="rounded-xl border border-gfs-maroon/10 bg-gfs-canvas p-5 transition-colors hover:bg-gfs-thumb/50">
-                        <span className="text-xl">{flag}</span>
-                        <h3 className="mt-3 text-sm font-bold text-gfs-maroon">{country}</h3>
-                        <p className="mt-1.5 text-xs leading-relaxed text-gfs-text-secondary">{names}</p>
-                      </article>
-                    ))}
+                <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                  {partnerDirectory.map(([flag, country, names]) => (
+                    <article key={country} className="rounded-xl border border-gfs-maroon/10 bg-gfs-canvas p-5 transition-colors hover:bg-gfs-thumb/50">
+                      <span className="text-xl">{flag}</span>
+                      <h3 className="mt-3 text-sm font-bold text-gfs-maroon">{country}</h3>
+                      <p className="mt-1.5 text-xs leading-relaxed text-gfs-text-secondary">{names}</p>
+                    </article>
+                  ))}
                 </div>
               </div>
             )}

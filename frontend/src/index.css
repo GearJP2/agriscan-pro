@@ -253,6 +253,18 @@
     }
 }
 
+/* Seamless sliding-window loop: track holds two identical copies,
+   translating by exactly -50% returns to the start. */
+@keyframes gfs-marquee {
+    from {
+        transform: translateX(0);
+    }
+
+    to {
+        transform: translateX(-50%);
+    }
+}
+
 /* ==========================================================================
    CoE-GFS Design System (docs/Design.md) — public site layer
    Scoped under .coe-gfs so the authenticated app keeps AgriScan styling.
