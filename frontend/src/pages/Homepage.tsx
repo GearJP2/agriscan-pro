@@ -329,7 +329,7 @@ const Homepage = () => {
       </section>
 
       {/* Three-column highlights row (Design.md §5.3) */}
-      <section id="highlights" className="mx-auto max-w-[1280px] scroll-mt-[80px] px-4 py-16 md:py-20 lg:scroll-mt-[150px] lg:px-8">
+      <section id="highlights" className="mx-auto max-w-[1280px] scroll-mt-[100px] px-4 py-16 md:py-20 lg:px-8">
         <p className="text-center text-[0.75rem] font-bold uppercase tracking-[0.05em] text-gfs-maroon">{t.highlightsEyebrow}</p>
         <div className="mx-auto mt-3 max-w-2xl text-center">
           <h2 className="text-2xl font-bold leading-[1.3] tracking-[-0.01em] text-gfs-maroon md:text-[2rem]">{t.highlightsTitle}</h2>

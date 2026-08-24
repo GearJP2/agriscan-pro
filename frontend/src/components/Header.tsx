@@ -190,12 +190,6 @@ const CoeHeader = () => {
 
     const closeMobile = () => setMobileOpen(false);
 
-    const navLinkClass = (href: string) =>
-        cn(
-            "border-b-2 pb-0.5 text-[1.02rem] font-semibold text-gfs-maroon transition-colors hover:text-gfs-maroon-hover",
-            isActivePath(href) ? "border-gfs-gold" : "border-transparent hover:border-gfs-gold",
-        );
-
     const renderLink = (link: NavLinkItem, extraClass?: string) => {
         if (link.isExternal) {
             return (
@@ -212,28 +206,36 @@ const CoeHeader = () => {
     };
 
     return (
-        <nav className="coe-gfs fixed inset-x-0 top-0 z-[99999] border-b-4 border-gfs-gold bg-gfs-canvas shadow-gfs-header">
+        <nav className="fixed top-4 left-1/2 -translate-x-1/2 w-full z-[99999] transition-all duration-700 ease-in-out max-w-container-max px-gutter">
             <a href="#main-content" className="skip-link">{t.skip}</a>
-            <div className="mx-auto flex h-[70px] max-w-[1280px] items-center justify-between gap-4 px-4 lg:h-[140px] lg:gap-8 lg:px-8">
-                <Link to="/" onClick={closeMobile} className="flex shrink-0 items-center gap-3">
+            <div className="w-full rounded-2xl border border-white/20 dark:border-slate-800/50 bg-gfs-canvas/80 dark:bg-slate-950/70 backdrop-blur-xl flex justify-between items-center px-5 py-3 lg:px-7 lg:py-4 shadow-gfs-header">
+                <Link to="/" onClick={closeMobile} className="flex shrink-0 items-center gap-2.5">
                     <img
                         src="/Emblem_of_Thammasat_University.svg.png"
                         alt="Thammasat University emblem"
-                        className="h-[42px] w-auto lg:h-[96px]"
+                        className="h-[38px] w-auto"
                     />
                     <span className="flex flex-col leading-tight">
-                        <span className="text-base font-bold tracking-tight text-gfs-maroon lg:text-xl">CoE-GFS</span>
-                        <span className="hidden text-xs font-semibold text-gfs-text-muted sm:block">
+                        <span className="text-lg font-bold tracking-tight text-gfs-maroon dark:text-white">CoE-GFS</span>
+                        <span className="hidden text-[11px] font-semibold text-gfs-text-muted dark:text-slate-400 sm:block">
                             Thammasat University
                         </span>
                     </span>
                 </Link>
 
-                <div className="hidden items-center gap-6 xl:gap-7 lg:flex">
+                <div className="hidden items-center gap-6 xl:gap-7 lg:flex font-sans text-[0.95rem] font-semibold tracking-tight nav-container">
                     {publicLinks.map((link) =>
                         link.isExternal ? renderLink(link) : (
-                            <Link key={link.href} to={link.href} className={navLinkClass(link.href)}>
+                            <Link
+                                key={link.href}
+                                to={link.href}
+                                className={cn(
+                                    "nav-link transition-all duration-300 relative group",
+                                    isActivePath(link.href) && "nav-link-active"
+                                )}
+                            >
                                 {link.label}
+                                <span className="underline-span" />
                             </Link>
                         )
                     )}
@@ -249,12 +251,13 @@ const CoeHeader = () => {
                                 aria-haspopup="menu"
                                 aria-expanded={toolsOpen}
                                 className={cn(
-                                    "flex items-center gap-1 border-b-2 pb-0.5 text-[1.02rem] font-semibold text-gfs-maroon transition-colors hover:text-gfs-maroon-hover",
-                                    toolsOpen ? "border-gfs-gold" : "border-transparent",
+                                    "nav-link transition-all duration-300 relative group flex items-center gap-1",
+                                    toolLinks.some((link) => !link.isExternal && isActivePath(link.href)) && "nav-link-active",
                                 )}
                             >
                                 {t.tools}
-                                <ChevronDown className={cn("h-4 w-4 transition-transform", toolsOpen && "rotate-180")} />
+                                <ChevronDown className={cn("h-4 w-4 transition-transform duration-300", toolsOpen && "rotate-180")} />
+                                <span className="underline-span" />
                             </button>
                             {toolsOpen && (
                                 <div className="absolute right-0 top-full w-52 rounded-gfs-card border border-gfs-maroon/10 bg-gfs-surface py-2 shadow-gfs-card">
@@ -291,6 +294,7 @@ const CoeHeader = () => {
                         <button type="button" data-active={language === "th"} onClick={() => setLanguage("th")}>TH</button>
                         <button type="button" data-active={language === "en"} onClick={() => setLanguage("en")}>EN</button>
                     </div>
+                    <ThemeToggle />
                     {!isInitializing && (
                         isAuthenticated ? (
                             <div className="hidden items-center gap-2 lg:flex">
@@ -314,7 +318,7 @@ const CoeHeader = () => {
             </div>
 
             {mobileOpen && (
-                <div className="border-t border-gfs-maroon/10 bg-gfs-canvas px-4 pb-6 pt-3 lg:hidden">
+                <div className="mt-2 rounded-2xl border border-gfs-maroon/10 bg-gfs-canvas/95 px-4 pb-6 pt-3 shadow-gfs-card backdrop-blur-xl lg:hidden">
                     <div className="flex flex-col divide-y divide-gfs-maroon/10">
                         {publicLinks.map((link) => (
                             <div key={link.href} className="py-2">

@@ -2,7 +2,7 @@ import { lazy, Suspense, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { ThemeProvider } from "next-themes";
-import { BrowserRouter, Route, Routes, useLocation } from "react-router-dom";
+import { BrowserRouter, Route, Routes } from "react-router-dom";
 
 import Footer from "@/components/Footer";
 import Header from "@/components/Header";
@@ -14,8 +14,6 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import { WatchlistProvider } from "@/contexts/WatchlistContext";
-import { cn } from "@/lib/utils";
-import { isPublicSitePath } from "@/lib/siteRoutes";
 
 const queryClient = new QueryClient();
 
@@ -103,26 +101,19 @@ export const AppRoutes = () => (
   </Routes>
 );
 
-export const AppLayout = () => {
-    const location = useLocation();
-    const isPublicSite = isPublicSitePath(location.pathname);
-    return (
-        <div className="flex min-h-screen flex-col">
-            <Header />
-            <div className={cn(
-                "flex flex-1 flex-col",
-                isPublicSite ? "pt-[70px] lg:pt-[140px]" : "pt-24 md:pt-28"
-            )}>
-                <RouteErrorBoundary>
-                    <Suspense fallback={<RouteLoadingFallback />}>
-                        <AppRoutes />
-                    </Suspense>
-                </RouteErrorBoundary>
-            </div>
-            <Footer />
+export const AppLayout = () => (
+    <div className="flex min-h-screen flex-col">
+        <Header />
+        <div className="flex flex-1 flex-col pt-24 md:pt-28">
+            <RouteErrorBoundary>
+                <Suspense fallback={<RouteLoadingFallback />}>
+                    <AppRoutes />
+                </Suspense>
+            </RouteErrorBoundary>
         </div>
-    );
-};
+        <Footer />
+    </div>
+);
 
 const AppRouter = () => (
   <BrowserRouter
