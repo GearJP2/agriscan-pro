@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
   ArrowRight,
@@ -18,8 +18,9 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { apiClient, publicApiClient } from "@/lib/api";
-import PartnerMap from "@/components/PartnerMap";
 import { partnerDirectory } from "@/constants/partners";
+
+const PartnerMap = lazy(() => import("@/components/PartnerMap"));
 
 type HomeContent = {
   eyebrow: string;
@@ -69,21 +70,24 @@ const news = [
 
 const projects = [
   {
-    date: "FY2026–2030",
+    date: "Fiscal Year 2026–2030",
     title: "Detecting Fraud in the Global Tuna Markets",
-    body: "Funder: IAEA · Building reliable tools for seafood authenticity.",
+    funder: "IAEA",
+    body: "Building reliable tools for seafood authenticity and traceability.",
     image: "/assets/images/blog-1.jpg",
   },
   {
-    date: "FY2026",
+    date: "Fiscal Year 2026",
     title: "Precision Fermentation for Algal Cultivation",
-    body: "Funder: PMU-B · High-value biomass and biomolecules at industrial scale.",
+    funder: "PMU-B",
+    body: "High-value biomass and biomolecules at industrial scale.",
     image: "/assets/images/blog-2.jpg",
   },
   {
-    date: "FY2024–2027",
+    date: "Fiscal Year 2024–2027",
     title: "MYCOBEANS: Mycotoxin Risk in Beans",
-    body: "Funder: Horizon Europe · A global alliance for climate resilience.",
+    funder: "Horizon Europe",
+    body: "A global alliance for climate resilience.",
     image: "/assets/images/blog-3.jpg",
   },
 ];
@@ -112,7 +116,7 @@ const Homepage = () => {
     ? {
         highlightsEyebrow: "จุดเริ่มต้นของทุกอย่าง",
         highlightsTitle: "CoE-GFS คือศูนย์กลางการวิจัยความมั่นคงทางอาหารของประเทศไทย",
-        highlightsSubtitle: "เชื่อมโยงนักวิจัย หลักฐานเชิงประจักษ์ และพันธมิตรในกว่า 20 ประเทศทั่วโลก",
+        highlightsMetricsLabel: "ภาพรวมโดยย่อ",
         featureUniversity: "มหาวิทยาลัย",
         featureUniversityText: "สังกัดคณะวิทยาศาสตร์และเทคโนโลยี มหาวิทยาลัยธรรมศาสตร์",
         featureResearch: "งานวิจัยสหวิชาชีพ",
@@ -126,9 +130,13 @@ const Homepage = () => {
         statPartners: "พันธมิตรระดับนานาชาติ",
         newsEyebrow: "ข่าวสารและบทความ",
         newsTitle: "ข่าวสารล่าสุดจาก CoE-GFS",
-        projectsTitle: "โครงการวิจัยที่ทำให้ความปลอดภัยวัดได้",
-        viewAll: "ดูทั้งหมด",
-        viewLess: "ย่อลง",
+        newsViewAll: "ดูข่าวทั้งหมด",
+        projectsEyebrow: "โครงการวิจัย",
+        projectsSubtitle: "โครงการวิจัยเด่นของ CoE-GFS",
+        projectsViewAll: "ดูโครงการทั้งหมด",
+        projectsFunder: "แหล่งทุน",
+        partnersViewAll: "View all partners",
+        partnersViewLess: "ย่อรายการพันธมิตร",
         readMore: "อ่านต่อ",
         explorePredictions: "สำรวจการคาดการณ์",
         partnersEyebrow: "พันธมิตรและเครือข่าย",
@@ -145,7 +153,7 @@ const Homepage = () => {
     : {
         highlightsEyebrow: "It all starts here",
         highlightsTitle: "CoE-GFS is Thailand's hub for food security research.",
-        highlightsSubtitle: "Connecting researchers, evidence, and partners in 20+ countries worldwide.",
+        highlightsMetricsLabel: "At a glance",
         featureUniversity: "University",
         featureUniversityText: "Part of the Faculty of Science and Technology, Thammasat University.",
         featureResearch: "Interdisciplinary Research",
@@ -159,9 +167,13 @@ const Homepage = () => {
         statPartners: "International partners",
         newsEyebrow: "News & resources",
         newsTitle: "Latest from CoE-GFS",
-        projectsTitle: "Research that makes safety measurable.",
-        viewAll: "View all",
-        viewLess: "Show less",
+        newsViewAll: "View all news",
+        projectsEyebrow: "Research projects",
+        projectsSubtitle: "Featured research projects from CoE-GFS",
+        projectsViewAll: "View all projects",
+        projectsFunder: "Funder",
+        partnersViewAll: "View all partners",
+        partnersViewLess: "Show fewer partners",
         readMore: "Read more",
         explorePredictions: "Explore predictions",
         partnersEyebrow: "Partners & networks",
@@ -323,68 +335,86 @@ const Homepage = () => {
         </div>
       </section>
 
-      {/* Three-column highlights row (Design.md §5.3) */}
-      <section id="highlights" className="mx-auto max-w-[1280px] scroll-mt-[100px] px-4 py-16 md:py-20 lg:px-8">
-        <p className="text-center text-[0.75rem] font-bold uppercase tracking-[0.05em] text-gfs-maroon">{t.highlightsEyebrow}</p>
-        <div className="mx-auto mt-3 max-w-2xl text-center">
-          <h2 className="text-2xl font-bold leading-[1.3] tracking-[-0.01em] text-gfs-maroon md:text-[2rem]">{t.highlightsTitle}</h2>
-          <p className="mt-4 leading-relaxed text-gfs-text-secondary">{t.highlightsSubtitle}</p>
-        </div>
-        <div className="mt-12 grid gap-10 border-y border-gfs-maroon/10 py-10 md:grid-cols-3">
-          <Feature icon={<FlaskConical />} title={t.featureUniversity} text={t.featureUniversityText} />
-          <Feature icon={<BarChart3 />} title={t.featureResearch} text={t.featureResearchText} />
-          <Feature icon={<Leaf />} title={t.featureInternational} text={t.featureInternationalText} />
-        </div>
-      </section>
-
-      {/* Institutional stats counter bar (Design.md §5.4) */}
-      <section className="bg-gfs-maroon px-4 py-12 lg:px-8 lg:py-[52px]">
-        <div className="mx-auto grid max-w-[1280px] grid-cols-2 gap-8 text-center sm:grid-cols-3 lg:grid-cols-5">
-          <Metric number={content.researcherCount} label={t.statResearchers} />
-          <Metric number={content.projectCount} label={t.statProjects} />
-          <Metric number={content.publicationCount} label={t.statPublications} />
-          <Metric number="3" label={t.statVisits} />
-          <Metric number="20+" label={t.statPartners} />
-        </div>
-      </section>
-
-      {/* News and research projects split section (Design.md §5.5) */}
-      <section className="mx-auto max-w-[1280px] px-4 py-16 md:py-20 lg:px-8">
-        <div className="grid gap-12 lg:grid-cols-2 lg:gap-8 xl:gap-12">
-          <div>
-            <div className="flex flex-wrap items-end justify-between gap-3">
-              <div>
-                <p className="text-[0.75rem] font-bold uppercase tracking-[0.05em] text-gfs-maroon">{t.newsEyebrow}</p>
-                <h2 className="mt-2 text-xl font-bold leading-[1.3] text-gfs-maroon md:text-2xl">{t.newsTitle}</h2>
-              </div>
-              <Link to="/news" className="inline-flex shrink-0 items-center gap-1 text-sm font-bold text-gfs-maroon underline underline-offset-4 hover:text-gfs-maroon-hover">
-                {t.viewAll} <ArrowRight className="h-4 w-4" />
-              </Link>
-            </div>
-            <div className="mt-6 grid gap-6 sm:grid-cols-2 2xl:grid-cols-3">
-              {news.map((item) => (
-                <NewsCard key={item.title} to="/news" {...item} />
-              ))}
+      {/* Institutional hub overview (Design.md §5.3–5.4) */}
+      <section id="highlights" className="hub-section scroll-mt-[100px] px-4 py-20 md:py-24 lg:px-8">
+        <div className="hub-section-inner mx-auto max-w-[1280px]">
+          <div className="hub-section-header">
+            <div className="text-center">
+              <p className="hub-section-eyebrow">{t.highlightsEyebrow}</p>
+              <h2 className="hub-section-title mt-4 w-full max-w-none">{t.highlightsTitle}</h2>
             </div>
           </div>
-          <div>
-            <div className="flex flex-wrap items-end justify-between gap-3">
-              <h2 className="max-w-md text-xl font-bold leading-[1.3] text-gfs-maroon md:text-2xl">{t.projectsTitle}</h2>
-              <Link to="/projects" className="inline-flex shrink-0 items-center gap-1 text-sm font-bold text-gfs-maroon underline underline-offset-4 hover:text-gfs-maroon-hover">
-                {t.viewAll} <ArrowRight className="h-4 w-4" />
-              </Link>
+
+          <div className="hub-feature-grid mt-14">
+            <Feature index="01" icon={<FlaskConical />} title={t.featureUniversity} text={t.featureUniversityText} />
+            <Feature index="02" icon={<BarChart3 />} title={t.featureResearch} text={t.featureResearchText} />
+            <Feature index="03" icon={<Leaf />} title={t.featureInternational} text={t.featureInternationalText} />
+          </div>
+
+          <div className="hub-metrics mt-12">
+            <div className="hub-metrics-header">
+              <p>{t.highlightsMetricsLabel}</p>
+              <span aria-hidden="true" />
             </div>
-            <div className="mt-6 grid gap-6 sm:grid-cols-2 2xl:grid-cols-3">
+            <div className="hub-metrics-grid grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
+              <Metric number={content.researcherCount} label={t.statResearchers} />
+              <Metric number={content.projectCount} label={t.statProjects} />
+              <Metric number={content.publicationCount} label={t.statPublications} />
+              <Metric number="3" label={t.statVisits} />
+              <Metric number="20+" label={t.statPartners} />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* News and research projects (Design.md §5.5) */}
+      <section className="news-section border-y border-gfs-maroon/10 px-4 py-16 md:py-20 lg:px-8">
+        <div className="mx-auto max-w-[1280px]">
+          <div className="text-center">
+            <h2 className="news-section-title text-3xl font-bold leading-[1.25] tracking-[-0.02em] md:text-[2.2rem]">{t.newsEyebrow}</h2>
+            <div className="news-section-rule mx-auto mt-3" aria-hidden="true" />
+            <p className="news-section-subtitle mx-auto mt-4 max-w-2xl text-sm leading-relaxed">{t.newsTitle}</p>
+          </div>
+          <div className="news-card-grid mt-9 grid gap-5 md:grid-cols-3">
+            {news.map((item) => (
+              <NewsCard key={item.title} to="/news" {...item} />
+            ))}
+          </div>
+          <div className="mt-8 flex justify-center">
+            <Link to="/news" className="view-all-pill">
+              {t.newsViewAll} <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+
+          <div className="mt-20 border-t border-gfs-maroon/10 pt-16">
+            <div className="text-center">
+              <h2 className="news-section-title text-3xl font-bold leading-[1.25] tracking-[-0.02em] md:text-[2.2rem]">{t.projectsEyebrow}</h2>
+              <div className="news-section-rule mx-auto mt-3" aria-hidden="true" />
+              <p className="news-section-subtitle mx-auto mt-4 max-w-2xl text-sm leading-relaxed">{t.projectsSubtitle}</p>
+            </div>
+            <div className="mt-9 grid gap-5 md:grid-cols-3">
               {projects.map((item) => (
-                <NewsCard key={item.title} to="/projects" {...item} />
+                <NewsCard
+                  key={item.title}
+                  to="/projects"
+                  date={item.date}
+                  title={item.title}
+                  body={`${t.projectsFunder}: ${item.funder} · ${item.body}`}
+                  image={item.image}
+                />
               ))}
+            </div>
+            <div className="mt-8 flex justify-center">
+              <Link to="/projects" className="view-all-pill">
+                {t.projectsViewAll} <ArrowRight className="h-4 w-4" />
+              </Link>
             </div>
           </div>
         </div>
       </section>
 
       {/* Global partnership grid (Design.md §5.6) */}
-      <section className="border-y border-gfs-maroon/10 bg-white px-4 py-16 lg:px-8">
+      <section className="partners-section border-y border-gfs-maroon/10 px-4 py-16 lg:px-8">
         <div className="mx-auto max-w-[1280px]">
           <div className="text-center">
             <p className="text-[0.75rem] font-bold uppercase tracking-[0.05em] text-gfs-maroon">{t.partnersEyebrow}</p>
@@ -393,14 +423,14 @@ const Homepage = () => {
           </div>
           {/* Sliding-window marquee: two copies, translateX(-50%) loops seamlessly.
               Typographic items — no card chrome, just a hairline band. */}
-          <div className="group relative mt-10 overflow-hidden">
+          <div className="group relative left-1/2 mt-10 w-[100vw] -translate-x-1/2 overflow-hidden">
             <div
               aria-hidden="true"
-              className="pointer-events-none absolute inset-y-0 left-0 z-10 w-16 bg-gradient-to-r from-white to-transparent"
+              className="partner-edge partner-edge-left pointer-events-none absolute inset-y-0 left-0 z-10 w-16"
             />
             <div
               aria-hidden="true"
-              className="pointer-events-none absolute inset-y-0 right-0 z-10 w-16 bg-gradient-to-l from-white to-transparent"
+              className="partner-edge partner-edge-right pointer-events-none absolute inset-y-0 right-0 z-10 w-16"
             />
             <div className="border-y border-gfs-maroon/10 py-7">
               <div className="flex w-max gap-12 animate-[gfs-marquee_55s_linear_infinite] group-hover:[animation-play-state:paused] motion-reduce:[animation:none]">
@@ -410,7 +440,7 @@ const Homepage = () => {
                       <article key={`${copy}-${country}`} className="w-[230px] shrink-0">
                         <span className="text-lg leading-none">{flag}</span>
                         <h3 className="mt-2 text-sm font-bold text-gfs-maroon">{country}</h3>
-                        <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-gfs-text-muted">{names}</p>
+                        <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-gfs-text-muted">{names.join(" · ")}</p>
                       </article>
                     ))}
                   </div>
@@ -423,9 +453,9 @@ const Homepage = () => {
               type="button"
               onClick={() => setPartnersOpen((open) => !open)}
               aria-expanded={partnersOpen}
-              className="inline-flex items-center gap-1.5 text-sm font-bold text-gfs-maroon underline underline-offset-4 transition-colors hover:text-gfs-maroon-hover"
+              className="view-all-pill"
             >
-              {partnersOpen ? t.viewLess : t.viewAll}
+              {partnersOpen ? t.partnersViewLess : t.partnersViewAll}
               {partnersOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
             </button>
             {partnersOpen && (
@@ -436,7 +466,9 @@ const Homepage = () => {
                     : "Click a country to open its partner institution in Google Maps"}
                 </p>
                 <div className="overflow-hidden rounded-gfs-card border border-gfs-maroon/10 shadow-gfs-card">
-                  <PartnerMap />
+                  <Suspense fallback={<div className="flex min-h-[360px] items-center justify-center text-sm text-gfs-text-muted">Loading partner map…</div>}>
+                    <PartnerMap />
+                  </Suspense>
                 </div>
               </div>
             )}
@@ -446,9 +478,15 @@ const Homepage = () => {
                   {partnerDirectory.map(([flag, country, names]) => (
                     <div key={country} className="flex gap-3 border-b border-gfs-maroon/10 py-4 sm:pr-8">
                       <span aria-hidden="true">{flag}</span>
-                      <div>
+                      <div className="min-w-0">
                         <h3 className="text-sm font-bold text-gfs-maroon">{country}</h3>
-                        <p className="mt-1 text-xs leading-relaxed text-gfs-text-secondary">{names}</p>
+                        <ul className="mt-1 list-disc space-y-0.5 pl-4 marker:text-gfs-maroon">
+                          {names.map((name) => (
+                            <li key={name} className="text-xs leading-relaxed text-gfs-text-secondary">
+                              {name}
+                            </li>
+                          ))}
+                        </ul>
                       </div>
                     </div>
                   ))}
@@ -505,23 +543,26 @@ function NewsCard({ date, title, body, image, to }: { date: string; title: strin
   );
 }
 
-function Feature({ icon, title, text }: { icon: React.ReactNode; title: string; text: string }) {
+function Feature({ index, icon, title, text }: { index: string; icon: React.ReactNode; title: string; text: string }) {
   return (
-    <div className="text-center">
-      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-gfs-maroon/tint text-gfs-maroon [&_svg]:h-6 [&_svg]:w-6">
-        {icon}
+    <article className="hub-feature">
+      <div className="hub-feature-meta">
+        <span className="hub-feature-index">{index}</span>
+        <div className="hub-feature-icon" aria-hidden="true">
+          {icon}
+        </div>
       </div>
-      <h3 className="mt-4 text-lg font-semibold text-gfs-maroon">{title}</h3>
-      <p className="mx-auto mt-2 max-w-xs text-sm leading-relaxed text-gfs-text-secondary">{text}</p>
-    </div>
+      <h3 className="hub-feature-title">{title}</h3>
+      <p className="hub-feature-text">{text}</p>
+    </article>
   );
 }
 
 function Metric({ number, label }: { number: string; label: string }) {
   return (
-    <div>
-      <p className="text-[2.5rem] font-extrabold leading-none tracking-[-0.03em] text-gfs-gold">{number}</p>
-      <p className="mt-2 text-[0.95rem] font-medium text-white">{label}</p>
+    <div className="hub-metric">
+      <p className="hub-metric-number">{number}</p>
+      <p className="hub-metric-label">{label}</p>
     </div>
   );
 }
