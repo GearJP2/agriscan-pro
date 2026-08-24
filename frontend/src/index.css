@@ -289,6 +289,44 @@
     background-color: #a52a2a;
 }
 
+/* Partner map popup: institution list with per-institute Google Maps links */
+.partner-popup h3 {
+    margin: 0 0 6px;
+    color: #7a1f1f;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.partner-popup ul {
+    list-style: disc;
+    margin: 0;
+    padding-left: 16px;
+}
+
+.partner-popup li {
+    font-size: 12px;
+    line-height: 1.6;
+}
+
+.partner-popup a {
+    color: #7a1f1f;
+    font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.partner-popup a:hover {
+    color: #a52a2a;
+}
+
+.leaflet-popup-content-wrapper {
+    border-radius: 12px;
+}
+
+.leaflet-popup-content {
+    margin: 10px 14px;
+}
+
 .leaflet-container {
     font-family: Inter, Sarabun, sans-serif;
 }
