@@ -1,5 +1,4 @@
 import { FolderOpen } from 'lucide-react';
-import Header from '@/components/Header';
 import { Card, CardContent } from '@/components/ui/card';
 
 const Activity = () => {

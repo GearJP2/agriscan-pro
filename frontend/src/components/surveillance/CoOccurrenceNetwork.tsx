@@ -173,7 +173,7 @@ export default function CoOccurrenceNetwork({ networkData }: { networkData: Netw
     });
 
     return () => { simulation.stop(); };
-  }, [isDark, networkData]);
+  }, [isDark, networkData, hasLinks]);
 
   return (
     <div className="relative h-full min-h-[280px]">

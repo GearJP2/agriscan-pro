@@ -20,7 +20,7 @@ services:
     build: ./backend
     command: sh -c "python manage.py makemigrations && python manage.py migrate && python manage.py runserver 0.0.0.0:8080"
     volumes:
-      - ./backend:/app
+      - ./backend:/app:z
     ports:
       - "8080:8080"
     depends_on:
@@ -51,7 +51,7 @@ services:
         - VITE_API_URL=http://localhost:8080/api
     command: npm run dev -- --host 0.0.0.0
     volumes:
-      - ./frontend:/app
+      - ./frontend:/app:z
       - /app/node_modules
     ports:
       - "5173:5173"

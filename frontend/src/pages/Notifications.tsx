@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Bell, AlertTriangle, Info, Filter, ChevronDown, Check } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,14 +10,28 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useNotificationList, NotificationData } from '@/features/notifications/hooks/useNotifications';
 
+type NotificationFilter = 'all' | 'risk' | 'general';
+
+const filterLabels: Record<NotificationFilter, string> = {
+  all: 'All Notifications',
+  risk: 'Risk Notifications',
+  general: 'General Notifications',
+};
+
 const Notifications = () => {
+  const [filter, setFilter] = useState<NotificationFilter>('all');
   const { data, isLoading, isError, markRead, markAllRead, isMarkingRead, isMarkingAllRead } = useNotificationList(1);
 
   // DRF returns an array directly if pagination is disabled, or { results: [] } if enabled.
   const notifications: NotificationData[] = Array.isArray(data) ? data : (data?.results || []);
 
-  const riskNotifications = notifications.filter((n) => n.notification_type === 'risk_alert');
-  const generalNotifications = notifications.filter((n) => n.notification_type !== 'risk_alert');
+  const filteredNotifications = notifications.filter((notification) =>
+    filter === 'all' ||
+    (filter === 'risk' && notification.notification_type === 'risk_alert') ||
+    (filter === 'general' && notification.notification_type !== 'risk_alert'),
+  );
+  const riskNotifications = filteredNotifications.filter((n) => n.notification_type === 'risk_alert');
+  const generalNotifications = filteredNotifications.filter((n) => n.notification_type !== 'risk_alert');
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -80,14 +95,14 @@ const Notifications = () => {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="flex items-center gap-2 text-muted-foreground">
                   <Filter className="h-4 w-4" />
-                  <span>Filter:</span>
+                  <span>Filter: {filterLabels[filter]}</span>
                   <ChevronDown className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent>
-                <DropdownMenuItem>All Notifications</DropdownMenuItem>
-                <DropdownMenuItem>Risk Notifications</DropdownMenuItem>
-                <DropdownMenuItem>General Notifications</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setFilter('all')}>All Notifications</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setFilter('risk')}>Risk Notifications</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setFilter('general')}>General Notifications</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </CardContent>
@@ -200,10 +215,10 @@ const Notifications = () => {
           </div>
         )}
 
-        {notifications.length === 0 && (
+        {filteredNotifications.length === 0 && (
           <div className="text-center py-12 text-muted-foreground">
             <Bell className="h-12 w-12 mx-auto mb-4 opacity-20" />
-            <p>You have no notifications.</p>
+            <p>{notifications.length === 0 ? 'You have no notifications.' : `No ${filterLabels[filter].toLowerCase()}.`}</p>
           </div>
         )}
       </main>

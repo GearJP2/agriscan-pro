@@ -58,12 +58,17 @@ const wrapInRouter = (element, route = "/") =>
   React.createElement(MemoryRouter, { initialEntries: [route] }, element);
 
 try {
+  const appModule = await server.ssrLoadModule("/src/App.tsx");
+  const { AppProviders, AppRoutes, RouteLoadingFallback } = appModule;
+  const wrapInAppProviders = (element) =>
+    React.createElement(AppProviders, null, element);
+
   const homepageModule = await server.ssrLoadModule("/src/pages/Homepage.tsx");
   const Homepage = homepageModule.default;
   const homepageMarkup = renderToString(
-    wrapInRouter(React.createElement(Homepage), "/"),
+    wrapInAppProviders(wrapInRouter(React.createElement(Homepage), "/")),
   );
-  assert.match(homepageMarkup, /safe\?/i);
+  assert.match(homepageMarkup, /Global Food Security/i);
 
   const notFoundModule = await server.ssrLoadModule("/src/pages/NotFound.tsx");
   const NotFound = notFoundModule.default;
@@ -81,54 +86,56 @@ try {
   const SampleTable = sampleTableModule.default;
   const { WatchlistProvider } = watchlistModule;
   const sampleTableMarkup = renderToString(
-    React.createElement(
-      WatchlistProvider,
-      null,
-      React.createElement(SampleTable, {
-        samples: [
-          {
-            sample_id: "SMK-001",
-            region: "Central",
-            province: "Bangkok",
-            district: "Dusit",
-            vegetation_variety: "Rice",
-            collection_date: "2026-04-24",
-            status: "completed",
-            mycotoxin_results: [
-              {
-                name: "AFB1",
-                intensity: 8,
-                dangerous: false,
-                threshold: 5,
-                unit: "ppb",
-              },
-            ],
-            process_logs: [
-              {
-                id: "log-001",
-                timestamp: "2026-04-24T10:00:00Z",
-                state: "completed",
-                conducted_by: "Smoke Test",
-              },
-            ],
-          },
-        ],
-        onSelectSample: () => {},
-      }),
+    wrapInAppProviders(
+      React.createElement(
+        WatchlistProvider,
+        null,
+        React.createElement(SampleTable, {
+          samples: [
+            {
+              sample_id: "SMK-001",
+              region: "Central",
+              province: "Bangkok",
+              district: "Dusit",
+              vegetation_variety: "Rice",
+              collection_date: "2026-04-24",
+              status: "completed",
+              mycotoxin_results: [
+                {
+                  name: "AFB1",
+                  intensity: 8,
+                  dangerous: false,
+                  threshold: 5,
+                  unit: "ppb",
+                },
+              ],
+              process_logs: [
+                {
+                  id: "log-001",
+                  timestamp: "2026-04-24T10:00:00Z",
+                  state: "completed",
+                  conducted_by: "Smoke Test",
+                },
+              ],
+            },
+          ],
+          onSelectSample: () => {},
+        }),
+      ),
     ),
   );
   assert.match(sampleTableMarkup, /SMK-001/);
 
-  const appModule = await server.ssrLoadModule("/src/App.tsx");
-  const { AppRoutes, RouteLoadingFallback } = appModule;
   const routeMarkup = renderToString(
-    React.createElement(
-      MemoryRouter,
-      { initialEntries: ["/prediction"] },
+    wrapInAppProviders(
       React.createElement(
-        React.Suspense,
-        { fallback: React.createElement(RouteLoadingFallback) },
-        React.createElement(AppRoutes),
+        MemoryRouter,
+        { initialEntries: ["/prediction"] },
+        React.createElement(
+          React.Suspense,
+          { fallback: React.createElement(RouteLoadingFallback) },
+          React.createElement(AppRoutes),
+        ),
       ),
     ),
   );

@@ -71,7 +71,12 @@ export const AppProviders = ({ children }: { children: ReactNode }) => (
 export const AppRoutes = () => (
   <Routes>
     <Route path="/" element={<Homepage />} />
-    <Route path="/:page" element={<CoEGfsPage />} />
+    <Route path="/about" element={<CoEGfsPage />} />
+    <Route path="/projects" element={<CoEGfsPage />} />
+    <Route path="/publications" element={<CoEGfsPage />} />
+    <Route path="/news" element={<CoEGfsPage />} />
+    <Route path="/partners" element={<CoEGfsPage />} />
+    <Route path="/contact" element={<CoEGfsPage />} />
     <Route path="/doc" element={<Doc />} />
     <Route path="/dashboard" element={<Dashboard />} />
     <Route path="/auth/google/callback" element={<GoogleAuthCallback />} />

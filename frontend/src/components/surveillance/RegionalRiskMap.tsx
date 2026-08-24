@@ -187,24 +187,6 @@ export default function RegionalRiskMap({
     return undefined;
   }, [riskLookup]);
 
-  const getRiskColor = (pct: number) => {
-    if (pct === 0) return isDark ? '#374151' : '#d1d5db';
-    if (pct < 5) return RISK_COLORS.low;
-    if (pct < 15) return RISK_COLORS.medium;
-    if (pct < 25) return RISK_COLORS.high;
-    return RISK_COLORS.critical;
-  };
-
-  const getSampleColor = (count: number) => {
-    if (count <= 0) return isDark ? '#334155' : '#e2e8f0';
-    const ratio = count / maxPositiveSamples;
-    const idx = Math.min(
-      Math.max(Math.ceil(ratio * SAMPLE_COLORS.length) - 1, 0),
-      SAMPLE_COLORS.length - 1,
-    );
-    return SAMPLE_COLORS[idx];
-  };
-
   const isNasaMode = NASA_MODES.includes(viewMode);
   const environmentalMetric = useMemo(() => {
     if (!environmentalData) return null;
@@ -220,6 +202,22 @@ export default function RegionalRiskMap({
   const borderColor = isDark ? '#1f2937' : '#e5e7eb';
 
   const style = useCallback((feature: any) => {
+    const getRiskColor = (pct: number) => {
+      if (pct === 0) return isDark ? '#374151' : '#d1d5db';
+      if (pct < 5) return RISK_COLORS.low;
+      if (pct < 15) return RISK_COLORS.medium;
+      if (pct < 25) return RISK_COLORS.high;
+      return RISK_COLORS.critical;
+    };
+    const getSampleColor = (count: number) => {
+      if (count <= 0) return isDark ? '#334155' : '#e2e8f0';
+      const ratio = count / maxPositiveSamples;
+      const idx = Math.min(
+        Math.max(Math.ceil(ratio * SAMPLE_COLORS.length) - 1, 0),
+        SAMPLE_COLORS.length - 1,
+      );
+      return SAMPLE_COLORS[idx];
+    };
     const name = feature?.properties?.NAME_1 || feature?.properties?.name || '';
     const risk = findProvinceRisk(name);
     const normName = normalizeName(name);
@@ -300,7 +298,7 @@ export default function RegionalRiskMap({
         else if (risk) onSelectProvince(risk.name);
       },
     });
-  }, [findProvinceRisk, onSelectProvince, isDark, isNasaMode, selectedProvince, environmentalMetric]);
+  }, [findProvinceRisk, onSelectProvince, isDark, isNasaMode, selectedProvince, environmentalMetric, viewMode]);
 
   const mapContent = (ref: React.MutableRefObject<L.GeoJSON | null>) => (
     <MapContainer

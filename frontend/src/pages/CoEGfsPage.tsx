@@ -1,6 +1,7 @@
 import { ArrowRight, ExternalLink, Mail, MapPin, Phone } from "lucide-react";
 import { Link, Navigate, useParams } from "react-router-dom";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { partnerDirectory } from "@/constants/partners";
 
 type Card = { meta?: string; title: string; text: string; link?: string };
 
@@ -22,29 +23,6 @@ const publications: Card[] = [
   { meta: "Fermentation · 2026", title: "Valorizing Red Seaweed Spent Biomass into Reducing Sugars for β-Carotene Production by Rhodotorula paludigena", text: "Kongsinkaew, C. et al. DOI: 10.3390/fermentation12050210", link: "https://doi.org/10.3390/fermentation12050210" },
   { meta: "npj Science of Food · 2026", title: "Challenges and strategies for globally resilient shrimp aquaculture", text: "Campbell, E. et al. DOI: 10.1038/s41538-026-00787-7", link: "https://doi.org/10.1038/s41538-026-00787-7" },
   { meta: "npj Science of Food · 2025", title: "A novel LC-MS/MS multi-group method for simultaneous determination of antimicrobial residues in legume-based alternative proteins", text: "Boonkanon, C. et al. DOI: 10.1038/s41538-025-00678-3", link: "https://doi.org/10.1038/s41538-025-00678-3" },
-];
-
-const partners = [
-  ["🇹🇭 Thailand", "BIOTEC · MTEC · Prince of Songkla University · Mahidol University · Chulalongkorn University · Kasetsart University · Chiang Mai University · PTT Oil and Retail Business · Neogen Asia · MDPI Bangkok · FoSTAT"],
-  ["🇺🇸 United States", "CRDF Global · University of British Columbia · Oregon State University · International Life Sciences Institute (ILSI)"],
-  ["🇬🇧 United Kingdom", "Queen’s University Belfast · University of Liverpool · Bia Analytical"],
-  ["🇮🇪 Ireland", "University College Dublin"],
-  ["🇮🇹 Italy", "University of Parma · Barilla Group · ISPA"],
-  ["🇦🇹 Austria", "University of Vienna · BOKU · International Atomic Energy Agency"],
-  ["🇫🇷 France", "L’institut Agro Dijon"],
-  ["🇧🇪 Belgium", "Ghent University"],
-  ["🇨🇦 Canada", "International Union of Food Science and Technology"],
-  ["🇳🇵 Nepal", "Nepal Development Research Institute"],
-  ["🇵🇾 Paraguay", "Microbioticos Paraguay"],
-  ["🇨🇳 China", "China National Center for Food Safety Risk Assessment · Pribolab · Shaanxi University of Science and Technology · Wuhan Polytechnic University · Shandong Agricultural University"],
-  ["🇭🇰 Hong Kong", "Hong Kong Baptist University"],
-  ["🇯🇵 Japan", "Frontier Laboratories · Teiko University · Shizuoka University"],
-  ["🇰🇷 South Korea", "Yonsei University"],
-  ["🇻🇳 Vietnam", "Phenikaa University · Nong Lam University · Hochiminh University"],
-  ["🇸🇬 Singapore", "SCIEX Singapore · Agilent Technologies Singapore · A*STAR · Nanyang Technological University"],
-  ["🇲🇾 Malaysia", "Universiti Putra Malaysia"],
-  ["🇮🇩 Indonesia", "Atma Jaya Catholic University of Indonesia · Universitas Indonesia"],
-  ["🇲🇲 Myanmar", "Myanmar Institute of Strategic and International Studies"],
 ];
 
 const titleMap: Record<string, [string, string]> = {
@@ -108,10 +86,12 @@ export default function CoEGfsPage() {
           <section className="mt-12">
             <p className="max-w-3xl text-[0.95rem] leading-relaxed">CoE-GFS works with leading research institutions, industry partners, and international organizations across more than 20 countries.</p>
             <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {partners.map(([country, names]) => (
+              {partnerDirectory.map(([flag, country, names]) => (
                 <article key={country} className="rounded-gfs-card bg-gfs-surface p-6 shadow-gfs-card">
-                  <h2 className="font-bold text-gfs-maroon">{country}</h2>
-                  <p className="mt-2 text-sm leading-relaxed text-gfs-text-secondary">{names}</p>
+                  <h2 className="font-bold text-gfs-maroon">{flag} {country}</h2>
+                  <ul className="mt-2 space-y-1 text-sm leading-relaxed text-gfs-text-secondary">
+                    {names.map((name) => <li key={name}>{name}</li>)}
+                  </ul>
                 </article>
               ))}
             </div>

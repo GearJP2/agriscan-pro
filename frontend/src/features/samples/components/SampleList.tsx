@@ -1,16 +1,12 @@
-import { useState, useMemo } from 'react';
+import { lazy, Suspense, useState, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, Download, ChevronDown, Loader2, ShieldCheck, Wrench, FlaskConical, Trash2, LayoutGrid, CheckCircle2, AlertCircle, Clock, X } from 'lucide-react';
-import ExcelJS from 'exceljs';
 import StatsCard from '@/components/StatsCard';
 import FilterBar from '@/components/FilterBar';
 import SampleTable from './SampleTable';
 import SampleDetailModal from './SampleDetailModal';
-import AddSampleForm from './AddSampleForm';
-import UnifiedImportForm from './UnifiedImportForm';
-import RequestInvestigationForm from './RequestInvestigationForm';
 import { Button } from '@/components/ui/button';
 import {
     DropdownMenu,
@@ -43,6 +39,10 @@ import { useDeferredMount } from '@/hooks/useDeferredMount';
 import SampleTableSkeleton from './SampleTableSkeleton';
 import { Badge } from '@/components/ui/badge';
 import { SAMPLE_TYPE_LABELS, SampleType } from '@/types/sample';
+
+const AddSampleForm = lazy(() => import('./AddSampleForm'));
+const UnifiedImportForm = lazy(() => import('./UnifiedImportForm'));
+const RequestInvestigationForm = lazy(() => import('./RequestInvestigationForm'));
 
 const SampleList = () => {
     const { isAdmin, isAuthenticated, role } = useAuth();
@@ -327,6 +327,7 @@ const SampleList = () => {
     // Export filtered samples to XLSX
     const handleExportXLSX = async () => {
         const { headers, rows } = getExportData();
+        const { default: ExcelJS } = await import('exceljs');
 
         const workbook = new ExcelJS.Workbook();
         const worksheet = workbook.addWorksheet('Samples');
@@ -556,27 +557,29 @@ const SampleList = () => {
                                 </DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>
-                        <UnifiedImportForm
-                            sampleIds={filteredSamples.map((sample) => sample.sample_id)}
-                            onSuccess={handleImportResultsSuccess}
-                        />
-                        <RequestInvestigationForm />
-                        {isAuthenticated && USER_ROLE_WEIGHT[role as keyof typeof USER_ROLE_WEIGHT] >= USER_ROLE_WEIGHT['research_assistant'] && (
-                            <div className="flex items-center gap-2">
-                                <AddSampleForm onSuccess={handleImportResultsSuccess} />
-                                <Button
-                                    variant={isSelectionMode ? "destructive" : "outline"}
-                                    className={cn(
-                                        "gap-2 transition-all duration-200",
-                                        !isSelectionMode && "text-danger hover:text-danger hover:bg-danger/5 border-danger/20 hover:border-danger/40"
-                                    )}
-                                    onClick={() => setIsSelectionMode(!isSelectionMode)}
-                                >
-                                    <Trash2 className={cn("h-4 w-4 transition-all duration-300", isSelectionMode && "scale-110")} />
-                                    {isSelectionMode ? 'Cancel' : 'Delete sample'}
-                                </Button>
-                            </div>
-                        )}
+                        <Suspense fallback={<span className="text-sm text-muted-foreground">Loading actions…</span>}>
+                            <UnifiedImportForm
+                                sampleIds={filteredSamples.map((sample) => sample.sample_id)}
+                                onSuccess={handleImportResultsSuccess}
+                            />
+                            <RequestInvestigationForm />
+                            {isAuthenticated && USER_ROLE_WEIGHT[role as keyof typeof USER_ROLE_WEIGHT] >= USER_ROLE_WEIGHT['research_assistant'] && (
+                                <div className="flex items-center gap-2">
+                                    <AddSampleForm onSuccess={handleImportResultsSuccess} />
+                                    <Button
+                                        variant={isSelectionMode ? "destructive" : "outline"}
+                                        className={cn(
+                                            "gap-2 transition-all duration-200",
+                                            !isSelectionMode && "text-danger hover:text-danger hover:bg-danger/5 border-danger/20 hover:border-danger/40"
+                                        )}
+                                        onClick={() => setIsSelectionMode(!isSelectionMode)}
+                                    >
+                                        <Trash2 className={cn("h-4 w-4 transition-all duration-300", isSelectionMode && "scale-110")} />
+                                        {isSelectionMode ? 'Cancel' : 'Delete sample'}
+                                    </Button>
+                                </div>
+                            )}
+                        </Suspense>
                         
                     </div>
                 </div>

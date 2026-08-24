@@ -166,6 +166,7 @@ const CoeHeader = () => {
         { href: "/projects", label: t.projects },
         { href: "/publications", label: t.publications },
         { href: "/news", label: t.news },
+        { href: "/partners", label: t.partners },
         { href: "/contact", label: t.contact },
     ];
 

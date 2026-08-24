@@ -1,5 +1,4 @@
-import { Link } from "react-router-dom";
-import { useLocation } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { isPublicSitePath } from "@/lib/siteRoutes";
 
@@ -23,14 +22,14 @@ const CoeFooter = () => {
             tagline: "แพลตฟอร์มวิจัยเพื่อระบบอาหารที่ปลอดภัยและยั่งยืน",
             platform: "แพลตฟอร์ม", research: "งานวิจัย",
             dashboard: "แดชบอร์ด", predictions: "การคาดการณ์", samples: "รายการตัวอย่าง",
-            documentation: "เอกสาร", contact: "ติดต่อ",
+            documentation: "เอกสาร", partners: "พันธมิตร", contact: "ติดต่อ",
             rights: "สงวนลิขสิทธิ์",
         }
         : {
             tagline: "A research platform for safer food systems, stronger evidence, and earlier action.",
             platform: "Platform", research: "Research",
             dashboard: "Dashboard", predictions: "Predictions", samples: "Sample records",
-            documentation: "Documentation", contact: "Contact",
+            documentation: "Documentation", partners: "Partners", contact: "Contact",
             rights: "All rights reserved.",
         };
 
@@ -55,6 +54,7 @@ const CoeFooter = () => {
                     <p className="text-xs font-bold uppercase tracking-[0.16em] text-gfs-gold">{t.research}</p>
                     <div className="mt-4 grid gap-2 text-sm font-medium text-white/85">
                         <Link to="/doc" className="transition-colors hover:text-gfs-gold">{t.documentation}</Link>
+                        <Link to="/partners" className="transition-colors hover:text-gfs-gold">{t.partners}</Link>
                         <Link to="/contact" className="transition-colors hover:text-gfs-gold">{t.contact}</Link>
                     </div>
                 </div>
