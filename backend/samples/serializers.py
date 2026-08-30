@@ -4,7 +4,7 @@ from .constants.mycotoxin_constants import (
     TOXIN_LABELS,
     resolve_toxin_type,
 )
-from .models import Sample, ProcessLog, MycotoxinResult
+from .models import MycotoxinResult, PredictionContext, ProcessLog, Sample
 from .utils import generate_sequential_sample_id, extract_sequence_from_sample_id
 
 
@@ -120,6 +120,21 @@ class PredictionEstimateRequestSerializer(serializers.Serializer):
     sub_type = serializers.CharField(max_length=100, trim_whitespace=True)
     province = serializers.CharField(max_length=100, trim_whitespace=True)
     collection_date = serializers.DateField()
+    latitude = serializers.FloatField(required=False, allow_null=True)
+    longitude = serializers.FloatField(required=False, allow_null=True)
+    location_type = serializers.ChoiceField(
+        choices=['farm', 'market', 'storage', 'unknown'],
+        required=False,
+        allow_blank=True,
+    )
+    harvest_date = serializers.DateField(required=False, allow_null=True)
+    sowing_date = serializers.DateField(required=False, allow_null=True)
+    crop_variety = serializers.CharField(max_length=120, required=False, allow_blank=True, trim_whitespace=True)
+    crop_season = serializers.CharField(max_length=80, required=False, allow_blank=True, trim_whitespace=True)
+    storage_duration_days = serializers.IntegerField(required=False, allow_null=True, min_value=0)
+    moisture_pct = serializers.FloatField(required=False, allow_null=True, min_value=0, max_value=100)
+    soil_type = serializers.CharField(max_length=120, required=False, allow_blank=True, trim_whitespace=True)
+    soil_ph = serializers.FloatField(required=False, allow_null=True, min_value=0, max_value=14)
     region = serializers.CharField(
         max_length=100,
         required=False,
@@ -154,11 +169,50 @@ class PredictionEstimateRequestSerializer(serializers.Serializer):
             raise serializers.ValidationError('Province is required.')
         return value.strip()
 
+    def validate(self, attrs):
+        latitude = attrs.get('latitude')
+        longitude = attrs.get('longitude')
+        if (latitude is None) ^ (longitude is None):
+            raise serializers.ValidationError('Latitude and longitude must be provided together.')
+        return attrs
+
+
+class PredictionContextSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PredictionContext
+        fields = (
+            'latitude',
+            'longitude',
+            'location_type',
+            'harvest_date',
+            'sowing_date',
+            'crop_variety',
+            'crop_season',
+            'storage_duration_days',
+            'moisture_pct',
+            'soil_type',
+            'soil_ph',
+            'crop_rotation',
+            'fertiliser_details',
+            'fungicide_details',
+            'created_at',
+            'updated_at',
+        )
+        read_only_fields = ('created_at', 'updated_at')
+
+    def validate(self, attrs):
+        latitude = attrs.get('latitude')
+        longitude = attrs.get('longitude')
+        if (latitude is None) ^ (longitude is None):
+            raise serializers.ValidationError('Latitude and longitude must be provided together.')
+        return attrs
+
 
 class SampleSerializer(serializers.ModelSerializer):
     process_logs = ProcessLogSerializer(many=True, read_only=True)
     mycotoxin_results = MycotoxinResultSerializer(many=True, read_only=True)
     recorded_by = serializers.CharField(source='recorded_by.username', read_only=True)
+    prediction_context = PredictionContextSerializer(read_only=True)
 
     class Meta:
         model = Sample
@@ -181,6 +235,7 @@ class SampleSerializer(serializers.ModelSerializer):
             'processing_type',
             'recorded_by',
             'additional_info',
+            'prediction_context',
             'process_logs',
             'mycotoxin_results',
             'created_at',

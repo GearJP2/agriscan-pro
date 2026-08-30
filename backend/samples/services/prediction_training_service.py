@@ -20,6 +20,8 @@ class PredictionTrainingConfig:
     min_usable_context: int = 60
     test_size: float = 0.2
     random_state: int = 42
+    include_weather: bool = False
+    fetch_weather: bool = True
 
 
 class PredictionTrainingService:
@@ -38,6 +40,29 @@ class PredictionTrainingService:
         'purpose',
         'sample_type',
         'processing_type',
+        'context_location_type',
+        'context_has_exact_coordinates',
+        'context_latitude',
+        'context_longitude',
+        'context_harvest_month',
+        'context_harvest_quarter',
+        'context_harvest_season_thailand',
+        'context_sowing_month',
+        'context_storage_duration_days',
+        'context_moisture_pct',
+        'context_soil_ph',
+        'context_crop_variety',
+        'context_crop_season',
+        'context_soil_type',
+        'context_has_crop_rotation',
+        'context_has_fertiliser_details',
+        'context_has_fungicide_details',
+        'weather_temperature_c_mean_90d',
+        'weather_humidity_pct_mean_90d',
+        'weather_precipitation_mm_total_90d',
+        'weather_soil_temperature_c_mean_90d',
+        'weather_days_observed_90d',
+        'weather_location_label',
     ]
     CATEGORICAL_COLUMNS = {
         'food_feed_type',
@@ -50,6 +75,12 @@ class PredictionTrainingService:
         'purpose',
         'sample_type',
         'processing_type',
+        'context_location_type',
+        'context_harvest_season_thailand',
+        'context_crop_variety',
+        'context_crop_season',
+        'context_soil_type',
+        'weather_location_label',
     }
 
     @classmethod
@@ -60,7 +91,10 @@ class PredictionTrainingService:
         version_dir = output_path / version
         version_dir.mkdir(parents=True, exist_ok=True)
 
-        rows = list(PredictionDatasetService.iter_rows())
+        rows = list(PredictionDatasetService.iter_rows(
+            include_weather=config.include_weather,
+            fetch_weather=config.fetch_weather,
+        ))
         report = cls.train_rows(rows, version_dir=version_dir, version=version, config=config)
         metadata_path = version_dir / 'metadata.json'
         metadata_path.write_text(json.dumps(report, indent=2, sort_keys=True), encoding='utf-8')
@@ -94,6 +128,8 @@ class PredictionTrainingService:
                 'min_usable_context': config.min_usable_context,
                 'test_size': config.test_size,
                 'random_state': config.random_state,
+                'include_weather': config.include_weather,
+                'fetch_weather': config.fetch_weather,
             },
             'trained_models': models,
             'skipped_targets': skipped,

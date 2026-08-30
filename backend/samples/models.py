@@ -87,6 +87,50 @@ class Sample(models.Model):
         return f"{self.sample_id} - {self.sub_type or self.vegetation_variety}"
 
 
+class PredictionContext(models.Model):
+    LOCATION_TYPE_CHOICES = (
+        ('farm', 'Farm'),
+        ('market', 'Market'),
+        ('storage', 'Storage'),
+        ('unknown', 'Unknown'),
+    )
+
+    sample = models.OneToOneField(
+        Sample,
+        on_delete=models.CASCADE,
+        related_name='prediction_context',
+    )
+    latitude = models.FloatField(null=True, blank=True)
+    longitude = models.FloatField(null=True, blank=True)
+    location_type = models.CharField(
+        max_length=20,
+        choices=LOCATION_TYPE_CHOICES,
+        default='unknown',
+    )
+    harvest_date = models.DateField(null=True, blank=True)
+    sowing_date = models.DateField(null=True, blank=True)
+    crop_variety = models.CharField(max_length=120, blank=True)
+    crop_season = models.CharField(max_length=80, blank=True)
+    storage_duration_days = models.PositiveIntegerField(null=True, blank=True)
+    moisture_pct = models.FloatField(null=True, blank=True)
+    soil_type = models.CharField(max_length=120, blank=True)
+    soil_ph = models.FloatField(null=True, blank=True)
+    crop_rotation = models.TextField(blank=True)
+    fertiliser_details = models.TextField(blank=True)
+    fungicide_details = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['location_type']),
+            models.Index(fields=['harvest_date']),
+        ]
+
+    def __str__(self):
+        return f"Prediction context for {self.sample.sample_id}"
+
+
 class ExternalDataCache(models.Model):
     source = models.CharField(max_length=50, db_index=True)
     cache_key = models.CharField(max_length=255, unique=True)

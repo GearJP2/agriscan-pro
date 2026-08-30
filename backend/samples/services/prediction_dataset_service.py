@@ -7,12 +7,13 @@ from typing import Iterable, TextIO
 
 from ..constants.mycotoxin_constants import TOXIN_LABELS
 from ..models import MycotoxinResult
+from .prediction_weather_service import PredictionWeatherService, PredictionWeatherServiceError
 
 
 class PredictionDatasetService:
     """Export a flat training table without mutating source sample data."""
 
-    FIELDNAMES = [
+    BASE_FIELDNAMES = [
         'sample_id',
         'toxin_type',
         'toxin_label',
@@ -35,42 +36,70 @@ class PredictionDatasetService:
         'purpose',
         'sample_type',
         'processing_type',
+        'context_location_type',
+        'context_has_exact_coordinates',
+        'context_latitude',
+        'context_longitude',
+        'context_harvest_month',
+        'context_harvest_quarter',
+        'context_harvest_season_thailand',
+        'context_sowing_month',
+        'context_storage_duration_days',
+        'context_moisture_pct',
+        'context_soil_ph',
+        'context_crop_variety',
+        'context_crop_season',
+        'context_soil_type',
+        'context_has_crop_rotation',
+        'context_has_fertiliser_details',
+        'context_has_fungicide_details',
         'recorded_by_username',
     ]
+    FIELDNAMES = BASE_FIELDNAMES + PredictionWeatherService.FEATURE_COLUMNS
 
     @classmethod
     def get_queryset(cls):
         return (
             MycotoxinResult.objects.select_related('sample', 'sample__recorded_by')
+            .select_related('sample__prediction_context')
             .filter(value__isnull=False)
             .order_by('sample__sample_id', 'toxin_type')
         )
 
     @classmethod
-    def iter_rows(cls, queryset=None) -> Iterable[dict]:
+    def iter_rows(cls, queryset=None, *, include_weather=False, fetch_weather=True) -> Iterable[dict]:
         results = queryset if queryset is not None else cls.get_queryset()
         for result in results:
-            yield cls.build_row(result)
+            yield cls.build_row(
+                result,
+                include_weather=include_weather,
+                fetch_weather=fetch_weather,
+            )
 
     @classmethod
-    def write_csv(cls, output: TextIO, queryset=None) -> int:
+    def write_csv(cls, output: TextIO, queryset=None, *, include_weather=False, fetch_weather=True) -> int:
         writer = csv.DictWriter(output, fieldnames=cls.FIELDNAMES)
         writer.writeheader()
         count = 0
-        for row in cls.iter_rows(queryset=queryset):
+        for row in cls.iter_rows(
+            queryset=queryset,
+            include_weather=include_weather,
+            fetch_weather=fetch_weather,
+        ):
             writer.writerow(row)
             count += 1
         return count
 
     @classmethod
-    def build_row(cls, result: MycotoxinResult) -> dict:
+    def build_row(cls, result: MycotoxinResult, *, include_weather=False, fetch_weather=True) -> dict:
         sample = result.sample
         value = float(result.value or 0)
         detected = value > 0
         collection_date = sample.collection_date
         commodity = sample.sub_type or sample.vegetation_variety
+        context = getattr(sample, 'prediction_context', None)
 
-        return {
+        row = {
             'sample_id': sample.sample_id,
             'toxin_type': result.toxin_type,
             'toxin_label': TOXIN_LABELS.get(result.toxin_type, result.toxin_type),
@@ -93,7 +122,64 @@ class PredictionDatasetService:
             'purpose': cls.clean_category(sample.purpose),
             'sample_type': cls.clean_category(sample.sample_type),
             'processing_type': cls.clean_category(sample.processing_type),
+            **cls.context_features(context),
             'recorded_by_username': sample.recorded_by.username if sample.recorded_by else '',
+        }
+        row.update(cls.weather_features(sample, include_weather=include_weather, fetch_weather=fetch_weather))
+        return row
+
+    @staticmethod
+    def weather_features(sample, *, include_weather=False, fetch_weather=True) -> dict:
+        context = getattr(sample, 'prediction_context', None)
+        if not include_weather:
+            return PredictionWeatherService.empty_features()
+        try:
+            return PredictionWeatherService.get_features(
+                sample.province,
+                sample.collection_date,
+                latitude=getattr(context, 'latitude', None),
+                longitude=getattr(context, 'longitude', None),
+                fetch_missing=fetch_weather,
+            )
+        except PredictionWeatherServiceError:
+            return PredictionWeatherService.empty_features(
+                location=PredictionWeatherService.select_location(
+                    sample.province,
+                    latitude=getattr(context, 'latitude', None),
+                    longitude=getattr(context, 'longitude', None),
+                )
+            )
+
+    @classmethod
+    def context_features(cls, context) -> dict:
+        harvest_date = getattr(context, 'harvest_date', None)
+        sowing_date = getattr(context, 'sowing_date', None)
+        latitude = getattr(context, 'latitude', None)
+        longitude = getattr(context, 'longitude', None)
+        return {
+            'context_location_type': cls.clean_category(getattr(context, 'location_type', 'unknown')),
+            'context_has_exact_coordinates': int(latitude is not None and longitude is not None),
+            'context_latitude': latitude if latitude is not None else '',
+            'context_longitude': longitude if longitude is not None else '',
+            'context_harvest_month': harvest_date.month if harvest_date else '',
+            'context_harvest_quarter': cls.quarter(harvest_date.month) if harvest_date else '',
+            'context_harvest_season_thailand': (
+                cls.thailand_season(harvest_date.month) if harvest_date else ''
+            ),
+            'context_sowing_month': sowing_date.month if sowing_date else '',
+            'context_storage_duration_days': getattr(context, 'storage_duration_days', None) or '',
+            'context_moisture_pct': getattr(context, 'moisture_pct', None) or '',
+            'context_soil_ph': getattr(context, 'soil_ph', None) or '',
+            'context_crop_variety': cls.clean_category(getattr(context, 'crop_variety', '')),
+            'context_crop_season': cls.clean_category(getattr(context, 'crop_season', '')),
+            'context_soil_type': cls.clean_category(getattr(context, 'soil_type', '')),
+            'context_has_crop_rotation': int(bool(cls.clean_category(getattr(context, 'crop_rotation', '')))),
+            'context_has_fertiliser_details': int(bool(
+                cls.clean_category(getattr(context, 'fertiliser_details', ''))
+            )),
+            'context_has_fungicide_details': int(bool(
+                cls.clean_category(getattr(context, 'fungicide_details', ''))
+            )),
         }
 
     @staticmethod

@@ -98,9 +98,29 @@ export interface Sample {
   sample_type?: SampleType;
   processing_type?: ProcessingType;
   recorded_by?: string;
+  prediction_context?: PredictionContext;
   /** Deprecated compatibility field; new registrations use recorded_by. */
   collected_by?: string;
   additional_info?: string;
+}
+
+export interface PredictionContext {
+  latitude?: number | null;
+  longitude?: number | null;
+  location_type?: 'farm' | 'market' | 'storage' | 'unknown';
+  harvest_date?: string | null;
+  sowing_date?: string | null;
+  crop_variety?: string;
+  crop_season?: string;
+  storage_duration_days?: number | null;
+  moisture_pct?: number | null;
+  soil_type?: string;
+  soil_ph?: number | null;
+  crop_rotation?: string;
+  fertiliser_details?: string;
+  fungicide_details?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export type RiskLevel = 'safe' | 'low' | 'medium' | 'high';

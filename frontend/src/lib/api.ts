@@ -1,5 +1,5 @@
 import axios, { AxiosError, AxiosHeaders } from "axios";
-import type { Sample, ProcessLog, RiskLevel } from "@/types/sample";
+import type { PredictionContext, Sample, ProcessLog, RiskLevel } from "@/types/sample";
 import type { AnalyticsOverviewResponse, CoContaminationResponse, DashboardContractResponse, EnvironmentalCorrelationResponse, HealthSummary } from "@/types/dashboard";
 import type {
   PredictionEstimateRequest,
@@ -305,6 +305,21 @@ export const sampleAPI = {
       resultData,
     );
     return response.data;
+  },
+
+  async getPredictionContext(sampleId: string) {
+    const response = await apiClient.get(
+      `/samples/${encodeURIComponent(sampleId)}/prediction/context/`,
+    );
+    return response.data as PredictionContext;
+  },
+
+  async updatePredictionContext(sampleId: string, data: Partial<PredictionContext>) {
+    const response = await apiClient.patch(
+      `/samples/${encodeURIComponent(sampleId)}/prediction/context/`,
+      data,
+    );
+    return response.data as PredictionContext;
   },
 
   async bulkImportResults(file: File) {

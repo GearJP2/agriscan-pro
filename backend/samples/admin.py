@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import MycotoxinResult, ProcessLog, Sample
+from .models import MycotoxinResult, PredictionContext, ProcessLog, Sample
 
 
 @admin.register(Sample)
@@ -39,3 +39,11 @@ class MycotoxinResultAdmin(admin.ModelAdmin):
     list_filter = ['toxin_type', 'risk_level', 'unit']
     search_fields = ['sample__sample_id']
     readonly_fields = ['risk_level', 'eu_threshold_low', 'eu_threshold_high']
+
+
+@admin.register(PredictionContext)
+class PredictionContextAdmin(admin.ModelAdmin):
+    list_display = ['sample', 'location_type', 'harvest_date', 'moisture_pct', 'soil_type', 'updated_at']
+    list_filter = ['location_type', 'harvest_date']
+    search_fields = ['sample__sample_id', 'crop_variety', 'soil_type']
+    readonly_fields = ['created_at', 'updated_at']

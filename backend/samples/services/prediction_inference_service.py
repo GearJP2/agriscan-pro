@@ -9,6 +9,7 @@ from django.conf import settings
 
 from .prediction_dataset_service import PredictionDatasetService
 from .prediction_training_service import PredictionTrainingService
+from .prediction_weather_service import PredictionWeatherService, PredictionWeatherServiceError
 
 
 class PredictionModelUnavailable(Exception):
@@ -25,7 +26,10 @@ class PredictionInferenceService:
         if not trained_models:
             raise PredictionModelUnavailable('No published toxin models are available yet.')
 
-        features = PredictionTrainingService.build_feature_dict(cls.payload_to_dataset_row(payload))
+        include_weather = metadata.get('training_config', {}).get('include_weather', False)
+        features = PredictionTrainingService.build_feature_dict(
+            cls.payload_to_dataset_row(payload, include_weather=include_weather)
+        )
         predictions = []
         for model_meta in trained_models:
             predictions.append(cls.estimate_toxin(model_meta, features, metadata_path.parent))
@@ -36,6 +40,7 @@ class PredictionInferenceService:
             'modelFamily': metadata.get('model_family', ''),
             'createdAt': metadata.get('created_at', ''),
             'featureColumns': metadata.get('feature_columns', []),
+            'usesWeatherFeatures': include_weather,
             'input': payload,
             'predictions': predictions,
             'warning': (
@@ -179,14 +184,14 @@ class PredictionInferenceService:
         return load(path)
 
     @classmethod
-    def payload_to_dataset_row(cls, payload: dict) -> dict:
+    def payload_to_dataset_row(cls, payload: dict, *, include_weather=False) -> dict:
         collection_date = payload.get('collection_date')
         if isinstance(collection_date, str):
             collection_date = datetime.strptime(collection_date, '%Y-%m-%d').date()
         month = collection_date.month if collection_date else 0
         commodity = payload.get('sub_type') or ''
         province = PredictionDatasetService.clean_location(payload.get('province'))
-        return {
+        row = {
             'food_feed_type': PredictionDatasetService.clean_category(payload.get('food_feed_type')),
             'sub_type': PredictionDatasetService.clean_category(payload.get('sub_type')),
             'commodity': PredictionDatasetService.clean_category(commodity),
@@ -201,11 +206,83 @@ class PredictionInferenceService:
             'purpose': PredictionDatasetService.clean_category(payload.get('purpose')),
             'sample_type': PredictionDatasetService.clean_category(payload.get('sample_type')),
             'processing_type': PredictionDatasetService.clean_category(payload.get('processing_type')),
+            **cls.context_payload_features(payload),
+        }
+        row.update(cls.weather_features(
+            payload.get('province'),
+            collection_date,
+            include_weather=include_weather,
+            latitude=payload.get('latitude'),
+            longitude=payload.get('longitude'),
+        ))
+        return row
+
+    @staticmethod
+    def weather_features(province, collection_date, *, include_weather=False, latitude=None, longitude=None) -> dict:
+        if not include_weather:
+            return PredictionWeatherService.empty_features()
+        try:
+            return PredictionWeatherService.get_features(
+                province,
+                collection_date,
+                latitude=latitude,
+                longitude=longitude,
+            )
+        except PredictionWeatherServiceError:
+            return PredictionWeatherService.empty_features(
+                location=PredictionWeatherService.select_location(
+                    province,
+                    latitude=latitude,
+                    longitude=longitude,
+                )
+            )
+
+    @classmethod
+    def context_payload_features(cls, payload: dict) -> dict:
+        harvest_date = payload.get('harvest_date')
+        if isinstance(harvest_date, str):
+            harvest_date = datetime.strptime(harvest_date, '%Y-%m-%d').date()
+        sowing_date = payload.get('sowing_date')
+        if isinstance(sowing_date, str):
+            sowing_date = datetime.strptime(sowing_date, '%Y-%m-%d').date()
+        latitude = payload.get('latitude')
+        longitude = payload.get('longitude')
+        return {
+            'context_location_type': PredictionDatasetService.clean_category(
+                payload.get('location_type') or 'unknown'
+            ),
+            'context_has_exact_coordinates': int(latitude is not None and longitude is not None),
+            'context_latitude': latitude if latitude is not None else '',
+            'context_longitude': longitude if longitude is not None else '',
+            'context_harvest_month': harvest_date.month if harvest_date else '',
+            'context_harvest_quarter': PredictionDatasetService.quarter(
+                harvest_date.month
+            ) if harvest_date else '',
+            'context_harvest_season_thailand': (
+                PredictionDatasetService.thailand_season(harvest_date.month)
+                if harvest_date else ''
+            ),
+            'context_sowing_month': sowing_date.month if sowing_date else '',
+            'context_storage_duration_days': payload.get('storage_duration_days') or '',
+            'context_moisture_pct': payload.get('moisture_pct') or '',
+            'context_soil_ph': payload.get('soil_ph') or '',
+            'context_crop_variety': PredictionDatasetService.clean_category(payload.get('crop_variety')),
+            'context_crop_season': PredictionDatasetService.clean_category(payload.get('crop_season')),
+            'context_soil_type': PredictionDatasetService.clean_category(payload.get('soil_type')),
+            'context_has_crop_rotation': int(bool(PredictionDatasetService.clean_category(
+                payload.get('crop_rotation')
+            ))),
+            'context_has_fertiliser_details': int(bool(PredictionDatasetService.clean_category(
+                payload.get('fertiliser_details')
+            ))),
+            'context_has_fungicide_details': int(bool(PredictionDatasetService.clean_category(
+                payload.get('fungicide_details')
+            ))),
         }
 
     @staticmethod
     def sample_to_payload(sample) -> dict:
-        return {
+        payload = {
             'food_feed_type': sample.food_feed_type or 'food',
             'sub_type': sample.sub_type or sample.vegetation_variety,
             'province': sample.province,
@@ -216,6 +293,25 @@ class PredictionInferenceService:
             'sample_type': sample.sample_type or '',
             'processing_type': sample.processing_type or '',
         }
+        context = getattr(sample, 'prediction_context', None)
+        if context:
+            payload.update({
+                'latitude': context.latitude,
+                'longitude': context.longitude,
+                'location_type': context.location_type,
+                'harvest_date': context.harvest_date,
+                'sowing_date': context.sowing_date,
+                'crop_variety': context.crop_variety,
+                'crop_season': context.crop_season,
+                'storage_duration_days': context.storage_duration_days,
+                'moisture_pct': context.moisture_pct,
+                'soil_type': context.soil_type,
+                'soil_ph': context.soil_ph,
+                'crop_rotation': context.crop_rotation,
+                'fertiliser_details': context.fertiliser_details,
+                'fungicide_details': context.fungicide_details,
+            })
+        return payload
 
     @staticmethod
     def risk_band(probability: float) -> str:

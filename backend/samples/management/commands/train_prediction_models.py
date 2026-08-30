@@ -21,12 +21,24 @@ class Command(BaseCommand):
         parser.add_argument('--min-detected', type=int, default=30)
         parser.add_argument('--min-below-lod-or-zero', type=int, default=30)
         parser.add_argument('--min-usable-context', type=int, default=60)
+        parser.add_argument(
+            '--include-weather',
+            action='store_true',
+            help='Fetch/cache and include 90-day pre-collection NASA POWER weather features.',
+        )
+        parser.add_argument(
+            '--cached-weather-only',
+            action='store_true',
+            help='Use cached prediction weather only; missing cache values are exported blank/zero.',
+        )
 
     def handle(self, *args, **options):
         config = PredictionTrainingConfig(
             min_detected=options['min_detected'],
             min_below_lod_or_zero=options['min_below_lod_or_zero'],
             min_usable_context=options['min_usable_context'],
+            include_weather=options['include_weather'],
+            fetch_weather=not options['cached_weather_only'],
         )
         try:
             report = PredictionTrainingService.train_and_save(

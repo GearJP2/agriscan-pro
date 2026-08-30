@@ -37,6 +37,20 @@ export interface PredictionEstimateRequest {
   collection_date: string;
   region?: string;
   district?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  location_type?: 'farm' | 'market' | 'storage' | 'unknown' | '';
+  harvest_date?: string | null;
+  sowing_date?: string | null;
+  crop_variety?: string;
+  crop_season?: string;
+  storage_duration_days?: number | null;
+  moisture_pct?: number | null;
+  soil_type?: string;
+  soil_ph?: number | null;
+  crop_rotation?: string;
+  fertiliser_details?: string;
+  fungicide_details?: string;
   purpose?: 'research' | 'customer' | '';
   sample_type?: 'field' | 'market' | 'storage' | 'export' | '';
   processing_type?: 'raw' | 'dried' | 'milled' | 'processed' | 'fermented' | '';
@@ -66,6 +80,7 @@ export interface PredictionEstimateResponse {
   modelFamily: string;
   createdAt: string;
   featureColumns: string[];
+  usesWeatherFeatures: boolean;
   input: PredictionEstimateRequest;
   predictions: PredictionEstimateItem[];
   warning: string;

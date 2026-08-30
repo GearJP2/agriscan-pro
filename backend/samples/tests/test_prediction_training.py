@@ -40,11 +40,19 @@ class PredictionTrainingServiceTests(SimpleTestCase):
             'purpose': '',
             'sample_type': 'market',
             'processing_type': '',
+            'weather_temperature_c_mean_90d': 30.2,
+            'weather_humidity_pct_mean_90d': 75.1,
+            'weather_precipitation_mm_total_90d': 220.0,
+            'weather_soil_temperature_c_mean_90d': 31.0,
+            'weather_days_observed_90d': 90,
+            'weather_location_label': 'Bangkok',
         })
 
         self.assertNotIn('detected', features)
         self.assertNotIn('concentration_log1p', features)
         self.assertEqual(features['region'], 'missing')
         self.assertEqual(features['province'], 'Bangkok')
+        self.assertEqual(features['weather_temperature_c_mean_90d'], 30.2)
+        self.assertEqual(features['weather_location_label'], 'Bangkok')
         self.assertIn('collection_month_sin', features)
         self.assertIn('collection_month_cos', features)

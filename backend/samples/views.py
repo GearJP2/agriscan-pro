@@ -20,6 +20,7 @@ from .services.s3_service import generate_upload_url
 from .services.test_data_service import TestDataService
 from .serializers import (
     MycotoxinResultSerializer,
+    PredictionContextSerializer,
     PredictionEstimateRequestSerializer,
     ProcessLogSerializer,
     SampleCreateUpdateSerializer,
@@ -73,6 +74,7 @@ class SampleViewSet(viewsets.ModelViewSet):
             'analytics_threshold_simulation',
             'prediction_estimate',
             'prediction_estimate_sample',
+            'prediction_context',
             'prediction_readiness',
             'prediction_status',
         ]:
@@ -690,6 +692,25 @@ class SampleViewSet(viewsets.ModelViewSet):
         except PredictionModelUnavailable as exc:
             return Response({'detail': str(exc)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
         return Response(data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['get', 'put', 'patch'], url_path='prediction/context')
+    def prediction_context(self, request, sample_id=None):
+        """Read or update optional predictor fields for a registered sample."""
+        sample = self.get_object()
+        context = getattr(sample, 'prediction_context', None)
+        if request.method == 'GET':
+            if context is None:
+                return Response({}, status=status.HTTP_200_OK)
+            return Response(PredictionContextSerializer(context).data, status=status.HTTP_200_OK)
+
+        serializer = PredictionContextSerializer(
+            context,
+            data=request.data,
+            partial=request.method == 'PATCH',
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save(sample=sample)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=['post'], url_path='analytics/public-health-summary')
     def analytics_public_health_summary(self, request):

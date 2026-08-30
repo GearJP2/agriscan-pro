@@ -140,7 +140,9 @@ const Prediction = () => {
                         <p>Skipped targets: {modelStatus.data.latest.skippedTargets}</p>
                       </div>
                       {modelStatus.data.status !== 'published' && (
-                        <div className="rounded-md border border-warning/40 bg-warning/5 p-3 text-sm text-muted-foreground">
+                        <div
+                          className="rounded-md border border-warning/40 bg-warning/5 p-3 text-sm text-muted-foreground"
+                        >
                           Models are trained but not published. Review metrics, then run
                           {' '}
                           <code>python manage.py publish_prediction_models</code>
@@ -395,8 +397,9 @@ const Prediction = () => {
                   <div className="grid gap-3 text-sm text-muted-foreground md:grid-cols-3">
                     <p>Model version: {activeEstimate.modelVersion}</p>
                     <p>Trained at: {activeEstimate.createdAt || 'Unknown'}</p>
-                    <p>{activeEstimate.warning}</p>
+                    <p>Weather features: {activeEstimate.usesWeatherFeatures ? 'Included' : 'Not included'}</p>
                   </div>
+                  <p className="text-sm text-muted-foreground">{activeEstimate.warning}</p>
                   <div className="overflow-x-auto rounded-md border">
                     <table className="w-full min-w-[760px] text-left text-sm">
                       <thead className="border-b bg-muted/40 text-xs uppercase text-muted-foreground">

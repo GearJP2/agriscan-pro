@@ -10,7 +10,7 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from ..models import Sample
+from ..models import PredictionContext, Sample
 from ..services.prediction_inference_service import (
     PredictionInferenceService,
     PredictionModelUnavailable,
@@ -38,6 +38,31 @@ class PredictionInferenceServiceTests(TestCase):
         self.assertEqual(row['collection_month'], 7)
         self.assertEqual(row['collection_quarter'], 3)
         self.assertEqual(row['collection_season_thailand'], 'rainy')
+        self.assertEqual(row['weather_days_observed_90d'], 0)
+
+    def test_payload_to_dataset_row_can_include_weather_features(self):
+        weather = {
+            'weather_temperature_c_mean_90d': 30.1,
+            'weather_humidity_pct_mean_90d': 75.5,
+            'weather_precipitation_mm_total_90d': 220.0,
+            'weather_soil_temperature_c_mean_90d': 31.2,
+            'weather_days_observed_90d': 90,
+            'weather_location_label': 'Bangkok',
+        }
+
+        with patch(
+            'samples.services.prediction_inference_service.PredictionWeatherService.get_features',
+            return_value=weather,
+        ):
+            row = PredictionInferenceService.payload_to_dataset_row({
+                'food_feed_type': 'food',
+                'sub_type': 'White Rice',
+                'province': 'Bangkok',
+                'collection_date': date(2026, 7, 2),
+            }, include_weather=True)
+
+        self.assertEqual(row['weather_temperature_c_mean_90d'], 30.1)
+        self.assertEqual(row['weather_days_observed_90d'], 90)
 
     def test_sample_to_payload_uses_registered_sample_fields(self):
         sample = Sample(
@@ -60,6 +85,36 @@ class PredictionInferenceServiceTests(TestCase):
         self.assertEqual(payload['sub_type'], 'White Rice')
         self.assertEqual(payload['province'], 'Bangkok')
         self.assertEqual(payload['collection_date'], date(2026, 7, 2))
+
+    def test_sample_to_payload_includes_prediction_context(self):
+        sample = Sample.objects.create(
+            sample_id='RIC-2026-CTX',
+            region='Central',
+            province='Bangkok',
+            district='Chatuchak',
+            vegetation_variety='White Rice',
+            food_feed_type='food',
+            sub_type='White Rice',
+            collection_date='2026-07-02',
+            status='completed',
+        )
+        PredictionContext.objects.create(
+            sample=sample,
+            latitude=13.7563,
+            longitude=100.5018,
+            location_type='farm',
+            harvest_date='2026-06-15',
+            moisture_pct=12.5,
+            soil_ph=6.4,
+        )
+
+        payload = PredictionInferenceService.sample_to_payload(sample)
+
+        self.assertEqual(payload['latitude'], 13.7563)
+        self.assertEqual(payload['longitude'], 100.5018)
+        self.assertEqual(payload['location_type'], 'farm')
+        self.assertEqual(str(payload['harvest_date']), '2026-06-15')
+        self.assertEqual(payload['moisture_pct'], 12.5)
 
     def test_model_status_reports_latest_publish_state(self):
         with TemporaryDirectory() as tmp_dir:
@@ -215,3 +270,24 @@ class PredictionEstimateEndpointTests(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['status'], 'not_trained')
+
+    def test_prediction_context_can_be_saved_and_read(self):
+        self.client.force_authenticate(user=self.researcher)
+        url = reverse('sample-prediction-context', kwargs={'sample_id': self.sample.sample_id})
+
+        response = self.client.put(url, {
+            'latitude': 13.7563,
+            'longitude': 100.5018,
+            'location_type': 'farm',
+            'harvest_date': '2026-06-15',
+            'crop_variety': 'RD43',
+            'storage_duration_days': 14,
+            'moisture_pct': 12.5,
+            'soil_ph': 6.4,
+        }, format='json')
+        read_response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(read_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(read_response.data['location_type'], 'farm')
+        self.assertEqual(read_response.data['crop_variety'], 'RD43')
