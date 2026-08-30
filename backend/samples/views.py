@@ -72,6 +72,7 @@ class SampleViewSet(viewsets.ModelViewSet):
             'analytics_dashboard_simulate',
             'analytics_threshold_simulation',
             'prediction_estimate',
+            'prediction_estimate_sample',
             'prediction_readiness',
         ]:
             return [IsAuthenticated(), IsAdminOrResearchRole()]
@@ -668,6 +669,18 @@ class SampleViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         try:
             data = PredictionInferenceService.estimate(serializer.validated_data)
+        except PredictionModelUnavailable as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        return Response(data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'], url_path='prediction/estimate')
+    def prediction_estimate_sample(self, request, sample_id=None):
+        """Estimate toxin detection risk using a registered sample's context fields."""
+        sample = self.get_object()
+        try:
+            data = PredictionInferenceService.estimate(
+                PredictionInferenceService.sample_to_payload(sample)
+            )
         except PredictionModelUnavailable as exc:
             return Response({'detail': str(exc)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
         return Response(data, status=status.HTTP_200_OK)

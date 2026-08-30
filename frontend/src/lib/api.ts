@@ -486,6 +486,14 @@ export const analyticsAPI = {
   async estimatePrediction(payload: PredictionEstimateRequest) {
     const response = await apiClient.post('/samples/prediction/estimate/', payload);
     return response.data as PredictionEstimateResponse;
+  },
+
+  async estimateSamplePrediction(sampleId: string) {
+    const response = await apiClient.post(
+      `/samples/${encodeURIComponent(sampleId)}/prediction/estimate/`,
+      {},
+    );
+    return response.data as PredictionEstimateResponse;
   }
 };
 

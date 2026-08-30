@@ -56,6 +56,7 @@ const Prediction = () => {
   const { isAuthenticated, role } = useAuth();
   const canView = isAuthenticated && researchRoles.includes(role);
   const [form, setForm] = useState<PredictionEstimateRequest>(initialForm);
+  const [sampleId, setSampleId] = useState('');
   const readiness = useQuery({
     queryKey: ['prediction-readiness'],
     queryFn: analyticsAPI.getPredictionReadiness,
@@ -64,6 +65,13 @@ const Prediction = () => {
   const estimate = useMutation({
     mutationFn: analyticsAPI.estimatePrediction,
   });
+  const sampleEstimate = useMutation({
+    mutationFn: analyticsAPI.estimateSamplePrediction,
+  });
+  const activeEstimate = sampleEstimate.data ?? estimate.data;
+  const activeError = sampleEstimate.error ?? estimate.error;
+  const hasEstimateError = sampleEstimate.isError || estimate.isError;
+  const isEstimating = sampleEstimate.isPending || estimate.isPending;
 
   const setField = <K extends keyof PredictionEstimateRequest>(
     field: K,
@@ -74,7 +82,14 @@ const Prediction = () => {
 
   const submitEstimate = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    sampleEstimate.reset();
     estimate.mutate(form);
+  };
+
+  const submitSampleEstimate = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    estimate.reset();
+    sampleEstimate.mutate(sampleId.trim());
   };
 
   return (
@@ -104,7 +119,37 @@ const Prediction = () => {
           <div className="space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Estimate sample risk</CardTitle>
+                <CardTitle className="text-lg">Estimate registered sample</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <form className="flex flex-col gap-3 sm:flex-row" onSubmit={submitSampleEstimate}>
+                  <div className="flex-1 space-y-2">
+                    <Label htmlFor="sample-id">Sample ID</Label>
+                    <Input
+                      id="sample-id"
+                      value={sampleId}
+                      onChange={(event) => setSampleId(event.target.value)}
+                      placeholder="RIC-2026-001"
+                      required
+                    />
+                  </div>
+                  <div className="flex items-end">
+                    <Button type="submit" disabled={isEstimating || !sampleId.trim()}>
+                      {sampleEstimate.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <TrendingUp />
+                      )}
+                      Estimate sample
+                    </Button>
+                  </div>
+                </form>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Estimate from sample context</CardTitle>
               </CardHeader>
               <CardContent>
                 <form className="grid gap-4 md:grid-cols-2 lg:grid-cols-4" onSubmit={submitEstimate}>
@@ -242,7 +287,7 @@ const Prediction = () => {
                   </div>
 
                   <div className="flex items-end md:col-span-2 lg:col-span-4">
-                    <Button type="submit" disabled={estimate.isPending}>
+                    <Button type="submit" disabled={isEstimating}>
                       {estimate.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <TrendingUp />}
                       Run estimate
                     </Button>
@@ -251,19 +296,19 @@ const Prediction = () => {
               </CardContent>
             </Card>
 
-            {estimate.isError && (
+            {hasEstimateError && (
               <Card className="border-warning/40 bg-warning/5">
                 <CardContent className="flex gap-3 p-5 text-sm">
                   <AlertTriangle className="h-5 w-5 shrink-0 text-warning" />
                   <div>
                     <p className="font-medium text-foreground">Prediction model unavailable</p>
-                    <p className="mt-1 text-muted-foreground">{errorMessage(estimate.error)}</p>
+                    <p className="mt-1 text-muted-foreground">{errorMessage(activeError)}</p>
                   </div>
                 </CardContent>
               </Card>
             )}
 
-            {estimate.data && (
+            {activeEstimate && (
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-lg">
@@ -273,9 +318,9 @@ const Prediction = () => {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid gap-3 text-sm text-muted-foreground md:grid-cols-3">
-                    <p>Model version: {estimate.data.modelVersion}</p>
-                    <p>Trained at: {estimate.data.createdAt || 'Unknown'}</p>
-                    <p>{estimate.data.warning}</p>
+                    <p>Model version: {activeEstimate.modelVersion}</p>
+                    <p>Trained at: {activeEstimate.createdAt || 'Unknown'}</p>
+                    <p>{activeEstimate.warning}</p>
                   </div>
                   <div className="overflow-x-auto rounded-md border">
                     <table className="w-full min-w-[760px] text-left text-sm">
@@ -290,7 +335,7 @@ const Prediction = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {estimate.data.predictions.map((prediction) => (
+                        {activeEstimate.predictions.map((prediction) => (
                           <tr key={prediction.toxinType} className="border-b last:border-0">
                             <td className="px-4 py-3 font-medium">{prediction.toxinType}</td>
                             <td className="px-4 py-3 text-right">

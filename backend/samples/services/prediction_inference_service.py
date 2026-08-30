@@ -137,6 +137,20 @@ class PredictionInferenceService:
         }
 
     @staticmethod
+    def sample_to_payload(sample) -> dict:
+        return {
+            'food_feed_type': sample.food_feed_type or 'food',
+            'sub_type': sample.sub_type or sample.vegetation_variety,
+            'province': sample.province,
+            'collection_date': sample.collection_date,
+            'region': sample.region,
+            'district': sample.district,
+            'purpose': sample.purpose or '',
+            'sample_type': sample.sample_type or '',
+            'processing_type': sample.processing_type or '',
+        }
+
+    @staticmethod
     def risk_band(probability: float) -> str:
         if probability >= 0.7:
             return 'high'
