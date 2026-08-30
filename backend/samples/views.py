@@ -35,6 +35,7 @@ from .services.llm_summary_service import (
     LLMSummaryServiceError,
 )
 from .services.nasa_power_service import NasaPowerService, NasaPowerServiceError
+from .services.prediction_readiness_service import PredictionReadinessService
 
 logger = logging.getLogger('agriscan.samples')
 
@@ -62,7 +63,11 @@ class SampleViewSet(viewsets.ModelViewSet):
     lookup_field = 'sample_id'
 
     def get_permissions(self):
-        if self.action in ['analytics_dashboard_simulate', 'analytics_threshold_simulation']:
+        if self.action in [
+            'analytics_dashboard_simulate',
+            'analytics_threshold_simulation',
+            'prediction_readiness',
+        ]:
             return [IsAuthenticated(), IsAdminOrResearchRole()]
         if self.action in ['destroy', 'bulk_delete', 'generate_test_data', 'delete_test_data']:
             return [IsAuthenticated(), IsAdmin()]
@@ -644,6 +649,11 @@ class SampleViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_502_BAD_GATEWAY,
             )
         return Response(data, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['get'], url_path='prediction/readiness')
+    def prediction_readiness(self, request):
+        """Return the labelled-data checks required before training a model."""
+        return Response(PredictionReadinessService.get_readiness(), status=status.HTTP_200_OK)
 
     @action(detail=False, methods=['post'], url_path='analytics/public-health-summary')
     def analytics_public_health_summary(self, request):

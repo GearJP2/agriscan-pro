@@ -1,6 +1,7 @@
 import axios, { AxiosError, AxiosHeaders } from "axios";
 import type { Sample, ProcessLog, RiskLevel } from "@/types/sample";
 import type { AnalyticsOverviewResponse, CoContaminationResponse, DashboardContractResponse, EnvironmentalCorrelationResponse, HealthSummary } from "@/types/dashboard";
+import type { PredictionReadinessResponse } from "@/types/prediction";
 import {
   clearAccessToken,
   clearSessionHint,
@@ -471,6 +472,11 @@ export const analyticsAPI = {
     }
     const response = await apiClient.get(`/samples/analytics/environmental-correlation/?${params.toString()}`);
     return response.data as EnvironmentalCorrelationResponse;
+  },
+
+  async getPredictionReadiness() {
+    const response = await apiClient.get('/samples/prediction/readiness/');
+    return response.data as PredictionReadinessResponse;
   }
 };
 
