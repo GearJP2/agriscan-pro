@@ -115,6 +115,46 @@ class ProcessLogSerializer(serializers.ModelSerializer):
         fields = ('id', 'timestamp', 'state', 'test_id', 'notes', 'conducted_by')
 
 
+class PredictionEstimateRequestSerializer(serializers.Serializer):
+    food_feed_type = serializers.ChoiceField(choices=['food', 'feed'])
+    sub_type = serializers.CharField(max_length=100, trim_whitespace=True)
+    province = serializers.CharField(max_length=100, trim_whitespace=True)
+    collection_date = serializers.DateField()
+    region = serializers.CharField(
+        max_length=100,
+        required=False,
+        allow_blank=True,
+        trim_whitespace=True,
+    )
+    district = serializers.CharField(
+        max_length=100,
+        required=False,
+        allow_blank=True,
+        trim_whitespace=True,
+    )
+    purpose = serializers.ChoiceField(choices=['research', 'customer'], required=False, allow_blank=True)
+    sample_type = serializers.ChoiceField(
+        choices=['field', 'market', 'storage', 'export'],
+        required=False,
+        allow_blank=True,
+    )
+    processing_type = serializers.ChoiceField(
+        choices=['raw', 'dried', 'milled', 'processed', 'fermented'],
+        required=False,
+        allow_blank=True,
+    )
+
+    def validate_sub_type(self, value):
+        if not value.strip():
+            raise serializers.ValidationError('Sub-type is required.')
+        return value.strip()
+
+    def validate_province(self, value):
+        if not value.strip():
+            raise serializers.ValidationError('Province is required.')
+        return value.strip()
+
+
 class SampleSerializer(serializers.ModelSerializer):
     process_logs = ProcessLogSerializer(many=True, read_only=True)
     mycotoxin_results = MycotoxinResultSerializer(many=True, read_only=True)

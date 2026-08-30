@@ -20,6 +20,7 @@ from .services.s3_service import generate_upload_url
 from .services.test_data_service import TestDataService
 from .serializers import (
     MycotoxinResultSerializer,
+    PredictionEstimateRequestSerializer,
     ProcessLogSerializer,
     SampleCreateUpdateSerializer,
     SampleListSerializer,
@@ -35,6 +36,10 @@ from .services.llm_summary_service import (
     LLMSummaryServiceError,
 )
 from .services.nasa_power_service import NasaPowerService, NasaPowerServiceError
+from .services.prediction_inference_service import (
+    PredictionInferenceService,
+    PredictionModelUnavailable,
+)
 from .services.prediction_readiness_service import PredictionReadinessService
 
 logger = logging.getLogger('agriscan.samples')
@@ -66,6 +71,7 @@ class SampleViewSet(viewsets.ModelViewSet):
         if self.action in [
             'analytics_dashboard_simulate',
             'analytics_threshold_simulation',
+            'prediction_estimate',
             'prediction_readiness',
         ]:
             return [IsAuthenticated(), IsAdminOrResearchRole()]
@@ -654,6 +660,17 @@ class SampleViewSet(viewsets.ModelViewSet):
     def prediction_readiness(self, request):
         """Return the labelled-data checks required before training a model."""
         return Response(PredictionReadinessService.get_readiness(), status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['post'], url_path='prediction/estimate')
+    def prediction_estimate(self, request):
+        """Estimate toxin detection risk from the latest trained baseline artifacts."""
+        serializer = PredictionEstimateRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            data = PredictionInferenceService.estimate(serializer.validated_data)
+        except PredictionModelUnavailable as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        return Response(data, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=['post'], url_path='analytics/public-health-summary')
     def analytics_public_health_summary(self, request):

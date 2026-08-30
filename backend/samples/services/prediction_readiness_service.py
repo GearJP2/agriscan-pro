@@ -1,5 +1,9 @@
 """Data-quality checks that gate mycotoxin model training and publication."""
 
+import json
+from pathlib import Path
+
+from django.conf import settings
 from django.db.models import Count, Q
 
 from ..constants.mycotoxin_constants import TOXIN_LABELS
@@ -15,6 +19,7 @@ class PredictionReadinessService:
 
     @classmethod
     def get_readiness(cls) -> dict:
+        model_metadata = cls.get_latest_model_metadata()
         context_filter = (
             Q(sample__collection_date__isnull=False)
             & Q(sample__province__isnull=False)
@@ -54,7 +59,8 @@ class PredictionReadinessService:
         targets.sort(key=lambda item: (-item['detected'], item['toxinType']))
         eligible_count = sum(target['eligibleForBaseline'] for target in targets)
         return {
-            'modelStatus': 'not_trained',
+            'modelStatus': 'trained' if model_metadata else 'not_trained',
+            'latestModel': model_metadata,
             'trainingGuardrails': {
                 'minDetected': cls.MIN_DETECTED,
                 'minBelowLodOrZero': cls.MIN_BELOW_LOD,
@@ -70,4 +76,25 @@ class PredictionReadinessService:
                 ),
             },
             'targets': targets,
+        }
+
+    @staticmethod
+    def get_latest_model_metadata() -> dict | None:
+        root = Path(settings.BASE_DIR / 'prediction_artifacts')
+        if not root.exists():
+            return None
+
+        candidates = sorted(root.glob('*/metadata.json'), reverse=True)
+        if not candidates:
+            return None
+
+        try:
+            metadata = json.loads(candidates[0].read_text(encoding='utf-8'))
+        except (OSError, json.JSONDecodeError):
+            return None
+
+        return {
+            'version': metadata.get('version', ''),
+            'createdAt': metadata.get('created_at', ''),
+            'trainedTargets': len(metadata.get('trained_models', [])),
         }

@@ -1,7 +1,11 @@
 import axios, { AxiosError, AxiosHeaders } from "axios";
 import type { Sample, ProcessLog, RiskLevel } from "@/types/sample";
 import type { AnalyticsOverviewResponse, CoContaminationResponse, DashboardContractResponse, EnvironmentalCorrelationResponse, HealthSummary } from "@/types/dashboard";
-import type { PredictionReadinessResponse } from "@/types/prediction";
+import type {
+  PredictionEstimateRequest,
+  PredictionEstimateResponse,
+  PredictionReadinessResponse,
+} from "@/types/prediction";
 import {
   clearAccessToken,
   clearSessionHint,
@@ -477,6 +481,11 @@ export const analyticsAPI = {
   async getPredictionReadiness() {
     const response = await apiClient.get('/samples/prediction/readiness/');
     return response.data as PredictionReadinessResponse;
+  },
+
+  async estimatePrediction(payload: PredictionEstimateRequest) {
+    const response = await apiClient.post('/samples/prediction/estimate/', payload);
+    return response.data as PredictionEstimateResponse;
   }
 };
 
