@@ -6,6 +6,7 @@ import { useTheme } from "next-themes";
 import type { Feature, FeatureCollection, GeoJsonProperties, GeometryObject } from "geojson";
 
 import { institutionMapsQuery, partnerDirectory, partnerLocations } from "@/constants/partners";
+import { getMapTileConfig } from "@/lib/mapTiles";
 
 const mapsUrl = (query: string) =>
   `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
@@ -219,9 +220,10 @@ const PartnerMap = () => {
   const [hoveredCountry, setHoveredCountry] = useState<string | null>(null);
   const geoJsonRef = useRef<L.GeoJSON | null>(null);
   const selectedCountryRef = useRef<string | null>(null);
-  const tileUrl = isDark
-    ? "https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png"
-    : "https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png";
+  const tileConfig = useMemo(
+    () => getMapTileConfig(isDark ? "dark" : "light"),
+    [isDark],
+  );
 
   useEffect(() => {
     const controller = new AbortController();
@@ -309,9 +311,9 @@ const PartnerMap = () => {
       className="z-0 h-[440px] w-full"
     >
       <TileLayer
-        key={tileUrl}
-        url={tileUrl}
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+        key={tileConfig.url}
+        url={tileConfig.url}
+        attribution={tileConfig.attribution}
       />
       {partnerGeoJson && (
         <GeoJSON
