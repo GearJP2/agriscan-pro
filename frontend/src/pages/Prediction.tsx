@@ -21,8 +21,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useAuth } from '@/contexts/AuthContext';
-import { analyticsAPI } from '@/lib/api';
+import { analyticsAPI, sampleAPI } from '@/lib/api';
 import type { PredictionEstimateRequest } from '@/types/prediction';
+import type { PredictionContext } from '@/types/sample';
 
 const researchRoles = ['admin', 'head_researcher', 'researcher'];
 
@@ -36,6 +37,23 @@ const initialForm: PredictionEstimateRequest = {
   purpose: 'research',
   sample_type: 'market',
   processing_type: 'milled',
+};
+
+const initialContext: PredictionContext = {
+  latitude: null,
+  longitude: null,
+  location_type: 'unknown',
+  harvest_date: null,
+  sowing_date: null,
+  crop_variety: '',
+  crop_season: '',
+  storage_duration_days: null,
+  moisture_pct: null,
+  soil_type: '',
+  soil_ph: null,
+  crop_rotation: '',
+  fertiliser_details: '',
+  fungicide_details: '',
 };
 
 const riskBadgeVariant = {
@@ -52,11 +70,25 @@ function errorMessage(error: unknown) {
   return 'Unable to estimate prediction. Please try again.';
 }
 
+function numberOrNull(value: string) {
+  return value === '' ? null : Number(value);
+}
+
+function dateOrNull(value: string) {
+  return value || null;
+}
+
+function hasValue(value: unknown) {
+  return value !== null && value !== undefined && value !== '';
+}
+
 const Prediction = () => {
   const { isAuthenticated, role } = useAuth();
   const canView = isAuthenticated && researchRoles.includes(role);
   const [form, setForm] = useState<PredictionEstimateRequest>(initialForm);
   const [sampleId, setSampleId] = useState('');
+  const [contextSampleId, setContextSampleId] = useState('');
+  const [contextForm, setContextForm] = useState<PredictionContext>(initialContext);
   const readiness = useQuery({
     queryKey: ['prediction-readiness'],
     queryFn: analyticsAPI.getPredictionReadiness,
@@ -73,16 +105,67 @@ const Prediction = () => {
   const sampleEstimate = useMutation({
     mutationFn: analyticsAPI.estimateSamplePrediction,
   });
+  const contextLoad = useMutation({
+    mutationFn: sampleAPI.getPredictionContext,
+    onSuccess: (data) => {
+      setContextForm({ ...initialContext, ...data });
+    },
+  });
+  const contextSave = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: PredictionContext }) => (
+      sampleAPI.updatePredictionContext(id, data)
+    ),
+    onSuccess: (data) => {
+      setContextForm({ ...initialContext, ...data });
+    },
+  });
   const activeEstimate = sampleEstimate.data ?? estimate.data;
   const activeError = sampleEstimate.error ?? estimate.error;
   const hasEstimateError = sampleEstimate.isError || estimate.isError;
   const isEstimating = sampleEstimate.isPending || estimate.isPending;
+  const contextCompleteness = [
+    contextForm.location_type && contextForm.location_type !== 'unknown',
+    hasValue(contextForm.harvest_date),
+    hasValue(contextForm.sowing_date),
+    hasValue(contextForm.latitude) && hasValue(contextForm.longitude),
+    hasValue(contextForm.moisture_pct),
+    hasValue(contextForm.soil_ph),
+    hasValue(contextForm.crop_variety),
+    hasValue(contextForm.crop_season),
+    hasValue(contextForm.soil_type),
+    hasValue(contextForm.storage_duration_days),
+    hasValue(contextForm.crop_rotation),
+    hasValue(contextForm.fertiliser_details),
+    hasValue(contextForm.fungicide_details),
+  ].filter(Boolean).length;
+  const manualCompleteness = [
+    form.location_type && form.location_type !== 'unknown',
+    hasValue(form.harvest_date),
+    hasValue(form.sowing_date),
+    hasValue(form.latitude) && hasValue(form.longitude),
+    hasValue(form.moisture_pct),
+    hasValue(form.soil_ph),
+    hasValue(form.crop_variety),
+    hasValue(form.crop_season),
+    hasValue(form.soil_type),
+    hasValue(form.storage_duration_days),
+    hasValue(form.crop_rotation),
+    hasValue(form.fertiliser_details),
+    hasValue(form.fungicide_details),
+  ].filter(Boolean).length;
 
   const setField = <K extends keyof PredictionEstimateRequest>(
     field: K,
     value: PredictionEstimateRequest[K],
   ) => {
     setForm((current) => ({ ...current, [field]: value }));
+  };
+
+  const setContextField = <K extends keyof PredictionContext>(
+    field: K,
+    value: PredictionContext[K],
+  ) => {
+    setContextForm((current) => ({ ...current, [field]: value }));
   };
 
   const submitEstimate = (event: React.FormEvent<HTMLFormElement>) => {
@@ -95,6 +178,36 @@ const Prediction = () => {
     event.preventDefault();
     estimate.reset();
     sampleEstimate.mutate(sampleId.trim());
+  };
+
+  const loadContext = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    contextLoad.mutate(contextSampleId.trim());
+  };
+
+  const saveContext = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    contextSave.mutate({ id: contextSampleId.trim(), data: contextForm });
+  };
+
+  const applyContextToManualForm = () => {
+    setForm((current) => ({
+      ...current,
+      latitude: contextForm.latitude,
+      longitude: contextForm.longitude,
+      location_type: contextForm.location_type || 'unknown',
+      harvest_date: contextForm.harvest_date || null,
+      sowing_date: contextForm.sowing_date || null,
+      crop_variety: contextForm.crop_variety || '',
+      crop_season: contextForm.crop_season || '',
+      storage_duration_days: contextForm.storage_duration_days ?? null,
+      moisture_pct: contextForm.moisture_pct ?? null,
+      soil_type: contextForm.soil_type || '',
+      soil_ph: contextForm.soil_ph ?? null,
+      crop_rotation: contextForm.crop_rotation || '',
+      fertiliser_details: contextForm.fertiliser_details || '',
+      fungicide_details: contextForm.fungicide_details || '',
+    }));
   };
 
   return (
@@ -221,6 +334,235 @@ const Prediction = () => {
                     </Button>
                   </div>
                 </form>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Prediction context</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                <form className="flex flex-col gap-3 sm:flex-row" onSubmit={loadContext}>
+                  <div className="flex-1 space-y-2">
+                    <Label htmlFor="context-sample-id">Sample ID</Label>
+                    <Input
+                      id="context-sample-id"
+                      value={contextSampleId}
+                      onChange={(event) => setContextSampleId(event.target.value)}
+                      placeholder="RIC-2026-001"
+                      required
+                    />
+                  </div>
+                  <div className="flex items-end gap-2">
+                    <Button type="submit" variant="outline" disabled={contextLoad.isPending}>
+                      {contextLoad.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                      Load
+                    </Button>
+                  </div>
+                </form>
+
+                <form className="grid gap-4 md:grid-cols-2 lg:grid-cols-4" onSubmit={saveContext}>
+                  <div className="space-y-2">
+                    <Label>Location type</Label>
+                    <Select
+                      value={contextForm.location_type || 'unknown'}
+                      onValueChange={(value) => {
+                        setContextField('location_type', value as PredictionContext['location_type']);
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="unknown">Unknown</SelectItem>
+                        <SelectItem value="farm">Farm</SelectItem>
+                        <SelectItem value="market">Market</SelectItem>
+                        <SelectItem value="storage">Storage</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="harvest-date">Harvest date</Label>
+                    <Input
+                      id="harvest-date"
+                      type="date"
+                      value={contextForm.harvest_date || ''}
+                      onChange={(event) => {
+                        setContextField('harvest_date', dateOrNull(event.target.value));
+                      }}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="sowing-date">Sowing date</Label>
+                    <Input
+                      id="sowing-date"
+                      type="date"
+                      value={contextForm.sowing_date || ''}
+                      onChange={(event) => {
+                        setContextField('sowing_date', dateOrNull(event.target.value));
+                      }}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="latitude">Latitude</Label>
+                    <Input
+                      id="latitude"
+                      type="number"
+                      step="any"
+                      value={contextForm.latitude ?? ''}
+                      onChange={(event) => {
+                        setContextField('latitude', numberOrNull(event.target.value));
+                      }}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="longitude">Longitude</Label>
+                    <Input
+                      id="longitude"
+                      type="number"
+                      step="any"
+                      value={contextForm.longitude ?? ''}
+                      onChange={(event) => {
+                        setContextField('longitude', numberOrNull(event.target.value));
+                      }}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="moisture">Moisture %</Label>
+                    <Input
+                      id="moisture"
+                      type="number"
+                      step="0.1"
+                      value={contextForm.moisture_pct ?? ''}
+                      onChange={(event) => {
+                        setContextField('moisture_pct', numberOrNull(event.target.value));
+                      }}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="storage-days">Storage days</Label>
+                    <Input
+                      id="storage-days"
+                      type="number"
+                      value={contextForm.storage_duration_days ?? ''}
+                      onChange={(event) => {
+                        setContextField('storage_duration_days', numberOrNull(event.target.value));
+                      }}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="crop-variety">Crop variety</Label>
+                    <Input
+                      id="crop-variety"
+                      value={contextForm.crop_variety || ''}
+                      onChange={(event) => {
+                        setContextField('crop_variety', event.target.value);
+                      }}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="crop-season">Crop season</Label>
+                    <Input
+                      id="crop-season"
+                      value={contextForm.crop_season || ''}
+                      onChange={(event) => {
+                        setContextField('crop_season', event.target.value);
+                      }}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="soil-type">Soil type</Label>
+                    <Input
+                      id="soil-type"
+                      value={contextForm.soil_type || ''}
+                      onChange={(event) => {
+                        setContextField('soil_type', event.target.value);
+                      }}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="soil-ph">Soil pH</Label>
+                    <Input
+                      id="soil-ph"
+                      type="number"
+                      step="0.1"
+                      value={contextForm.soil_ph ?? ''}
+                      onChange={(event) => {
+                        setContextField('soil_ph', numberOrNull(event.target.value));
+                      }}
+                    />
+                  </div>
+
+                  <div className="space-y-2 lg:col-span-2">
+                    <Label htmlFor="crop-rotation">Crop rotation</Label>
+                    <Input
+                      id="crop-rotation"
+                      value={contextForm.crop_rotation || ''}
+                      onChange={(event) => {
+                        setContextField('crop_rotation', event.target.value);
+                      }}
+                    />
+                  </div>
+
+                  <div className="space-y-2 lg:col-span-2">
+                    <Label htmlFor="fertiliser-details">Fertiliser details</Label>
+                    <Input
+                      id="fertiliser-details"
+                      value={contextForm.fertiliser_details || ''}
+                      onChange={(event) => {
+                        setContextField('fertiliser_details', event.target.value);
+                      }}
+                    />
+                  </div>
+
+                  <div className="space-y-2 lg:col-span-2">
+                    <Label htmlFor="fungicide-details">Fungicide details</Label>
+                    <Input
+                      id="fungicide-details"
+                      value={contextForm.fungicide_details || ''}
+                      onChange={(event) => {
+                        setContextField('fungicide_details', event.target.value);
+                      }}
+                    />
+                  </div>
+
+                  <div className="flex items-end md:col-span-2 lg:col-span-4">
+                    <Button type="submit" disabled={contextSave.isPending || !contextSampleId.trim()}>
+                      {contextSave.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                      Save context
+                    </Button>
+                  </div>
+                </form>
+
+                {(contextLoad.isError || contextSave.isError) && (
+                  <p className="text-sm text-destructive">
+                    {errorMessage(contextLoad.error ?? contextSave.error)}
+                  </p>
+                )}
+                {contextSave.isSuccess && (
+                  <p className="text-sm text-muted-foreground">Prediction context saved.</p>
+                )}
+                {(contextLoad.isSuccess || contextSave.isSuccess) && (
+                  <div className="flex flex-col gap-3 rounded-md border bg-muted/20 p-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="text-sm text-muted-foreground">
+                      <p className="font-medium text-foreground">Saved predictor coverage</p>
+                      <p>{contextCompleteness} of 13 optional context signals are filled.</p>
+                    </div>
+                    <Button type="button" variant="outline" onClick={applyContextToManualForm}>
+                      Use context in manual estimate
+                    </Button>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -363,6 +705,168 @@ const Prediction = () => {
                     </Select>
                   </div>
 
+                  <div className="space-y-2">
+                    <Label>Location type</Label>
+                    <Select
+                      value={form.location_type || 'unknown'}
+                      onValueChange={(value) => {
+                        setField('location_type', value as PredictionEstimateRequest['location_type']);
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="unknown">Unknown</SelectItem>
+                        <SelectItem value="farm">Farm</SelectItem>
+                        <SelectItem value="market">Market</SelectItem>
+                        <SelectItem value="storage">Storage</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="manual-harvest-date">Harvest date</Label>
+                    <Input
+                      id="manual-harvest-date"
+                      type="date"
+                      value={form.harvest_date || ''}
+                      onChange={(event) => {
+                        setField('harvest_date', dateOrNull(event.target.value));
+                      }}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="manual-sowing-date">Sowing date</Label>
+                    <Input
+                      id="manual-sowing-date"
+                      type="date"
+                      value={form.sowing_date || ''}
+                      onChange={(event) => {
+                        setField('sowing_date', dateOrNull(event.target.value));
+                      }}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="manual-latitude">Latitude</Label>
+                    <Input
+                      id="manual-latitude"
+                      type="number"
+                      step="any"
+                      value={form.latitude ?? ''}
+                      onChange={(event) => {
+                        setField('latitude', numberOrNull(event.target.value));
+                      }}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="manual-longitude">Longitude</Label>
+                    <Input
+                      id="manual-longitude"
+                      type="number"
+                      step="any"
+                      value={form.longitude ?? ''}
+                      onChange={(event) => {
+                        setField('longitude', numberOrNull(event.target.value));
+                      }}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="manual-moisture">Moisture %</Label>
+                    <Input
+                      id="manual-moisture"
+                      type="number"
+                      step="0.1"
+                      value={form.moisture_pct ?? ''}
+                      onChange={(event) => {
+                        setField('moisture_pct', numberOrNull(event.target.value));
+                      }}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="manual-storage-days">Storage days</Label>
+                    <Input
+                      id="manual-storage-days"
+                      type="number"
+                      value={form.storage_duration_days ?? ''}
+                      onChange={(event) => {
+                        setField('storage_duration_days', numberOrNull(event.target.value));
+                      }}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="manual-crop-variety">Crop variety</Label>
+                    <Input
+                      id="manual-crop-variety"
+                      value={form.crop_variety || ''}
+                      onChange={(event) => setField('crop_variety', event.target.value)}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="manual-crop-season">Crop season</Label>
+                    <Input
+                      id="manual-crop-season"
+                      value={form.crop_season || ''}
+                      onChange={(event) => setField('crop_season', event.target.value)}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="manual-soil-type">Soil type</Label>
+                    <Input
+                      id="manual-soil-type"
+                      value={form.soil_type || ''}
+                      onChange={(event) => setField('soil_type', event.target.value)}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="manual-soil-ph">Soil pH</Label>
+                    <Input
+                      id="manual-soil-ph"
+                      type="number"
+                      step="0.1"
+                      value={form.soil_ph ?? ''}
+                      onChange={(event) => {
+                        setField('soil_ph', numberOrNull(event.target.value));
+                      }}
+                    />
+                  </div>
+
+                  <div className="space-y-2 lg:col-span-2">
+                    <Label htmlFor="manual-crop-rotation">Crop rotation</Label>
+                    <Input
+                      id="manual-crop-rotation"
+                      value={form.crop_rotation || ''}
+                      onChange={(event) => setField('crop_rotation', event.target.value)}
+                    />
+                  </div>
+
+                  <div className="space-y-2 lg:col-span-2">
+                    <Label htmlFor="manual-fertiliser-details">Fertiliser details</Label>
+                    <Input
+                      id="manual-fertiliser-details"
+                      value={form.fertiliser_details || ''}
+                      onChange={(event) => setField('fertiliser_details', event.target.value)}
+                    />
+                  </div>
+
+                  <div className="space-y-2 lg:col-span-2">
+                    <Label htmlFor="manual-fungicide-details">Fungicide details</Label>
+                    <Input
+                      id="manual-fungicide-details"
+                      value={form.fungicide_details || ''}
+                      onChange={(event) => setField('fungicide_details', event.target.value)}
+                    />
+                  </div>
+
                   <div className="flex items-end md:col-span-2 lg:col-span-4">
                     <Button type="submit" disabled={isEstimating}>
                       {estimate.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <TrendingUp />}
@@ -370,6 +874,28 @@ const Prediction = () => {
                     </Button>
                   </div>
                 </form>
+                <div className="mt-5 grid gap-3 rounded-md border bg-muted/20 p-3 text-sm md:grid-cols-3">
+                  <div>
+                    <p className="font-medium text-foreground">Manual predictor coverage</p>
+                    <p className="text-muted-foreground">
+                      {manualCompleteness} of 13 optional context signals are filled.
+                    </p>
+                  </div>
+                  <div>
+                    <p className="font-medium text-foreground">Location precision</p>
+                    <p className="text-muted-foreground">
+                      {hasValue(form.latitude) && hasValue(form.longitude)
+                        ? 'Exact coordinates'
+                        : 'Province centroid'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="font-medium text-foreground">Weather window</p>
+                    <p className="text-muted-foreground">
+                      Weather-trained models use 90 days before collection date.
+                    </p>
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
