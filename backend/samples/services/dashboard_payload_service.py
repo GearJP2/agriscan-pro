@@ -120,7 +120,7 @@ class DashboardPayloadService:
             region_stats, minimum, ('aboveCount',)
         )
         visible_provinces, suppressed_provinces = cls._visible_stat_keys(
-            province_stats, minimum, ('detectedCount', 'aboveCount')
+            province_stats, minimum, ()
         )
         overview['provinces'] = sorted(
             (row for row in overview.pop('provinces') if row['name'] in visible_provinces),
@@ -174,6 +174,11 @@ class DashboardPayloadService:
         visible_heatmap, _suppressed_heatmap = cls._visible_stat_keys(
             heatmap, minimum, ('aboveCount',)
         )
+        if not visible_heatmap:
+            visible_heatmap = {
+                key for key, counts in heatmap.items()
+                if counts['sampleCount'] >= 1
+            }
         heatmap_cells = [
             {
                 'region': region,
@@ -276,22 +281,24 @@ class DashboardPayloadService:
 
     @classmethod
     def _co_contamination(cls, samples, minimum):
-        intersections = Counter(' + '.join(toxins) for toxins in samples if toxins)
+        positive_samples = [toxins for toxins in samples if toxins]
+        intersections = Counter(' + '.join(toxins) for toxins in positive_samples)
         visible_combinations, _suppressed = cls._visible_keys(intersections, minimum)
-        visible_samples = [
-            toxins for toxins in samples
-            if ' + '.join(toxins) in visible_combinations
-        ]
-        nodes = Counter(toxin for toxins in visible_samples for toxin in toxins)
+        if not visible_combinations:
+            visible_combinations = set(intersections.keys())
+
+        nodes = Counter(toxin for toxins in positive_samples for toxin in toxins)
         links = Counter()
-        for toxins in visible_samples:
+        for toxins in positive_samples:
             for index, source in enumerate(toxins):
                 for target in toxins[index + 1:]:
                     links[(source, target)] += 1
-        positive = len(visible_samples)
-        two_plus = sum(1 for toxins in visible_samples if len(toxins) >= 2)
-        three_plus = sum(1 for toxins in visible_samples if len(toxins) >= 3)
-        total_toxins = sum(len(toxins) for toxins in visible_samples)
+
+        positive = len(positive_samples)
+        two_plus = sum(1 for toxins in positive_samples if len(toxins) >= 2)
+        three_plus = sum(1 for toxins in positive_samples if len(toxins) >= 3)
+        total_toxins = sum(len(toxins) for toxins in positive_samples)
+
         visible_intersections = [
             {
                 'toxins': key.split(' + '),
@@ -302,7 +309,11 @@ class DashboardPayloadService:
             if key in visible_combinations
         ]
         visible_intersections = visible_intersections[:15]
+
         visible_link_keys, _suppressed_links = cls._visible_keys(links, minimum)
+        if not visible_link_keys:
+            visible_link_keys = set(links.keys())
+
         visible_links = [
             {'source': source, 'target': target, 'value': count}
             for (source, target), count in sorted(
@@ -312,9 +323,9 @@ class DashboardPayloadService:
         ]
         most_common_pair = visible_links[0] if visible_links else None
         summary = {
-            'avgToxinsPerSample': round(total_toxins / positive, 2) if positive >= minimum else 0,
-            'pctTwoPlus': cls._percent(two_plus, positive) if positive >= minimum else 0,
-            'pctThreePlus': cls._percent(three_plus, positive) if positive >= minimum else 0,
+            'avgToxinsPerSample': round(total_toxins / positive, 2) if positive > 0 else 0,
+            'pctTwoPlus': cls._percent(two_plus, positive) if positive > 0 else 0,
+            'pctThreePlus': cls._percent(three_plus, positive) if positive > 0 else 0,
             'mostCommonPair': (
                 f'{most_common_pair["source"]} + {most_common_pair["target"]}'
                 if most_common_pair else 'None'
@@ -327,17 +338,17 @@ class DashboardPayloadService:
                 'nodes': [
                     {'id': toxin, 'frequency': count}
                     for toxin, count in sorted(nodes.items())
-                    if count >= minimum
+                    if count >= 1
                 ],
                 'links': visible_links,
             },
             'toxins_per_sample': {
                 key: count for key, count in {
-                    '1': sum(1 for toxins in visible_samples if len(toxins) == 1),
-                    '2': sum(1 for toxins in visible_samples if len(toxins) == 2),
-                    '3': sum(1 for toxins in visible_samples if len(toxins) == 3),
-                    '4+': sum(1 for toxins in visible_samples if len(toxins) >= 4),
-                }.items() if count >= minimum
+                    '1': sum(1 for toxins in positive_samples if len(toxins) == 1),
+                    '2': sum(1 for toxins in positive_samples if len(toxins) == 2),
+                    '3': sum(1 for toxins in positive_samples if len(toxins) == 3),
+                    '4+': sum(1 for toxins in positive_samples if len(toxins) >= 4),
+                }.items() if count > 0
             },
         }
 
