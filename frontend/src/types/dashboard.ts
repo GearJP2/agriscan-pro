@@ -1,5 +1,7 @@
 // Dashboard types for Mycotoxin Risk Surveillance Dashboard
 
+import type { LucideIcon } from 'lucide-react';
+
 export interface KPICard {
   label: string;
   value: string | number;
@@ -8,7 +10,7 @@ export interface KPICard {
   isImprovement: boolean | null; // whether the delta direction is good
   context: string;
   accent?: 'red' | 'amber' | 'green' | 'default';
-  icon?: any;
+  icon?: LucideIcon;
 }
 
 export interface KPIData {

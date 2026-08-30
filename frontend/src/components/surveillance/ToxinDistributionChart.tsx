@@ -1,4 +1,4 @@
-import React from 'react';
+import type { CSSProperties } from 'react';
 import { 
   PieChart, 
   Pie, 
@@ -23,60 +23,57 @@ interface ToxinDistributionChartProps {
   useBarChart?: boolean;
 }
 
+const COLORS = {
+  g1: ['#10b981', '#059669'],
+  g2: ['#FFC72C', '#d97706'],
+  g3: ['#ea580c', '#c2410c'],
+  g4: ['#7a1f1f', '#5c1515'],
+} as const;
+
+const PIE_COLORS = ['#10b981', '#FFC72C', '#ea580c', '#7a1f1f'];
+
+const RISK_STEPS = [
+  { limit: 25, label: '<25%', color: '#10b981' },
+  { limit: 50, label: '25–50%', color: '#FFC72C' },
+  { limit: 75, label: '50–75%', color: '#ea580c' },
+  { limit: 101, label: '>75%', color: '#7a1f1f' },
+] as const;
+
 export default function ToxinDistributionChart({ data, useBarChart }: ToxinDistributionChartProps) {
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === 'dark';
 
   // Sort data to ensure correct order (1, 2, 3, 4+)
-  const orderedData = [...data].sort((a, b) => {
+  const orderedData = [...(data ?? [])].sort((a, b) => {
     if (a.count === '4+') return 1;
     if (b.count === '4+') return -1;
-    return parseInt(a.count) - parseInt(b.count);
+    return Number.parseInt(a.count, 10) - Number.parseInt(b.count, 10);
   });
 
-  // Semantic Color Palette
-  const COLORS = {
-    g1: ['#10b981', '#059669'], // Green (Safe/1)
-    g2: ['#3b82f6', '#2563eb'], // Blue (Cautious/2)
-    g3: ['#f59e0b', '#d97706'], // Amber (Alert/3)
-    g4: ['#ef4444', '#b91c1c'], // Red (Critical/4+)
-  };
-
-  const PIE_COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444'];
-
-  const tooltipStyle: React.CSSProperties = {
-    backgroundColor: isDark ? '#1e293b' : '#ffffff',
-    border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
-    borderRadius: '12px',
-    boxShadow: 'none',
-    color: isDark ? '#f8fafc' : '#0f172a',
+  const tooltipStyle: CSSProperties = {
+    backgroundColor: isDark ? '#0f1418' : '#ffffff',
+    border: `1px solid ${isDark ? 'rgba(255,255,255,0.15)' : 'rgba(122,31,31,0.2)'}`,
+    borderRadius: '14px',
+    boxShadow: '0 4px 14px rgba(0,0,0,0.08)',
+    color: isDark ? '#f8fafc' : '#313131',
     padding: '10px 14px',
     fontSize: '12px',
     fontWeight: 'bold',
   };
 
-  const tooltipItemStyle: React.CSSProperties = {
-    color: isDark ? '#f8fafc' : '#0f172a'
+  const tooltipItemStyle: CSSProperties = {
+    color: isDark ? '#f8fafc' : '#313131',
+    fontWeight: 'bold',
   };
 
-  const tooltipLabelStyle: React.CSSProperties = {
-    color: isDark ? '#f8fafc' : '#0f172a',
-    fontWeight: '800',
-    textTransform: 'uppercase',
-    fontSize: '11px',
-    marginBottom: '4px'
+  const tooltipLabelStyle: CSSProperties = {
+    color: isDark ? '#FFC72C' : '#7a1f1f',
+    fontWeight: 'bold',
+    marginBottom: '4px',
   };
-
-  // Shared Risk Thresholds
-  const RISK_STEPS = [
-    { limit: 25, color: '#10b981', label: '<25%' },
-    { limit: 50, color: '#3b82f6', label: '25–50%' },
-    { limit: 75, color: '#f59e0b', label: '50–75%' },
-    { limit: 101, color: '#ef4444', label: '>75%' },
-  ];
 
   function aboveThresholdColor(pct: number): string {
-    if (pct === 0) return 'transparent';
+    if (pct <= 0) return 'transparent';
     const step = RISK_STEPS.find(s => pct < s.limit) || RISK_STEPS[RISK_STEPS.length - 1];
     return step.color;
   }
@@ -158,8 +155,8 @@ export default function ToxinDistributionChart({ data, useBarChart }: ToxinDistr
                 barSize={50}
                 animationDuration={1500}
               >
-                {orderedData.map((entry, index) => {
-                  return <Cell key={`cell-${index}`} fill={aboveThresholdColor(entry.pct)} />;
+                {orderedData.map((entry) => {
+                  return <Cell key={entry.count} fill={aboveThresholdColor(entry.pct)} />;
                 })}
               </Bar>
             </RechartsBarChart>
@@ -188,7 +185,7 @@ export default function ToxinDistributionChart({ data, useBarChart }: ToxinDistr
           >
             {orderedData.map((entry, index) => (
               <Cell 
-                key={`cell-${index}`} 
+                key={entry.count}
                 fill={PIE_COLORS[index % PIE_COLORS.length]}
               />
             ))}

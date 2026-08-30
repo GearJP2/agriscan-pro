@@ -5,6 +5,7 @@
 export const COE_PUBLIC_PAGES = [
   "/",
   "/about",
+  "/dashboard",
   "/projects",
   "/publications",
   "/news",

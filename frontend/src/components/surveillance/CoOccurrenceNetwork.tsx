@@ -24,6 +24,7 @@ export default function CoOccurrenceNetwork({ networkData }: { networkData: Netw
   const isDark = resolvedTheme === 'dark';
 
   useEffect(() => {
+    setTooltip(null);
     if (!hasLinks) return;
 
     const svg = d3.select(svgRef.current);
@@ -48,9 +49,10 @@ export default function CoOccurrenceNetwork({ networkData }: { networkData: Netw
       value: l.value,
     }));
 
-    const maxLinkValue = Math.max(...links.map((l) => l.value));
+    const maxLinkValue = Math.max(...links.map((l) => l.value), 1);
     const linkScale = d3.scaleLinear().domain([0, maxLinkValue]).range([2, 10]);
-    const nodeScale = d3.scaleLinear().domain([20, 100]).range([25, 55]); // Increased node sizes
+    const maxNodeFrequency = Math.max(...nodes.map((node) => node.frequency), 1);
+    const nodeScale = d3.scaleLinear().domain([0, maxNodeFrequency]).range([25, 55]);
 
     // Inverse scales for Affinity Clustering
     const distScale = d3.scaleLinear()
@@ -117,7 +119,7 @@ export default function CoOccurrenceNetwork({ networkData }: { networkData: Netw
       .attr('stroke-width', 2)
       .attr('opacity', 0.95)
       .on('mouseover', function (event, d) {
-        d3.select(this).attr('stroke', isDark ? '#ffffff' : '#000000').attr('stroke-width', 3);
+        d3.select(this).attr('stroke', isDark ? '#FFC72C' : '#7a1f1f').attr('stroke-width', 3);
         const connected = links.filter(
           (l) =>
             (l.source as SimNode).id === d.id || (l.target as SimNode).id === d.id
@@ -188,11 +190,11 @@ export default function CoOccurrenceNetwork({ networkData }: { networkData: Netw
           <p className="text-xs text-muted-foreground/70 max-w-[240px]">There are no samples where two or more selected toxins appear together.</p>
         </div>
       ) : (
-        <svg ref={svgRef} className="w-full h-full" aria-label="Co-occurrence network graph showing toxin relationships" />
+        <svg ref={svgRef} className="w-full h-full" role="img" aria-label="Co-occurrence network graph showing toxin relationships" />
       )}
       {tooltip && (
         <div
-          className="absolute pointer-events-none bg-popover border border-border rounded-lg px-3 py-2 text-xs text-popover-foreground whitespace-pre-line z-50"
+          className="absolute pointer-events-none bg-white dark:bg-slate-900 border border-gfs-maroon/20 rounded-gfs-card px-3.5 py-2 text-xs text-gfs-text-primary dark:text-slate-100 shadow-gfs-card whitespace-pre-line z-50 font-sans font-medium"
           style={{ left: tooltip.x + 12, top: tooltip.y - 10 }}
         >
           {tooltip.text}
