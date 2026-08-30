@@ -59,7 +59,7 @@ class PredictionReadinessService:
         targets.sort(key=lambda item: (-item['detected'], item['toxinType']))
         eligible_count = sum(target['eligibleForBaseline'] for target in targets)
         return {
-            'modelStatus': 'trained' if model_metadata else 'not_trained',
+            'modelStatus': cls.model_status(model_metadata),
             'latestModel': model_metadata,
             'trainingGuardrails': {
                 'minDetected': cls.MIN_DETECTED,
@@ -97,4 +97,16 @@ class PredictionReadinessService:
             'version': metadata.get('version', ''),
             'createdAt': metadata.get('created_at', ''),
             'trainedTargets': len(metadata.get('trained_models', [])),
+            'publishedTargets': sum(
+                1 for model in metadata.get('trained_models', [])
+                if model.get('published') is True
+            ),
         }
+
+    @staticmethod
+    def model_status(model_metadata: dict | None) -> str:
+        if not model_metadata:
+            return 'not_trained'
+        if model_metadata.get('publishedTargets'):
+            return 'published'
+        return 'trained_unpublished'

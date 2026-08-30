@@ -21,9 +21,9 @@ class PredictionInferenceService:
     @classmethod
     def estimate(cls, payload: dict, artifacts_dir=None) -> dict:
         metadata_path, metadata = cls.load_latest_metadata(artifacts_dir=artifacts_dir)
-        trained_models = metadata.get('trained_models', [])
+        trained_models = cls.get_published_models(metadata)
         if not trained_models:
-            raise PredictionModelUnavailable('No trained toxin models are available yet.')
+            raise PredictionModelUnavailable('No published toxin models are available yet.')
 
         features = PredictionTrainingService.build_feature_dict(cls.payload_to_dataset_row(payload))
         predictions = []
@@ -59,6 +59,73 @@ class PredictionInferenceService:
             return metadata_path, json.loads(metadata_path.read_text(encoding='utf-8'))
         except (OSError, json.JSONDecodeError) as exc:
             raise PredictionModelUnavailable('Latest prediction metadata could not be loaded.') from exc
+
+    @classmethod
+    def get_model_status(cls, artifacts_dir=None) -> dict:
+        root = Path(artifacts_dir or settings.BASE_DIR / 'prediction_artifacts')
+        if not root.exists():
+            return cls.empty_status()
+
+        versions = []
+        for metadata_path in sorted(root.glob('*/metadata.json'), reverse=True):
+            try:
+                metadata = json.loads(metadata_path.read_text(encoding='utf-8'))
+            except (OSError, json.JSONDecodeError):
+                continue
+            versions.append(cls.summarize_metadata(metadata_path, metadata))
+
+        if not versions:
+            return cls.empty_status()
+
+        latest = versions[0]
+        return {
+            'status': 'published' if latest['publishedTargets'] else 'trained_unpublished',
+            'latest': latest,
+            'versions': versions,
+        }
+
+    @staticmethod
+    def empty_status() -> dict:
+        return {
+            'status': 'not_trained',
+            'latest': None,
+            'versions': [],
+        }
+
+    @classmethod
+    def summarize_metadata(cls, metadata_path: Path, metadata: dict) -> dict:
+        trained_models = metadata.get('trained_models', [])
+        published_models = cls.get_published_models(metadata)
+        return {
+            'version': metadata.get('version', metadata_path.parent.name),
+            'createdAt': metadata.get('created_at', ''),
+            'modelFamily': metadata.get('model_family', ''),
+            'metadataPath': str(metadata_path),
+            'trainedTargets': len(trained_models),
+            'publishedTargets': len(published_models),
+            'skippedTargets': len(metadata.get('skipped_targets', [])),
+            'targets': [cls.summarize_model(model) for model in trained_models],
+        }
+
+    @staticmethod
+    def summarize_model(model_meta: dict) -> dict:
+        metrics = model_meta.get('classification_metrics', {})
+        return {
+            'toxinType': model_meta.get('toxin_type', ''),
+            'published': bool(model_meta.get('published', False)),
+            'trainingRows': model_meta.get('measured', 0),
+            'detectedRows': model_meta.get('detected', 0),
+            'usableContext': model_meta.get('usable_context', 0),
+            'classificationMetrics': metrics,
+        }
+
+    @staticmethod
+    def get_published_models(metadata: dict) -> list[dict]:
+        return [
+            model
+            for model in metadata.get('trained_models', [])
+            if model.get('published') is True
+        ]
 
     @classmethod
     def estimate_toxin(cls, model_meta: dict, features: dict, version_dir: Path) -> dict:

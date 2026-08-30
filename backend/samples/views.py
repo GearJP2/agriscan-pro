@@ -74,6 +74,7 @@ class SampleViewSet(viewsets.ModelViewSet):
             'prediction_estimate',
             'prediction_estimate_sample',
             'prediction_readiness',
+            'prediction_status',
         ]:
             return [IsAuthenticated(), IsAdminOrResearchRole()]
         if self.action in ['destroy', 'bulk_delete', 'generate_test_data', 'delete_test_data']:
@@ -661,6 +662,11 @@ class SampleViewSet(viewsets.ModelViewSet):
     def prediction_readiness(self, request):
         """Return the labelled-data checks required before training a model."""
         return Response(PredictionReadinessService.get_readiness(), status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['get'], url_path='prediction/status')
+    def prediction_status(self, request):
+        """Return prediction model versions, publish state, and metrics."""
+        return Response(PredictionInferenceService.get_model_status(), status=status.HTTP_200_OK)
 
     @action(detail=False, methods=['post'], url_path='prediction/estimate')
     def prediction_estimate(self, request):

@@ -15,6 +15,7 @@ export interface PredictionReadinessResponse {
     version: string;
     createdAt: string;
     trainedTargets: number;
+    publishedTargets: number;
   } | null;
   trainingGuardrails: {
     minDetected: number;
@@ -68,4 +69,30 @@ export interface PredictionEstimateResponse {
   input: PredictionEstimateRequest;
   predictions: PredictionEstimateItem[];
   warning: string;
+}
+
+export interface PredictionModelStatusTarget {
+  toxinType: string;
+  published: boolean;
+  trainingRows: number;
+  detectedRows: number;
+  usableContext: number;
+  classificationMetrics: PredictionEstimateItem['classificationMetrics'];
+}
+
+export interface PredictionModelStatusVersion {
+  version: string;
+  createdAt: string;
+  modelFamily: string;
+  metadataPath: string;
+  trainedTargets: number;
+  publishedTargets: number;
+  skippedTargets: number;
+  targets: PredictionModelStatusTarget[];
+}
+
+export interface PredictionModelStatusResponse {
+  status: 'not_trained' | 'trained_unpublished' | 'published';
+  latest: PredictionModelStatusVersion | null;
+  versions: PredictionModelStatusVersion[];
 }

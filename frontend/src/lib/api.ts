@@ -4,6 +4,7 @@ import type { AnalyticsOverviewResponse, CoContaminationResponse, DashboardContr
 import type {
   PredictionEstimateRequest,
   PredictionEstimateResponse,
+  PredictionModelStatusResponse,
   PredictionReadinessResponse,
 } from "@/types/prediction";
 import {
@@ -481,6 +482,11 @@ export const analyticsAPI = {
   async getPredictionReadiness() {
     const response = await apiClient.get('/samples/prediction/readiness/');
     return response.data as PredictionReadinessResponse;
+  },
+
+  async getPredictionStatus() {
+    const response = await apiClient.get('/samples/prediction/status/');
+    return response.data as PredictionModelStatusResponse;
   },
 
   async estimatePrediction(payload: PredictionEstimateRequest) {

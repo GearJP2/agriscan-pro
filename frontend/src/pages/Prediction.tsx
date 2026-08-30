@@ -62,6 +62,11 @@ const Prediction = () => {
     queryFn: analyticsAPI.getPredictionReadiness,
     enabled: canView,
   });
+  const modelStatus = useQuery({
+    queryKey: ['prediction-model-status'],
+    queryFn: analyticsAPI.getPredictionStatus,
+    enabled: canView,
+  });
   const estimate = useMutation({
     mutationFn: analyticsAPI.estimatePrediction,
   });
@@ -117,6 +122,76 @@ const Prediction = () => {
           </Card>
         ) : (
           <div className="space-y-6">
+            {modelStatus.data && (
+              <Card className={modelStatus.data.status === 'published' ? 'border-primary/20' : 'border-warning/40'}>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <Database className="h-5 w-5 text-primary" />
+                    Model status
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {modelStatus.data.latest ? (
+                    <>
+                      <div className="grid gap-3 text-sm md:grid-cols-4">
+                        <p>Version: {modelStatus.data.latest.version}</p>
+                        <p>Trained targets: {modelStatus.data.latest.trainedTargets}</p>
+                        <p>Published targets: {modelStatus.data.latest.publishedTargets}</p>
+                        <p>Skipped targets: {modelStatus.data.latest.skippedTargets}</p>
+                      </div>
+                      {modelStatus.data.status !== 'published' && (
+                        <div className="rounded-md border border-warning/40 bg-warning/5 p-3 text-sm text-muted-foreground">
+                          Models are trained but not published. Review metrics, then run
+                          {' '}
+                          <code>python manage.py publish_prediction_models</code>
+                          {' '}
+                          before researchers can get estimates.
+                        </div>
+                      )}
+                      <div className="overflow-x-auto rounded-md border">
+                        <table className="w-full min-w-[680px] text-left text-sm">
+                          <thead className="border-b bg-muted/40 text-xs uppercase text-muted-foreground">
+                            <tr>
+                              <th className="px-4 py-3">Toxin</th>
+                              <th className="px-4 py-3">State</th>
+                              <th className="px-4 py-3 text-right">F1</th>
+                              <th className="px-4 py-3 text-right">ROC-AUC</th>
+                              <th className="px-4 py-3 text-right">Training rows</th>
+                              <th className="px-4 py-3 text-right">Detected rows</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {modelStatus.data.latest.targets.map((target) => (
+                              <tr key={target.toxinType} className="border-b last:border-0">
+                                <td className="px-4 py-3 font-medium">{target.toxinType}</td>
+                                <td className="px-4 py-3">
+                                  <Badge variant={target.published ? 'success' : 'warning'}>
+                                    {target.published ? 'Published' : 'Unpublished'}
+                                  </Badge>
+                                </td>
+                                <td className="px-4 py-3 text-right">
+                                  {target.classificationMetrics.f1 ?? 'N/A'}
+                                </td>
+                                <td className="px-4 py-3 text-right">
+                                  {target.classificationMetrics.roc_auc ?? 'N/A'}
+                                </td>
+                                <td className="px-4 py-3 text-right">{target.trainingRows}</td>
+                                <td className="px-4 py-3 text-right">{target.detectedRows}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      No trained model artifacts were found. Run training before publishing estimates.
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg">Estimate registered sample</CardTitle>
@@ -390,7 +465,7 @@ const Prediction = () => {
                     <div className="grid gap-2 rounded-md border bg-primary/[0.03] p-3 text-sm md:grid-cols-3">
                       <p>Model version: {readiness.data.latestModel.version}</p>
                       <p>Trained targets: {readiness.data.latestModel.trainedTargets}</p>
-                      <p>Created: {readiness.data.latestModel.createdAt || 'Unknown'}</p>
+                      <p>Published targets: {readiness.data.latestModel.publishedTargets}</p>
                     </div>
                   )}
                   <div className="overflow-x-auto rounded-md border">
