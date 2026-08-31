@@ -292,9 +292,9 @@ const Prediction = () => {
         <div className="mb-8 flex items-start gap-3">
           <TrendingUp className="mt-1 h-7 w-7 text-primary" />
           <div>
-            <h1 className="text-3xl font-bold text-foreground">Prediction</h1>
+            <h1 className="text-3xl font-bold text-foreground">Area Risk Prediction</h1>
             <p className="mt-1 text-muted-foreground">
-              Research-only mycotoxin risk estimates from trained baseline models.
+              Estimate likely mycotoxin risk for a food/feed type in a specific area before lab testing.
             </p>
           </div>
         </div>
@@ -305,12 +305,12 @@ const Prediction = () => {
               <Database className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
               <h2 className="text-xl font-semibold">Researcher access required</h2>
               <p className="mx-auto mt-2 max-w-xl text-sm text-muted-foreground">
-                Sign in with a researcher account to view model readiness and request estimates.
+                Sign in with a researcher account to check area risk, stored sample context, and model readiness.
               </p>
             </CardContent>
           </Card>
         ) : (
-          <div className="space-y-6">
+          <div className="flex flex-col gap-6">
             {modelStatus.data && (
               <Card className={modelStatus.data.status === 'published' ? 'border-primary/20' : 'border-warning/40'}>
                 <CardHeader>
@@ -485,9 +485,13 @@ const Prediction = () => {
 
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Estimate registered sample</CardTitle>
+                <CardTitle className="text-lg">Use registered sample area</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  Shortcut for an existing sample. The system reads the stored commodity, location, collection date,
+                  and prediction context, then estimates risk for that sample area.
+                </p>
                 <form className="flex flex-col gap-3 sm:flex-row" onSubmit={submitSampleEstimate}>
                   <div className="flex-1 space-y-2">
                     <Label htmlFor="sample-id">Sample ID</Label>
@@ -506,7 +510,7 @@ const Prediction = () => {
                       ) : (
                         <TrendingUp />
                       )}
-                      Estimate sample
+                      Estimate area risk
                     </Button>
                   </div>
                 </form>
@@ -515,9 +519,12 @@ const Prediction = () => {
 
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Batch estimate registered samples</CardTitle>
+                <CardTitle className="text-lg">Batch area risk check</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  Check many registered sample areas at once to prioritize surveillance and follow-up testing.
+                </p>
                 <form className="space-y-3" onSubmit={submitBatchEstimate}>
                   <div className="space-y-2">
                     <Label htmlFor="batch-sample-ids">Sample IDs</Label>
@@ -537,7 +544,7 @@ const Prediction = () => {
                     disabled={isEstimating || !batchSampleIds.trim()}
                   >
                     {batchEstimate.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <TrendingUp />}
-                    Run batch estimate
+                    Run batch area check
                   </Button>
                 </form>
               </CardContent>
@@ -546,7 +553,7 @@ const Prediction = () => {
             {batchEstimate.data && (
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-lg">Batch estimate results</CardTitle>
+                  <CardTitle className="text-lg">Batch area risk results</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid gap-3 text-sm md:grid-cols-3">
@@ -606,7 +613,7 @@ const Prediction = () => {
             {historySampleId && (
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-lg">Recent estimates for {historySampleId}</CardTitle>
+                  <CardTitle className="text-lg">Recent area risk estimates for {historySampleId}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   {sampleHistory.isLoading ? (
@@ -665,9 +672,13 @@ const Prediction = () => {
 
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Prediction context</CardTitle>
+                <CardTitle className="text-lg">Stored area context</CardTitle>
               </CardHeader>
               <CardContent className="space-y-5">
+                <p className="text-sm text-muted-foreground">
+                  Store location, crop, storage, and field context for a registered sample so future risk checks
+                  use the same documented area information.
+                </p>
                 <form className="flex flex-col gap-3 sm:flex-row" onSubmit={loadContext}>
                   <div className="flex-1 space-y-2">
                     <Label htmlFor="context-sample-id">Sample ID</Label>
@@ -876,7 +887,7 @@ const Prediction = () => {
                   </p>
                 )}
                 {contextSave.isSuccess && (
-                  <p className="text-sm text-muted-foreground">Prediction context saved.</p>
+                  <p className="text-sm text-muted-foreground">Area context saved.</p>
                 )}
                 {(contextLoad.isSuccess || contextSave.isSuccess) && (
                   <div className="flex flex-col gap-3 rounded-md border bg-muted/20 p-3 sm:flex-row sm:items-center sm:justify-between">
@@ -885,18 +896,25 @@ const Prediction = () => {
                       <p>{contextCompleteness} of 13 optional context signals are filled.</p>
                     </div>
                     <Button type="button" variant="outline" onClick={applyContextToManualForm}>
-                      Use context in manual estimate
+                      Use context in area estimate
                     </Button>
                   </div>
                 )}
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="border-primary/20" style={{ order: -1 }}>
               <CardHeader>
-                <CardTitle className="text-lg">Estimate from sample context</CardTitle>
+                <CardTitle className="text-lg">Estimate area risk</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-5">
+                <div className="rounded-md border border-primary/15 bg-primary/[0.03] p-4 text-sm text-muted-foreground">
+                  <p className="font-medium text-foreground">Primary researcher workflow</p>
+                  <p className="mt-1">
+                    Enter the food/feed type and the area to check which published mycotoxin models show elevated
+                    risk. Use this to decide what toxins to prioritize for laboratory analysis or surveillance.
+                  </p>
+                </div>
                 <form className="grid gap-4 md:grid-cols-2 lg:grid-cols-4" onSubmit={submitEstimate}>
                   <div className="space-y-2">
                     <Label htmlFor="food-feed-type">Type</Label>
@@ -915,7 +933,7 @@ const Prediction = () => {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="sub-type">Sub type</Label>
+                    <Label htmlFor="sub-type">Food/feed name</Label>
                     <Input
                       id="sub-type"
                       value={form.sub_type}
@@ -925,7 +943,7 @@ const Prediction = () => {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="province">Province</Label>
+                    <Label htmlFor="province">Province / area</Label>
                     <Input
                       id="province"
                       value={form.province}
@@ -935,7 +953,7 @@ const Prediction = () => {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="collection-date">Collection date</Label>
+                    <Label htmlFor="collection-date">Target check date</Label>
                     <Input
                       id="collection-date"
                       type="date"
@@ -964,7 +982,7 @@ const Prediction = () => {
                   </div>
 
                   <div className="space-y-2">
-                    <Label>Purpose</Label>
+                    <Label>Use case</Label>
                     <Select
                       value={form.purpose || 'none'}
                       onValueChange={(value) => {
@@ -983,7 +1001,7 @@ const Prediction = () => {
                   </div>
 
                   <div className="space-y-2">
-                    <Label>Sample type</Label>
+                    <Label>Source type</Label>
                     <Select
                       value={form.sample_type || 'none'}
                       onValueChange={(value) => {
@@ -1032,7 +1050,7 @@ const Prediction = () => {
                   </div>
 
                   <div className="space-y-2">
-                    <Label>Location type</Label>
+                    <Label>Area type</Label>
                     <Select
                       value={form.location_type || 'unknown'}
                       onValueChange={(value) => {
@@ -1196,13 +1214,13 @@ const Prediction = () => {
                   <div className="flex items-end md:col-span-2 lg:col-span-4">
                     <Button type="submit" disabled={isEstimating}>
                       {estimate.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <TrendingUp />}
-                      Run estimate
+                      Estimate area risk
                     </Button>
                   </div>
                 </form>
                 <div className="mt-5 grid gap-3 rounded-md border bg-muted/20 p-3 text-sm md:grid-cols-3">
                   <div>
-                    <p className="font-medium text-foreground">Manual predictor coverage</p>
+                    <p className="font-medium text-foreground">Area context coverage</p>
                     <p className="text-muted-foreground">
                       {manualCompleteness} of 13 optional context signals are filled.
                     </p>
@@ -1230,7 +1248,7 @@ const Prediction = () => {
                 <CardContent className="flex gap-3 p-5 text-sm">
                   <AlertTriangle className="h-5 w-5 shrink-0 text-warning" />
                   <div>
-                    <p className="font-medium text-foreground">Prediction model unavailable</p>
+                    <p className="font-medium text-foreground">Area risk model unavailable</p>
                     <p className="mt-1 text-muted-foreground">{errorMessage(activeError)}</p>
                   </div>
                 </CardContent>
@@ -1242,7 +1260,7 @@ const Prediction = () => {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-lg">
                     <CheckCircle2 className="h-5 w-5 text-primary" />
-                    Estimate results
+                    Area risk summary
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -1254,11 +1272,11 @@ const Prediction = () => {
                   {activeEstimate.featureSummary && (
                     <div className="grid gap-3 rounded-md border bg-muted/20 p-3 text-sm md:grid-cols-4">
                       <div>
-                        <p className="font-medium text-foreground">Commodity</p>
+                        <p className="font-medium text-foreground">Food/feed</p>
                         <p className="text-muted-foreground">{activeEstimate.featureSummary.commodity || 'Unknown'}</p>
                       </div>
                       <div>
-                        <p className="font-medium text-foreground">Location precision</p>
+                        <p className="font-medium text-foreground">Area precision</p>
                         <p className="text-muted-foreground">
                           {activeEstimate.featureSummary.locationPrecision === 'exact_coordinates'
                             ? 'Exact coordinates'
@@ -1266,7 +1284,7 @@ const Prediction = () => {
                         </p>
                       </div>
                       <div>
-                        <p className="font-medium text-foreground">Context signals</p>
+                        <p className="font-medium text-foreground">Area context signals</p>
                         <p className="text-muted-foreground">
                           {activeEstimate.featureSummary.optionalContextSignalsFilled}
                           {' '}
@@ -1291,9 +1309,9 @@ const Prediction = () => {
                       <thead className="border-b bg-muted/40 text-xs uppercase text-muted-foreground">
                         <tr>
                           <th className="px-4 py-3">Toxin</th>
-                          <th className="px-4 py-3 text-right">Detection probability</th>
-                          <th className="px-4 py-3">Risk band</th>
-                          <th className="px-4 py-3 text-right">Estimated ug/kg</th>
+                          <th className="px-4 py-3 text-right">Expected detection</th>
+                          <th className="px-4 py-3">Area risk band</th>
+                          <th className="px-4 py-3 text-right">Estimated concentration ug/kg</th>
                           <th className="px-4 py-3 text-right">F1</th>
                           <th className="px-4 py-3 text-right">Training rows</th>
                         </tr>

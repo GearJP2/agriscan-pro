@@ -3,8 +3,9 @@
 ## Objective
 
 Provide an authenticated research tool that estimates mycotoxin risk for a
-sample before laboratory analysis. It must present a probability and its
-limitations, not a laboratory result or regulatory decision.
+food/feed type in a specific area before laboratory analysis. It must present
+an area/context risk probability and its limitations, not a laboratory result
+or regulatory decision.
 
 The design is informed by *Predicting Mycotoxin Contamination in Irish Oats
 Using Deep and Transfer Learning* (Inglis et al., 2025), while being adapted

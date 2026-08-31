@@ -46,8 +46,9 @@ class PredictionInferenceService:
             'input': payload,
             'predictions': predictions,
             'warning': (
-                'Research estimate only. This is not a laboratory result '
-                'or regulatory compliance decision.'
+                'Research area-risk estimate only. This is based on historical sample '
+                'and location context; it is not a laboratory result or regulatory '
+                'compliance decision.'
             ),
         }
 
