@@ -207,6 +207,45 @@ class PredictionBatchEstimateRequestSerializer(serializers.Serializer):
         return cleaned
 
 
+class PredictionSamplingRecommendationRequestSerializer(serializers.Serializer):
+    target_date = serializers.DateField(required=False)
+    limit = serializers.IntegerField(required=False, min_value=1, max_value=50, default=10)
+    max_candidates = serializers.IntegerField(required=False, min_value=1, max_value=100, default=25)
+    food_feed_type = serializers.ChoiceField(choices=['food', 'feed'], required=False, allow_blank=True)
+    provinces = serializers.ListField(
+        child=serializers.CharField(max_length=100, trim_whitespace=True),
+        required=False,
+        allow_empty=True,
+        max_length=50,
+    )
+    sub_types = serializers.ListField(
+        child=serializers.CharField(max_length=100, trim_whitespace=True),
+        required=False,
+        allow_empty=True,
+        max_length=50,
+    )
+    include_districts = serializers.BooleanField(required=False, default=True)
+
+    @staticmethod
+    def _dedupe_strings(values):
+        cleaned = []
+        seen = set()
+        for value in values or []:
+            text = value.strip()
+            key = text.lower()
+            if not text or key in seen:
+                continue
+            seen.add(key)
+            cleaned.append(text)
+        return cleaned
+
+    def validate_provinces(self, value):
+        return self._dedupe_strings(value)
+
+    def validate_sub_types(self, value):
+        return self._dedupe_strings(value)
+
+
 class PredictionPublishRequestSerializer(serializers.Serializer):
     version = serializers.CharField(max_length=80, default='latest', trim_whitespace=True)
     toxins = serializers.ListField(

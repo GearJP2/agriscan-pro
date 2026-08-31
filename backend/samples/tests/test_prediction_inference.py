@@ -499,6 +499,72 @@ class PredictionEstimateEndpointTests(TestCase):
         self.assertEqual(response.data['completed'], 1)
         self.assertEqual(estimate.call_count, 1)
 
+    def test_prediction_recommendations_rank_historical_area_candidates(self):
+        self.client.force_authenticate(user=self.researcher)
+        Sample.objects.create(
+            sample_id='RIC-2026-002',
+            region='North',
+            province='Chiang Mai',
+            district='Mueang',
+            vegetation_variety='Oats',
+            food_feed_type='food',
+            sub_type='Oats',
+            collection_date='2026-07-10',
+            status='completed',
+            purpose='research',
+            sample_type='field',
+            processing_type='raw',
+        )
+        expected = {
+            'modelVersion': 'v-test',
+            'modelFamily': 'baseline',
+            'usesWeatherFeatures': True,
+            'featureSummary': {'weatherLocationLabel': 'Chiang Mai'},
+            'predictions': [
+                {
+                    'toxinType': 'TRY',
+                    'detectionProbability': 0.82,
+                    'riskBand': 'high',
+                    'estimatedConcentrationUgKg': 12.3,
+                },
+            ],
+            'warning': 'Research area-risk estimate only.',
+        }
+
+        with patch('samples.views.PredictionInferenceService.estimate', return_value=expected) as estimate:
+            response = self.client.post(
+                reverse('sample-prediction-recommendations'),
+                {
+                    'target_date': '2026-08-31',
+                    'limit': 5,
+                    'max_candidates': 10,
+                    'food_feed_type': 'food',
+                    'sub_types': ['Oats'],
+                },
+                format='json',
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['returned'], 1)
+        recommendation = response.data['recommendations'][0]
+        self.assertEqual(recommendation['rank'], 1)
+        self.assertEqual(recommendation['subType'], 'Oats')
+        self.assertEqual(recommendation['recommendedToxin'], 'TRY')
+        self.assertEqual(recommendation['riskBand'], 'high')
+        self.assertEqual(recommendation['targetDate'], '2026-08-31')
+        self.assertEqual(estimate.call_args.args[0]['collection_date'], date(2026, 8, 31))
+
+    def test_prediction_recommendations_requires_research_role(self):
+        self.client.force_authenticate(user=self.assistant)
+
+        response = self.client.post(
+            reverse('sample-prediction-recommendations'),
+            {'target_date': '2026-08-31'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
     def test_prediction_estimate_rejects_out_of_range_coordinates(self):
         self.client.force_authenticate(user=self.researcher)
         payload = {

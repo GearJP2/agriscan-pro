@@ -10,6 +10,8 @@ import type {
   PredictionPublishRequest,
   PredictionPublishResponse,
   PredictionReadinessResponse,
+  PredictionSamplingRecommendationRequest,
+  PredictionSamplingRecommendationResponse,
 } from "@/types/prediction";
 import {
   clearAccessToken,
@@ -525,6 +527,11 @@ export const analyticsAPI = {
       sample_ids: sampleIds,
     });
     return response.data as PredictionBatchEstimateResponse;
+  },
+
+  async getPredictionRecommendations(payload: PredictionSamplingRecommendationRequest) {
+    const response = await apiClient.post('/samples/prediction/recommendations/', payload);
+    return response.data as PredictionSamplingRecommendationResponse;
   },
 
   async publishPredictionModels(payload: PredictionPublishRequest) {

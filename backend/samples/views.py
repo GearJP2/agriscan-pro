@@ -26,6 +26,7 @@ from .serializers import (
     PredictionEstimateSerializer,
     PredictionEstimateRequestSerializer,
     PredictionPublishRequestSerializer,
+    PredictionSamplingRecommendationRequestSerializer,
     ProcessLogSerializer,
     SampleCreateUpdateSerializer,
     SampleListSerializer,
@@ -88,6 +89,7 @@ class SampleViewSet(viewsets.ModelViewSet):
             'prediction_context',
             'prediction_history',
             'prediction_readiness',
+            'prediction_recommendations',
             'prediction_status',
         ]:
             return [IsAuthenticated(), IsAdminOrResearchRole()]
@@ -771,6 +773,17 @@ class SampleViewSet(viewsets.ModelViewSet):
             },
             status=status.HTTP_200_OK,
         )
+
+    @action(detail=False, methods=['post'], url_path='prediction/recommendations')
+    def prediction_recommendations(self, request):
+        """Recommend which food/feed and area combinations should be prioritized for testing."""
+        serializer = PredictionSamplingRecommendationRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            data = PredictionInferenceService.recommend_sampling(serializer.validated_data)
+        except PredictionModelUnavailable as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        return Response(data, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['post'], url_path='prediction/estimate')
     def prediction_estimate_sample(self, request, sample_id=None):

@@ -2,11 +2,13 @@
 
 import json
 import math
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 
 from django.conf import settings
+from django.db.models import Count, Max, Q
 
+from ..models import MycotoxinResult, Sample
 from .prediction_dataset_service import PredictionDatasetService
 from .prediction_training_service import PredictionTrainingService
 from .prediction_weather_service import PredictionWeatherService, PredictionWeatherServiceError
@@ -51,6 +53,208 @@ class PredictionInferenceService:
                 'compliance decision.'
             ),
         }
+
+    @classmethod
+    def recommend_sampling(cls, request: dict, artifacts_dir=None) -> dict:
+        target_date = request.get('target_date') or date.today()
+        limit = request.get('limit') or 10
+        max_candidates = request.get('max_candidates') or 25
+        candidates = cls.build_sampling_candidates(
+            food_feed_type=request.get('food_feed_type') or '',
+            provinces=request.get('provinces') or [],
+            sub_types=request.get('sub_types') or [],
+            include_districts=request.get('include_districts', True),
+            max_candidates=max_candidates,
+        )
+
+        recommendations = []
+        errors = []
+        for candidate in candidates:
+            payload = {
+                'food_feed_type': candidate['foodFeedType'],
+                'sub_type': candidate['subType'],
+                'region': candidate['region'],
+                'province': candidate['province'],
+                'district': candidate['district'],
+                'collection_date': target_date,
+                'purpose': 'research',
+                'sample_type': candidate['sampleType'],
+                'processing_type': candidate['processingType'],
+                'location_type': candidate['locationType'],
+            }
+            try:
+                estimate = cls.estimate(payload, artifacts_dir=artifacts_dir)
+            except PredictionModelUnavailable:
+                raise
+            except Exception as exc:  # Defensive: keep one bad candidate from blocking all recommendations.
+                errors.append({
+                    'foodFeedType': candidate['foodFeedType'],
+                    'subType': candidate['subType'],
+                    'province': candidate['province'],
+                    'district': candidate['district'],
+                    'detail': str(exc),
+                })
+                continue
+
+            if not estimate.get('predictions'):
+                continue
+
+            top_prediction = estimate['predictions'][0]
+            recommendations.append({
+                'rank': 0,
+                'foodFeedType': candidate['foodFeedType'],
+                'subType': candidate['subType'],
+                'province': candidate['province'],
+                'district': candidate['district'],
+                'region': candidate['region'],
+                'targetDate': target_date.isoformat(),
+                'recommendedToxin': top_prediction['toxinType'],
+                'detectionProbability': top_prediction['detectionProbability'],
+                'riskBand': top_prediction['riskBand'],
+                'estimatedConcentrationUgKg': top_prediction['estimatedConcentrationUgKg'],
+                'modelVersion': estimate['modelVersion'],
+                'usesWeatherFeatures': estimate['usesWeatherFeatures'],
+                'weatherLocationLabel': (estimate.get('featureSummary') or {}).get('weatherLocationLabel', ''),
+                'historicalSampleCount': candidate['historicalSampleCount'],
+                'latestHistoricalSampleDate': candidate['latestHistoricalSampleDate'],
+                'historicalDetectedCount': cls.count_historical_detected(
+                    toxin_type=top_prediction['toxinType'],
+                    food_feed_type=candidate['foodFeedType'],
+                    sub_type=candidate['subType'],
+                    province=candidate['province'],
+                    district=candidate['district'],
+                    include_districts=request.get('include_districts', True),
+                ),
+                'reason': cls.recommendation_reason(candidate, top_prediction, estimate),
+            })
+
+        recommendations.sort(
+            key=lambda item: (
+                item['detectionProbability'],
+                item['historicalDetectedCount'],
+                item['historicalSampleCount'],
+            ),
+            reverse=True,
+        )
+        for index, item in enumerate(recommendations[:limit], start=1):
+            item['rank'] = index
+
+        return {
+            'targetDate': target_date.isoformat(),
+            'requestedLimit': limit,
+            'candidateCount': len(candidates),
+            'returned': len(recommendations[:limit]),
+            'usesWeatherFeatures': recommendations[0]['usesWeatherFeatures'] if recommendations else False,
+            'recommendations': recommendations[:limit],
+            'errors': errors,
+            'warning': (
+                'Sampling recommendations are research prioritization guidance. '
+                'They identify which food/feed and area combinations should be considered '
+                'for testing; they are not laboratory results or regulatory decisions.'
+            ),
+        }
+
+    @staticmethod
+    def build_sampling_candidates(
+        *,
+        food_feed_type='',
+        provinces=None,
+        sub_types=None,
+        include_districts=True,
+        max_candidates=25,
+    ) -> list[dict]:
+        queryset = Sample.objects.exclude(province__isnull=True).exclude(province__exact='')
+        queryset = queryset.exclude(collection_date__isnull=True)
+
+        if food_feed_type:
+            queryset = queryset.filter(food_feed_type=food_feed_type)
+        if provinces:
+            province_filter = Q()
+            for province in provinces:
+                province_filter |= Q(province__iexact=province)
+            queryset = queryset.filter(province_filter)
+        if sub_types:
+            sub_type_filter = Q()
+            for sub_type in sub_types:
+                sub_type_filter |= Q(sub_type__iexact=sub_type) | Q(vegetation_variety__iexact=sub_type)
+            queryset = queryset.filter(sub_type_filter)
+
+        group_fields = ['food_feed_type', 'sub_type', 'vegetation_variety', 'region', 'province']
+        if include_districts:
+            group_fields.append('district')
+
+        rows = (
+            queryset
+            .values(*group_fields)
+            .annotate(
+                historical_sample_count=Count('id'),
+                latest_historical_sample_date=Max('collection_date'),
+            )
+            .order_by('-historical_sample_count', '-latest_historical_sample_date')[:max_candidates]
+        )
+
+        candidates = []
+        seen = set()
+        for row in rows:
+            sub_type = row.get('sub_type') or row.get('vegetation_variety')
+            province = row.get('province') or ''
+            if not sub_type or not province:
+                continue
+            key = (
+                row.get('food_feed_type') or 'food',
+                str(sub_type).strip().lower(),
+                str(province).strip().lower(),
+                str(row.get('district') or '').strip().lower() if include_districts else '',
+            )
+            if key in seen:
+                continue
+            seen.add(key)
+            candidates.append({
+                'foodFeedType': row.get('food_feed_type') or 'food',
+                'subType': sub_type,
+                'region': row.get('region') or '',
+                'province': province,
+                'district': row.get('district') or '',
+                'sampleType': '',
+                'processingType': '',
+                'locationType': 'unknown',
+                'historicalSampleCount': row.get('historical_sample_count') or 0,
+                'latestHistoricalSampleDate': (
+                    row['latest_historical_sample_date'].isoformat()
+                    if row.get('latest_historical_sample_date')
+                    else ''
+                ),
+            })
+        return candidates
+
+    @staticmethod
+    def count_historical_detected(*, toxin_type, food_feed_type, sub_type, province, district='', include_districts=True) -> int:
+        queryset = MycotoxinResult.objects.filter(
+            toxin_type=toxin_type,
+            value__gt=0,
+            sample__province__iexact=province,
+        )
+        if food_feed_type:
+            queryset = queryset.filter(sample__food_feed_type=food_feed_type)
+        if sub_type:
+            queryset = queryset.filter(Q(sample__sub_type__iexact=sub_type) | Q(sample__vegetation_variety__iexact=sub_type))
+        if include_districts and district:
+            queryset = queryset.filter(sample__district__iexact=district)
+        return queryset.count()
+
+    @staticmethod
+    def recommendation_reason(candidate: dict, top_prediction: dict, estimate: dict) -> str:
+        probability_pct = round(top_prediction['detectionProbability'] * 100, 1)
+        area = candidate['province']
+        if candidate.get('district'):
+            area = f"{candidate['district']}, {area}"
+        weather_note = ' Weather was included in the model.' if estimate.get('usesWeatherFeatures') else ''
+        return (
+            f"{candidate['subType']} in {area} is ranked for {top_prediction['toxinType']} "
+            f"because the published model estimates {probability_pct}% detection risk "
+            f"and this area/type has {candidate['historicalSampleCount']} historical sample(s)."
+            f"{weather_note}"
+        )
 
     @classmethod
     def load_latest_metadata(cls, artifacts_dir=None) -> tuple[Path, dict]:

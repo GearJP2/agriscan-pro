@@ -112,6 +112,54 @@ export interface PredictionBatchEstimateResponse {
   }>;
 }
 
+export interface PredictionSamplingRecommendationRequest {
+  target_date?: string;
+  limit?: number;
+  max_candidates?: number;
+  food_feed_type?: 'food' | 'feed' | '';
+  provinces?: string[];
+  sub_types?: string[];
+  include_districts?: boolean;
+}
+
+export interface PredictionSamplingRecommendationItem {
+  rank: number;
+  foodFeedType: 'food' | 'feed';
+  subType: string;
+  province: string;
+  district: string;
+  region: string;
+  targetDate: string;
+  recommendedToxin: string;
+  detectionProbability: number;
+  riskBand: 'low' | 'medium' | 'high';
+  estimatedConcentrationUgKg: number | null;
+  modelVersion: string;
+  usesWeatherFeatures: boolean;
+  weatherLocationLabel: string;
+  historicalSampleCount: number;
+  latestHistoricalSampleDate: string;
+  historicalDetectedCount: number;
+  reason: string;
+}
+
+export interface PredictionSamplingRecommendationResponse {
+  targetDate: string;
+  requestedLimit: number;
+  candidateCount: number;
+  returned: number;
+  usesWeatherFeatures: boolean;
+  recommendations: PredictionSamplingRecommendationItem[];
+  errors: Array<{
+    foodFeedType: string;
+    subType: string;
+    province: string;
+    district: string;
+    detail: string;
+  }>;
+  warning: string;
+}
+
 export interface PredictionModelStatusTarget {
   toxinType: string;
   published: boolean;

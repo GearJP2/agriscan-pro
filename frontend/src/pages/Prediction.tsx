@@ -26,7 +26,10 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/contexts/AuthContext';
 import { analyticsAPI, sampleAPI } from '@/lib/api';
-import type { PredictionEstimateRequest } from '@/types/prediction';
+import type {
+  PredictionEstimateRequest,
+  PredictionSamplingRecommendationRequest,
+} from '@/types/prediction';
 import type { PredictionContext } from '@/types/sample';
 
 const researchRoles = ['admin', 'head_researcher', 'researcher'];
@@ -58,6 +61,16 @@ const initialContext: PredictionContext = {
   crop_rotation: '',
   fertiliser_details: '',
   fungicide_details: '',
+};
+
+const initialRecommendationForm: PredictionSamplingRecommendationRequest = {
+  target_date: new Date().toISOString().slice(0, 10),
+  limit: 10,
+  max_candidates: 25,
+  food_feed_type: '',
+  provinces: [],
+  sub_types: [],
+  include_districts: true,
 };
 
 const riskBadgeVariant = {
@@ -99,6 +112,11 @@ const Prediction = () => {
   const [batchSampleIds, setBatchSampleIds] = useState('');
   const [contextSampleId, setContextSampleId] = useState('');
   const [contextForm, setContextForm] = useState<PredictionContext>(initialContext);
+  const [recommendationForm, setRecommendationForm] = useState<PredictionSamplingRecommendationRequest>(
+    initialRecommendationForm,
+  );
+  const [recommendationProvinces, setRecommendationProvinces] = useState('');
+  const [recommendationSubTypes, setRecommendationSubTypes] = useState('');
   const [selectedPublishToxins, setSelectedPublishToxins] = useState<string[]>([]);
   const [forcePublish, setForcePublish] = useState(false);
   const readiness = useQuery({
@@ -131,6 +149,9 @@ const Prediction = () => {
   });
   const batchEstimate = useMutation({
     mutationFn: analyticsAPI.batchEstimatePrediction,
+  });
+  const samplingRecommendations = useMutation({
+    mutationFn: analyticsAPI.getPredictionRecommendations,
   });
   const sampleHistory = useQuery({
     queryKey: ['prediction-history', historySampleId],
@@ -237,6 +258,25 @@ const Prediction = () => {
       .map((value) => value.trim())
       .filter(Boolean);
     batchEstimate.mutate([...new Set(sampleIds)]);
+  };
+
+  const submitSamplingRecommendations = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const splitList = (value: string) => (
+      value
+        .split(/[\n,]+/)
+        .map((item) => item.trim())
+        .filter(Boolean)
+    );
+
+    samplingRecommendations.mutate({
+      ...recommendationForm,
+      target_date: recommendationForm.target_date || undefined,
+      limit: recommendationForm.limit || 10,
+      max_candidates: recommendationForm.max_candidates || 25,
+      provinces: splitList(recommendationProvinces),
+      sub_types: splitList(recommendationSubTypes),
+    });
   };
 
   const loadContext = (event: React.FormEvent<HTMLFormElement>) => {
@@ -482,6 +522,227 @@ const Prediction = () => {
                 </CardContent>
               </Card>
             )}
+
+            <Card className="border-primary/20" style={{ order: -2 }}>
+              <CardHeader>
+                <CardTitle className="text-lg">Sampling Recommendations</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                <div className="rounded-md border border-primary/15 bg-primary/[0.03] p-4 text-sm text-muted-foreground">
+                  <p className="font-medium text-foreground">What should researchers test next?</p>
+                  <p className="mt-1">
+                    The system builds candidate food/feed and area combinations from historical samples, runs the
+                    published risk model for each candidate, then ranks which areas should be prioritized for testing.
+                  </p>
+                </div>
+
+                <form className="grid gap-4 md:grid-cols-2 lg:grid-cols-4" onSubmit={submitSamplingRecommendations}>
+                  <div className="space-y-2">
+                    <Label htmlFor="recommendation-date">Target date</Label>
+                    <Input
+                      id="recommendation-date"
+                      type="date"
+                      value={recommendationForm.target_date || ''}
+                      onChange={(event) => {
+                        setRecommendationForm((current) => ({
+                          ...current,
+                          target_date: event.target.value,
+                        }));
+                      }}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Food/feed filter</Label>
+                    <Select
+                      value={recommendationForm.food_feed_type || 'all'}
+                      onValueChange={(value) => {
+                        setRecommendationForm((current) => ({
+                          ...current,
+                          food_feed_type: value === 'all' ? '' : value as 'food' | 'feed',
+                        }));
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All</SelectItem>
+                        <SelectItem value="food">Food</SelectItem>
+                        <SelectItem value="feed">Feed</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="recommendation-limit">Recommendations</Label>
+                    <Input
+                      id="recommendation-limit"
+                      type="number"
+                      min={1}
+                      max={50}
+                      value={recommendationForm.limit ?? 10}
+                      onChange={(event) => {
+                        setRecommendationForm((current) => ({
+                          ...current,
+                          limit: Number(event.target.value),
+                        }));
+                      }}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="recommendation-max-candidates">Candidate scan limit</Label>
+                    <Input
+                      id="recommendation-max-candidates"
+                      type="number"
+                      min={1}
+                      max={100}
+                      value={recommendationForm.max_candidates ?? 25}
+                      onChange={(event) => {
+                        setRecommendationForm((current) => ({
+                          ...current,
+                          max_candidates: Number(event.target.value),
+                        }));
+                      }}
+                    />
+                  </div>
+
+                  <div className="space-y-2 md:col-span-2">
+                    <Label htmlFor="recommendation-provinces">Province filters</Label>
+                    <Textarea
+                      id="recommendation-provinces"
+                      value={recommendationProvinces}
+                      onChange={(event) => setRecommendationProvinces(event.target.value)}
+                      placeholder="Bangkok, Chiang Mai, Nakhon Ratchasima"
+                      rows={3}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Optional. Separate provinces with commas or new lines.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2 md:col-span-2">
+                    <Label htmlFor="recommendation-sub-types">Food/feed name filters</Label>
+                    <Textarea
+                      id="recommendation-sub-types"
+                      value={recommendationSubTypes}
+                      onChange={(event) => setRecommendationSubTypes(event.target.value)}
+                      placeholder="oats, maize, rice"
+                      rows={3}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Optional. Leave blank to let historical samples define candidates.
+                    </p>
+                  </div>
+
+                  <label className="flex items-center gap-2 text-sm text-muted-foreground md:col-span-2">
+                    <Switch
+                      checked={recommendationForm.include_districts ?? true}
+                      onCheckedChange={(checked) => {
+                        setRecommendationForm((current) => ({
+                          ...current,
+                          include_districts: checked,
+                        }));
+                      }}
+                    />
+                    Rank province + district combinations when district data exists
+                  </label>
+
+                  <div className="flex items-end md:col-span-2">
+                    <Button type="submit" disabled={samplingRecommendations.isPending}>
+                      {samplingRecommendations.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <TrendingUp />
+                      )}
+                      Generate testing plan
+                    </Button>
+                  </div>
+                </form>
+
+                {samplingRecommendations.isError && (
+                  <div className="rounded-md border border-warning/40 bg-warning/5 p-3 text-sm">
+                    <p className="font-medium text-foreground">Unable to generate recommendations</p>
+                    <p className="mt-1 text-muted-foreground">{errorMessage(samplingRecommendations.error)}</p>
+                  </div>
+                )}
+
+                {samplingRecommendations.data && (
+                  <div className="space-y-4">
+                    <div className="grid gap-3 rounded-md border bg-muted/20 p-3 text-sm md:grid-cols-4">
+                      <div>
+                        <p className="font-medium text-foreground">Candidates scanned</p>
+                        <p className="text-muted-foreground">{samplingRecommendations.data.candidateCount}</p>
+                      </div>
+                      <div>
+                        <p className="font-medium text-foreground">Returned</p>
+                        <p className="text-muted-foreground">{samplingRecommendations.data.returned}</p>
+                      </div>
+                      <div>
+                        <p className="font-medium text-foreground">Target date</p>
+                        <p className="text-muted-foreground">{samplingRecommendations.data.targetDate}</p>
+                      </div>
+                      <div>
+                        <p className="font-medium text-foreground">Weather model</p>
+                        <p className="text-muted-foreground">
+                          {samplingRecommendations.data.usesWeatherFeatures ? 'Included' : 'Not included'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <p className="text-sm text-muted-foreground">{samplingRecommendations.data.warning}</p>
+
+                    {samplingRecommendations.data.recommendations.length > 0 ? (
+                      <div className="overflow-x-auto rounded-md border">
+                        <table className="w-full min-w-[980px] text-left text-sm">
+                          <thead className="border-b bg-muted/40 text-xs uppercase text-muted-foreground">
+                            <tr>
+                              <th className="px-4 py-3">Rank</th>
+                              <th className="px-4 py-3">Test target</th>
+                              <th className="px-4 py-3">Area</th>
+                              <th className="px-4 py-3">Toxin</th>
+                              <th className="px-4 py-3 text-right">Expected detection</th>
+                              <th className="px-4 py-3">Risk</th>
+                              <th className="px-4 py-3 text-right">Historical samples</th>
+                              <th className="px-4 py-3 text-right">Historical detected</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {samplingRecommendations.data.recommendations.map((item) => (
+                              <tr key={`${item.rank}-${item.subType}-${item.province}-${item.district}`} className="border-b last:border-0">
+                                <td className="px-4 py-3 font-medium">#{item.rank}</td>
+                                <td className="px-4 py-3">
+                                  <div className="font-medium text-foreground">{item.subType}</div>
+                                  <div className="text-xs uppercase text-muted-foreground">{item.foodFeedType}</div>
+                                </td>
+                                <td className="px-4 py-3">
+                                  {item.district ? `${item.district}, ${item.province}` : item.province}
+                                </td>
+                                <td className="px-4 py-3 font-medium">{item.recommendedToxin}</td>
+                                <td className="px-4 py-3 text-right">
+                                  {(item.detectionProbability * 100).toFixed(1)}%
+                                </td>
+                                <td className="px-4 py-3">
+                                  <Badge variant={riskBadgeVariant[item.riskBand]}>{item.riskBand}</Badge>
+                                </td>
+                                <td className="px-4 py-3 text-right">{item.historicalSampleCount}</td>
+                                <td className="px-4 py-3 text-right">{item.historicalDetectedCount}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <p className="rounded-md border bg-muted/20 p-3 text-sm text-muted-foreground">
+                        No recommendations were generated. Try widening the province or food/feed filters, or publish
+                        at least one prediction model.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
             <Card>
               <CardHeader>
