@@ -381,7 +381,11 @@ const Prediction = () => {
                                   <td className="px-4 py-3 text-right">
                                     <Checkbox
                                       checked={selectedPublishToxins.includes(target.toxinType)}
-                                      disabled={target.published || publishModels.isPending}
+                                      disabled={
+                                        target.published
+                                        || publishModels.isPending
+                                        || !target.artifactHealth.classifierArtifactExists
+                                      }
                                       onCheckedChange={(checked) => {
                                         togglePublishToxin(target.toxinType, checked === true);
                                       }}

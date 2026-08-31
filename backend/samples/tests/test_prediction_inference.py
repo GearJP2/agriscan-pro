@@ -272,6 +272,7 @@ class PredictionInferenceServiceTests(TestCase):
         with TemporaryDirectory() as tmp_dir:
             version_dir = Path(tmp_dir) / 'v20260831010101'
             version_dir.mkdir()
+            (version_dir / 'don_classifier.joblib').write_text('not a real artifact', encoding='utf-8')
             metadata_path = version_dir / 'metadata.json'
             metadata_path.write_text(json.dumps({
                 'version': 'v20260831010101',
@@ -279,6 +280,7 @@ class PredictionInferenceServiceTests(TestCase):
                     {
                         'toxin_type': 'DON',
                         'published': False,
+                        'artifact_path': 'don_classifier.joblib',
                         'classification_metrics': {'f1': 0.4, 'roc_auc': 0.7},
                     },
                 ],
@@ -302,6 +304,31 @@ class PredictionInferenceServiceTests(TestCase):
 
             metadata = json.loads(metadata_path.read_text(encoding='utf-8'))
             self.assertTrue(metadata['trained_models'][0]['published'])
+
+    def test_publish_prediction_models_rejects_missing_artifacts(self):
+        with TemporaryDirectory() as tmp_dir:
+            version_dir = Path(tmp_dir) / 'v20260831010101'
+            version_dir.mkdir()
+            (version_dir / 'metadata.json').write_text(json.dumps({
+                'version': 'v20260831010101',
+                'trained_models': [
+                    {
+                        'toxin_type': 'AFB1',
+                        'published': False,
+                        'artifact_path': 'missing_classifier.joblib',
+                        'classification_metrics': {'f1': 0.9, 'roc_auc': 0.9},
+                    },
+                ],
+            }), encoding='utf-8')
+
+            with self.assertRaises(CommandError):
+                call_command(
+                    'publish_prediction_models',
+                    output_dir=tmp_dir,
+                    version='v20260831010101',
+                    toxins='AFB1',
+                    force=True,
+                )
 
 
 class PredictionEstimateEndpointTests(TestCase):
@@ -517,7 +544,8 @@ class PredictionEstimateEndpointTests(TestCase):
         with TemporaryDirectory() as tmp_dir:
             artifacts_dir = Path(tmp_dir) / 'prediction_artifacts'
             version_dir = artifacts_dir / 'v20260831010101'
-            version_dir.mkdir()
+            version_dir.mkdir(parents=True)
+            (version_dir / 'afb1_classifier.joblib').write_text('not a real artifact', encoding='utf-8')
             metadata_path = version_dir / 'metadata.json'
             metadata_path.write_text(json.dumps({
                 'version': 'v20260831010101',
@@ -530,6 +558,7 @@ class PredictionEstimateEndpointTests(TestCase):
                         'measured': 100,
                         'detected': 40,
                         'usable_context': 90,
+                        'artifact_path': 'afb1_classifier.joblib',
                         'classification_metrics': {'f1': 0.7, 'roc_auc': 0.8},
                     },
                 ],
@@ -557,13 +586,15 @@ class PredictionEstimateEndpointTests(TestCase):
         with TemporaryDirectory() as tmp_dir:
             artifacts_dir = Path(tmp_dir) / 'prediction_artifacts'
             version_dir = artifacts_dir / 'v20260831010101'
-            version_dir.mkdir()
+            version_dir.mkdir(parents=True)
+            (version_dir / 'don_classifier.joblib').write_text('not a real artifact', encoding='utf-8')
             (version_dir / 'metadata.json').write_text(json.dumps({
                 'version': 'v20260831010101',
                 'trained_models': [
                     {
                         'toxin_type': 'DON',
                         'published': False,
+                        'artifact_path': 'don_classifier.joblib',
                         'classification_metrics': {'f1': 0.3, 'roc_auc': 0.7},
                     },
                 ],

@@ -53,6 +53,16 @@ class PredictionModelPublishService:
         if not selected_models:
             raise PredictionModelPublishError('No toxin models were selected for publishing.')
 
+        artifact_failures = cls.artifact_guardrail_failures(
+            selected_models,
+            version_dir=metadata_path.parent,
+        )
+        if artifact_failures:
+            raise PredictionModelPublishError(
+                'Artifact guardrails failed. Retrain or restore missing model files before publishing: '
+                + '; '.join(artifact_failures)
+            )
+
         if not force:
             failures = cls.metric_guardrail_failures(
                 selected_models,
@@ -126,6 +136,31 @@ class PredictionModelPublishService:
         if not metadata_path.exists():
             raise PredictionModelPublishError(f'No prediction metadata file was found for {version}.')
         return metadata_path
+
+    @staticmethod
+    def artifact_guardrail_failures(models: list[dict], *, version_dir: Path) -> list[str]:
+        failures = []
+        for model in models:
+            toxin_type = model.get('toxin_type', '')
+            classifier_path = model.get('artifact_path')
+            if not PredictionModelPublishService.artifact_exists(classifier_path, version_dir=version_dir):
+                failures.append(f'{toxin_type}: missing classifier artifact')
+            regression_path = (model.get('regression_metrics') or {}).get('artifact_path')
+            if regression_path and not PredictionModelPublishService.artifact_exists(
+                regression_path,
+                version_dir=version_dir,
+            ):
+                failures.append(f'{toxin_type}: missing regression artifact')
+        return failures
+
+    @staticmethod
+    def artifact_exists(raw_path, *, version_dir: Path) -> bool:
+        if not raw_path:
+            return False
+        artifact = Path(raw_path)
+        if not artifact.is_absolute():
+            artifact = version_dir / artifact
+        return artifact.exists()
 
     @staticmethod
     def metric_guardrail_failures(models: list[dict], *, min_f1: float, min_roc_auc: float) -> list[str]:
