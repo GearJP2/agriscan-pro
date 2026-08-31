@@ -2,7 +2,9 @@ import { lazy, Suspense, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { ThemeProvider } from "next-themes";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Route, Routes, useLocation } from "react-router-dom";
+import { cn } from "@/lib/utils";
+import { isPublicSitePath } from "@/lib/siteRoutes";
 
 import Footer from "@/components/Footer";
 import Header from "@/components/Header";
@@ -106,19 +108,29 @@ export const AppRoutes = () => (
   </Routes>
 );
 
-export const AppLayout = () => (
-    <div className="flex min-h-screen flex-col">
-        <Header />
-        <div className="flex flex-1 flex-col pt-24 md:pt-28">
-            <RouteErrorBoundary>
-                <Suspense fallback={<RouteLoadingFallback />}>
-                    <AppRoutes />
-                </Suspense>
-            </RouteErrorBoundary>
+export const AppLayout = () => {
+    const location = useLocation();
+    const isCoePage = isPublicSitePath(location.pathname);
+
+    return (
+        <div className={cn(
+            "flex min-h-screen flex-col transition-colors duration-300",
+            isCoePage
+                ? "bg-gfs-canvas coe-gfs text-gfs-text-primary"
+                : "bg-background text-foreground",
+        )}>
+            <Header />
+            <div className="flex flex-1 flex-col pt-24 md:pt-28">
+                <RouteErrorBoundary>
+                    <Suspense fallback={<RouteLoadingFallback />}>
+                        <AppRoutes />
+                    </Suspense>
+                </RouteErrorBoundary>
+            </div>
+            <Footer />
         </div>
-        <Footer />
-    </div>
-);
+    );
+};
 
 const AppRouter = () => (
   <BrowserRouter

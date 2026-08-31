@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { ChevronDown, Menu, X } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -18,6 +18,24 @@ type NavLinkItem = {
     isExternal?: boolean;
 };
 
+function useIsFilterStuck() {
+    const location = useLocation();
+    const [isFilterStuck, setIsFilterStuck] = useState(false);
+
+    useEffect(() => {
+        const handler = (e: Event) => {
+            const customEvent = e as CustomEvent<{ isStuck: boolean }>;
+            setIsFilterStuck(Boolean(customEvent.detail?.isStuck));
+        };
+        window.addEventListener('filter-stuck-change', handler);
+        return () => {
+            window.removeEventListener('filter-stuck-change', handler);
+        };
+    }, []);
+
+    return isFilterStuck && location.pathname === '/dashboard';
+}
+
 const AppHeader = () => {
     const { isAuthenticated, isInitializing, user, role, canAccessMonitor } = useAuth();
     const location = useLocation();
@@ -27,7 +45,11 @@ const AppHeader = () => {
         USER_ROLE_WEIGHT[user.role as keyof typeof USER_ROLE_WEIGHT] >=
         USER_ROLE_WEIGHT.research_assistant;
 
-    const links = [
+    const currentWeight = isAuthenticated
+        ? (USER_ROLE_WEIGHT[role as keyof typeof USER_ROLE_WEIGHT] ?? 0)
+        : 0;
+
+    const links: NavLinkItem[] = [
         { href: "/", label: "Homepage", minWeight: 0 },
         { href: "/dashboard", label: "Dashboard", minWeight: 0 },
         {
@@ -42,22 +64,17 @@ const AppHeader = () => {
             label: "Users",
             minWeight: USER_ROLE_WEIGHT.researcher,
         },
-    ].filter((link) => {
-        const currentWeight = isAuthenticated
-            ? (USER_ROLE_WEIGHT[role as keyof typeof USER_ROLE_WEIGHT] ?? 0)
-            : 0;
-
-        return currentWeight >= link.minWeight;
-    });
+    ].filter((link) => currentWeight >= (link.minWeight ?? 0));
 
     // Add external Monitor link if allowed
-    if (canAccessMonitor) {
+    const monitorUrl = import.meta.env.VITE_MONITOR_URL;
+    if (canAccessMonitor && monitorUrl) {
         links.push({
-            href: import.meta.env.VITE_MONITOR_URL,
+            href: monitorUrl,
             label: "Monitor",
             minWeight: 0,
-            isExternal: true
-        } as any);
+            isExternal: true,
+        });
     }
 
     const isDashboard = location.pathname === "/dashboard";
@@ -74,7 +91,7 @@ const AppHeader = () => {
                 </Link>
 
                 <div className="hidden md:flex items-center gap-6 font-sans text-[0.95rem] font-semibold tracking-tight nav-container">
-                    {links.map((link: any) => {
+                    {links.map((link) => {
                         const isActive = location.pathname === link.href;
 
                         if (link.isExternal) {
@@ -129,6 +146,7 @@ const AppHeader = () => {
 
 const CoeHeader = () => {
     const location = useLocation();
+    const isStuckOnDashboard = useIsFilterStuck();
     const { isAuthenticated, isInitializing, user, role, canAccessMonitor } = useAuth();
     const { language, setLanguage } = useLanguage();
     const [mobileOpen, setMobileOpen] = useState(false);
@@ -177,9 +195,10 @@ const CoeHeader = () => {
         { href: "/manage", label: t.manage, minWeight: USER_ROLE_WEIGHT.admin },
     ].filter((link) => currentWeight >= (link.minWeight ?? 0));
 
-    if (canAccessMonitor) {
+    const monitorUrl = import.meta.env.VITE_MONITOR_URL;
+    if (canAccessMonitor && monitorUrl) {
         toolLinks.push({
-            href: import.meta.env.VITE_MONITOR_URL as string,
+            href: monitorUrl,
             label: "Monitor",
             isExternal: true,
         });
@@ -206,9 +225,14 @@ const CoeHeader = () => {
     };
 
     return (
-        <nav className="fixed top-4 left-1/2 -translate-x-1/2 w-full z-[99999] transition-all duration-700 ease-in-out max-w-container-max px-gutter">
+        <nav className="coe-site-header fixed top-4 left-1/2 -translate-x-1/2 w-full z-[99999] transition-all duration-300 ease-out max-w-[1920px] px-4 sm:px-6 lg:px-8">
             <a href="#main-content" className="skip-link">{t.skip}</a>
-            <div className="w-full rounded-2xl border border-white/20 dark:border-slate-800/50 bg-gfs-canvas/80 dark:bg-slate-950/70 backdrop-blur-xl flex justify-between items-center px-5 py-3 lg:px-7 lg:py-4 shadow-gfs-header">
+            <div className={cn(
+                "w-full border border-gfs-maroon/15 dark:border-white/10 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl flex justify-between items-center px-4 py-3 lg:px-6 xl:px-7 lg:py-4 transition-all duration-300 ease-out",
+                isStuckOnDashboard
+                    ? "rounded-t-2xl rounded-b-none border-b-0 shadow-none"
+                    : "rounded-2xl shadow-gfs-header"
+            )}>
                 <Link to="/" onClick={closeMobile} className="flex shrink-0 items-center gap-2.5">
                     <img
                         src="/Emblem_of_Thammasat_University.svg.png"
@@ -223,14 +247,14 @@ const CoeHeader = () => {
                     </span>
                 </Link>
 
-                <div className="hidden items-center gap-6 xl:gap-7 lg:flex font-sans text-[0.95rem] font-semibold tracking-tight nav-container">
+                <div className="hidden min-w-0 flex-1 items-center justify-center gap-3 xl:gap-4 min-[1400px]:flex font-sans text-[0.9rem] font-semibold tracking-tight whitespace-nowrap nav-container">
                     {publicLinks.map((link) =>
                         link.isExternal ? renderLink(link) : (
                             <Link
                                 key={link.href}
                                 to={link.href}
                                 className={cn(
-                                    "nav-link transition-all duration-300 relative group",
+                                    "nav-link whitespace-nowrap transition-all duration-300 relative group",
                                     isActivePath(link.href) && "nav-link-active"
                                 )}
                             >
@@ -251,7 +275,7 @@ const CoeHeader = () => {
                                 aria-haspopup="menu"
                                 aria-expanded={toolsOpen}
                                 className={cn(
-                                    "nav-link transition-all duration-300 relative group flex items-center gap-1",
+                                    "nav-link whitespace-nowrap transition-all duration-300 relative group flex items-center gap-1",
                                     toolLinks.some((link) => !link.isExternal && isActivePath(link.href)) && "nav-link-active",
                                 )}
                             >
@@ -289,7 +313,7 @@ const CoeHeader = () => {
                     )}
                 </div>
 
-                <div className="flex items-center gap-3">
+                <div className="flex shrink-0 items-center gap-2 xl:gap-3">
                     <div className="coe-lang-switch hidden sm:inline-flex">
                         <button type="button" data-active={language === "th"} onClick={() => setLanguage("th")}>TH</button>
                         <button type="button" data-active={language === "en"} onClick={() => setLanguage("en")}>EN</button>
@@ -297,7 +321,7 @@ const CoeHeader = () => {
                     <ThemeToggle />
                     {!isInitializing && (
                         isAuthenticated ? (
-                            <div className="hidden items-center gap-2 lg:flex">
+                            <div className="hidden items-center gap-2 min-[1400px]:flex">
                                 {canSwitchRole && <RoleSwitcher />}
                                 <UserDropdown />
                             </div>
@@ -310,7 +334,7 @@ const CoeHeader = () => {
                         aria-label="Toggle menu"
                         aria-expanded={mobileOpen}
                         onClick={() => setMobileOpen((open) => !open)}
-                        className="inline-flex h-10 w-10 items-center justify-center rounded-gfs-pill text-gfs-maroon transition-colors hover:bg-gfs-maroon/tint lg:hidden"
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-gfs-pill text-gfs-maroon transition-colors hover:bg-gfs-maroon/tint min-[1400px]:hidden"
                     >
                         {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
                     </button>
@@ -318,7 +342,7 @@ const CoeHeader = () => {
             </div>
 
             {mobileOpen && (
-                <div className="mt-2 rounded-2xl border border-gfs-maroon/10 bg-gfs-canvas/95 px-4 pb-6 pt-3 shadow-gfs-card backdrop-blur-xl lg:hidden">
+                <div className="mt-2 rounded-2xl border border-gfs-maroon/10 bg-gfs-canvas/95 px-4 pb-6 pt-3 shadow-gfs-card backdrop-blur-xl min-[1400px]:hidden">
                     <div className="flex flex-col divide-y divide-gfs-maroon/10">
                         {publicLinks.map((link) => (
                             <div key={link.href} className="py-2">
@@ -362,7 +386,9 @@ const CoeHeader = () => {
 
 const Header = () => {
     const location = useLocation();
-    return isPublicSitePath(location.pathname) ? <CoeHeader /> : <AppHeader />;
+    const useCoeHeader = isPublicSitePath(location.pathname);
+
+    return useCoeHeader ? <CoeHeader /> : <AppHeader />;
 };
 
 export default Header;
