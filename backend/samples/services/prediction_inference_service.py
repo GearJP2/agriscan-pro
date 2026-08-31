@@ -111,6 +111,10 @@ class PredictionInferenceService:
             'trainedTargets': len(trained_models),
             'publishedTargets': len(published_models),
             'skippedTargets': len(metadata.get('skipped_targets', [])),
+            'skippedTargetDetails': [
+                cls.summarize_skipped_target(target)
+                for target in metadata.get('skipped_targets', [])
+            ],
             'targets': [cls.summarize_model(model) for model in trained_models],
         }
 
@@ -124,6 +128,25 @@ class PredictionInferenceService:
             'detectedRows': model_meta.get('detected', 0),
             'usableContext': model_meta.get('usable_context', 0),
             'classificationMetrics': metrics,
+        }
+
+    @staticmethod
+    def summarize_skipped_target(target_meta: dict) -> dict:
+        reasons = []
+        if target_meta.get('eligible') is False:
+            if target_meta.get('detected', 0) < target_meta.get('min_detected', 0):
+                reasons.append('Not enough detected examples')
+            if target_meta.get('below_lod_or_zero', 0) < target_meta.get('min_below_lod_or_zero', 0):
+                reasons.append('Not enough below-LOD or zero examples')
+            if target_meta.get('usable_context', 0) < target_meta.get('min_usable_context', 0):
+                reasons.append('Not enough usable sample context')
+        return {
+            'toxinType': target_meta.get('toxin_type', ''),
+            'measured': target_meta.get('measured', 0),
+            'detected': target_meta.get('detected', 0),
+            'belowLodOrZero': target_meta.get('below_lod_or_zero', 0),
+            'usableContext': target_meta.get('usable_context', 0),
+            'reasons': reasons or target_meta.get('reasons', []),
         }
 
     @staticmethod

@@ -387,6 +387,39 @@ const Prediction = () => {
                           </tbody>
                         </table>
                       </div>
+                      {modelStatus.data.latest.skippedTargetDetails.length > 0 && (
+                        <div className="rounded-md border border-warning/30 bg-warning/5 p-4">
+                          <p className="font-medium text-foreground">Skipped toxin targets</p>
+                          <div className="mt-3 overflow-x-auto">
+                            <table className="w-full min-w-[680px] text-left text-sm">
+                              <thead className="border-b text-xs uppercase text-muted-foreground">
+                                <tr>
+                                  <th className="px-3 py-2">Toxin</th>
+                                  <th className="px-3 py-2 text-right">Measured</th>
+                                  <th className="px-3 py-2 text-right">Detected</th>
+                                  <th className="px-3 py-2 text-right">Below LOD / zero</th>
+                                  <th className="px-3 py-2 text-right">Usable context</th>
+                                  <th className="px-3 py-2">Reason</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {modelStatus.data.latest.skippedTargetDetails.map((target) => (
+                                  <tr key={target.toxinType} className="border-b last:border-0">
+                                    <td className="px-3 py-2 font-medium">{target.toxinType}</td>
+                                    <td className="px-3 py-2 text-right">{target.measured}</td>
+                                    <td className="px-3 py-2 text-right">{target.detected}</td>
+                                    <td className="px-3 py-2 text-right">{target.belowLodOrZero}</td>
+                                    <td className="px-3 py-2 text-right">{target.usableContext}</td>
+                                    <td className="px-3 py-2 text-muted-foreground">
+                                      {target.reasons.length ? target.reasons.join('; ') : 'Training guardrail not met'}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
                       {canPublishModels && (
                         <div className="rounded-md border border-primary/15 bg-primary/[0.03] p-4">
                           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">

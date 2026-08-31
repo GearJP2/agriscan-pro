@@ -185,6 +185,25 @@ class PredictionInferenceServiceTests(TestCase):
         self.assertEqual(status_data['latest']['trainedTargets'], 2)
         self.assertEqual(status_data['latest']['publishedTargets'], 1)
         self.assertEqual(status_data['latest']['skippedTargets'], 1)
+        self.assertEqual(status_data['latest']['skippedTargetDetails'][0]['toxinType'], 'OTA')
+
+    def test_model_status_reports_skipped_target_reasons(self):
+        summary = PredictionInferenceService.summarize_skipped_target({
+            'toxin_type': 'OTA',
+            'eligible': False,
+            'measured': 20,
+            'detected': 5,
+            'below_lod_or_zero': 15,
+            'usable_context': 10,
+            'min_detected': 30,
+            'min_below_lod_or_zero': 30,
+            'min_usable_context': 60,
+        })
+
+        self.assertEqual(summary['toxinType'], 'OTA')
+        self.assertIn('Not enough detected examples', summary['reasons'])
+        self.assertIn('Not enough below-LOD or zero examples', summary['reasons'])
+        self.assertIn('Not enough usable sample context', summary['reasons'])
 
     def test_estimate_requires_published_models(self):
         with TemporaryDirectory() as tmp_dir:

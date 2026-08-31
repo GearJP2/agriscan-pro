@@ -129,6 +129,14 @@ export interface PredictionModelStatusVersion {
   trainedTargets: number;
   publishedTargets: number;
   skippedTargets: number;
+  skippedTargetDetails: Array<{
+    toxinType: string;
+    measured: number;
+    detected: number;
+    belowLodOrZero: number;
+    usableContext: number;
+    reasons: string[];
+  }>;
   targets: PredictionModelStatusTarget[];
 }
 
