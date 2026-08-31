@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useEffect, useRef, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -84,9 +85,13 @@ function hasValue(value: unknown) {
 
 const Prediction = () => {
   const { isAuthenticated, role } = useAuth();
+  const [searchParams] = useSearchParams();
+  const queryClient = useQueryClient();
+  const handledQuerySampleRef = useRef<string | null>(null);
   const canView = isAuthenticated && researchRoles.includes(role);
   const [form, setForm] = useState<PredictionEstimateRequest>(initialForm);
   const [sampleId, setSampleId] = useState('');
+  const [historySampleId, setHistorySampleId] = useState('');
   const [contextSampleId, setContextSampleId] = useState('');
   const [contextForm, setContextForm] = useState<PredictionContext>(initialContext);
   const readiness = useQuery({
@@ -104,6 +109,15 @@ const Prediction = () => {
   });
   const sampleEstimate = useMutation({
     mutationFn: analyticsAPI.estimateSamplePrediction,
+    onSuccess: (_data, submittedSampleId) => {
+      setHistorySampleId(submittedSampleId);
+      void queryClient.invalidateQueries({ queryKey: ['prediction-history', submittedSampleId] });
+    },
+  });
+  const sampleHistory = useQuery({
+    queryKey: ['prediction-history', historySampleId],
+    queryFn: () => sampleAPI.getPredictionHistory(historySampleId),
+    enabled: canView && Boolean(historySampleId),
   });
   const contextLoad = useMutation({
     mutationFn: sampleAPI.getPredictionContext,
@@ -119,6 +133,20 @@ const Prediction = () => {
       setContextForm({ ...initialContext, ...data });
     },
   });
+
+  useEffect(() => {
+    if (!canView) return;
+
+    const querySampleId = searchParams.get('sample_id')?.trim();
+    if (!querySampleId || handledQuerySampleRef.current === querySampleId) return;
+
+    handledQuerySampleRef.current = querySampleId;
+    setSampleId(querySampleId);
+    setHistorySampleId(querySampleId);
+    setContextSampleId(querySampleId);
+    contextLoad.mutate(querySampleId);
+  }, [canView, contextLoad, searchParams]);
+
   const activeEstimate = sampleEstimate.data ?? estimate.data;
   const activeError = sampleEstimate.error ?? estimate.error;
   const hasEstimateError = sampleEstimate.isError || estimate.isError;
@@ -177,7 +205,9 @@ const Prediction = () => {
   const submitSampleEstimate = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     estimate.reset();
-    sampleEstimate.mutate(sampleId.trim());
+    const cleanSampleId = sampleId.trim();
+    setHistorySampleId(cleanSampleId);
+    sampleEstimate.mutate(cleanSampleId);
   };
 
   const loadContext = (event: React.FormEvent<HTMLFormElement>) => {
@@ -336,6 +366,66 @@ const Prediction = () => {
                 </form>
               </CardContent>
             </Card>
+
+            {historySampleId && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Recent estimates for {historySampleId}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {sampleHistory.isLoading ? (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Loading estimate history...
+                    </div>
+                  ) : sampleHistory.isError ? (
+                    <p className="text-sm text-muted-foreground">
+                      Unable to load estimate history for this sample.
+                    </p>
+                  ) : !sampleHistory.data?.length ? (
+                    <p className="text-sm text-muted-foreground">
+                      No saved prediction estimates for this sample yet.
+                    </p>
+                  ) : (
+                    <div className="overflow-x-auto rounded-md border">
+                      <table className="w-full min-w-[720px] text-left text-sm">
+                        <thead className="border-b bg-muted/40 text-xs uppercase text-muted-foreground">
+                          <tr>
+                            <th className="px-4 py-3">Run time</th>
+                            <th className="px-4 py-3">Model</th>
+                            <th className="px-4 py-3">Requested by</th>
+                            <th className="px-4 py-3 text-right">Top risk</th>
+                            <th className="px-4 py-3 text-right">Weather</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {sampleHistory.data.map((item) => {
+                            const topPrediction = item.predictions_payload?.[0];
+                            return (
+                              <tr key={item.id} className="border-b last:border-0">
+                                <td className="px-4 py-3">
+                                  {item.created_at ? new Date(item.created_at).toLocaleString() : 'Unknown'}
+                                </td>
+                                <td className="px-4 py-3">{item.model_version || 'Unknown'}</td>
+                                <td className="px-4 py-3">{item.requested_by_username || 'Unknown'}</td>
+                                <td className="px-4 py-3 text-right">
+                                  {topPrediction
+                                    ? `${topPrediction.toxinType} ${(topPrediction.detectionProbability * 100).toFixed(1)}%`
+                                    : 'N/A'}
+                                </td>
+                                <td className="px-4 py-3 text-right">
+                                  {item.uses_weather_features ? 'Included' : 'No'}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
 
             <Card>
               <CardHeader>

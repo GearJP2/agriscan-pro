@@ -131,6 +131,42 @@ class PredictionContext(models.Model):
         return f"Prediction context for {self.sample.sample_id}"
 
 
+class PredictionEstimate(models.Model):
+    sample = models.ForeignKey(
+        Sample,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='prediction_estimates',
+    )
+    requested_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='prediction_estimates_requested',
+    )
+    model_version = models.CharField(max_length=80)
+    model_family = models.CharField(max_length=80, blank=True)
+    uses_weather_features = models.BooleanField(default=False)
+    input_payload = models.JSONField(default=dict)
+    predictions_payload = models.JSONField(default=list)
+    warning = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['sample', 'created_at']),
+            models.Index(fields=['model_version']),
+            models.Index(fields=['requested_by', 'created_at']),
+        ]
+
+    def __str__(self):
+        sample_id = self.sample.sample_id if self.sample else 'manual'
+        return f"Prediction estimate {sample_id} @ {self.model_version}"
+
+
 class ExternalDataCache(models.Model):
     source = models.CharField(max_length=50, db_index=True)
     cache_key = models.CharField(max_length=255, unique=True)

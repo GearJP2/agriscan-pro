@@ -1,10 +1,11 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Sample, ProcessLog, PROCESSING_TYPE_LABELS, ProcessingType } from '@/types/sample';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { MapPin, Leaf, Calendar, ClipboardList, ArrowRight, User, Info, Tag, ChevronDown, AlertTriangle, CheckCircle2, Beaker, Plus } from 'lucide-react';
+import { MapPin, Leaf, Calendar, ClipboardList, ArrowRight, User, Info, Tag, ChevronDown, AlertTriangle, CheckCircle2, Beaker, Plus, TrendingUp } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -14,6 +15,7 @@ import AdminStatusApproval from './AdminStatusApproval';
 import MycotoxinForm from './MycotoxinForm';
 import { useAuth } from '@/contexts/AuthContext';
 import { hasAboveThresholdResults, hasMeasuredResults } from '@/lib/mycotoxinRisk';
+import { USER_ROLE_WEIGHT } from '@/types/user';
 
 interface SampleDetailModalProps {
   sample: Sample | null;
@@ -29,7 +31,7 @@ const SampleDetailModal = ({ sample, open, onOpenChange, onUpdateSample, onMycot
   const [showTimeline, setShowTimeline] = useState(false);
   const [showResults, setShowResults] = useState(true);
   const [showMycotoxinForm, setShowMycotoxinForm] = useState(false);
-  const { isAdmin } = useAuth();
+  const { isAdmin, role } = useAuth();
 
   if (!sample) return null;
 
@@ -42,6 +44,24 @@ const SampleDetailModal = ({ sample, open, onOpenChange, onUpdateSample, onMycot
 
   const hasPositiveResults = hasAboveThresholdResults(sample);
   const hasResults = hasMeasuredResults(sample);
+  const canUsePredictionTools = USER_ROLE_WEIGHT[role] >= USER_ROLE_WEIGHT.researcher;
+  const predictionContext = sample.prediction_context;
+  const predictionContextCount = [
+    predictionContext?.location_type && predictionContext.location_type !== 'unknown',
+    predictionContext?.harvest_date,
+    predictionContext?.sowing_date,
+    predictionContext?.latitude !== null && predictionContext?.latitude !== undefined
+      && predictionContext?.longitude !== null && predictionContext?.longitude !== undefined,
+    predictionContext?.moisture_pct !== null && predictionContext?.moisture_pct !== undefined,
+    predictionContext?.soil_ph !== null && predictionContext?.soil_ph !== undefined,
+    predictionContext?.crop_variety,
+    predictionContext?.crop_season,
+    predictionContext?.soil_type,
+    predictionContext?.storage_duration_days !== null && predictionContext?.storage_duration_days !== undefined,
+    predictionContext?.crop_rotation,
+    predictionContext?.fertiliser_details,
+    predictionContext?.fungicide_details,
+  ].filter(Boolean).length;
 
   const handleStatusUpdate = (sampleId: string, newLog: ProcessLog) => {
     // Call the update callback if provided
@@ -191,6 +211,36 @@ const SampleDetailModal = ({ sample, open, onOpenChange, onUpdateSample, onMycot
 
               </div>
             </div>
+
+            {canUsePredictionTools && (
+              <div className="rounded-lg border border-primary/15 bg-primary/[0.03] p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-start gap-3">
+                    <TrendingUp className="mt-0.5 h-5 w-5 text-primary" />
+                    <div>
+                      <h3 className="font-semibold text-foreground">Prediction context</h3>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {predictionContextCount > 0
+                          ? `${predictionContextCount} of 13 optional predictor signals are recorded.`
+                          : 'No optional predictor context has been recorded for this sample yet.'}
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Estimates use this sample ID plus saved context such as coordinates, crop timing,
+                        storage, moisture, soil, and treatment notes.
+                      </p>
+                    </div>
+                  </div>
+                  <Button asChild variant="outline" className="shrink-0">
+                    <Link
+                      to={`/prediction?sample_id=${encodeURIComponent(sample.sample_id)}`}
+                      onClick={() => onOpenChange(false)}
+                    >
+                      Open prediction
+                    </Link>
+                  </Button>
+                </div>
+              </div>
+            )}
 
             {/* Mycotoxin Results - Collapsible but default open if results exist */}
             {hasResults && (

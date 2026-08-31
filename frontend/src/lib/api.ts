@@ -4,6 +4,7 @@ import type { AnalyticsOverviewResponse, CoContaminationResponse, DashboardContr
 import type {
   PredictionEstimateRequest,
   PredictionEstimateResponse,
+  PredictionEstimateHistoryItem,
   PredictionModelStatusResponse,
   PredictionReadinessResponse,
 } from "@/types/prediction";
@@ -312,6 +313,13 @@ export const sampleAPI = {
       `/samples/${encodeURIComponent(sampleId)}/prediction/context/`,
     );
     return response.data as PredictionContext;
+  },
+
+  async getPredictionHistory(sampleId: string) {
+    const response = await apiClient.get(
+      `/samples/${encodeURIComponent(sampleId)}/prediction/history/`,
+    );
+    return response.data as PredictionEstimateHistoryItem[];
   },
 
   async updatePredictionContext(sampleId: string, data: Partial<PredictionContext>) {

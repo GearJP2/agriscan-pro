@@ -5,12 +5,14 @@ from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
+from django.core.management import call_command
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
+from io import StringIO
 
-from ..models import PredictionContext, Sample
+from ..models import PredictionContext, PredictionEstimate, Sample
 from ..services.prediction_inference_service import (
     PredictionInferenceService,
     PredictionModelUnavailable,
@@ -170,6 +172,48 @@ class PredictionInferenceServiceTests(TestCase):
                     'collection_date': date(2026, 7, 2),
                 }, artifacts_dir=tmp_dir)
 
+    def test_inspect_prediction_models_command_reports_review_decision(self):
+        with TemporaryDirectory() as tmp_dir:
+            version_dir = Path(tmp_dir) / 'v20260831010101'
+            version_dir.mkdir()
+            (version_dir / 'metadata.json').write_text(json.dumps({
+                'version': 'v20260831010101',
+                'created_at': '2026-08-31T01:01:01+00:00',
+                'model_family': 'baseline',
+                'training_config': {'include_weather': True},
+                'trained_models': [
+                    {
+                        'toxin_type': 'AFB1',
+                        'published': False,
+                        'measured': 100,
+                        'detected': 40,
+                        'usable_context': 90,
+                        'classification_metrics': {'f1': 0.7, 'roc_auc': 0.8},
+                    },
+                    {
+                        'toxin_type': 'DON',
+                        'published': False,
+                        'measured': 90,
+                        'detected': 35,
+                        'usable_context': 85,
+                        'classification_metrics': {'f1': 0.4, 'roc_auc': 0.65},
+                    },
+                ],
+            }), encoding='utf-8')
+            output = StringIO()
+
+            call_command(
+                'inspect_prediction_models',
+                output_dir=tmp_dir,
+                stdout=output,
+            )
+
+        command_output = output.getvalue()
+        self.assertIn('Weather features: included', command_output)
+        self.assertIn('AFB1', command_output)
+        self.assertIn('review publish', command_output)
+        self.assertIn('hold: low f1', command_output)
+
 
 class PredictionEstimateEndpointTests(TestCase):
     def setUp(self):
@@ -238,6 +282,8 @@ class PredictionEstimateEndpointTests(TestCase):
         self.client.force_authenticate(user=self.researcher)
         expected = {
             'modelVersion': 'v-test',
+            'modelFamily': 'baseline',
+            'usesWeatherFeatures': False,
             'predictions': [],
             'warning': 'Research estimate only.',
         }
@@ -254,6 +300,31 @@ class PredictionEstimateEndpointTests(TestCase):
         payload = estimate.call_args.args[0]
         self.assertEqual(payload['sub_type'], 'White Rice')
         self.assertEqual(payload['province'], 'Bangkok')
+        estimate_record = PredictionEstimate.objects.get(sample=self.sample)
+        self.assertEqual(estimate_record.model_version, 'v-test')
+        self.assertEqual(estimate_record.requested_by, self.researcher)
+        self.assertEqual(estimate_record.input_payload['collection_date'], '2026-07-02')
+
+    def test_prediction_history_returns_recent_sample_estimates(self):
+        self.client.force_authenticate(user=self.researcher)
+        PredictionEstimate.objects.create(
+            sample=self.sample,
+            requested_by=self.researcher,
+            model_version='v-test',
+            model_family='baseline',
+            input_payload={'sample_id': self.sample.sample_id},
+            predictions_payload=[{'toxinType': 'AFB1', 'detectionProbability': 0.8}],
+            warning='Research estimate only.',
+        )
+
+        response = self.client.get(
+            reverse('sample-prediction-history', kwargs={'sample_id': self.sample.sample_id})
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['model_version'], 'v-test')
+        self.assertEqual(response.data[0]['sample_id'], self.sample.sample_id)
 
     def test_prediction_status_requires_research_role(self):
         self.client.force_authenticate(user=self.assistant)
@@ -291,3 +362,40 @@ class PredictionEstimateEndpointTests(TestCase):
         self.assertEqual(read_response.status_code, status.HTTP_200_OK)
         self.assertEqual(read_response.data['location_type'], 'farm')
         self.assertEqual(read_response.data['crop_variety'], 'RD43')
+
+    def test_prediction_context_rejects_out_of_range_coordinates(self):
+        self.client.force_authenticate(user=self.researcher)
+        url = reverse('sample-prediction-context', kwargs={'sample_id': self.sample.sample_id})
+
+        response = self.client.patch(url, {
+            'latitude': 120,
+            'longitude': 100.5018,
+        }, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('latitude', response.data)
+
+    def test_prediction_estimate_accepts_extended_context_fields(self):
+        self.client.force_authenticate(user=self.researcher)
+        payload = {
+            **self.payload,
+            'latitude': 13.7563,
+            'longitude': 100.5018,
+            'location_type': 'farm',
+            'crop_rotation': 'rice-bean',
+            'fertiliser_details': 'organic nitrogen applied',
+            'fungicide_details': 'none',
+        }
+
+        with patch('samples.views.PredictionInferenceService.estimate', return_value={'predictions': []}) as estimate:
+            response = self.client.post(
+                reverse('sample-prediction-estimate'),
+                payload,
+                format='json',
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        validated_payload = estimate.call_args.args[0]
+        self.assertEqual(validated_payload['crop_rotation'], 'rice-bean')
+        self.assertEqual(validated_payload['fertiliser_details'], 'organic nitrogen applied')
+        self.assertEqual(validated_payload['fungicide_details'], 'none')

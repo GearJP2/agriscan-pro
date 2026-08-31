@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import MycotoxinResult, PredictionContext, ProcessLog, Sample
+from .models import MycotoxinResult, PredictionContext, PredictionEstimate, ProcessLog, Sample
 
 
 @admin.register(Sample)
@@ -47,3 +47,21 @@ class PredictionContextAdmin(admin.ModelAdmin):
     list_filter = ['location_type', 'harvest_date']
     search_fields = ['sample__sample_id', 'crop_variety', 'soil_type']
     readonly_fields = ['created_at', 'updated_at']
+
+
+@admin.register(PredictionEstimate)
+class PredictionEstimateAdmin(admin.ModelAdmin):
+    list_display = ['sample', 'model_version', 'uses_weather_features', 'requested_by', 'created_at']
+    list_filter = ['model_version', 'uses_weather_features', 'created_at']
+    search_fields = ['sample__sample_id', 'model_version', 'requested_by__username']
+    readonly_fields = [
+        'sample',
+        'requested_by',
+        'model_version',
+        'model_family',
+        'uses_weather_features',
+        'input_payload',
+        'predictions_payload',
+        'warning',
+        'created_at',
+    ]

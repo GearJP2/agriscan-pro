@@ -10,7 +10,7 @@ export interface PredictionReadinessTarget {
 }
 
 export interface PredictionReadinessResponse {
-  modelStatus: 'not_trained' | 'trained';
+  modelStatus: 'not_trained' | 'trained_unpublished' | 'published';
   latestModel: {
     version: string;
     createdAt: string;
@@ -110,4 +110,17 @@ export interface PredictionModelStatusResponse {
   status: 'not_trained' | 'trained_unpublished' | 'published';
   latest: PredictionModelStatusVersion | null;
   versions: PredictionModelStatusVersion[];
+}
+
+export interface PredictionEstimateHistoryItem {
+  id: number;
+  sample_id: string | null;
+  requested_by_username: string | null;
+  model_version: string;
+  model_family: string;
+  uses_weather_features: boolean;
+  input_payload: PredictionEstimateRequest;
+  predictions_payload: PredictionEstimateItem[];
+  warning: string;
+  created_at: string;
 }

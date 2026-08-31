@@ -4,7 +4,7 @@ from .constants.mycotoxin_constants import (
     TOXIN_LABELS,
     resolve_toxin_type,
 )
-from .models import MycotoxinResult, PredictionContext, ProcessLog, Sample
+from .models import MycotoxinResult, PredictionContext, PredictionEstimate, ProcessLog, Sample
 from .utils import generate_sequential_sample_id, extract_sequence_from_sample_id
 
 
@@ -135,6 +135,9 @@ class PredictionEstimateRequestSerializer(serializers.Serializer):
     moisture_pct = serializers.FloatField(required=False, allow_null=True, min_value=0, max_value=100)
     soil_type = serializers.CharField(max_length=120, required=False, allow_blank=True, trim_whitespace=True)
     soil_ph = serializers.FloatField(required=False, allow_null=True, min_value=0, max_value=14)
+    crop_rotation = serializers.CharField(required=False, allow_blank=True, trim_whitespace=True)
+    fertiliser_details = serializers.CharField(required=False, allow_blank=True, trim_whitespace=True)
+    fungicide_details = serializers.CharField(required=False, allow_blank=True, trim_whitespace=True)
     region = serializers.CharField(
         max_length=100,
         required=False,
@@ -174,6 +177,10 @@ class PredictionEstimateRequestSerializer(serializers.Serializer):
         longitude = attrs.get('longitude')
         if (latitude is None) ^ (longitude is None):
             raise serializers.ValidationError('Latitude and longitude must be provided together.')
+        if latitude is not None and not -90 <= latitude <= 90:
+            raise serializers.ValidationError({'latitude': 'Latitude must be between -90 and 90.'})
+        if longitude is not None and not -180 <= longitude <= 180:
+            raise serializers.ValidationError({'longitude': 'Longitude must be between -180 and 180.'})
         return attrs
 
 
@@ -205,7 +212,32 @@ class PredictionContextSerializer(serializers.ModelSerializer):
         longitude = attrs.get('longitude')
         if (latitude is None) ^ (longitude is None):
             raise serializers.ValidationError('Latitude and longitude must be provided together.')
+        if latitude is not None and not -90 <= latitude <= 90:
+            raise serializers.ValidationError({'latitude': 'Latitude must be between -90 and 90.'})
+        if longitude is not None and not -180 <= longitude <= 180:
+            raise serializers.ValidationError({'longitude': 'Longitude must be between -180 and 180.'})
         return attrs
+
+
+class PredictionEstimateSerializer(serializers.ModelSerializer):
+    sample_id = serializers.CharField(source='sample.sample_id', read_only=True, allow_null=True)
+    requested_by_username = serializers.CharField(source='requested_by.username', read_only=True, allow_null=True)
+
+    class Meta:
+        model = PredictionEstimate
+        fields = (
+            'id',
+            'sample_id',
+            'requested_by_username',
+            'model_version',
+            'model_family',
+            'uses_weather_features',
+            'input_payload',
+            'predictions_payload',
+            'warning',
+            'created_at',
+        )
+        read_only_fields = fields
 
 
 class SampleSerializer(serializers.ModelSerializer):
