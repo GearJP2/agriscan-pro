@@ -80,10 +80,36 @@ export interface PredictionEstimateResponse {
   modelFamily: string;
   createdAt: string;
   featureColumns: string[];
+  featureSummary?: {
+    commodity: string;
+    province: string;
+    district: string;
+    collectionMonth: number | null;
+    collectionSeasonThailand: string;
+    locationPrecision: 'exact_coordinates' | 'province';
+    optionalContextSignalsFilled: number;
+    optionalContextSignalsTotal: number;
+    weatherDaysObserved90d: number;
+    weatherLocationLabel: string;
+  };
   usesWeatherFeatures: boolean;
   input: PredictionEstimateRequest;
   predictions: PredictionEstimateItem[];
   warning: string;
+}
+
+export interface PredictionBatchEstimateResponse {
+  requested: number;
+  completed: number;
+  failed: number;
+  results: Array<{
+    sampleId: string;
+    estimate: PredictionEstimateResponse;
+  }>;
+  errors: Array<{
+    sampleId: string;
+    detail: string;
+  }>;
 }
 
 export interface PredictionModelStatusTarget {

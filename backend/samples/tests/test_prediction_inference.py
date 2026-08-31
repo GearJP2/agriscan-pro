@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
+from django.core.management.base import CommandError
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from rest_framework import status
@@ -65,6 +66,36 @@ class PredictionInferenceServiceTests(TestCase):
 
         self.assertEqual(row['weather_temperature_c_mean_90d'], 30.1)
         self.assertEqual(row['weather_days_observed_90d'], 90)
+
+    def test_feature_provenance_summarizes_context_and_weather(self):
+        summary = PredictionInferenceService.summarize_feature_provenance({
+            'commodity': 'white rice',
+            'province': 'Bangkok',
+            'district': 'Chatuchak',
+            'collection_month': 7,
+            'collection_season_thailand': 'rainy',
+            'context_location_type': 'farm',
+            'context_has_exact_coordinates': 1,
+            'context_harvest_month': 6,
+            'context_sowing_month': '',
+            'context_moisture_pct': 12.5,
+            'context_soil_ph': '',
+            'context_crop_variety': 'rd43',
+            'context_crop_season': '',
+            'context_soil_type': 'clay',
+            'context_storage_duration_days': 14,
+            'context_has_crop_rotation': 1,
+            'context_has_fertiliser_details': 0,
+            'context_has_fungicide_details': 1,
+            'weather_days_observed_90d': 90,
+            'weather_location_label': '13.7563,100.5018',
+        })
+
+        self.assertEqual(summary['commodity'], 'white rice')
+        self.assertEqual(summary['locationPrecision'], 'exact_coordinates')
+        self.assertEqual(summary['optionalContextSignalsFilled'], 9)
+        self.assertEqual(summary['optionalContextSignalsTotal'], 13)
+        self.assertEqual(summary['weatherDaysObserved90d'], 90)
 
     def test_sample_to_payload_uses_registered_sample_fields(self):
         sample = Sample(
@@ -214,6 +245,41 @@ class PredictionInferenceServiceTests(TestCase):
         self.assertIn('review publish', command_output)
         self.assertIn('hold: low f1', command_output)
 
+    def test_publish_prediction_models_requires_metric_guardrails_unless_forced(self):
+        with TemporaryDirectory() as tmp_dir:
+            version_dir = Path(tmp_dir) / 'v20260831010101'
+            version_dir.mkdir()
+            metadata_path = version_dir / 'metadata.json'
+            metadata_path.write_text(json.dumps({
+                'version': 'v20260831010101',
+                'trained_models': [
+                    {
+                        'toxin_type': 'DON',
+                        'published': False,
+                        'classification_metrics': {'f1': 0.4, 'roc_auc': 0.7},
+                    },
+                ],
+            }), encoding='utf-8')
+
+            with self.assertRaises(CommandError):
+                call_command(
+                    'publish_prediction_models',
+                    output_dir=tmp_dir,
+                    version='v20260831010101',
+                    toxins='DON',
+                )
+
+            call_command(
+                'publish_prediction_models',
+                output_dir=tmp_dir,
+                version='v20260831010101',
+                toxins='DON',
+                force=True,
+            )
+
+            metadata = json.loads(metadata_path.read_text(encoding='utf-8'))
+            self.assertTrue(metadata['trained_models'][0]['published'])
+
 
 class PredictionEstimateEndpointTests(TestCase):
     def setUp(self):
@@ -325,6 +391,72 @@ class PredictionEstimateEndpointTests(TestCase):
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]['model_version'], 'v-test')
         self.assertEqual(response.data[0]['sample_id'], self.sample.sample_id)
+
+    def test_prediction_batch_estimate_scores_registered_samples_and_reports_missing_ids(self):
+        self.client.force_authenticate(user=self.researcher)
+        expected = {
+            'modelVersion': 'v-test',
+            'modelFamily': 'baseline',
+            'usesWeatherFeatures': False,
+            'predictions': [
+                {'toxinType': 'AFB1', 'detectionProbability': 0.8},
+            ],
+            'warning': 'Research estimate only.',
+        }
+
+        with patch('samples.views.PredictionInferenceService.estimate', return_value=expected):
+            response = self.client.post(
+                reverse('sample-prediction-batch-estimate'),
+                {'sample_ids': [self.sample.sample_id, 'MISSING-001']},
+                format='json',
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['requested'], 2)
+        self.assertEqual(response.data['completed'], 1)
+        self.assertEqual(response.data['failed'], 1)
+        self.assertEqual(response.data['results'][0]['sampleId'], self.sample.sample_id)
+        self.assertEqual(response.data['errors'][0]['sampleId'], 'MISSING-001')
+        self.assertEqual(PredictionEstimate.objects.filter(sample=self.sample).count(), 1)
+
+    def test_prediction_batch_estimate_deduplicates_sample_ids(self):
+        self.client.force_authenticate(user=self.researcher)
+        expected = {
+            'modelVersion': 'v-test',
+            'modelFamily': 'baseline',
+            'usesWeatherFeatures': False,
+            'predictions': [],
+            'warning': 'Research estimate only.',
+        }
+
+        with patch('samples.views.PredictionInferenceService.estimate', return_value=expected) as estimate:
+            response = self.client.post(
+                reverse('sample-prediction-batch-estimate'),
+                {'sample_ids': [self.sample.sample_id, self.sample.sample_id]},
+                format='json',
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['requested'], 1)
+        self.assertEqual(response.data['completed'], 1)
+        self.assertEqual(estimate.call_count, 1)
+
+    def test_prediction_estimate_rejects_out_of_range_coordinates(self):
+        self.client.force_authenticate(user=self.researcher)
+        payload = {
+            **self.payload,
+            'latitude': 13.7563,
+            'longitude': 200,
+        }
+
+        response = self.client.post(
+            reverse('sample-prediction-estimate'),
+            payload,
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('longitude', response.data)
 
     def test_prediction_status_requires_research_role(self):
         self.client.force_authenticate(user=self.assistant)

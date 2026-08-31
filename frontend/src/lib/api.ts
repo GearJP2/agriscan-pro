@@ -5,6 +5,7 @@ import type {
   PredictionEstimateRequest,
   PredictionEstimateResponse,
   PredictionEstimateHistoryItem,
+  PredictionBatchEstimateResponse,
   PredictionModelStatusResponse,
   PredictionReadinessResponse,
 } from "@/types/prediction";
@@ -515,6 +516,13 @@ export const analyticsAPI = {
   async estimatePrediction(payload: PredictionEstimateRequest) {
     const response = await apiClient.post('/samples/prediction/estimate/', payload);
     return response.data as PredictionEstimateResponse;
+  },
+
+  async batchEstimatePrediction(sampleIds: string[]) {
+    const response = await apiClient.post('/samples/prediction/batch-estimate/', {
+      sample_ids: sampleIds,
+    });
+    return response.data as PredictionBatchEstimateResponse;
   },
 
   async estimateSamplePrediction(sampleId: string) {

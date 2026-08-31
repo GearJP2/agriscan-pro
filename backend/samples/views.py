@@ -21,6 +21,7 @@ from .services.s3_service import generate_upload_url
 from .services.test_data_service import TestDataService
 from .serializers import (
     MycotoxinResultSerializer,
+    PredictionBatchEstimateRequestSerializer,
     PredictionContextSerializer,
     PredictionEstimateSerializer,
     PredictionEstimateRequestSerializer,
@@ -75,6 +76,7 @@ class SampleViewSet(viewsets.ModelViewSet):
             'analytics_dashboard_simulate',
             'analytics_threshold_simulation',
             'prediction_estimate',
+            'prediction_batch_estimate',
             'prediction_estimate_sample',
             'prediction_context',
             'prediction_history',
@@ -689,6 +691,55 @@ class SampleViewSet(viewsets.ModelViewSet):
             result=data,
         )
         return Response(data, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['post'], url_path='prediction/batch-estimate')
+    def prediction_batch_estimate(self, request):
+        """Estimate toxin detection risk for multiple registered samples."""
+        serializer = PredictionBatchEstimateRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        sample_ids = serializer.validated_data['sample_ids']
+        samples = (
+            Sample.objects
+            .select_related('recorded_by', 'updated_by', 'prediction_context')
+            .filter(sample_id__in=sample_ids)
+        )
+        sample_map = {sample.sample_id: sample for sample in samples}
+        results = []
+        errors = []
+
+        for sample_id in sample_ids:
+            sample = sample_map.get(sample_id)
+            if sample is None:
+                errors.append({'sampleId': sample_id, 'detail': 'Sample not found.'})
+                continue
+
+            payload = PredictionInferenceService.sample_to_payload(sample)
+            try:
+                estimate = PredictionInferenceService.estimate(payload)
+            except PredictionModelUnavailable as exc:
+                if not results:
+                    return Response({'detail': str(exc)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+                errors.append({'sampleId': sample_id, 'detail': str(exc)})
+                continue
+
+            self.record_prediction_estimate(
+                sample=sample,
+                user=request.user,
+                payload=payload,
+                result=estimate,
+            )
+            results.append({'sampleId': sample_id, 'estimate': estimate})
+
+        return Response(
+            {
+                'requested': len(sample_ids),
+                'completed': len(results),
+                'failed': len(errors),
+                'results': results,
+                'errors': errors,
+            },
+            status=status.HTTP_200_OK,
+        )
 
     @action(detail=True, methods=['post'], url_path='prediction/estimate')
     def prediction_estimate_sample(self, request, sample_id=None):

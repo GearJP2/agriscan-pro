@@ -184,6 +184,29 @@ class PredictionEstimateRequestSerializer(serializers.Serializer):
         return attrs
 
 
+class PredictionBatchEstimateRequestSerializer(serializers.Serializer):
+    sample_ids = serializers.ListField(
+        child=serializers.CharField(max_length=50, trim_whitespace=True),
+        allow_empty=False,
+        max_length=100,
+    )
+
+    def validate_sample_ids(self, value):
+        cleaned = []
+        seen = set()
+        for sample_id in value:
+            sample_id = sample_id.strip()
+            if not sample_id:
+                continue
+            if sample_id in seen:
+                continue
+            seen.add(sample_id)
+            cleaned.append(sample_id)
+        if not cleaned:
+            raise serializers.ValidationError('At least one sample ID is required.')
+        return cleaned
+
+
 class PredictionContextSerializer(serializers.ModelSerializer):
     class Meta:
         model = PredictionContext

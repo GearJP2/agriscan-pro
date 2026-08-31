@@ -21,6 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/contexts/AuthContext';
 import { analyticsAPI, sampleAPI } from '@/lib/api';
 import type { PredictionEstimateRequest } from '@/types/prediction';
@@ -92,6 +93,7 @@ const Prediction = () => {
   const [form, setForm] = useState<PredictionEstimateRequest>(initialForm);
   const [sampleId, setSampleId] = useState('');
   const [historySampleId, setHistorySampleId] = useState('');
+  const [batchSampleIds, setBatchSampleIds] = useState('');
   const [contextSampleId, setContextSampleId] = useState('');
   const [contextForm, setContextForm] = useState<PredictionContext>(initialContext);
   const readiness = useQuery({
@@ -113,6 +115,9 @@ const Prediction = () => {
       setHistorySampleId(submittedSampleId);
       void queryClient.invalidateQueries({ queryKey: ['prediction-history', submittedSampleId] });
     },
+  });
+  const batchEstimate = useMutation({
+    mutationFn: analyticsAPI.batchEstimatePrediction,
   });
   const sampleHistory = useQuery({
     queryKey: ['prediction-history', historySampleId],
@@ -148,9 +153,9 @@ const Prediction = () => {
   }, [canView, contextLoad, searchParams]);
 
   const activeEstimate = sampleEstimate.data ?? estimate.data;
-  const activeError = sampleEstimate.error ?? estimate.error;
-  const hasEstimateError = sampleEstimate.isError || estimate.isError;
-  const isEstimating = sampleEstimate.isPending || estimate.isPending;
+  const activeError = sampleEstimate.error ?? estimate.error ?? batchEstimate.error;
+  const hasEstimateError = sampleEstimate.isError || estimate.isError || batchEstimate.isError;
+  const isEstimating = sampleEstimate.isPending || estimate.isPending || batchEstimate.isPending;
   const contextCompleteness = [
     contextForm.location_type && contextForm.location_type !== 'unknown',
     hasValue(contextForm.harvest_date),
@@ -208,6 +213,17 @@ const Prediction = () => {
     const cleanSampleId = sampleId.trim();
     setHistorySampleId(cleanSampleId);
     sampleEstimate.mutate(cleanSampleId);
+  };
+
+  const submitBatchEstimate = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    estimate.reset();
+    sampleEstimate.reset();
+    const sampleIds = batchSampleIds
+      .split(/[\s,]+/)
+      .map((value) => value.trim())
+      .filter(Boolean);
+    batchEstimate.mutate([...new Set(sampleIds)]);
   };
 
   const loadContext = (event: React.FormEvent<HTMLFormElement>) => {
@@ -366,6 +382,96 @@ const Prediction = () => {
                 </form>
               </CardContent>
             </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Batch estimate registered samples</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <form className="space-y-3" onSubmit={submitBatchEstimate}>
+                  <div className="space-y-2">
+                    <Label htmlFor="batch-sample-ids">Sample IDs</Label>
+                    <Textarea
+                      id="batch-sample-ids"
+                      value={batchSampleIds}
+                      onChange={(event) => setBatchSampleIds(event.target.value)}
+                      placeholder={`RIC-2026-001\nRIC-2026-002\nRIC-2026-003`}
+                      rows={4}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Paste up to 100 sample IDs separated by commas, spaces, or new lines.
+                    </p>
+                  </div>
+                  <Button
+                    type="submit"
+                    disabled={isEstimating || !batchSampleIds.trim()}
+                  >
+                    {batchEstimate.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <TrendingUp />}
+                    Run batch estimate
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+
+            {batchEstimate.data && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Batch estimate results</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid gap-3 text-sm md:grid-cols-3">
+                    <p>Requested: {batchEstimate.data.requested}</p>
+                    <p>Completed: {batchEstimate.data.completed}</p>
+                    <p>Failed: {batchEstimate.data.failed}</p>
+                  </div>
+                  {batchEstimate.data.results.length > 0 && (
+                    <div className="overflow-x-auto rounded-md border">
+                      <table className="w-full min-w-[720px] text-left text-sm">
+                        <thead className="border-b bg-muted/40 text-xs uppercase text-muted-foreground">
+                          <tr>
+                            <th className="px-4 py-3">Sample</th>
+                            <th className="px-4 py-3">Model</th>
+                            <th className="px-4 py-3 text-right">Top risk</th>
+                            <th className="px-4 py-3 text-right">Weather</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {batchEstimate.data.results.map((item) => {
+                            const topPrediction = item.estimate.predictions?.[0];
+                            return (
+                              <tr key={item.sampleId} className="border-b last:border-0">
+                                <td className="px-4 py-3 font-medium">{item.sampleId}</td>
+                                <td className="px-4 py-3">{item.estimate.modelVersion || 'Unknown'}</td>
+                                <td className="px-4 py-3 text-right">
+                                  {topPrediction
+                                    ? `${topPrediction.toxinType} ${(topPrediction.detectionProbability * 100).toFixed(1)}%`
+                                    : 'N/A'}
+                                </td>
+                                <td className="px-4 py-3 text-right">
+                                  {item.estimate.usesWeatherFeatures ? 'Included' : 'No'}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                  {batchEstimate.data.errors.length > 0 && (
+                    <div className="rounded-md border border-warning/40 bg-warning/5 p-3 text-sm">
+                      <p className="font-medium text-foreground">Failed samples</p>
+                      <ul className="mt-2 space-y-1 text-muted-foreground">
+                        {batchEstimate.data.errors.map((error) => (
+                          <li key={error.sampleId}>
+                            {error.sampleId}: {error.detail}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
 
             {historySampleId && (
               <Card>
@@ -1015,6 +1121,40 @@ const Prediction = () => {
                     <p>Trained at: {activeEstimate.createdAt || 'Unknown'}</p>
                     <p>Weather features: {activeEstimate.usesWeatherFeatures ? 'Included' : 'Not included'}</p>
                   </div>
+                  {activeEstimate.featureSummary && (
+                    <div className="grid gap-3 rounded-md border bg-muted/20 p-3 text-sm md:grid-cols-4">
+                      <div>
+                        <p className="font-medium text-foreground">Commodity</p>
+                        <p className="text-muted-foreground">{activeEstimate.featureSummary.commodity || 'Unknown'}</p>
+                      </div>
+                      <div>
+                        <p className="font-medium text-foreground">Location precision</p>
+                        <p className="text-muted-foreground">
+                          {activeEstimate.featureSummary.locationPrecision === 'exact_coordinates'
+                            ? 'Exact coordinates'
+                            : 'Province centroid'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="font-medium text-foreground">Context signals</p>
+                        <p className="text-muted-foreground">
+                          {activeEstimate.featureSummary.optionalContextSignalsFilled}
+                          {' '}
+                          of
+                          {' '}
+                          {activeEstimate.featureSummary.optionalContextSignalsTotal}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="font-medium text-foreground">Weather window</p>
+                        <p className="text-muted-foreground">
+                          {activeEstimate.featureSummary.weatherDaysObserved90d
+                            ? `${activeEstimate.featureSummary.weatherDaysObserved90d} days`
+                            : 'No weather data'}
+                        </p>
+                      </div>
+                    </div>
+                  )}
                   <p className="text-sm text-muted-foreground">{activeEstimate.warning}</p>
                   <div className="overflow-x-auto rounded-md border">
                     <table className="w-full min-w-[760px] text-left text-sm">

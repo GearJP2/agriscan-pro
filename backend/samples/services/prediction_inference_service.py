@@ -27,8 +27,9 @@ class PredictionInferenceService:
             raise PredictionModelUnavailable('No published toxin models are available yet.')
 
         include_weather = metadata.get('training_config', {}).get('include_weather', False)
+        dataset_row = cls.payload_to_dataset_row(payload, include_weather=include_weather)
         features = PredictionTrainingService.build_feature_dict(
-            cls.payload_to_dataset_row(payload, include_weather=include_weather)
+            dataset_row
         )
         predictions = []
         for model_meta in trained_models:
@@ -40,6 +41,7 @@ class PredictionInferenceService:
             'modelFamily': metadata.get('model_family', ''),
             'createdAt': metadata.get('created_at', ''),
             'featureColumns': metadata.get('feature_columns', []),
+            'featureSummary': cls.summarize_feature_provenance(dataset_row),
             'usesWeatherFeatures': include_weather,
             'input': payload,
             'predictions': predictions,
@@ -131,6 +133,41 @@ class PredictionInferenceService:
             for model in metadata.get('trained_models', [])
             if model.get('published') is True
         ]
+
+    @staticmethod
+    def summarize_feature_provenance(row: dict) -> dict:
+        optional_context_signals = [
+            row.get('context_location_type') not in ('', 'unknown'),
+            bool(row.get('context_harvest_month')),
+            bool(row.get('context_sowing_month')),
+            bool(row.get('context_has_exact_coordinates')),
+            row.get('context_moisture_pct') not in ('', None),
+            row.get('context_soil_ph') not in ('', None),
+            bool(row.get('context_crop_variety')),
+            bool(row.get('context_crop_season')),
+            bool(row.get('context_soil_type')),
+            row.get('context_storage_duration_days') not in ('', None),
+            bool(row.get('context_has_crop_rotation')),
+            bool(row.get('context_has_fertiliser_details')),
+            bool(row.get('context_has_fungicide_details')),
+        ]
+        weather_days = row.get('weather_days_observed_90d') or 0
+        return {
+            'commodity': row.get('commodity', ''),
+            'province': row.get('province', ''),
+            'district': row.get('district', ''),
+            'collectionMonth': row.get('collection_month') or None,
+            'collectionSeasonThailand': row.get('collection_season_thailand', ''),
+            'locationPrecision': (
+                'exact_coordinates'
+                if row.get('context_has_exact_coordinates')
+                else 'province'
+            ),
+            'optionalContextSignalsFilled': sum(1 for signal in optional_context_signals if signal),
+            'optionalContextSignalsTotal': len(optional_context_signals),
+            'weatherDaysObserved90d': weather_days,
+            'weatherLocationLabel': row.get('weather_location_label', ''),
+        }
 
     @classmethod
     def estimate_toxin(cls, model_meta: dict, features: dict, version_dir: Path) -> dict:

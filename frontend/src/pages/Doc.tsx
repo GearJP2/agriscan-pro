@@ -529,8 +529,14 @@ const Doc = () => {
                       <p className="font-medium text-foreground">{t('Operational flow', 'ขั้นตอนการใช้งาน')}</p>
                       <p className="mt-1">
                         {t(
-                          'Import lab results, check readiness, optionally warm weather cache, train models, inspect model metrics, publish approved toxin models, then run estimates.',
-                          'นำเข้าผลแล็บ ตรวจความพร้อมของข้อมูล อุ่นแคชสภาพอากาศถ้าต้องใช้ ฝึกโมเดล ตรวจ metric เผยแพร่โมเดล toxin ที่อนุมัติแล้ว จากนั้นจึงเริ่มประเมินผล',
+                          'Import lab results, check readiness, optionally warm weather cache, train models, inspect model metrics, publish approved toxin models, then run single-sample or batch estimates.',
+                          'นำเข้าผลแล็บ ตรวจความพร้อมของข้อมูล อุ่นแคชสภาพอากาศถ้าต้องใช้ ฝึกโมเดล ตรวจ metric เผยแพร่โมเดล toxin ที่อนุมัติแล้ว จากนั้นจึงประเมินผลแบบตัวอย่างเดียวหรือหลายตัวอย่าง',
+                        )}
+                      </p>
+                      <p className="mt-2">
+                        {t(
+                          'The publish command blocks low-metric models by default; use --force only when a researcher intentionally approves that risk.',
+                          'คำสั่ง publish จะกันโมเดลที่ metric ต่ำโดยค่าเริ่มต้น ใช้ --force เฉพาะเมื่อนักวิจัยอนุมัติความเสี่ยงนั้นโดยตั้งใจ',
                         )}
                       </p>
                     </div>
@@ -1012,7 +1018,9 @@ const Doc = () => {
                       { method: 'GET', path: '/api/samples/prediction/readiness/', en: 'Prediction training-data readiness', th: 'ตรวจความพร้อมข้อมูลสำหรับฝึกโมเดล Prediction' },
                       { method: 'GET', path: '/api/samples/prediction/status/', en: 'Prediction model status and metrics', th: 'สถานะและ metric ของโมเดล Prediction' },
                       { method: 'POST', path: '/api/samples/prediction/estimate/', en: 'Estimate from manual sample context', th: 'ประเมินจากข้อมูลตัวอย่างที่กรอกเอง' },
+                      { method: 'POST', path: '/api/samples/prediction/batch-estimate/', en: 'Batch estimate registered samples', th: 'ประเมินตัวอย่างที่ลงทะเบียนหลายรายการ' },
                       { method: 'POST', path: '/api/samples/{id}/prediction/estimate/', en: 'Estimate from registered sample', th: 'ประเมินจากตัวอย่างที่ลงทะเบียนแล้ว' },
+                      { method: 'GET', path: '/api/samples/{id}/prediction/history/', en: 'Recent saved prediction estimates', th: 'ประวัติการประเมิน Prediction ล่าสุด' },
                       { method: 'GET/PATCH', path: '/api/samples/{id}/prediction/context/', en: 'Read or update optional prediction context', th: 'อ่านหรือแก้ไขข้อมูลบริบทสำหรับ Prediction' },
                     ].map((e) => (
                       <div key={`${e.method}-${e.path}`} className="flex items-start gap-3 text-xs">

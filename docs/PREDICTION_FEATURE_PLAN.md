@@ -133,3 +133,32 @@ The first deliverable will be the data-readiness endpoint/page and optional
 prediction-context schema. It makes the existing data immediately visible and
 sets the guardrails for training, without producing an unreliable prediction
 from sparse labels.
+
+## Current implementation notes
+
+The first baseline implementation is now in place:
+
+- Research-role endpoints report readiness, model status, single-sample
+  estimates, batch estimates, sample prediction context, and per-sample
+  prediction history.
+- `PredictionContext` stores optional predictors separately from the core
+  sample record.
+- `PredictionEstimate` stores audit history for estimates without mixing model
+  predictions into confirmed `MycotoxinResult` lab data.
+- Baseline training writes versioned artifacts under `backend/prediction_artifacts/`.
+  The artifact directory is intentionally ignored by git.
+- Inference uses only models marked `published: true`.
+
+Operational command flow:
+
+```bash
+python manage.py migrate
+python manage.py build_prediction_dataset --include-weather --output prediction_dataset.csv
+python manage.py train_prediction_models --include-weather
+python manage.py inspect_prediction_models --show-skipped
+python manage.py publish_prediction_models --version <version> --toxins <approved-toxins>
+```
+
+`publish_prediction_models` enforces metric guardrails by default
+(`--min-f1 0.50`, `--min-roc-auc 0.60` when ROC-AUC exists). Use `--force`
+only when a researcher intentionally approves publishing a lower-metric model.

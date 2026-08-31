@@ -24,6 +24,23 @@ class Command(BaseCommand):
             default=str(settings.BASE_DIR / 'prediction_artifacts'),
             help='Directory containing versioned prediction artifacts.',
         )
+        parser.add_argument(
+            '--min-f1',
+            type=float,
+            default=0.50,
+            help='Minimum F1 required to publish without --force.',
+        )
+        parser.add_argument(
+            '--min-roc-auc',
+            type=float,
+            default=0.60,
+            help='Minimum ROC-AUC required to publish without --force when ROC-AUC is available.',
+        )
+        parser.add_argument(
+            '--force',
+            action='store_true',
+            help='Publish selected models even if metric guardrails are not met.',
+        )
 
     def handle(self, *args, **options):
         metadata_path = self.resolve_metadata_path(
@@ -38,12 +55,28 @@ class Command(BaseCommand):
         toxins = self.parse_toxins(options['toxins'])
         updated = 0
         trained_models = metadata.get('trained_models', [])
+        selected_models = []
         for model in trained_models:
             toxin_type = model.get('toxin_type')
             if toxins is None or toxin_type in toxins:
-                if not model.get('published', False):
-                    updated += 1
-                model['published'] = True
+                selected_models.append(model)
+
+        if not options['force']:
+            failures = self.metric_guardrail_failures(
+                selected_models,
+                min_f1=options['min_f1'],
+                min_roc_auc=options['min_roc_auc'],
+            )
+            if failures:
+                raise CommandError(
+                    'Metric guardrails failed. Inspect models first or rerun with --force: '
+                    + '; '.join(failures)
+                )
+
+        for model in selected_models:
+            if not model.get('published', False):
+                updated += 1
+            model['published'] = True
 
         if toxins is not None:
             found = {model.get('toxin_type') for model in trained_models}
@@ -80,3 +113,20 @@ class Command(BaseCommand):
         if not metadata_path.exists():
             raise CommandError(f'No prediction metadata file was found for {version}.')
         return metadata_path
+
+    @staticmethod
+    def metric_guardrail_failures(models: list[dict], *, min_f1: float, min_roc_auc: float) -> list[str]:
+        failures = []
+        for model in models:
+            toxin_type = model.get('toxin_type', '')
+            metrics = model.get('classification_metrics', {})
+            f1 = metrics.get('f1')
+            roc_auc = metrics.get('roc_auc')
+            if f1 is None:
+                failures.append(f'{toxin_type}: missing f1')
+                continue
+            if f1 < min_f1:
+                failures.append(f'{toxin_type}: f1 {f1:.3f} < {min_f1:.3f}')
+            if roc_auc is not None and roc_auc < min_roc_auc:
+                failures.append(f'{toxin_type}: roc_auc {roc_auc:.3f} < {min_roc_auc:.3f}')
+        return failures
