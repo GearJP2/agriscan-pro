@@ -554,6 +554,45 @@ class PredictionEstimateEndpointTests(TestCase):
         self.assertEqual(recommendation['targetDate'], '2026-08-31')
         self.assertEqual(estimate.call_args.args[0]['collection_date'], date(2026, 8, 31))
 
+    def test_prediction_recommendation_service_accepts_string_target_date(self):
+        Sample.objects.create(
+            sample_id='RIC-2026-003',
+            region='North',
+            province='Chiang Mai',
+            district='Mueang',
+            vegetation_variety='Oats',
+            food_feed_type='food',
+            sub_type='Oats',
+            collection_date='2026-07-10',
+            status='completed',
+        )
+        expected = {
+            'modelVersion': 'v-test',
+            'modelFamily': 'baseline',
+            'usesWeatherFeatures': True,
+            'featureSummary': {'weatherLocationLabel': 'Chiang Mai'},
+            'predictions': [
+                {
+                    'toxinType': 'TRY',
+                    'detectionProbability': 0.82,
+                    'riskBand': 'high',
+                    'estimatedConcentrationUgKg': 12.3,
+                },
+            ],
+            'warning': 'Research area-risk estimate only.',
+        }
+
+        with patch('samples.services.prediction_inference_service.PredictionInferenceService.estimate', return_value=expected):
+            result = PredictionInferenceService.recommend_sampling({
+                'target_date': '2026-08-31',
+                'limit': 1,
+                'max_candidates': 5,
+                'sub_types': ['Oats'],
+            })
+
+        self.assertEqual(result['targetDate'], '2026-08-31')
+        self.assertEqual(result['recommendations'][0]['targetDate'], '2026-08-31')
+
     def test_prediction_recommendations_requires_research_role(self):
         self.client.force_authenticate(user=self.assistant)
 

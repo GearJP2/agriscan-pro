@@ -56,7 +56,7 @@ class PredictionInferenceService:
 
     @classmethod
     def recommend_sampling(cls, request: dict, artifacts_dir=None) -> dict:
-        target_date = request.get('target_date') or date.today()
+        target_date = PredictionDatasetService.normalize_date(request.get('target_date')) or date.today()
         limit = request.get('limit') or 10
         max_candidates = request.get('max_candidates') or 25
         candidates = cls.build_sampling_candidates(
