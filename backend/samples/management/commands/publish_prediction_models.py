@@ -14,7 +14,8 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument(
-            '--version',
+            '--model-version',
+            dest='model_version',
             default='latest',
             help='Artifact version directory to publish. Defaults to latest.',
         )
@@ -49,7 +50,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         try:
             result = PredictionModelPublishService.publish(
-                version=options['version'],
+                version=options['model_version'],
                 toxins=PredictionModelPublishService.parse_toxins(options['toxins']),
                 output_dir=Path(options['output_dir']),
                 min_f1=options['min_f1'],

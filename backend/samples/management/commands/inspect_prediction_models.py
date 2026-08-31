@@ -12,7 +12,8 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument(
-            '--version',
+            '--model-version',
+            dest='model_version',
             default='latest',
             help='Artifact version directory to inspect. Defaults to latest.',
         )
@@ -42,7 +43,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         metadata_path = self.resolve_metadata_path(
             Path(options['output_dir']),
-            options['version'],
+            options['model_version'],
         )
         try:
             metadata = json.loads(metadata_path.read_text(encoding='utf-8'))
@@ -97,7 +98,7 @@ class Command(BaseCommand):
         self.stdout.write('')
         self.stdout.write(
             'Publish command after review: python manage.py publish_prediction_models '
-            f'--version {summary["version"]} --toxins <comma-separated-toxins>'
+            f'--model-version {summary["version"]} --toxins <comma-separated-toxins>'
         )
 
     def write_target_table(self, targets, *, min_f1: float, min_roc_auc: float):

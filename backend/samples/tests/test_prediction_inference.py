@@ -290,14 +290,14 @@ class PredictionInferenceServiceTests(TestCase):
                 call_command(
                     'publish_prediction_models',
                     output_dir=tmp_dir,
-                    version='v20260831010101',
+                    model_version='v20260831010101',
                     toxins='DON',
                 )
 
             call_command(
                 'publish_prediction_models',
                 output_dir=tmp_dir,
-                version='v20260831010101',
+                model_version='v20260831010101',
                 toxins='DON',
                 force=True,
             )
@@ -325,7 +325,7 @@ class PredictionInferenceServiceTests(TestCase):
                 call_command(
                     'publish_prediction_models',
                     output_dir=tmp_dir,
-                    version='v20260831010101',
+                    model_version='v20260831010101',
                     toxins='AFB1',
                     force=True,
                 )
@@ -336,16 +336,19 @@ class PredictionEstimateEndpointTests(TestCase):
         self.client = APIClient()
         self.researcher = User.objects.create_user(
             username='prediction_researcher',
+            email='prediction_researcher@example.com',
             password='Password123',
             role='researcher',
         )
         self.admin = User.objects.create_user(
             username='prediction_admin',
+            email='prediction_admin@example.com',
             password='Password123',
             role='admin',
         )
         self.assistant = User.objects.create_user(
             username='prediction_assistant',
+            email='prediction_assistant@example.com',
             password='Password123',
             role='research_assistant',
         )
@@ -511,7 +514,7 @@ class PredictionEstimateEndpointTests(TestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('longitude', response.data)
+        self.assertIn('longitude', response.data['error']['details'])
 
     def test_prediction_status_requires_research_role(self):
         self.client.force_authenticate(user=self.assistant)
@@ -645,7 +648,7 @@ class PredictionEstimateEndpointTests(TestCase):
         }, format='json')
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('latitude', response.data)
+        self.assertIn('latitude', response.data['error']['details'])
 
     def test_prediction_estimate_accepts_extended_context_fields(self):
         self.client.force_authenticate(user=self.researcher)

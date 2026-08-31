@@ -3,6 +3,7 @@
 import csv
 import math
 import re
+from datetime import date, datetime
 from typing import Iterable, TextIO
 
 from ..constants.mycotoxin_constants import TOXIN_LABELS
@@ -95,7 +96,7 @@ class PredictionDatasetService:
         sample = result.sample
         value = float(result.value or 0)
         detected = value > 0
-        collection_date = sample.collection_date
+        collection_date = cls.normalize_date(sample.collection_date)
         commodity = sample.sub_type or sample.vegetation_variety
         context = getattr(sample, 'prediction_context', None)
 
@@ -125,18 +126,23 @@ class PredictionDatasetService:
             **cls.context_features(context),
             'recorded_by_username': sample.recorded_by.username if sample.recorded_by else '',
         }
-        row.update(cls.weather_features(sample, include_weather=include_weather, fetch_weather=fetch_weather))
+        row.update(cls.weather_features(
+            sample,
+            collection_date=collection_date,
+            include_weather=include_weather,
+            fetch_weather=fetch_weather,
+        ))
         return row
 
     @staticmethod
-    def weather_features(sample, *, include_weather=False, fetch_weather=True) -> dict:
+    def weather_features(sample, *, collection_date=None, include_weather=False, fetch_weather=True) -> dict:
         context = getattr(sample, 'prediction_context', None)
         if not include_weather:
             return PredictionWeatherService.empty_features()
         try:
             return PredictionWeatherService.get_features(
                 sample.province,
-                sample.collection_date,
+                collection_date or sample.collection_date,
                 latitude=getattr(context, 'latitude', None),
                 longitude=getattr(context, 'longitude', None),
                 fetch_missing=fetch_weather,
@@ -152,8 +158,8 @@ class PredictionDatasetService:
 
     @classmethod
     def context_features(cls, context) -> dict:
-        harvest_date = getattr(context, 'harvest_date', None)
-        sowing_date = getattr(context, 'sowing_date', None)
+        harvest_date = cls.normalize_date(getattr(context, 'harvest_date', None))
+        sowing_date = cls.normalize_date(getattr(context, 'sowing_date', None))
         latitude = getattr(context, 'latitude', None)
         longitude = getattr(context, 'longitude', None)
         return {
@@ -181,6 +187,16 @@ class PredictionDatasetService:
                 cls.clean_category(getattr(context, 'fungicide_details', ''))
             )),
         }
+
+    @staticmethod
+    def normalize_date(value):
+        if isinstance(value, datetime):
+            return value.date()
+        if isinstance(value, date):
+            return value
+        if isinstance(value, str) and value:
+            return datetime.strptime(value, '%Y-%m-%d').date()
+        return None
 
     @staticmethod
     def clean_category(value) -> str:

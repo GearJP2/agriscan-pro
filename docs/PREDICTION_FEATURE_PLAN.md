@@ -158,7 +158,7 @@ python manage.py migrate
 python manage.py build_prediction_dataset --include-weather --output prediction_dataset.csv
 python manage.py train_prediction_models --include-weather
 python manage.py inspect_prediction_models --show-skipped
-python manage.py publish_prediction_models --version <version> --toxins <approved-toxins>
+python manage.py publish_prediction_models --model-version <version> --toxins <approved-toxins>
 ```
 
 `publish_prediction_models` enforces metric guardrails by default

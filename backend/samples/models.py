@@ -123,8 +123,8 @@ class PredictionContext(models.Model):
 
     class Meta:
         indexes = [
-            models.Index(fields=['location_type']),
-            models.Index(fields=['harvest_date']),
+            models.Index(fields=['location_type'], name='samples_pre_locatio_a83c8e_idx'),
+            models.Index(fields=['harvest_date'], name='samples_pre_harvest_774036_idx'),
         ]
 
     def __str__(self):
@@ -157,9 +157,9 @@ class PredictionEstimate(models.Model):
     class Meta:
         ordering = ['-created_at']
         indexes = [
-            models.Index(fields=['sample', 'created_at']),
-            models.Index(fields=['model_version']),
-            models.Index(fields=['requested_by', 'created_at']),
+            models.Index(fields=['sample', 'created_at'], name='samples_pre_sample__45462b_idx'),
+            models.Index(fields=['model_version'], name='samples_pre_model_v_0b1d29_idx'),
+            models.Index(fields=['requested_by', 'created_at'], name='samples_pre_request_6d88ac_idx'),
         ]
 
     def __str__(self):
