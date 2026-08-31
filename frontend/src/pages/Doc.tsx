@@ -523,7 +523,7 @@ const Doc = () => {
                       <FeatureCard lang={lang} icon={<Database className="h-4 w-4" />} en="Training readiness checks" th="ตรวจความพร้อมข้อมูลฝึกโมเดล" badge="Live" badgeTh="ใช้งานได้" />
                       <FeatureCard lang={lang} icon={<TrendingUp className="h-4 w-4" />} en="Estimate from registered sample" th="ประเมินจากตัวอย่างที่ลงทะเบียน" badge="Live" badgeTh="ใช้งานได้" />
                       <FeatureCard lang={lang} icon={<MapPin className="h-4 w-4" />} en="Prediction context editor" th="แก้ไขข้อมูลบริบทสำหรับการทำนาย" badge="Live" badgeTh="ใช้งานได้" />
-                      <FeatureCard lang={lang} icon={<FlaskConical className="h-4 w-4" />} en="Published-model gate" th="เปิดใช้เฉพาะโมเดลที่ผ่านการเผยแพร่" badge="Live" badgeTh="ใช้งานได้" />
+                      <FeatureCard lang={lang} icon={<FlaskConical className="h-4 w-4" />} en="Admin published-model gate" th="Admin เปิดใช้เฉพาะโมเดลที่ผ่านการเผยแพร่" badge="Live" badgeTh="ใช้งานได้" />
                     </div>
                     <div className="rounded-lg border border-warning/30 bg-warning/5 p-4 text-sm text-muted-foreground">
                       <p className="font-medium text-foreground">{t('Operational flow', 'ขั้นตอนการใช้งาน')}</p>
@@ -535,8 +535,8 @@ const Doc = () => {
                       </p>
                       <p className="mt-2">
                         {t(
-                          'The publish command blocks low-metric models by default; use --force only when a researcher intentionally approves that risk.',
-                          'คำสั่ง publish จะกันโมเดลที่ metric ต่ำโดยค่าเริ่มต้น ใช้ --force เฉพาะเมื่อนักวิจัยอนุมัติความเสี่ยงนั้นโดยตั้งใจ',
+                          'Admins can publish reviewed models from the Prediction page. The publish action blocks low-metric models by default; use force publish only when a researcher intentionally approves that risk.',
+                          'Admin สามารถเผยแพร่โมเดลที่ตรวจแล้วจากหน้า Prediction การ publish จะกันโมเดลที่ metric ต่ำโดยค่าเริ่มต้น ใช้ force publish เฉพาะเมื่อนักวิจัยอนุมัติความเสี่ยงนั้นโดยตั้งใจ',
                         )}
                       </p>
                     </div>
@@ -1017,6 +1017,7 @@ const Doc = () => {
                       { method: 'POST', path: '/api/samples/{id}/add_mycotoxin_result/', en: 'Add mycotoxin result', th: 'เพิ่มผลไมโคทอกซิน' },
                       { method: 'GET', path: '/api/samples/prediction/readiness/', en: 'Prediction training-data readiness', th: 'ตรวจความพร้อมข้อมูลสำหรับฝึกโมเดล Prediction' },
                       { method: 'GET', path: '/api/samples/prediction/status/', en: 'Prediction model status and metrics', th: 'สถานะและ metric ของโมเดล Prediction' },
+                      { method: 'POST', path: '/api/samples/prediction/publish/', en: 'Admin-only publish reviewed toxin models', th: 'Admin เผยแพร่โมเดล toxin ที่ตรวจแล้ว' },
                       { method: 'POST', path: '/api/samples/prediction/estimate/', en: 'Estimate from manual sample context', th: 'ประเมินจากข้อมูลตัวอย่างที่กรอกเอง' },
                       { method: 'POST', path: '/api/samples/prediction/batch-estimate/', en: 'Batch estimate registered samples', th: 'ประเมินตัวอย่างที่ลงทะเบียนหลายรายการ' },
                       { method: 'POST', path: '/api/samples/{id}/prediction/estimate/', en: 'Estimate from registered sample', th: 'ประเมินจากตัวอย่างที่ลงทะเบียนแล้ว' },

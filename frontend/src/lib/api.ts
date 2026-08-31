@@ -7,6 +7,8 @@ import type {
   PredictionEstimateHistoryItem,
   PredictionBatchEstimateResponse,
   PredictionModelStatusResponse,
+  PredictionPublishRequest,
+  PredictionPublishResponse,
   PredictionReadinessResponse,
 } from "@/types/prediction";
 import {
@@ -523,6 +525,11 @@ export const analyticsAPI = {
       sample_ids: sampleIds,
     });
     return response.data as PredictionBatchEstimateResponse;
+  },
+
+  async publishPredictionModels(payload: PredictionPublishRequest) {
+    const response = await apiClient.post('/samples/prediction/publish/', payload);
+    return response.data as PredictionPublishResponse;
   },
 
   async estimateSamplePrediction(sampleId: string) {

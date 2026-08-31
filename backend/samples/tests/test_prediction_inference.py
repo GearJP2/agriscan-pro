@@ -152,7 +152,7 @@ class PredictionInferenceServiceTests(TestCase):
     def test_model_status_reports_latest_publish_state(self):
         with TemporaryDirectory() as tmp_dir:
             version_dir = Path(tmp_dir) / 'v20260831010101'
-            version_dir.mkdir()
+            version_dir.mkdir(parents=True)
             (version_dir / 'metadata.json').write_text(json.dumps({
                 'version': 'v20260831010101',
                 'created_at': '2026-08-31T01:01:01+00:00',
@@ -189,7 +189,7 @@ class PredictionInferenceServiceTests(TestCase):
     def test_estimate_requires_published_models(self):
         with TemporaryDirectory() as tmp_dir:
             version_dir = Path(tmp_dir) / 'v20260831010101'
-            version_dir.mkdir()
+            version_dir.mkdir(parents=True)
             (version_dir / 'metadata.json').write_text(json.dumps({
                 'version': 'v20260831010101',
                 'trained_models': [{'toxin_type': 'AFB1', 'published': False}],
@@ -288,6 +288,11 @@ class PredictionEstimateEndpointTests(TestCase):
             username='prediction_researcher',
             password='Password123',
             role='researcher',
+        )
+        self.admin = User.objects.create_user(
+            username='prediction_admin',
+            password='Password123',
+            role='admin',
         )
         self.assistant = User.objects.create_user(
             username='prediction_assistant',
@@ -473,6 +478,87 @@ class PredictionEstimateEndpointTests(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['status'], 'not_trained')
+
+    def test_prediction_publish_requires_admin_role(self):
+        self.client.force_authenticate(user=self.researcher)
+
+        response = self.client.post(
+            reverse('sample-prediction-publish'),
+            {'version': 'latest', 'toxins': ['AFB1']},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_prediction_publish_endpoint_publishes_selected_models(self):
+        with TemporaryDirectory() as tmp_dir:
+            artifacts_dir = Path(tmp_dir) / 'prediction_artifacts'
+            version_dir = artifacts_dir / 'v20260831010101'
+            version_dir.mkdir()
+            metadata_path = version_dir / 'metadata.json'
+            metadata_path.write_text(json.dumps({
+                'version': 'v20260831010101',
+                'created_at': '2026-08-31T01:01:01+00:00',
+                'model_family': 'baseline',
+                'trained_models': [
+                    {
+                        'toxin_type': 'AFB1',
+                        'published': False,
+                        'measured': 100,
+                        'detected': 40,
+                        'usable_context': 90,
+                        'classification_metrics': {'f1': 0.7, 'roc_auc': 0.8},
+                    },
+                ],
+            }), encoding='utf-8')
+            self.client.force_authenticate(user=self.admin)
+
+            with override_settings(BASE_DIR=Path(tmp_dir)):
+                response = self.client.post(
+                    reverse('sample-prediction-publish'),
+                    {
+                        'version': 'v20260831010101',
+                        'toxins': ['AFB1'],
+                    },
+                    format='json',
+                )
+
+            metadata = json.loads(metadata_path.read_text(encoding='utf-8'))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['updated'], 1)
+        self.assertEqual(response.data['publishedToxins'], ['AFB1'])
+        self.assertTrue(metadata['trained_models'][0]['published'])
+
+    def test_prediction_publish_endpoint_rejects_low_metric_model(self):
+        with TemporaryDirectory() as tmp_dir:
+            artifacts_dir = Path(tmp_dir) / 'prediction_artifacts'
+            version_dir = artifacts_dir / 'v20260831010101'
+            version_dir.mkdir()
+            (version_dir / 'metadata.json').write_text(json.dumps({
+                'version': 'v20260831010101',
+                'trained_models': [
+                    {
+                        'toxin_type': 'DON',
+                        'published': False,
+                        'classification_metrics': {'f1': 0.3, 'roc_auc': 0.7},
+                    },
+                ],
+            }), encoding='utf-8')
+            self.client.force_authenticate(user=self.admin)
+
+            with override_settings(BASE_DIR=Path(tmp_dir)):
+                response = self.client.post(
+                    reverse('sample-prediction-publish'),
+                    {
+                        'version': 'v20260831010101',
+                        'toxins': ['DON'],
+                    },
+                    format='json',
+                )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('Metric guardrails failed', response.data['detail'])
 
     def test_prediction_context_can_be_saved_and_read(self):
         self.client.force_authenticate(user=self.researcher)

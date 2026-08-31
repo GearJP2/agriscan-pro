@@ -12,6 +12,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -21,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/contexts/AuthContext';
 import { analyticsAPI, sampleAPI } from '@/lib/api';
@@ -90,12 +92,15 @@ const Prediction = () => {
   const queryClient = useQueryClient();
   const handledQuerySampleRef = useRef<string | null>(null);
   const canView = isAuthenticated && researchRoles.includes(role);
+  const canPublishModels = isAuthenticated && role === 'admin';
   const [form, setForm] = useState<PredictionEstimateRequest>(initialForm);
   const [sampleId, setSampleId] = useState('');
   const [historySampleId, setHistorySampleId] = useState('');
   const [batchSampleIds, setBatchSampleIds] = useState('');
   const [contextSampleId, setContextSampleId] = useState('');
   const [contextForm, setContextForm] = useState<PredictionContext>(initialContext);
+  const [selectedPublishToxins, setSelectedPublishToxins] = useState<string[]>([]);
+  const [forcePublish, setForcePublish] = useState(false);
   const readiness = useQuery({
     queryKey: ['prediction-readiness'],
     queryFn: analyticsAPI.getPredictionReadiness,
@@ -108,6 +113,14 @@ const Prediction = () => {
   });
   const estimate = useMutation({
     mutationFn: analyticsAPI.estimatePrediction,
+  });
+  const publishModels = useMutation({
+    mutationFn: analyticsAPI.publishPredictionModels,
+    onSuccess: () => {
+      setSelectedPublishToxins([]);
+      void queryClient.invalidateQueries({ queryKey: ['prediction-model-status'] });
+      void queryClient.invalidateQueries({ queryKey: ['prediction-readiness'] });
+    },
   });
   const sampleEstimate = useMutation({
     mutationFn: analyticsAPI.estimateSamplePrediction,
@@ -236,6 +249,23 @@ const Prediction = () => {
     contextSave.mutate({ id: contextSampleId.trim(), data: contextForm });
   };
 
+  const togglePublishToxin = (toxinType: string, checked: boolean) => {
+    setSelectedPublishToxins((current) => (
+      checked
+        ? [...new Set([...current, toxinType])]
+        : current.filter((toxin) => toxin !== toxinType)
+    ));
+  };
+
+  const submitPublishModels = () => {
+    if (!modelStatus.data?.latest || selectedPublishToxins.length === 0) return;
+    publishModels.mutate({
+      version: modelStatus.data.latest.version,
+      toxins: selectedPublishToxins,
+      force: forcePublish,
+    });
+  };
+
   const applyContextToManualForm = () => {
     setForm((current) => ({
       ...current,
@@ -319,6 +349,7 @@ const Prediction = () => {
                               <th className="px-4 py-3 text-right">ROC-AUC</th>
                               <th className="px-4 py-3 text-right">Training rows</th>
                               <th className="px-4 py-3 text-right">Detected rows</th>
+                              {canPublishModels && <th className="px-4 py-3 text-right">Publish</th>}
                             </tr>
                           </thead>
                           <tbody>
@@ -338,11 +369,65 @@ const Prediction = () => {
                                 </td>
                                 <td className="px-4 py-3 text-right">{target.trainingRows}</td>
                                 <td className="px-4 py-3 text-right">{target.detectedRows}</td>
+                                {canPublishModels && (
+                                  <td className="px-4 py-3 text-right">
+                                    <Checkbox
+                                      checked={selectedPublishToxins.includes(target.toxinType)}
+                                      disabled={target.published || publishModels.isPending}
+                                      onCheckedChange={(checked) => {
+                                        togglePublishToxin(target.toxinType, checked === true);
+                                      }}
+                                      aria-label={`Select ${target.toxinType} for publishing`}
+                                      className="ml-auto"
+                                    />
+                                  </td>
+                                )}
                               </tr>
                             ))}
                           </tbody>
                         </table>
                       </div>
+                      {canPublishModels && (
+                        <div className="rounded-md border border-primary/15 bg-primary/[0.03] p-4">
+                          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                            <div>
+                              <p className="font-medium text-foreground">Admin model publishing</p>
+                              <p className="mt-1 text-sm text-muted-foreground">
+                                Select reviewed toxin models, then publish them for researcher estimates.
+                                Low-metric models are blocked unless force publish is enabled.
+                              </p>
+                              {publishModels.isError && (
+                                <p className="mt-2 text-sm text-destructive">
+                                  {errorMessage(publishModels.error)}
+                                </p>
+                              )}
+                              {publishModels.isSuccess && (
+                                <p className="mt-2 text-sm text-muted-foreground">
+                                  Published {publishModels.data.updated} model(s): {publishModels.data.publishedToxins.join(', ')}
+                                </p>
+                              )}
+                            </div>
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                              <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                                <Switch
+                                  checked={forcePublish}
+                                  onCheckedChange={setForcePublish}
+                                  disabled={publishModels.isPending}
+                                />
+                                Force publish
+                              </label>
+                              <Button
+                                type="button"
+                                onClick={submitPublishModels}
+                                disabled={publishModels.isPending || selectedPublishToxins.length === 0}
+                              >
+                                {publishModels.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                                Publish selected
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </>
                   ) : (
                     <p className="text-sm text-muted-foreground">

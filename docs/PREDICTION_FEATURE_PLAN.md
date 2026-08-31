@@ -148,6 +148,8 @@ The first baseline implementation is now in place:
 - Baseline training writes versioned artifacts under `backend/prediction_artifacts/`.
   The artifact directory is intentionally ignored by git.
 - Inference uses only models marked `published: true`.
+- Admin users can publish reviewed toxin models from the Prediction page. The
+  same guardrails are used by the UI endpoint and the management command.
 
 Operational command flow:
 

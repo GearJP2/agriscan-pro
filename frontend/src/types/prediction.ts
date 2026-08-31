@@ -138,6 +138,26 @@ export interface PredictionModelStatusResponse {
   versions: PredictionModelStatusVersion[];
 }
 
+export interface PredictionPublishRequest {
+  version: string;
+  toxins: string[];
+  min_f1?: number;
+  min_roc_auc?: number;
+  force?: boolean;
+}
+
+export interface PredictionPublishResponse {
+  version: string;
+  metadataPath: string;
+  updated: number;
+  publishedToxins: string[];
+  publishedTargets: number;
+  force: boolean;
+  minF1: number;
+  minRocAuc: number;
+  status: PredictionModelStatusResponse;
+}
+
 export interface PredictionEstimateHistoryItem {
   id: number;
   sample_id: string | null;

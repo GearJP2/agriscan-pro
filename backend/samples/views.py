@@ -25,6 +25,7 @@ from .serializers import (
     PredictionContextSerializer,
     PredictionEstimateSerializer,
     PredictionEstimateRequestSerializer,
+    PredictionPublishRequestSerializer,
     ProcessLogSerializer,
     SampleCreateUpdateSerializer,
     SampleListSerializer,
@@ -43,6 +44,10 @@ from .services.nasa_power_service import NasaPowerService, NasaPowerServiceError
 from .services.prediction_inference_service import (
     PredictionInferenceService,
     PredictionModelUnavailable,
+)
+from .services.prediction_model_publish_service import (
+    PredictionModelPublishError,
+    PredictionModelPublishService,
 )
 from .services.prediction_readiness_service import PredictionReadinessService
 
@@ -72,6 +77,8 @@ class SampleViewSet(viewsets.ModelViewSet):
     lookup_field = 'sample_id'
 
     def get_permissions(self):
+        if self.action == 'prediction_publish':
+            return [IsAuthenticated(), IsAdmin()]
         if self.action in [
             'analytics_dashboard_simulate',
             'analytics_threshold_simulation',
@@ -674,6 +681,30 @@ class SampleViewSet(viewsets.ModelViewSet):
     def prediction_status(self, request):
         """Return prediction model versions, publish state, and metrics."""
         return Response(PredictionInferenceService.get_model_status(), status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['post'], url_path='prediction/publish')
+    def prediction_publish(self, request):
+        """Publish reviewed prediction toxin models. Admin-only."""
+        serializer = PredictionPublishRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            publish_result = PredictionModelPublishService.publish(
+                version=serializer.validated_data['version'],
+                toxins=serializer.validated_data['toxins'],
+                min_f1=serializer.validated_data['min_f1'],
+                min_roc_auc=serializer.validated_data['min_roc_auc'],
+                force=serializer.validated_data['force'],
+            )
+        except PredictionModelPublishError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(
+            {
+                **publish_result,
+                'status': PredictionInferenceService.get_model_status(),
+            },
+            status=status.HTTP_200_OK,
+        )
 
     @action(detail=False, methods=['post'], url_path='prediction/estimate')
     def prediction_estimate(self, request):

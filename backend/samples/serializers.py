@@ -207,6 +207,30 @@ class PredictionBatchEstimateRequestSerializer(serializers.Serializer):
         return cleaned
 
 
+class PredictionPublishRequestSerializer(serializers.Serializer):
+    version = serializers.CharField(max_length=80, default='latest', trim_whitespace=True)
+    toxins = serializers.ListField(
+        child=serializers.CharField(max_length=40, trim_whitespace=True),
+        allow_empty=False,
+    )
+    min_f1 = serializers.FloatField(required=False, min_value=0, max_value=1, default=0.50)
+    min_roc_auc = serializers.FloatField(required=False, min_value=0, max_value=1, default=0.60)
+    force = serializers.BooleanField(required=False, default=False)
+
+    def validate_toxins(self, value):
+        cleaned = []
+        seen = set()
+        for toxin in value:
+            toxin = toxin.strip().upper()
+            if not toxin or toxin in seen:
+                continue
+            seen.add(toxin)
+            cleaned.append(toxin)
+        if not cleaned:
+            raise serializers.ValidationError('At least one toxin code is required.')
+        return cleaned
+
+
 class PredictionContextSerializer(serializers.ModelSerializer):
     class Meta:
         model = PredictionContext
