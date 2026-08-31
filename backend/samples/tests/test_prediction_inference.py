@@ -153,6 +153,7 @@ class PredictionInferenceServiceTests(TestCase):
         with TemporaryDirectory() as tmp_dir:
             version_dir = Path(tmp_dir) / 'v20260831010101'
             version_dir.mkdir(parents=True)
+            (version_dir / 'afb1_classifier.joblib').write_text('not a real artifact', encoding='utf-8')
             (version_dir / 'metadata.json').write_text(json.dumps({
                 'version': 'v20260831010101',
                 'created_at': '2026-08-31T01:01:01+00:00',
@@ -164,6 +165,7 @@ class PredictionInferenceServiceTests(TestCase):
                         'measured': 100,
                         'detected': 40,
                         'usable_context': 90,
+                        'artifact_path': 'afb1_classifier.joblib',
                         'classification_metrics': {'f1': 0.7},
                     },
                     {
@@ -186,6 +188,8 @@ class PredictionInferenceServiceTests(TestCase):
         self.assertEqual(status_data['latest']['publishedTargets'], 1)
         self.assertEqual(status_data['latest']['skippedTargets'], 1)
         self.assertEqual(status_data['latest']['skippedTargetDetails'][0]['toxinType'], 'OTA')
+        self.assertTrue(status_data['latest']['targets'][0]['artifactHealth']['classifierArtifactExists'])
+        self.assertFalse(status_data['latest']['targets'][1]['artifactHealth']['classifierArtifactExists'])
 
     def test_model_status_reports_skipped_target_reasons(self):
         summary = PredictionInferenceService.summarize_skipped_target({

@@ -119,6 +119,12 @@ export interface PredictionModelStatusTarget {
   detectedRows: number;
   usableContext: number;
   classificationMetrics: PredictionEstimateItem['classificationMetrics'];
+  artifactHealth: {
+    classifierArtifactPath: string;
+    classifierArtifactExists: boolean;
+    regressionArtifactPath: string;
+    regressionArtifactExists: boolean | null;
+  };
 }
 
 export interface PredictionModelStatusVersion {

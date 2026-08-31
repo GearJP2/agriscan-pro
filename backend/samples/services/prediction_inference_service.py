@@ -115,11 +115,14 @@ class PredictionInferenceService:
                 cls.summarize_skipped_target(target)
                 for target in metadata.get('skipped_targets', [])
             ],
-            'targets': [cls.summarize_model(model) for model in trained_models],
+            'targets': [
+                cls.summarize_model(model, version_dir=metadata_path.parent)
+                for model in trained_models
+            ],
         }
 
     @staticmethod
-    def summarize_model(model_meta: dict) -> dict:
+    def summarize_model(model_meta: dict, version_dir: Path | None = None) -> dict:
         metrics = model_meta.get('classification_metrics', {})
         return {
             'toxinType': model_meta.get('toxin_type', ''),
@@ -128,7 +131,38 @@ class PredictionInferenceService:
             'detectedRows': model_meta.get('detected', 0),
             'usableContext': model_meta.get('usable_context', 0),
             'classificationMetrics': metrics,
+            'artifactHealth': PredictionInferenceService.summarize_artifact_health(
+                model_meta,
+                version_dir=version_dir,
+            ),
         }
+
+    @staticmethod
+    def summarize_artifact_health(model_meta: dict, version_dir: Path | None = None) -> dict:
+        classifier_path = model_meta.get('artifact_path')
+        regression_path = (model_meta.get('regression_metrics') or {}).get('artifact_path')
+        return {
+            'classifierArtifactPath': classifier_path or '',
+            'classifierArtifactExists': PredictionInferenceService.artifact_exists(
+                classifier_path,
+                version_dir=version_dir,
+            ),
+            'regressionArtifactPath': regression_path or '',
+            'regressionArtifactExists': (
+                None
+                if not regression_path
+                else PredictionInferenceService.artifact_exists(regression_path, version_dir=version_dir)
+            ),
+        }
+
+    @staticmethod
+    def artifact_exists(raw_path, version_dir: Path | None = None) -> bool:
+        if not raw_path:
+            return False
+        artifact = Path(raw_path)
+        if not artifact.is_absolute() and version_dir is not None:
+            artifact = version_dir / artifact
+        return artifact.exists()
 
     @staticmethod
     def summarize_skipped_target(target_meta: dict) -> dict:

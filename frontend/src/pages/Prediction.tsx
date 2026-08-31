@@ -349,6 +349,7 @@ const Prediction = () => {
                               <th className="px-4 py-3 text-right">ROC-AUC</th>
                               <th className="px-4 py-3 text-right">Training rows</th>
                               <th className="px-4 py-3 text-right">Detected rows</th>
+                              <th className="px-4 py-3">Artifacts</th>
                               {canPublishModels && <th className="px-4 py-3 text-right">Publish</th>}
                             </tr>
                           </thead>
@@ -369,6 +370,13 @@ const Prediction = () => {
                                 </td>
                                 <td className="px-4 py-3 text-right">{target.trainingRows}</td>
                                 <td className="px-4 py-3 text-right">{target.detectedRows}</td>
+                                <td className="px-4 py-3">
+                                  {target.artifactHealth.classifierArtifactExists ? (
+                                    <Badge variant="success">Ready</Badge>
+                                  ) : (
+                                    <Badge variant="destructive">Missing file</Badge>
+                                  )}
+                                </td>
                                 {canPublishModels && (
                                   <td className="px-4 py-3 text-right">
                                     <Checkbox
