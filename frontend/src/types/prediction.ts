@@ -116,6 +116,7 @@ export interface PredictionSamplingRecommendationRequest {
   target_date?: string;
   limit?: number;
   max_candidates?: number;
+  min_risk_threshold?: number;
   food_feed_type?: 'food' | 'feed' | '';
   provinces?: string[];
   sub_types?: string[];
@@ -147,9 +148,13 @@ export interface PredictionSamplingRecommendationResponse {
   targetDate: string;
   requestedLimit: number;
   candidateCount: number;
+  scoredCandidateCount: number;
+  belowThresholdCount: number;
+  minRiskThreshold: number;
   returned: number;
   usesWeatherFeatures: boolean;
   recommendations: PredictionSamplingRecommendationItem[];
+  message: string;
   errors: Array<{
     foodFeedType: string;
     subType: string;

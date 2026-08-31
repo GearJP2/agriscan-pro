@@ -67,6 +67,7 @@ const initialRecommendationForm: PredictionSamplingRecommendationRequest = {
   target_date: new Date().toISOString().slice(0, 10),
   limit: 10,
   max_candidates: 25,
+  min_risk_threshold: 0.4,
   food_feed_type: '',
   provinces: [],
   sub_types: [],
@@ -274,6 +275,7 @@ const Prediction = () => {
       target_date: recommendationForm.target_date || undefined,
       limit: recommendationForm.limit || 10,
       max_candidates: recommendationForm.max_candidates || 25,
+      min_risk_threshold: recommendationForm.min_risk_threshold ?? 0.4,
       provinces: splitList(recommendationProvinces),
       sub_types: splitList(recommendationSubTypes),
     });
@@ -608,6 +610,27 @@ const Prediction = () => {
                     />
                   </div>
 
+                  <div className="space-y-2">
+                    <Label htmlFor="recommendation-min-risk">Minimum risk threshold</Label>
+                    <Input
+                      id="recommendation-min-risk"
+                      type="number"
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      value={recommendationForm.min_risk_threshold ?? 0.4}
+                      onChange={(event) => {
+                        setRecommendationForm((current) => ({
+                          ...current,
+                          min_risk_threshold: Number(event.target.value),
+                        }));
+                      }}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Default 0.40 means only medium/high-risk candidates become test recommendations.
+                    </p>
+                  </div>
+
                   <div className="space-y-2 md:col-span-2">
                     <Label htmlFor="recommendation-provinces">Province filters</Label>
                     <Textarea
@@ -636,7 +659,7 @@ const Prediction = () => {
                     </p>
                   </div>
 
-                  <label className="flex items-center gap-2 text-sm text-muted-foreground md:col-span-2">
+                  <label className="flex items-center gap-2 text-sm text-muted-foreground md:col-span-2 lg:col-span-3">
                     <Switch
                       checked={recommendationForm.include_districts ?? true}
                       onCheckedChange={(checked) => {
@@ -670,7 +693,7 @@ const Prediction = () => {
 
                 {samplingRecommendations.data && (
                   <div className="space-y-4">
-                    <div className="grid gap-3 rounded-md border bg-muted/20 p-3 text-sm md:grid-cols-4">
+                    <div className="grid gap-3 rounded-md border bg-muted/20 p-3 text-sm md:grid-cols-5">
                       <div>
                         <p className="font-medium text-foreground">Candidates scanned</p>
                         <p className="text-muted-foreground">{samplingRecommendations.data.candidateCount}</p>
@@ -678,6 +701,17 @@ const Prediction = () => {
                       <div>
                         <p className="font-medium text-foreground">Returned</p>
                         <p className="text-muted-foreground">{samplingRecommendations.data.returned}</p>
+                      </div>
+                      <div>
+                        <p className="font-medium text-foreground">Below threshold</p>
+                        <p className="text-muted-foreground">
+                          {samplingRecommendations.data.belowThresholdCount}
+                          {' '}
+                          under
+                          {' '}
+                          {(samplingRecommendations.data.minRiskThreshold * 100).toFixed(0)}
+                          %
+                        </p>
                       </div>
                       <div>
                         <p className="font-medium text-foreground">Target date</p>
@@ -735,8 +769,8 @@ const Prediction = () => {
                       </div>
                     ) : (
                       <p className="rounded-md border bg-muted/20 p-3 text-sm text-muted-foreground">
-                        No recommendations were generated. Try widening the province or food/feed filters, or publish
-                        at least one prediction model.
+                        {samplingRecommendations.data.message
+                          || 'No recommendations were generated. Try widening the province or food/feed filters, or publish at least one prediction model.'}
                       </p>
                     )}
                   </div>

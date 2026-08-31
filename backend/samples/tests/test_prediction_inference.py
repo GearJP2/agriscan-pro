@@ -593,6 +593,75 @@ class PredictionEstimateEndpointTests(TestCase):
         self.assertEqual(result['targetDate'], '2026-08-31')
         self.assertEqual(result['recommendations'][0]['targetDate'], '2026-08-31')
 
+    def test_prediction_recommendations_hide_below_threshold_candidates(self):
+        self.client.force_authenticate(user=self.researcher)
+        Sample.objects.create(
+            sample_id='RIC-2026-004',
+            region='unknown',
+            province='roi et',
+            district='Unknown',
+            vegetation_variety='White rice',
+            food_feed_type='food',
+            sub_type='White rice',
+            collection_date='2026-07-10',
+            status='completed',
+        )
+        expected = {
+            'modelVersion': 'v-test',
+            'modelFamily': 'baseline',
+            'usesWeatherFeatures': True,
+            'featureSummary': {'weatherLocationLabel': 'Roi Et'},
+            'predictions': [
+                {
+                    'toxinType': 'TRY',
+                    'detectionProbability': 0.0,
+                    'riskBand': 'low',
+                    'estimatedConcentrationUgKg': 2.7,
+                },
+            ],
+            'warning': 'Research area-risk estimate only.',
+        }
+
+        with patch('samples.views.PredictionInferenceService.estimate', return_value=expected):
+            response = self.client.post(
+                reverse('sample-prediction-recommendations'),
+                {
+                    'target_date': '2026-08-31',
+                    'limit': 5,
+                    'max_candidates': 10,
+                    'sub_types': ['White rice'],
+                },
+                format='json',
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertGreaterEqual(response.data['scoredCandidateCount'], 1)
+        self.assertEqual(response.data['returned'], 0)
+        self.assertEqual(response.data['belowThresholdCount'], response.data['scoredCandidateCount'])
+        self.assertEqual(response.data['minRiskThreshold'], 0.4)
+        self.assertIn('No elevated-risk testing targets found', response.data['message'])
+
+    def test_sampling_candidate_builder_cleans_unknown_district_and_location_case(self):
+        Sample.objects.create(
+            sample_id='RIC-2026-005',
+            region='unknown',
+            province='roi et',
+            district='Unknown',
+            vegetation_variety='White rice',
+            food_feed_type='food',
+            sub_type='White rice',
+            collection_date='2026-07-10',
+            status='completed',
+        )
+
+        candidates = PredictionInferenceService.build_sampling_candidates(
+            sub_types=['White rice'],
+            max_candidates=10,
+        )
+
+        self.assertTrue(any(candidate['province'] == 'Roi Et' for candidate in candidates))
+        self.assertFalse(any(candidate['district'] == 'Unknown' for candidate in candidates))
+
     def test_prediction_recommendations_requires_research_role(self):
         self.client.force_authenticate(user=self.assistant)
 

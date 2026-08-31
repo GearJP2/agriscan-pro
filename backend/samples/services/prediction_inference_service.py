@@ -59,6 +59,9 @@ class PredictionInferenceService:
         target_date = PredictionDatasetService.normalize_date(request.get('target_date')) or date.today()
         limit = request.get('limit') or 10
         max_candidates = request.get('max_candidates') or 25
+        min_risk_threshold = request.get('min_risk_threshold')
+        if min_risk_threshold is None:
+            min_risk_threshold = 0.40
         candidates = cls.build_sampling_candidates(
             food_feed_type=request.get('food_feed_type') or '',
             provinces=request.get('provinces') or [],
@@ -67,7 +70,7 @@ class PredictionInferenceService:
             max_candidates=max_candidates,
         )
 
-        recommendations = []
+        scored_candidates = []
         errors = []
         for candidate in candidates:
             payload = {
@@ -100,7 +103,7 @@ class PredictionInferenceService:
                 continue
 
             top_prediction = estimate['predictions'][0]
-            recommendations.append({
+            scored_candidates.append({
                 'rank': 0,
                 'foodFeedType': candidate['foodFeedType'],
                 'subType': candidate['subType'],
@@ -128,7 +131,7 @@ class PredictionInferenceService:
                 'reason': cls.recommendation_reason(candidate, top_prediction, estimate),
             })
 
-        recommendations.sort(
+        scored_candidates.sort(
             key=lambda item: (
                 item['detectionProbability'],
                 item['historicalDetectedCount'],
@@ -136,6 +139,11 @@ class PredictionInferenceService:
             ),
             reverse=True,
         )
+        recommendations = [
+            item
+            for item in scored_candidates
+            if item['detectionProbability'] >= min_risk_threshold
+        ]
         for index, item in enumerate(recommendations[:limit], start=1):
             item['rank'] = index
 
@@ -143,9 +151,17 @@ class PredictionInferenceService:
             'targetDate': target_date.isoformat(),
             'requestedLimit': limit,
             'candidateCount': len(candidates),
+            'scoredCandidateCount': len(scored_candidates),
+            'belowThresholdCount': max(len(scored_candidates) - len(recommendations), 0),
+            'minRiskThreshold': min_risk_threshold,
             'returned': len(recommendations[:limit]),
-            'usesWeatherFeatures': recommendations[0]['usesWeatherFeatures'] if recommendations else False,
+            'usesWeatherFeatures': scored_candidates[0]['usesWeatherFeatures'] if scored_candidates else False,
             'recommendations': recommendations[:limit],
+            'message': (
+                'No elevated-risk testing targets found for the selected filters.'
+                if not recommendations and scored_candidates
+                else ''
+            ),
             'errors': errors,
             'warning': (
                 'Sampling recommendations are research prioritization guidance. '
@@ -197,24 +213,25 @@ class PredictionInferenceService:
         seen = set()
         for row in rows:
             sub_type = row.get('sub_type') or row.get('vegetation_variety')
-            province = row.get('province') or ''
+            province = PredictionDatasetService.clean_location(row.get('province'))
+            district = PredictionDatasetService.clean_location(row.get('district')) if include_districts else ''
             if not sub_type or not province:
                 continue
             key = (
                 row.get('food_feed_type') or 'food',
                 str(sub_type).strip().lower(),
                 str(province).strip().lower(),
-                str(row.get('district') or '').strip().lower() if include_districts else '',
+                str(district).strip().lower(),
             )
             if key in seen:
                 continue
             seen.add(key)
             candidates.append({
                 'foodFeedType': row.get('food_feed_type') or 'food',
-                'subType': sub_type,
-                'region': row.get('region') or '',
+                'subType': str(sub_type).strip(),
+                'region': PredictionDatasetService.clean_location(row.get('region')),
                 'province': province,
-                'district': row.get('district') or '',
+                'district': district,
                 'sampleType': '',
                 'processingType': '',
                 'locationType': 'unknown',
