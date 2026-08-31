@@ -365,11 +365,29 @@ const Prediction = () => {
                   {modelStatus.data.latest ? (
                     <>
                       <div className="grid gap-3 text-sm md:grid-cols-4">
-                        <p>Version: {modelStatus.data.latest.version}</p>
+                        <p>Latest trained: {modelStatus.data.latest.version}</p>
+                        <p>
+                          Active published:
+                          {' '}
+                          {modelStatus.data.activePublished?.version || 'None'}
+                        </p>
                         <p>Trained targets: {modelStatus.data.latest.trainedTargets}</p>
                         <p>Published targets: {modelStatus.data.latest.publishedTargets}</p>
-                        <p>Skipped targets: {modelStatus.data.latest.skippedTargets}</p>
                       </div>
+                      {modelStatus.data.activePublished
+                        && modelStatus.data.activePublished.version !== modelStatus.data.latest.version && (
+                          <div
+                            className="rounded-md border border-warning/40 bg-warning/5 p-3 text-sm text-muted-foreground"
+                          >
+                            A newer model version is trained but not published. Estimates still use active published
+                            version
+                            {' '}
+                            <span className="font-medium text-foreground">
+                              {modelStatus.data.activePublished.version}
+                            </span>
+                            .
+                          </div>
+                      )}
                       {modelStatus.data.status !== 'published' && (
                         <div
                           className="rounded-md border border-warning/40 bg-warning/5 p-3 text-sm text-muted-foreground"

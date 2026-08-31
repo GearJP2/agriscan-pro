@@ -202,6 +202,7 @@ export interface PredictionModelStatusVersion {
 export interface PredictionModelStatusResponse {
   status: 'not_trained' | 'trained_unpublished' | 'published';
   latest: PredictionModelStatusVersion | null;
+  activePublished: PredictionModelStatusVersion | null;
   versions: PredictionModelStatusVersion[];
 }
 

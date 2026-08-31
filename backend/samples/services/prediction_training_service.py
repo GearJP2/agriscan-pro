@@ -22,6 +22,7 @@ class PredictionTrainingConfig:
     random_state: int = 42
     include_weather: bool = False
     fetch_weather: bool = True
+    logistic_max_iter: int = 5000
 
 
 class PredictionTrainingService:
@@ -120,7 +121,7 @@ class PredictionTrainingService:
         return {
             'version': version,
             'created_at': datetime.now(timezone.utc).isoformat(),
-            'model_family': 'logistic_regression_detection_plus_ridge_concentration',
+            'model_family': 'scaled_logistic_regression_detection_plus_scaled_ridge_concentration',
             'feature_columns': cls.FEATURE_COLUMNS,
             'training_config': {
                 'min_detected': config.min_detected,
@@ -130,6 +131,8 @@ class PredictionTrainingService:
                 'random_state': config.random_state,
                 'include_weather': config.include_weather,
                 'fetch_weather': config.fetch_weather,
+                'logistic_max_iter': config.logistic_max_iter,
+                'preprocessing': 'DictVectorizer plus sparse-safe StandardScaler',
             },
             'trained_models': models,
             'skipped_targets': skipped,
@@ -152,6 +155,7 @@ class PredictionTrainingService:
             )
             from sklearn.model_selection import train_test_split
             from sklearn.pipeline import Pipeline
+            from sklearn.preprocessing import StandardScaler
         except ImportError as exc:
             raise RuntimeError(
                 'Prediction training requires scikit-learn and joblib. '
@@ -172,6 +176,7 @@ class PredictionTrainingService:
             'roc_auc_score': roc_auc_score,
             'train_test_split': train_test_split,
             'Pipeline': Pipeline,
+            'StandardScaler': StandardScaler,
         }
 
     @staticmethod
@@ -242,7 +247,11 @@ class PredictionTrainingService:
 
         classifier = sklearn['Pipeline']([
             ('features', sklearn['DictVectorizer'](sparse=True)),
-            ('model', sklearn['LogisticRegression'](class_weight='balanced', max_iter=1000)),
+            ('scale', sklearn['StandardScaler'](with_mean=False)),
+            ('model', sklearn['LogisticRegression'](
+                class_weight='balanced',
+                max_iter=config.logistic_max_iter,
+            )),
         ])
         classifier.fit(x_train, y_train)
         y_pred = classifier.predict(x_test)
@@ -289,6 +298,7 @@ class PredictionTrainingService:
         )
         regressor = sklearn['Pipeline']([
             ('features', sklearn['DictVectorizer'](sparse=True)),
+            ('scale', sklearn['StandardScaler'](with_mean=False)),
             ('model', sklearn['Ridge'](alpha=1.0)),
         ])
         regressor.fit(x_train, y_train)

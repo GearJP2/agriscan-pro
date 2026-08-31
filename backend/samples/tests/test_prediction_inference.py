@@ -191,6 +191,27 @@ class PredictionInferenceServiceTests(TestCase):
         self.assertTrue(status_data['latest']['targets'][0]['artifactHealth']['classifierArtifactExists'])
         self.assertFalse(status_data['latest']['targets'][1]['artifactHealth']['classifierArtifactExists'])
 
+    def test_model_status_reports_active_published_when_latest_is_unpublished(self):
+        with TemporaryDirectory() as tmp_dir:
+            old_version_dir = Path(tmp_dir) / 'v20260831010101'
+            old_version_dir.mkdir()
+            (old_version_dir / 'metadata.json').write_text(json.dumps({
+                'version': 'v20260831010101',
+                'trained_models': [{'toxin_type': 'TRY', 'published': True}],
+            }), encoding='utf-8')
+            new_version_dir = Path(tmp_dir) / 'v20260831020202'
+            new_version_dir.mkdir()
+            (new_version_dir / 'metadata.json').write_text(json.dumps({
+                'version': 'v20260831020202',
+                'trained_models': [{'toxin_type': 'TRY', 'published': False}],
+            }), encoding='utf-8')
+
+            status_data = PredictionInferenceService.get_model_status(artifacts_dir=tmp_dir)
+
+        self.assertEqual(status_data['status'], 'published')
+        self.assertEqual(status_data['latest']['version'], 'v20260831020202')
+        self.assertEqual(status_data['activePublished']['version'], 'v20260831010101')
+
     def test_model_status_reports_skipped_target_reasons(self):
         summary = PredictionInferenceService.summarize_skipped_target({
             'toxin_type': 'OTA',
@@ -225,6 +246,60 @@ class PredictionInferenceServiceTests(TestCase):
                     'province': 'Bangkok',
                     'collection_date': date(2026, 7, 2),
                 }, artifacts_dir=tmp_dir)
+
+    def test_estimate_uses_latest_published_version_not_newer_unpublished_version(self):
+        with TemporaryDirectory() as tmp_dir:
+            old_version_dir = Path(tmp_dir) / 'v20260831010101'
+            old_version_dir.mkdir()
+            (old_version_dir / 'metadata.json').write_text(json.dumps({
+                'version': 'v20260831010101',
+                'created_at': '2026-08-31T01:01:01+00:00',
+                'model_family': 'baseline',
+                'training_config': {'include_weather': False},
+                'trained_models': [
+                    {
+                        'toxin_type': 'TRY',
+                        'published': True,
+                        'artifact_path': 'try_classifier.joblib',
+                        'classification_metrics': {'f1': 0.9, 'roc_auc': 0.99},
+                    },
+                ],
+            }), encoding='utf-8')
+            new_version_dir = Path(tmp_dir) / 'v20260831020202'
+            new_version_dir.mkdir()
+            (new_version_dir / 'metadata.json').write_text(json.dumps({
+                'version': 'v20260831020202',
+                'created_at': '2026-08-31T02:02:02+00:00',
+                'model_family': 'scaled_baseline',
+                'training_config': {'include_weather': True},
+                'trained_models': [
+                    {
+                        'toxin_type': 'TRY',
+                        'published': False,
+                        'artifact_path': 'try_classifier.joblib',
+                        'classification_metrics': {'f1': 0.95, 'roc_auc': 1.0},
+                    },
+                ],
+            }), encoding='utf-8')
+
+            with patch(
+                'samples.services.prediction_inference_service.PredictionInferenceService.estimate_toxin',
+                return_value={
+                    'toxinType': 'TRY',
+                    'detectionProbability': 0.7,
+                    'riskBand': 'high',
+                    'estimatedConcentrationUgKg': None,
+                },
+            ):
+                result = PredictionInferenceService.estimate({
+                    'food_feed_type': 'food',
+                    'sub_type': 'White Rice',
+                    'province': 'Bangkok',
+                    'collection_date': date(2026, 7, 2),
+                }, artifacts_dir=tmp_dir)
+
+        self.assertEqual(result['modelVersion'], 'v20260831010101')
+        self.assertFalse(result['usesWeatherFeatures'])
 
     def test_inspect_prediction_models_command_reports_review_decision(self):
         with TemporaryDirectory() as tmp_dir:

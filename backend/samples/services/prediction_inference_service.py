@@ -23,10 +23,8 @@ class PredictionInferenceService:
 
     @classmethod
     def estimate(cls, payload: dict, artifacts_dir=None) -> dict:
-        metadata_path, metadata = cls.load_latest_metadata(artifacts_dir=artifacts_dir)
+        metadata_path, metadata = cls.load_latest_published_metadata(artifacts_dir=artifacts_dir)
         trained_models = cls.get_published_models(metadata)
-        if not trained_models:
-            raise PredictionModelUnavailable('No published toxin models are available yet.')
 
         include_weather = metadata.get('training_config', {}).get('include_weather', False)
         dataset_row = cls.payload_to_dataset_row(payload, include_weather=include_weather)
@@ -275,6 +273,19 @@ class PredictionInferenceService:
 
     @classmethod
     def load_latest_metadata(cls, artifacts_dir=None) -> tuple[Path, dict]:
+        for metadata_path, metadata in cls.iter_metadata_versions(artifacts_dir=artifacts_dir):
+            return metadata_path, metadata
+        raise PredictionModelUnavailable('Latest prediction metadata could not be loaded.')
+
+    @classmethod
+    def load_latest_published_metadata(cls, artifacts_dir=None) -> tuple[Path, dict]:
+        for metadata_path, metadata in cls.iter_metadata_versions(artifacts_dir=artifacts_dir):
+            if cls.get_published_models(metadata):
+                return metadata_path, metadata
+        raise PredictionModelUnavailable('No published toxin models are available yet.')
+
+    @classmethod
+    def iter_metadata_versions(cls, artifacts_dir=None):
         root = Path(artifacts_dir or settings.BASE_DIR / 'prediction_artifacts')
         if not root.exists():
             raise PredictionModelUnavailable('Prediction artifacts directory does not exist.')
@@ -283,11 +294,11 @@ class PredictionInferenceService:
         if not candidates:
             raise PredictionModelUnavailable('No prediction metadata file was found.')
 
-        metadata_path = candidates[0]
-        try:
-            return metadata_path, json.loads(metadata_path.read_text(encoding='utf-8'))
-        except (OSError, json.JSONDecodeError) as exc:
-            raise PredictionModelUnavailable('Latest prediction metadata could not be loaded.') from exc
+        for metadata_path in candidates:
+            try:
+                yield metadata_path, json.loads(metadata_path.read_text(encoding='utf-8'))
+            except (OSError, json.JSONDecodeError):
+                continue
 
     @classmethod
     def get_model_status(cls, artifacts_dir=None) -> dict:
@@ -307,9 +318,14 @@ class PredictionInferenceService:
             return cls.empty_status()
 
         latest = versions[0]
+        latest_published = next(
+            (version for version in versions if version['publishedTargets']),
+            None,
+        )
         return {
-            'status': 'published' if latest['publishedTargets'] else 'trained_unpublished',
+            'status': 'published' if latest_published else 'trained_unpublished',
             'latest': latest,
+            'activePublished': latest_published,
             'versions': versions,
         }
 
@@ -318,6 +334,7 @@ class PredictionInferenceService:
         return {
             'status': 'not_trained',
             'latest': None,
+            'activePublished': None,
             'versions': [],
         }
 
