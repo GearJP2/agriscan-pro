@@ -29,6 +29,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { analyticsAPI, sampleAPI } from '@/lib/api';
 import type {
   PredictionEstimateRequest,
+  PredictionSamplingRecommendationItem,
   PredictionSamplingRecommendationRequest,
 } from '@/types/prediction';
 import type { PredictionContext } from '@/types/sample';
@@ -39,6 +40,74 @@ function toxinDisplayName(code: string, label?: string) {
   const registryLabel = MYCOTOXIN_REGISTRY[code]?.name;
   const toxinLabel = label || registryLabel;
   return toxinLabel && toxinLabel !== code ? `${toxinLabel} (${code})` : code;
+}
+
+function SamplingRecommendationTable({
+  items,
+  showAreaWarning = false,
+}: {
+  items: PredictionSamplingRecommendationItem[];
+  showAreaWarning?: boolean;
+}) {
+  return (
+    <div className="overflow-x-auto rounded-md border">
+      <table className="w-full min-w-[1100px] text-left text-sm">
+        <thead className="border-b bg-muted/40 text-xs uppercase text-muted-foreground">
+          <tr>
+            <th className="px-4 py-3">Rank</th>
+            <th className="px-4 py-3">Test target</th>
+            <th className="px-4 py-3">Area</th>
+            <th className="px-4 py-3">Toxin</th>
+            <th className="px-4 py-3 text-right">Priority</th>
+            <th className="px-4 py-3 text-right">Expected detection</th>
+            <th className="px-4 py-3">Priority band</th>
+            <th className="px-4 py-3 text-right">Historical samples</th>
+            <th className="px-4 py-3 text-right">Historical detected</th>
+            <th className="px-4 py-3 text-right">Historical rate</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((item) => (
+            <tr
+              key={`${item.rank}-${item.subType}-${item.province}-${item.district}-${item.recommendedToxin}`}
+              className="border-b last:border-0"
+            >
+              <td className="px-4 py-3 font-medium">#{item.rank}</td>
+              <td className="px-4 py-3">
+                <div className="font-medium text-foreground">{item.subType}</div>
+                <div className="text-xs uppercase text-muted-foreground">{item.foodFeedType}</div>
+              </td>
+              <td className="px-4 py-3">
+                <div>{item.district ? `${item.district}, ${item.province}` : item.province}</div>
+                {showAreaWarning && !item.areaSpecific && (
+                  <div className="text-xs text-warning">
+                    Historical area is missing; use as national surveillance signal
+                  </div>
+                )}
+              </td>
+              <td className="px-4 py-3 font-medium">
+                {toxinDisplayName(item.recommendedToxin, item.recommendedToxinLabel)}
+              </td>
+              <td className="px-4 py-3 text-right font-medium">
+                {(item.priorityScore * 100).toFixed(1)}%
+              </td>
+              <td className="px-4 py-3 text-right">
+                {(item.detectionProbability * 100).toFixed(1)}%
+              </td>
+              <td className="px-4 py-3">
+                <Badge variant={riskBadgeVariant[item.priorityBand]}>{item.priorityBand}</Badge>
+              </td>
+              <td className="px-4 py-3 text-right">{item.historicalSampleCount}</td>
+              <td className="px-4 py-3 text-right">{item.historicalDetectedCount}</td>
+              <td className="px-4 py-3 text-right">
+                {(item.historicalDetectionRate * 100).toFixed(1)}%
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
 }
 
 const initialForm: PredictionEstimateRequest = {
@@ -718,6 +787,16 @@ const Prediction = () => {
 
                 {samplingRecommendations.data && (
                   <div className="space-y-4">
+                    {(() => {
+                      const areaSpecificRecommendations = samplingRecommendations.data.areaSpecificRecommendations
+                        ?? samplingRecommendations.data.recommendations.filter((item) => item.areaSpecific);
+                      const nationalSurveillanceSignals = samplingRecommendations.data.nationalSurveillanceSignals
+                        ?? samplingRecommendations.data.recommendations.filter((item) => !item.areaSpecific);
+                      const hasRecommendations = areaSpecificRecommendations.length > 0
+                        || nationalSurveillanceSignals.length > 0;
+
+                      return (
+                        <>
                     <div className="grid gap-3 rounded-md border bg-muted/20 p-3 text-sm md:grid-cols-5">
                       <div>
                         <p className="font-medium text-foreground">Candidates scanned</p>
@@ -754,60 +833,42 @@ const Prediction = () => {
 
                     <p className="text-sm text-muted-foreground">{samplingRecommendations.data.warning}</p>
 
-                    {samplingRecommendations.data.recommendations.length > 0 ? (
-                      <div className="overflow-x-auto rounded-md border">
-                        <table className="w-full min-w-[1100px] text-left text-sm">
-                          <thead className="border-b bg-muted/40 text-xs uppercase text-muted-foreground">
-                            <tr>
-                              <th className="px-4 py-3">Rank</th>
-                              <th className="px-4 py-3">Test target</th>
-                              <th className="px-4 py-3">Area</th>
-                              <th className="px-4 py-3">Toxin</th>
-                              <th className="px-4 py-3 text-right">Priority</th>
-                              <th className="px-4 py-3 text-right">Expected detection</th>
-                              <th className="px-4 py-3">Priority band</th>
-                              <th className="px-4 py-3 text-right">Historical samples</th>
-                              <th className="px-4 py-3 text-right">Historical detected</th>
-                              <th className="px-4 py-3 text-right">Historical rate</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {samplingRecommendations.data.recommendations.map((item) => (
-                              <tr key={`${item.rank}-${item.subType}-${item.province}-${item.district}`} className="border-b last:border-0">
-                                <td className="px-4 py-3 font-medium">#{item.rank}</td>
-                                <td className="px-4 py-3">
-                                  <div className="font-medium text-foreground">{item.subType}</div>
-                                  <div className="text-xs uppercase text-muted-foreground">{item.foodFeedType}</div>
-                                </td>
-                                <td className="px-4 py-3">
-                                  <div>{item.district ? `${item.district}, ${item.province}` : item.province}</div>
-                                  {!item.areaSpecific && (
-                                    <div className="text-xs text-warning">
-                                      Historical area is missing; use as national surveillance signal
-                                    </div>
-                                  )}
-                                </td>
-                                <td className="px-4 py-3 font-medium">
-                                  {toxinDisplayName(item.recommendedToxin, item.recommendedToxinLabel)}
-                                </td>
-                                <td className="px-4 py-3 text-right font-medium">
-                                  {(item.priorityScore * 100).toFixed(1)}%
-                                </td>
-                                <td className="px-4 py-3 text-right">
-                                  {(item.detectionProbability * 100).toFixed(1)}%
-                                </td>
-                                <td className="px-4 py-3">
-                                  <Badge variant={riskBadgeVariant[item.priorityBand]}>{item.priorityBand}</Badge>
-                                </td>
-                                <td className="px-4 py-3 text-right">{item.historicalSampleCount}</td>
-                                <td className="px-4 py-3 text-right">{item.historicalDetectedCount}</td>
-                                <td className="px-4 py-3 text-right">
-                                  {(item.historicalDetectionRate * 100).toFixed(1)}%
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                    {hasRecommendations ? (
+                      <div className="space-y-6">
+                        <section className="space-y-3">
+                          <div>
+                            <h3 className="font-medium text-foreground">Area-specific targets</h3>
+                            <p className="text-sm text-muted-foreground">
+                              Use these for decisions about which province or district should be tested next.
+                            </p>
+                          </div>
+                          {areaSpecificRecommendations.length > 0 ? (
+                            <SamplingRecommendationTable items={areaSpecificRecommendations} />
+                          ) : (
+                            <p className="rounded-md border bg-muted/20 p-3 text-sm text-muted-foreground">
+                              No area-specific targets met the current priority score.
+                            </p>
+                          )}
+                        </section>
+
+                        <section className="space-y-3">
+                          <div>
+                            <h3 className="font-medium text-foreground">
+                              National signals from incomplete location data
+                            </h3>
+                            <p className="text-sm text-muted-foreground">
+                              These identify food/feed types with strong historical signal, but the source records do
+                              not contain a usable province or district.
+                            </p>
+                          </div>
+                          {nationalSurveillanceSignals.length > 0 ? (
+                            <SamplingRecommendationTable items={nationalSurveillanceSignals} showAreaWarning />
+                          ) : (
+                            <p className="rounded-md border bg-muted/20 p-3 text-sm text-muted-foreground">
+                              No national incomplete-location signals met the current priority score.
+                            </p>
+                          )}
+                        </section>
                       </div>
                     ) : (
                       <p className="rounded-md border bg-muted/20 p-3 text-sm text-muted-foreground">
@@ -815,6 +876,9 @@ const Prediction = () => {
                           || 'No recommendations were generated. Try widening the province or food/feed filters, or publish at least one prediction model.'}
                       </p>
                     )}
+                        </>
+                      );
+                    })()}
                   </div>
                 )}
               </CardContent>

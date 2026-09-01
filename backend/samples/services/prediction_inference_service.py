@@ -170,8 +170,20 @@ class PredictionInferenceService:
             for item in scored_candidates
             if item['priorityScore'] >= min_priority_score
         ]
-        for index, item in enumerate(recommendations[:limit], start=1):
+        area_specific_recommendations = [
+            item for item in recommendations if item.get('areaSpecific', True)
+        ][:limit]
+        national_surveillance_signals = [
+            item for item in recommendations if not item.get('areaSpecific', True)
+        ][:limit]
+        for index, item in enumerate(area_specific_recommendations, start=1):
             item['rank'] = index
+        for index, item in enumerate(national_surveillance_signals, start=1):
+            item['rank'] = index
+        combined_recommendations = [
+            *area_specific_recommendations,
+            *national_surveillance_signals,
+        ][:limit]
 
         return {
             'targetDate': target_date.isoformat(),
@@ -182,9 +194,13 @@ class PredictionInferenceService:
             'belowPriorityThresholdCount': max(len(scored_candidates) - len(recommendations), 0),
             'minRiskThreshold': min_priority_score,
             'minPriorityScore': min_priority_score,
-            'returned': len(recommendations[:limit]),
+            'returned': len(area_specific_recommendations) + len(national_surveillance_signals),
+            'areaSpecificReturned': len(area_specific_recommendations),
+            'nationalSignalReturned': len(national_surveillance_signals),
             'usesWeatherFeatures': scored_candidates[0]['usesWeatherFeatures'] if scored_candidates else False,
-            'recommendations': recommendations[:limit],
+            'recommendations': combined_recommendations,
+            'areaSpecificRecommendations': area_specific_recommendations,
+            'nationalSurveillanceSignals': national_surveillance_signals,
             'message': (
                 'No priority testing targets found for the selected filters.'
                 if not recommendations and scored_candidates

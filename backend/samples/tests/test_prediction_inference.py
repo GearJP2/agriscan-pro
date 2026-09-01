@@ -628,6 +628,10 @@ class PredictionEstimateEndpointTests(TestCase):
         self.assertEqual(recommendation['recommendedToxinLabel'], 'Tryptophol')
         self.assertEqual(recommendation['riskBand'], 'high')
         self.assertEqual(recommendation['targetDate'], '2026-08-31')
+        self.assertEqual(response.data['areaSpecificReturned'], 1)
+        self.assertEqual(response.data['nationalSignalReturned'], 0)
+        self.assertEqual(response.data['areaSpecificRecommendations'][0]['subType'], 'Oats')
+        self.assertEqual(response.data['nationalSurveillanceSignals'], [])
         self.assertEqual(estimate.call_args.args[0]['collection_date'], date(2026, 8, 31))
 
     def test_prediction_recommendation_service_accepts_string_target_date(self):
@@ -772,6 +776,8 @@ class PredictionEstimateEndpointTests(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['returned'], 1)
+        self.assertEqual(response.data['areaSpecificReturned'], 1)
+        self.assertEqual(response.data['nationalSignalReturned'], 0)
         recommendation = response.data['recommendations'][0]
         self.assertEqual(recommendation['subType'], 'Rice crackers')
         self.assertEqual(recommendation['recommendedToxin'], 'TRY')
@@ -781,6 +787,70 @@ class PredictionEstimateEndpointTests(TestCase):
         self.assertEqual(recommendation['historicalMeasuredCount'], 10)
         self.assertEqual(recommendation['historicalDetectionRate'], 1.0)
         self.assertIn('historical-detections', recommendation['priorityDrivers'])
+        self.assertEqual(response.data['areaSpecificRecommendations'][0]['subType'], 'Rice crackers')
+        self.assertEqual(response.data['nationalSurveillanceSignals'], [])
+
+    def test_prediction_recommendations_split_incomplete_locations_as_national_signals(self):
+        self.client.force_authenticate(user=self.researcher)
+        for index in range(10):
+            sample = Sample.objects.create(
+                sample_id=f'RIC-2026-N{index:03d}',
+                region='unknown',
+                province='Unknown',
+                district='Unknown',
+                vegetation_variety='Rice crackers',
+                food_feed_type='food',
+                sub_type='Rice crackers',
+                collection_date='2026-05-13',
+                status='completed',
+            )
+            MycotoxinResult.objects.create(
+                sample=sample,
+                toxin_type='TRY',
+                value=8.5,
+                unit='ug_kg',
+            )
+        expected = {
+            'modelVersion': 'v-test',
+            'modelFamily': 'baseline',
+            'usesWeatherFeatures': True,
+            'featureSummary': {
+                'weatherLocationLabel': 'Thailand centroid',
+                'weatherDaysObserved90d': 90,
+            },
+            'predictions': [
+                {
+                    'toxinType': 'TRY',
+                    'detectionProbability': 0.05,
+                    'riskBand': 'low',
+                    'estimatedConcentrationUgKg': 13.5,
+                },
+            ],
+            'warning': 'Research area-risk estimate only.',
+        }
+
+        with patch('samples.views.PredictionInferenceService.estimate', return_value=expected):
+            response = self.client.post(
+                reverse('sample-prediction-recommendations'),
+                {
+                    'target_date': '2026-08-31',
+                    'limit': 5,
+                    'max_candidates': 10,
+                    'sub_types': ['Rice crackers'],
+                },
+                format='json',
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['returned'], 1)
+        self.assertEqual(response.data['areaSpecificReturned'], 0)
+        self.assertEqual(response.data['nationalSignalReturned'], 1)
+        self.assertEqual(response.data['areaSpecificRecommendations'], [])
+        recommendation = response.data['nationalSurveillanceSignals'][0]
+        self.assertFalse(recommendation['areaSpecific'])
+        self.assertEqual(recommendation['areaConfidence'], 'low')
+        self.assertEqual(recommendation['province'], 'Unspecified area')
+        self.assertEqual(recommendation['subType'], 'Rice crackers')
 
     def test_sampling_candidate_builder_cleans_unknown_district_and_location_case(self):
         Sample.objects.create(

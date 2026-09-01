@@ -166,8 +166,12 @@ export interface PredictionSamplingRecommendationResponse {
   minRiskThreshold: number;
   minPriorityScore: number;
   returned: number;
+  areaSpecificReturned: number;
+  nationalSignalReturned: number;
   usesWeatherFeatures: boolean;
   recommendations: PredictionSamplingRecommendationItem[];
+  areaSpecificRecommendations: PredictionSamplingRecommendationItem[];
+  nationalSurveillanceSignals: PredictionSamplingRecommendationItem[];
   message: string;
   errors: Array<{
     foodFeedType: string;
