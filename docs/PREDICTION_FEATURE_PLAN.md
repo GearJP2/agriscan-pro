@@ -2,10 +2,11 @@
 
 ## Objective
 
-Provide an authenticated research tool that estimates mycotoxin risk for a
-food/feed type in a specific area before laboratory analysis. It must present
-an area/context risk probability and its limitations, not a laboratory result
-or regulatory decision.
+Provide an authenticated research tool that helps researchers prioritize where
+and what to sample next for mycotoxin surveillance. The main workflow is a
+sampling recommendation system, not a complete toxin-screening tool. It must
+present model estimates and historical signals with their limitations, not a
+laboratory result or regulatory decision.
 
 The design is informed by *Predicting Mycotoxin Contamination in Irish Oats
 Using Deep and Transfer Learning* (Inglis et al., 2025), while being adapted
@@ -32,16 +33,19 @@ blank or inferred value is richer evidence than it is.
 
 ## Prediction contract
 
-For each eligible toxin, the system will make two related estimates:
+For each eligible, reviewed, and published toxin model, the system can make two
+related estimates:
 
 1. **Detection likelihood**: probability that the toxin is above the lab
    detection limit.
 2. **Expected concentration**: a log-transformed concentration estimate,
    shown only where the detection likelihood is meaningful.
 
-The UI will always display the model version, validation metric, training-data
-coverage, and a warning when the requested sample falls outside the training
-data. It will call this a *research estimate*, never a pass/fail decision.
+The UI will always display the model version and a warning that the result is
+research prioritization guidance. Technical model metrics and training-data
+coverage are shown only to admin/head-researcher users, not to standard
+researchers. The system calls predictions *research estimates*, never pass/fail
+decisions.
 
 ## Input features, in delivery order
 
@@ -119,10 +123,12 @@ labelled samples are needed.
    - Add a management command to build the feature set, train eligible toxin
      models, validate them, and store versioned model metadata/artifacts.
 3. **Research prediction page**
-   - Allow a researcher to choose an existing sample or enter prospective
-     sample details.
-   - Show only eligible toxin estimates, uncertainty, main contributing
-     factors, applicability warning, and model metadata.
+   - Prioritize future sampling targets from historical food/feed, location,
+     mycotoxin-result, and weather context.
+   - Split recommendations into area-specific targets and national signals
+     from incomplete location data.
+   - Keep registered-sample estimates and model diagnostics as advanced
+     admin/head-researcher views.
 4. **V1 richer predictors and retraining**
    - Capture harvest/agronomic fields during registration.
    - Re-train only on approval, with an audit record and comparison to the
@@ -139,9 +145,9 @@ from sparse labels.
 
 The first baseline implementation is now in place:
 
-- Research-role endpoints report readiness, model status, single-sample
-  estimates, batch estimates, sample prediction context, and per-sample
-  prediction history.
+- Research-role endpoints support readiness, model status, single-sample
+  estimates, batch estimates, sample prediction context, per-sample prediction
+  history, and sampling recommendations.
 - `PredictionContext` stores optional predictors separately from the core
   sample record.
 - `PredictionEstimate` stores audit history for estimates without mixing model
@@ -151,6 +157,201 @@ The first baseline implementation is now in place:
 - Inference uses only models marked `published: true`.
 - Admin users can publish reviewed toxin models from the Prediction page. The
   same guardrails are used by the UI endpoint and the management command.
+- Standard researcher users see the operational sampling-recommendation
+  workflow. Admin/head-researcher users see model diagnostics and advanced
+  registered-sample estimate tools. Only admins can publish models.
+
+## Current ML pipeline
+
+The prediction system is classical machine learning plus deterministic scoring.
+It does **not** use an LLM to make prediction or recommendation decisions.
+
+```text
+Imported sample/lab data
+        ↓
+Django training dataset builder
+        ↓
+Feature engineering
+        ↓
+Eligibility guardrails per toxin
+        ↓
+Train one detection model and one concentration model per eligible toxin
+        ↓
+Inspect model metrics and skipped toxin targets
+        ↓
+Admin publishes reviewed toxin models
+        ↓
+Researcher sampling recommendation API uses published models only
+        ↓
+Frontend shows area-specific targets and national incomplete-location signals
+```
+
+### 1. Source data
+
+The training data comes from Django records:
+
+- `Sample`: food/feed type, subtype, region, province, district, collection
+  date, purpose, sample type, processing type, and optional registered context.
+- `MycotoxinResult`: toxin code, concentration value, unit, risk level, and
+  below-LOD flag.
+- `ExternalDataCache` / NASA POWER service: optional 90-day weather summaries
+  before the target date.
+
+The importer upserts future mycotoxin results by sample ID and toxin code. This
+means if a sample is registered in the system first and results are imported
+later, the imported result updates the matching sample record instead of
+creating a disconnected training row.
+
+Empty cells in the provided mycotoxin CSV are recorded as below LOD for that
+given historical dataset. Future importers should distinguish truly unmeasured
+toxins from below-LOD observed toxins when that information is available.
+
+### 2. Feature engineering
+
+`PredictionDatasetService` converts each sample/result pair into tabular model
+features:
+
+- food/feed type and subtype
+- commodity name
+- region, province, and district
+- collection month, quarter, and Thai season
+- purpose, sample type, and processing type
+- optional prediction context such as coordinates, harvest/sowing dates,
+  storage duration, moisture, soil, crop rotation, fertiliser, and fungicide
+  details
+- optional weather features:
+  - 90-day mean temperature
+  - 90-day mean humidity
+  - 90-day total precipitation
+  - 90-day mean soil temperature
+  - weather observation count
+  - weather location label
+
+Weather features are deterministic summaries. If exact coordinates are missing,
+the service falls back to the best available location, currently province or
+Thailand centroid depending on data quality.
+
+### 3. Training
+
+`train_prediction_models` trains one pair of models per eligible toxin:
+
+- detection model: scaled logistic regression
+- concentration model: scaled ridge regression on `log1p(value)`
+
+The current model family is:
+
+```text
+scaled_logistic_regression_detection_plus_scaled_ridge_concentration
+```
+
+Training creates versioned artifacts under:
+
+```text
+backend/prediction_artifacts/<model-version>/
+```
+
+The artifact directory is ignored by git because artifacts are generated
+runtime outputs, not source code.
+
+### 4. Eligibility guardrails
+
+Each toxin is evaluated independently before training. A toxin can be skipped
+when it does not have enough usable data, for example:
+
+- too few detected rows
+- too few below-LOD/zero rows
+- insufficient usable context
+- failed metric guardrails
+
+This is why not every mycotoxin appears in predictions. Absence from prediction
+results means "no reviewed published model is available", not "no risk exists".
+
+At the current checkpoint, the published model is mainly useful for
+`Tryptophol (TRY)`. Other toxins may be trained or skipped depending on data
+balance and review decisions.
+
+### 5. Inspection and publishing
+
+Admins/head researchers inspect models with:
+
+```bash
+python manage.py inspect_prediction_models --model-version <version> --show-skipped
+```
+
+Admins publish reviewed models with:
+
+```bash
+python manage.py publish_prediction_models --model-version <version> --toxins <approved-toxins>
+```
+
+Publishing is required because researcher-facing inference loads only models
+marked `published: true`. This prevents low-quality or unreviewed models from
+appearing in operational recommendations.
+
+### 6. Inference
+
+`PredictionInferenceService.estimate()` loads the latest published metadata and
+uses only published toxin models. For each published toxin model it returns:
+
+- toxin code and label
+- detection probability
+- risk band
+- estimated concentration, where applicable
+- model version and model family
+- feature provenance
+- warning text
+
+This estimate is an intermediate building block. It is not the primary
+researcher workflow anymore.
+
+### 7. Sampling recommendations
+
+`PredictionInferenceService.recommend_sampling()` is the primary researcher
+workflow. It builds candidate food/feed-location groups from historical samples,
+runs the published model on each candidate, then calculates a deterministic
+surveillance priority score.
+
+Priority score:
+
+```text
+priority score =
+  50% published model detection probability
++ 35% historical detection rate for the same toxin/food-feed/location group
++ 10% historical sample-volume confidence
++  5% weather availability bonus
+```
+
+Each recommendation includes a `scoreBreakdown` object showing the exact
+contribution from each component. The frontend explanation panel uses fixed
+template phrases filled with these computed values. No LLM writes or decides
+the recommendation.
+
+The API separates recommendations into:
+
+- `areaSpecificRecommendations`: rows with usable province/district context.
+  These answer "where should researchers test next?"
+- `nationalSurveillanceSignals`: rows where historical signal exists but the
+  imported location is incomplete, shown as `Unspecified area`. These answer
+  "what sample type looks important nationally, but location records need
+  improvement?"
+
+The request supports recommendation modes:
+
+- `all`
+- `area_specific`
+- `national_signal`
+
+### 8. Current UI access model
+
+- `researcher`: operational sampling recommendations and cautious published
+  model estimate only.
+- `head_researcher`: researcher workflows plus model diagnostics and advanced
+  registered-sample estimate tools.
+- `admin`: all head-researcher views plus model publishing and top-right
+  role-viewpoint preview.
+
+The admin role preview is frontend-only. It helps admins inspect how the page
+looks to different roles without changing the real backend account role.
 
 Operational command flow:
 
