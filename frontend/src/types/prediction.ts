@@ -118,6 +118,7 @@ export interface PredictionSamplingRecommendationRequest {
   max_candidates?: number;
   min_risk_threshold?: number;
   min_priority_score?: number;
+  mode?: 'all' | 'area_specific' | 'national_signal';
   food_feed_type?: 'food' | 'feed' | '';
   provinces?: string[];
   sub_types?: string[];
@@ -140,6 +141,20 @@ export interface PredictionSamplingRecommendationItem {
   priorityBand: 'low' | 'medium' | 'high';
   priorityDrivers: string[];
   actionBasis: 'model_and_history' | 'historical_signal' | 'model_signal';
+  scoreBreakdown: {
+    modelProbabilityWeight: number;
+    modelProbabilityValue: number;
+    modelProbabilityContribution: number;
+    historicalDetectionWeight: number;
+    historicalDetectionValue: number;
+    historicalDetectionContribution: number;
+    volumeWeight: number;
+    volumeValue: number;
+    volumeContribution: number;
+    weatherWeight: number;
+    weatherValue: number;
+    weatherContribution: number;
+  };
   detectionProbability: number;
   riskBand: 'low' | 'medium' | 'high';
   estimatedConcentrationUgKg: number | null;
@@ -158,6 +173,7 @@ export interface PredictionSamplingRecommendationItem {
 
 export interface PredictionSamplingRecommendationResponse {
   targetDate: string;
+  mode: 'all' | 'area_specific' | 'national_signal';
   requestedLimit: number;
   candidateCount: number;
   scoredCandidateCount: number;

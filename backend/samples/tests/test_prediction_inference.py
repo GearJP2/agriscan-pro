@@ -621,6 +621,7 @@ class PredictionEstimateEndpointTests(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['returned'], 1)
+        self.assertEqual(response.data['mode'], 'all')
         recommendation = response.data['recommendations'][0]
         self.assertEqual(recommendation['rank'], 1)
         self.assertEqual(recommendation['subType'], 'Oats')
@@ -628,6 +629,8 @@ class PredictionEstimateEndpointTests(TestCase):
         self.assertEqual(recommendation['recommendedToxinLabel'], 'Tryptophol')
         self.assertEqual(recommendation['riskBand'], 'high')
         self.assertEqual(recommendation['targetDate'], '2026-08-31')
+        self.assertIn('scoreBreakdown', recommendation)
+        self.assertGreater(recommendation['scoreBreakdown']['modelProbabilityContribution'], 0)
         self.assertEqual(response.data['areaSpecificReturned'], 1)
         self.assertEqual(response.data['nationalSignalReturned'], 0)
         self.assertEqual(response.data['areaSpecificRecommendations'][0]['subType'], 'Oats')
@@ -843,6 +846,7 @@ class PredictionEstimateEndpointTests(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['returned'], 1)
+        self.assertEqual(response.data['mode'], 'all')
         self.assertEqual(response.data['areaSpecificReturned'], 0)
         self.assertEqual(response.data['nationalSignalReturned'], 1)
         self.assertEqual(response.data['areaSpecificRecommendations'], [])
@@ -851,6 +855,66 @@ class PredictionEstimateEndpointTests(TestCase):
         self.assertEqual(recommendation['areaConfidence'], 'low')
         self.assertEqual(recommendation['province'], 'Unspecified area')
         self.assertEqual(recommendation['subType'], 'Rice crackers')
+
+    def test_prediction_recommendations_mode_filters_visible_recommendations(self):
+        self.client.force_authenticate(user=self.researcher)
+        for index, province in enumerate(['Nakhon Pathom', 'Unknown']):
+            sample = Sample.objects.create(
+                sample_id=f'RIC-2026-M{index:03d}',
+                region='Central',
+                province=province,
+                district='Unknown',
+                vegetation_variety='Rice crackers',
+                food_feed_type='food',
+                sub_type='Rice crackers',
+                collection_date='2026-05-13',
+                status='completed',
+            )
+            MycotoxinResult.objects.create(
+                sample=sample,
+                toxin_type='TRY',
+                value=8.5,
+                unit='ug_kg',
+            )
+        expected = {
+            'modelVersion': 'v-test',
+            'modelFamily': 'baseline',
+            'usesWeatherFeatures': True,
+            'featureSummary': {
+                'weatherLocationLabel': 'Thailand centroid',
+                'weatherDaysObserved90d': 90,
+            },
+            'predictions': [
+                {
+                    'toxinType': 'TRY',
+                    'detectionProbability': 0.95,
+                    'riskBand': 'high',
+                    'estimatedConcentrationUgKg': 13.5,
+                },
+            ],
+            'warning': 'Research area-risk estimate only.',
+        }
+
+        with patch('samples.views.PredictionInferenceService.estimate', return_value=expected):
+            response = self.client.post(
+                reverse('sample-prediction-recommendations'),
+                {
+                    'target_date': '2026-08-31',
+                    'limit': 5,
+                    'max_candidates': 10,
+                    'sub_types': ['Rice crackers'],
+                    'mode': 'area_specific',
+                },
+                format='json',
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['mode'], 'area_specific')
+        self.assertEqual(response.data['returned'], 1)
+        self.assertEqual(len(response.data['recommendations']), 1)
+        self.assertTrue(response.data['recommendations'][0]['areaSpecific'])
+        self.assertEqual(response.data['areaSpecificReturned'], 1)
+        self.assertEqual(response.data['nationalSignalReturned'], 1)
 
     def test_sampling_candidate_builder_cleans_unknown_district_and_location_case(self):
         Sample.objects.create(

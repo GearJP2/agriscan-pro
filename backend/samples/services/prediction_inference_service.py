@@ -63,6 +63,7 @@ class PredictionInferenceService:
             min_priority_score = request.get('min_risk_threshold')
         if min_priority_score is None:
             min_priority_score = 0.40
+        mode = request.get('mode') or 'all'
         candidates = cls.build_sampling_candidates(
             food_feed_type=request.get('food_feed_type') or '',
             provinces=request.get('provinces') or [],
@@ -139,6 +140,7 @@ class PredictionInferenceService:
                 'priorityBand': priority['band'],
                 'priorityDrivers': priority['drivers'],
                 'actionBasis': priority['basis'],
+                'scoreBreakdown': priority['breakdown'],
                 'detectionProbability': top_prediction['detectionProbability'],
                 'riskBand': top_prediction['riskBand'],
                 'estimatedConcentrationUgKg': top_prediction['estimatedConcentrationUgKg'],
@@ -184,9 +186,16 @@ class PredictionInferenceService:
             *area_specific_recommendations,
             *national_surveillance_signals,
         ][:limit]
+        if mode == 'area_specific':
+            visible_recommendations = area_specific_recommendations
+        elif mode == 'national_signal':
+            visible_recommendations = national_surveillance_signals
+        else:
+            visible_recommendations = combined_recommendations
 
         return {
             'targetDate': target_date.isoformat(),
+            'mode': mode,
             'requestedLimit': limit,
             'candidateCount': len(candidates),
             'scoredCandidateCount': len(scored_candidates),
@@ -194,16 +203,16 @@ class PredictionInferenceService:
             'belowPriorityThresholdCount': max(len(scored_candidates) - len(recommendations), 0),
             'minRiskThreshold': min_priority_score,
             'minPriorityScore': min_priority_score,
-            'returned': len(area_specific_recommendations) + len(national_surveillance_signals),
+            'returned': len(visible_recommendations),
             'areaSpecificReturned': len(area_specific_recommendations),
             'nationalSignalReturned': len(national_surveillance_signals),
             'usesWeatherFeatures': scored_candidates[0]['usesWeatherFeatures'] if scored_candidates else False,
-            'recommendations': combined_recommendations,
+            'recommendations': visible_recommendations,
             'areaSpecificRecommendations': area_specific_recommendations,
             'nationalSurveillanceSignals': national_surveillance_signals,
             'message': (
                 'No priority testing targets found for the selected filters.'
-                if not recommendations and scored_candidates
+                if not visible_recommendations and scored_candidates
                 else ''
             ),
             'errors': errors,
@@ -338,12 +347,15 @@ class PredictionInferenceService:
         sample_count = max(int(historical_sample_count or 0), 0)
         volume_confidence = min(math.log1p(sample_count) / math.log1p(50), 1.0) if sample_count else 0.0
         weather_bonus = 1.0 if weather_available else 0.0
-        score = (
-            (0.50 * probability)
-            + (0.35 * historical_rate)
-            + (0.10 * volume_confidence)
-            + (0.05 * weather_bonus)
-        )
+        model_weight = 0.50
+        historical_weight = 0.35
+        volume_weight = 0.10
+        weather_weight = 0.05
+        model_contribution = model_weight * probability
+        historical_contribution = historical_weight * historical_rate
+        volume_contribution = volume_weight * volume_confidence
+        weather_contribution = weather_weight * weather_bonus
+        score = model_contribution + historical_contribution + volume_contribution + weather_contribution
         drivers = []
         if probability >= 0.40:
             drivers.append('model-risk')
@@ -367,6 +379,20 @@ class PredictionInferenceService:
             'basis': basis,
             'drivers': drivers,
             'volume_confidence': round(volume_confidence, 4),
+            'breakdown': {
+                'modelProbabilityWeight': model_weight,
+                'modelProbabilityValue': round(probability, 4),
+                'modelProbabilityContribution': round(model_contribution, 4),
+                'historicalDetectionWeight': historical_weight,
+                'historicalDetectionValue': round(historical_rate, 4),
+                'historicalDetectionContribution': round(historical_contribution, 4),
+                'volumeWeight': volume_weight,
+                'volumeValue': round(volume_confidence, 4),
+                'volumeContribution': round(volume_contribution, 4),
+                'weatherWeight': weather_weight,
+                'weatherValue': round(weather_bonus, 4),
+                'weatherContribution': round(weather_contribution, 4),
+            },
         }
 
     @staticmethod

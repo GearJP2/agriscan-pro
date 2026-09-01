@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import {
@@ -42,6 +42,10 @@ function toxinDisplayName(code: string, label?: string) {
   return toxinLabel && toxinLabel !== code ? `${toxinLabel} (${code})` : code;
 }
 
+function formatContribution(value: number) {
+  return `${(value * 100).toFixed(1)} pts`;
+}
+
 function SamplingRecommendationTable({
   items,
   showAreaWarning = false,
@@ -68,41 +72,78 @@ function SamplingRecommendationTable({
         </thead>
         <tbody>
           {items.map((item) => (
-            <tr
-              key={`${item.rank}-${item.subType}-${item.province}-${item.district}-${item.recommendedToxin}`}
-              className="border-b last:border-0"
-            >
-              <td className="px-4 py-3 font-medium">#{item.rank}</td>
-              <td className="px-4 py-3">
-                <div className="font-medium text-foreground">{item.subType}</div>
-                <div className="text-xs uppercase text-muted-foreground">{item.foodFeedType}</div>
-              </td>
-              <td className="px-4 py-3">
-                <div>{item.district ? `${item.district}, ${item.province}` : item.province}</div>
-                {showAreaWarning && !item.areaSpecific && (
-                  <div className="text-xs text-warning">
-                    Historical area is missing; use as national surveillance signal
-                  </div>
-                )}
-              </td>
-              <td className="px-4 py-3 font-medium">
-                {toxinDisplayName(item.recommendedToxin, item.recommendedToxinLabel)}
-              </td>
-              <td className="px-4 py-3 text-right font-medium">
-                {(item.priorityScore * 100).toFixed(1)}%
-              </td>
-              <td className="px-4 py-3 text-right">
-                {(item.detectionProbability * 100).toFixed(1)}%
-              </td>
-              <td className="px-4 py-3">
-                <Badge variant={riskBadgeVariant[item.priorityBand]}>{item.priorityBand}</Badge>
-              </td>
-              <td className="px-4 py-3 text-right">{item.historicalSampleCount}</td>
-              <td className="px-4 py-3 text-right">{item.historicalDetectedCount}</td>
-              <td className="px-4 py-3 text-right">
-                {(item.historicalDetectionRate * 100).toFixed(1)}%
-              </td>
-            </tr>
+            <Fragment key={`${item.rank}-${item.subType}-${item.province}-${item.district}-${item.recommendedToxin}`}>
+              <tr
+                className="border-b"
+              >
+                <td className="px-4 py-3 font-medium">#{item.rank}</td>
+                <td className="px-4 py-3">
+                  <div className="font-medium text-foreground">{item.subType}</div>
+                  <div className="text-xs uppercase text-muted-foreground">{item.foodFeedType}</div>
+                </td>
+                <td className="px-4 py-3">
+                  <div>{item.district ? `${item.district}, ${item.province}` : item.province}</div>
+                  {showAreaWarning && !item.areaSpecific && (
+                    <div className="text-xs text-warning">
+                      Historical area is missing; use as national surveillance signal
+                    </div>
+                  )}
+                </td>
+                <td className="px-4 py-3 font-medium">
+                  {toxinDisplayName(item.recommendedToxin, item.recommendedToxinLabel)}
+                </td>
+                <td className="px-4 py-3 text-right font-medium">
+                  {(item.priorityScore * 100).toFixed(1)}%
+                </td>
+                <td className="px-4 py-3 text-right">
+                  {(item.detectionProbability * 100).toFixed(1)}%
+                </td>
+                <td className="px-4 py-3">
+                  <Badge variant={riskBadgeVariant[item.priorityBand]}>{item.priorityBand}</Badge>
+                </td>
+                <td className="px-4 py-3 text-right">{item.historicalSampleCount}</td>
+                <td className="px-4 py-3 text-right">{item.historicalDetectedCount}</td>
+                <td className="px-4 py-3 text-right">
+                  {(item.historicalDetectionRate * 100).toFixed(1)}%
+                </td>
+              </tr>
+              <tr className="border-b last:border-0">
+                <td colSpan={10} className="bg-muted/10 px-4 py-3">
+                  <details>
+                    <summary className="cursor-pointer text-sm font-medium text-foreground">
+                      Why this recommendation
+                    </summary>
+                    <div className="mt-3 grid gap-3 text-sm text-muted-foreground lg:grid-cols-[1.4fr_1fr]">
+                      <p>{item.reason}</p>
+                      <div className="rounded-md border bg-background p-3">
+                        <p className="font-medium text-foreground">Score breakdown</p>
+                        <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                          <dt>Model probability</dt>
+                          <dd className="text-right">
+                            {formatContribution(item.scoreBreakdown.modelProbabilityContribution)}
+                          </dd>
+                          <dt>Historical detection</dt>
+                          <dd className="text-right">
+                            {formatContribution(item.scoreBreakdown.historicalDetectionContribution)}
+                          </dd>
+                          <dt>Historical volume</dt>
+                          <dd className="text-right">
+                            {formatContribution(item.scoreBreakdown.volumeContribution)}
+                          </dd>
+                          <dt>Weather context</dt>
+                          <dd className="text-right">
+                            {formatContribution(item.scoreBreakdown.weatherContribution)}
+                          </dd>
+                        </dl>
+                        <p className="mt-2 text-xs">
+                          Drivers: {item.priorityDrivers.join(', ')} · Basis: {item.actionBasis.replaceAll('_', ' ')}
+                        </p>
+                      </div>
+                    </div>
+                  </details>
+                </td>
+              </tr>
+            </Fragment>
           ))}
         </tbody>
       </table>
@@ -144,6 +185,7 @@ const initialRecommendationForm: PredictionSamplingRecommendationRequest = {
   limit: 10,
   max_candidates: 25,
   min_priority_score: 0.4,
+  mode: 'all',
   food_feed_type: '',
   provinces: [],
   sub_types: [],
@@ -666,6 +708,28 @@ const Prediction = () => {
                         <SelectItem value="all">All</SelectItem>
                         <SelectItem value="food">Food</SelectItem>
                         <SelectItem value="feed">Feed</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Recommendation mode</Label>
+                    <Select
+                      value={recommendationForm.mode || 'all'}
+                      onValueChange={(value) => {
+                        setRecommendationForm((current) => ({
+                          ...current,
+                          mode: value as 'all' | 'area_specific' | 'national_signal',
+                        }));
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All</SelectItem>
+                        <SelectItem value="area_specific">Area-specific targets</SelectItem>
+                        <SelectItem value="national_signal">National signals</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
