@@ -40,10 +40,7 @@ const AppHeader = () => {
     const { isAuthenticated, isInitializing, user, role, canAccessMonitor } = useAuth();
     const location = useLocation();
 
-    const canSwitchRole =
-        !!user &&
-        USER_ROLE_WEIGHT[user.role as keyof typeof USER_ROLE_WEIGHT] >=
-        USER_ROLE_WEIGHT.research_assistant;
+    const canPreviewRoles = user?.role === "admin";
 
     const currentWeight = isAuthenticated
         ? (USER_ROLE_WEIGHT[role as keyof typeof USER_ROLE_WEIGHT] ?? 0)
@@ -131,7 +128,7 @@ const AppHeader = () => {
                     {!isInitializing && (
                         isAuthenticated ? (
                             <div className="flex items-center gap-2">
-                                {canSwitchRole && <RoleSwitcher />}
+                                {canPreviewRoles && <RoleSwitcher />}
                                 <UserDropdown />
                             </div>
                         ) : (
@@ -172,10 +169,7 @@ const CoeHeader = () => {
         ? (USER_ROLE_WEIGHT[role as keyof typeof USER_ROLE_WEIGHT] ?? 0)
         : 0;
 
-    const canSwitchRole =
-        !!user &&
-        USER_ROLE_WEIGHT[user.role as keyof typeof USER_ROLE_WEIGHT] >=
-        USER_ROLE_WEIGHT.research_assistant;
+    const canPreviewRoles = user?.role === "admin";
 
     const publicLinks: NavLinkItem[] = [
         { href: "/", label: t.home },
@@ -322,7 +316,7 @@ const CoeHeader = () => {
                     {!isInitializing && (
                         isAuthenticated ? (
                             <div className="hidden items-center gap-2 min-[1400px]:flex">
-                                {canSwitchRole && <RoleSwitcher />}
+                                {canPreviewRoles && <RoleSwitcher />}
                                 <UserDropdown />
                             </div>
                         ) : (
@@ -374,7 +368,7 @@ const CoeHeader = () => {
                             <button type="button" data-active={language === "th"} onClick={() => setLanguage("th")}>TH</button>
                             <button type="button" data-active={language === "en"} onClick={() => setLanguage("en")}>EN</button>
                         </div>
-                        {!isInitializing && isAuthenticated && canSwitchRole && <RoleSwitcher />}
+                        {!isInitializing && isAuthenticated && canPreviewRoles && <RoleSwitcher />}
                         {!isInitializing && isAuthenticated && <UserDropdown />}
                         {!isInitializing && !isAuthenticated && <LoginModal />}
                     </div>
