@@ -949,14 +949,16 @@ const Prediction = () => {
               </CardContent>
             </Card>
 
+            {canViewDiagnostics && (
+              <>
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Use registered sample area</CardTitle>
+                <CardTitle className="text-lg">Registered sample estimate</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 <p className="text-sm text-muted-foreground">
-                  Shortcut for an existing sample. The system reads the stored commodity, location, collection date,
-                  and prediction context, then estimates risk for that sample area.
+                  Advanced check for samples already registered in the system. This is mainly for review/debugging,
+                  not for deciding where to collect future samples.
                 </p>
                 <form className="flex flex-col gap-3 sm:flex-row" onSubmit={submitSampleEstimate}>
                   <div className="flex-1 space-y-2">
@@ -976,7 +978,7 @@ const Prediction = () => {
                       ) : (
                         <TrendingUp />
                       )}
-                      Estimate area risk
+                      Estimate registered sample
                     </Button>
                   </div>
                 </form>
@@ -985,11 +987,12 @@ const Prediction = () => {
 
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Batch area risk check</CardTitle>
+                <CardTitle className="text-lg">Batch registered sample estimate</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 <p className="text-sm text-muted-foreground">
-                  Check many registered sample areas at once to prioritize surveillance and follow-up testing.
+                  Advanced batch check for samples already in the system. Sampling recommendations should be used
+                  for deciding where to collect new samples.
                 </p>
                 <form className="space-y-3" onSubmit={submitBatchEstimate}>
                   <div className="space-y-2">
@@ -1010,7 +1013,7 @@ const Prediction = () => {
                     disabled={isEstimating || !batchSampleIds.trim()}
                   >
                     {batchEstimate.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <TrendingUp />}
-                    Run batch area check
+                    Run batch registered estimate
                   </Button>
                 </form>
               </CardContent>
@@ -1368,6 +1371,8 @@ const Prediction = () => {
                 )}
               </CardContent>
             </Card>
+              </>
+            )}
 
             <Card className="border-primary/20" style={{ order: -1 }}>
               <CardHeader>
