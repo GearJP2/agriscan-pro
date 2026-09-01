@@ -57,9 +57,11 @@ class PredictionInferenceService:
         target_date = PredictionDatasetService.normalize_date(request.get('target_date')) or date.today()
         limit = request.get('limit') or 10
         max_candidates = request.get('max_candidates') or 25
-        min_risk_threshold = request.get('min_risk_threshold')
-        if min_risk_threshold is None:
-            min_risk_threshold = 0.40
+        min_priority_score = request.get('min_priority_score')
+        if min_priority_score is None:
+            min_priority_score = request.get('min_risk_threshold')
+        if min_priority_score is None:
+            min_priority_score = 0.40
         candidates = cls.build_sampling_candidates(
             food_feed_type=request.get('food_feed_type') or '',
             provinces=request.get('provinces') or [],
@@ -75,7 +77,7 @@ class PredictionInferenceService:
                 'food_feed_type': candidate['foodFeedType'],
                 'sub_type': candidate['subType'],
                 'region': candidate['region'],
-                'province': candidate['province'],
+                'province': candidate.get('modelProvince', candidate['province']),
                 'district': candidate['district'],
                 'collection_date': target_date,
                 'purpose': 'research',
@@ -101,38 +103,62 @@ class PredictionInferenceService:
                 continue
 
             top_prediction = estimate['predictions'][0]
-            scored_candidates.append({
+            historical_signal = cls.historical_signal(
+                toxin_type=top_prediction['toxinType'],
+                food_feed_type=candidate['foodFeedType'],
+                sub_type=candidate['subType'],
+                province=candidate.get('historicalProvince', candidate['province']),
+                district=candidate['district'],
+                include_districts=request.get('include_districts', True),
+            )
+            feature_summary = estimate.get('featureSummary') or {}
+            weather_available = bool(
+                estimate.get('usesWeatherFeatures')
+                and (feature_summary.get('weatherDaysObserved90d') or 0) > 0
+            )
+            priority = cls.surveillance_priority(
+                detection_probability=top_prediction['detectionProbability'],
+                historical_detection_rate=historical_signal['detection_rate'],
+                historical_sample_count=candidate['historicalSampleCount'],
+                weather_available=weather_available,
+            )
+            scored_item = {
                 'rank': 0,
                 'foodFeedType': candidate['foodFeedType'],
                 'subType': candidate['subType'],
                 'province': candidate['province'],
                 'district': candidate['district'],
                 'region': candidate['region'],
+                'areaSpecific': candidate.get('areaSpecific', True),
+                'areaConfidence': candidate.get('areaConfidence', 'high'),
                 'targetDate': target_date.isoformat(),
                 'recommendedToxin': top_prediction['toxinType'],
+                'priorityScore': priority['score'],
+                'priorityBand': priority['band'],
+                'priorityDrivers': priority['drivers'],
+                'actionBasis': priority['basis'],
                 'detectionProbability': top_prediction['detectionProbability'],
                 'riskBand': top_prediction['riskBand'],
                 'estimatedConcentrationUgKg': top_prediction['estimatedConcentrationUgKg'],
                 'modelVersion': estimate['modelVersion'],
                 'usesWeatherFeatures': estimate['usesWeatherFeatures'],
-                'weatherLocationLabel': (estimate.get('featureSummary') or {}).get('weatherLocationLabel', ''),
+                'weatherAvailable': weather_available,
+                'weatherLocationLabel': feature_summary.get('weatherLocationLabel', ''),
                 'historicalSampleCount': candidate['historicalSampleCount'],
                 'latestHistoricalSampleDate': candidate['latestHistoricalSampleDate'],
-                'historicalDetectedCount': cls.count_historical_detected(
-                    toxin_type=top_prediction['toxinType'],
-                    food_feed_type=candidate['foodFeedType'],
-                    sub_type=candidate['subType'],
-                    province=candidate['province'],
-                    district=candidate['district'],
-                    include_districts=request.get('include_districts', True),
-                ),
-                'reason': cls.recommendation_reason(candidate, top_prediction, estimate),
-            })
+                'historicalMeasuredCount': historical_signal['measured_count'],
+                'historicalDetectedCount': historical_signal['detected_count'],
+                'historicalDetectionRate': historical_signal['detection_rate'],
+                'volumeConfidence': priority['volume_confidence'],
+            }
+            scored_item['reason'] = cls.recommendation_reason(candidate, scored_item, top_prediction, estimate)
+            scored_candidates.append(scored_item)
 
         scored_candidates.sort(
             key=lambda item: (
+                item['priorityScore'],
+                item['historicalDetectionRate'],
                 item['detectionProbability'],
-                item['historicalDetectedCount'],
                 item['historicalSampleCount'],
             ),
             reverse=True,
@@ -140,7 +166,7 @@ class PredictionInferenceService:
         recommendations = [
             item
             for item in scored_candidates
-            if item['detectionProbability'] >= min_risk_threshold
+            if item['priorityScore'] >= min_priority_score
         ]
         for index, item in enumerate(recommendations[:limit], start=1):
             item['rank'] = index
@@ -151,12 +177,14 @@ class PredictionInferenceService:
             'candidateCount': len(candidates),
             'scoredCandidateCount': len(scored_candidates),
             'belowThresholdCount': max(len(scored_candidates) - len(recommendations), 0),
-            'minRiskThreshold': min_risk_threshold,
+            'belowPriorityThresholdCount': max(len(scored_candidates) - len(recommendations), 0),
+            'minRiskThreshold': min_priority_score,
+            'minPriorityScore': min_priority_score,
             'returned': len(recommendations[:limit]),
             'usesWeatherFeatures': scored_candidates[0]['usesWeatherFeatures'] if scored_candidates else False,
             'recommendations': recommendations[:limit],
             'message': (
-                'No elevated-risk testing targets found for the selected filters.'
+                'No priority testing targets found for the selected filters.'
                 if not recommendations and scored_candidates
                 else ''
             ),
@@ -211,14 +239,17 @@ class PredictionInferenceService:
         seen = set()
         for row in rows:
             sub_type = row.get('sub_type') or row.get('vegetation_variety')
-            province = PredictionDatasetService.clean_location(row.get('province'))
+            raw_province = str(row.get('province') or '').strip()
+            province = PredictionDatasetService.clean_location(raw_province)
             district = PredictionDatasetService.clean_location(row.get('district')) if include_districts else ''
-            if not sub_type or not province:
+            if not sub_type:
                 continue
+            area_specific = bool(province)
+            display_province = province if area_specific else 'Unspecified area'
             key = (
                 row.get('food_feed_type') or 'food',
                 str(sub_type).strip().lower(),
-                str(province).strip().lower(),
+                str(display_province).strip().lower(),
                 str(district).strip().lower(),
             )
             if key in seen:
@@ -228,11 +259,15 @@ class PredictionInferenceService:
                 'foodFeedType': row.get('food_feed_type') or 'food',
                 'subType': str(sub_type).strip(),
                 'region': PredictionDatasetService.clean_location(row.get('region')),
-                'province': province,
+                'province': display_province,
+                'modelProvince': province,
+                'historicalProvince': raw_province,
                 'district': district,
+                'areaSpecific': area_specific,
+                'areaConfidence': 'high' if area_specific else 'low',
                 'sampleType': '',
                 'processingType': '',
-                'locationType': 'unknown',
+                'locationType': 'province' if area_specific else 'unknown',
                 'historicalSampleCount': row.get('historical_sample_count') or 0,
                 'latestHistoricalSampleDate': (
                     row['latest_historical_sample_date'].isoformat()
@@ -244,30 +279,94 @@ class PredictionInferenceService:
 
     @staticmethod
     def count_historical_detected(*, toxin_type, food_feed_type, sub_type, province, district='', include_districts=True) -> int:
-        queryset = MycotoxinResult.objects.filter(
+        return PredictionInferenceService.historical_signal(
             toxin_type=toxin_type,
-            value__gt=0,
-            sample__province__iexact=province,
-        )
+            food_feed_type=food_feed_type,
+            sub_type=sub_type,
+            province=province,
+            district=district,
+            include_districts=include_districts,
+        )['detected_count']
+
+    @staticmethod
+    def historical_signal(*, toxin_type, food_feed_type, sub_type, province, district='', include_districts=True) -> dict:
+        queryset = MycotoxinResult.objects.filter(toxin_type=toxin_type)
+        if province:
+            queryset = queryset.filter(sample__province__iexact=province)
         if food_feed_type:
             queryset = queryset.filter(sample__food_feed_type=food_feed_type)
         if sub_type:
             queryset = queryset.filter(Q(sample__sub_type__iexact=sub_type) | Q(sample__vegetation_variety__iexact=sub_type))
         if include_districts and district:
             queryset = queryset.filter(sample__district__iexact=district)
-        return queryset.count()
+        measured_count = queryset.count()
+        detected_count = queryset.filter(value__gt=0).count()
+        return {
+            'measured_count': measured_count,
+            'detected_count': detected_count,
+            'detection_rate': round(detected_count / measured_count, 4) if measured_count else 0.0,
+        }
 
     @staticmethod
-    def recommendation_reason(candidate: dict, top_prediction: dict, estimate: dict) -> str:
+    def surveillance_priority(
+        *,
+        detection_probability,
+        historical_detection_rate,
+        historical_sample_count,
+        weather_available,
+    ) -> dict:
+        probability = max(float(detection_probability or 0), 0.0)
+        historical_rate = max(float(historical_detection_rate or 0), 0.0)
+        sample_count = max(int(historical_sample_count or 0), 0)
+        volume_confidence = min(math.log1p(sample_count) / math.log1p(50), 1.0) if sample_count else 0.0
+        weather_bonus = 1.0 if weather_available else 0.0
+        score = (
+            (0.50 * probability)
+            + (0.35 * historical_rate)
+            + (0.10 * volume_confidence)
+            + (0.05 * weather_bonus)
+        )
+        drivers = []
+        if probability >= 0.40:
+            drivers.append('model-risk')
+        if historical_rate >= 0.25:
+            drivers.append('historical-detections')
+        if volume_confidence >= 0.50:
+            drivers.append('historical-volume')
+        if weather_available:
+            drivers.append('weather-context')
+        if not drivers:
+            drivers.append('baseline-surveillance')
+        basis = 'model_and_history'
+        if probability < 0.40 and historical_rate >= 0.25:
+            basis = 'historical_signal'
+        elif probability >= 0.40 and historical_rate < 0.25:
+            basis = 'model_signal'
+        band = 'high' if score >= 0.70 else 'medium' if score >= 0.40 else 'low'
+        return {
+            'score': round(score, 4),
+            'band': band,
+            'basis': basis,
+            'drivers': drivers,
+            'volume_confidence': round(volume_confidence, 4),
+        }
+
+    @staticmethod
+    def recommendation_reason(candidate: dict, scored_item: dict, top_prediction: dict, estimate: dict) -> str:
         probability_pct = round(top_prediction['detectionProbability'] * 100, 1)
+        priority_pct = round(scored_item['priorityScore'] * 100, 1)
+        historical_pct = round(scored_item['historicalDetectionRate'] * 100, 1)
         area = candidate['province']
         if candidate.get('district'):
             area = f"{candidate['district']}, {area}"
         weather_note = ' Weather was included in the model.' if estimate.get('usesWeatherFeatures') else ''
         return (
             f"{candidate['subType']} in {area} is ranked for {top_prediction['toxinType']} "
-            f"because the published model estimates {probability_pct}% detection risk "
-            f"and this area/type has {candidate['historicalSampleCount']} historical sample(s)."
+            f"with a {priority_pct}% surveillance priority score. The published model estimates "
+            f"{probability_pct}% detection risk, while historical results show "
+            f"{scored_item['historicalDetectedCount']} detected result(s) from "
+            f"{scored_item['historicalMeasuredCount']} measured result(s) "
+            f"({historical_pct}%) and {candidate['historicalSampleCount']} historical sample(s)."
             f"{weather_note}"
         )
 

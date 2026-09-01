@@ -212,6 +212,7 @@ class PredictionSamplingRecommendationRequestSerializer(serializers.Serializer):
     limit = serializers.IntegerField(required=False, min_value=1, max_value=50, default=10)
     max_candidates = serializers.IntegerField(required=False, min_value=1, max_value=100, default=25)
     min_risk_threshold = serializers.FloatField(required=False, min_value=0, max_value=1, default=0.40)
+    min_priority_score = serializers.FloatField(required=False, min_value=0, max_value=1)
     food_feed_type = serializers.ChoiceField(choices=['food', 'feed'], required=False, allow_blank=True)
     provinces = serializers.ListField(
         child=serializers.CharField(max_length=100, trim_whitespace=True),

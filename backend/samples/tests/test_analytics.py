@@ -5,6 +5,8 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 from datetime import timedelta
+from pathlib import Path
+from tempfile import TemporaryDirectory
 import requests
 from rest_framework import status
 from rest_framework.test import APIClient
@@ -117,7 +119,8 @@ class AnalyticsEndpointsTests(TestCase):
 
         researcher_client = APIClient()
         researcher_client.force_authenticate(user=self.researcher)
-        response = researcher_client.get(url)
+        with TemporaryDirectory() as tmp_dir, override_settings(BASE_DIR=Path(tmp_dir)):
+            response = researcher_client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['modelStatus'], 'not_trained')
         self.assertIn('trainingGuardrails', response.data)

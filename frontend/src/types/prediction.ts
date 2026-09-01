@@ -117,6 +117,7 @@ export interface PredictionSamplingRecommendationRequest {
   limit?: number;
   max_candidates?: number;
   min_risk_threshold?: number;
+  min_priority_score?: number;
   food_feed_type?: 'food' | 'feed' | '';
   provinces?: string[];
   sub_types?: string[];
@@ -130,17 +131,27 @@ export interface PredictionSamplingRecommendationItem {
   province: string;
   district: string;
   region: string;
+  areaSpecific: boolean;
+  areaConfidence: 'low' | 'high';
   targetDate: string;
   recommendedToxin: string;
+  priorityScore: number;
+  priorityBand: 'low' | 'medium' | 'high';
+  priorityDrivers: string[];
+  actionBasis: 'model_and_history' | 'historical_signal' | 'model_signal';
   detectionProbability: number;
   riskBand: 'low' | 'medium' | 'high';
   estimatedConcentrationUgKg: number | null;
   modelVersion: string;
   usesWeatherFeatures: boolean;
+  weatherAvailable: boolean;
   weatherLocationLabel: string;
   historicalSampleCount: number;
   latestHistoricalSampleDate: string;
+  historicalMeasuredCount: number;
   historicalDetectedCount: number;
+  historicalDetectionRate: number;
+  volumeConfidence: number;
   reason: string;
 }
 
@@ -150,7 +161,9 @@ export interface PredictionSamplingRecommendationResponse {
   candidateCount: number;
   scoredCandidateCount: number;
   belowThresholdCount: number;
+  belowPriorityThresholdCount: number;
   minRiskThreshold: number;
+  minPriorityScore: number;
   returned: number;
   usesWeatherFeatures: boolean;
   recommendations: PredictionSamplingRecommendationItem[];

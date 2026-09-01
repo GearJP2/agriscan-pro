@@ -67,7 +67,7 @@ const initialRecommendationForm: PredictionSamplingRecommendationRequest = {
   target_date: new Date().toISOString().slice(0, 10),
   limit: 10,
   max_candidates: 25,
-  min_risk_threshold: 0.4,
+  min_priority_score: 0.4,
   food_feed_type: '',
   provinces: [],
   sub_types: [],
@@ -275,7 +275,7 @@ const Prediction = () => {
       target_date: recommendationForm.target_date || undefined,
       limit: recommendationForm.limit || 10,
       max_candidates: recommendationForm.max_candidates || 25,
-      min_risk_threshold: recommendationForm.min_risk_threshold ?? 0.4,
+      min_priority_score: recommendationForm.min_priority_score ?? recommendationForm.min_risk_threshold ?? 0.4,
       provinces: splitList(recommendationProvinces),
       sub_types: splitList(recommendationSubTypes),
     });
@@ -629,23 +629,23 @@ const Prediction = () => {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="recommendation-min-risk">Minimum risk threshold</Label>
+                    <Label htmlFor="recommendation-min-priority">Minimum priority score</Label>
                     <Input
-                      id="recommendation-min-risk"
+                      id="recommendation-min-priority"
                       type="number"
                       min={0}
                       max={1}
                       step={0.05}
-                      value={recommendationForm.min_risk_threshold ?? 0.4}
+                      value={recommendationForm.min_priority_score ?? recommendationForm.min_risk_threshold ?? 0.4}
                       onChange={(event) => {
                         setRecommendationForm((current) => ({
                           ...current,
-                          min_risk_threshold: Number(event.target.value),
+                          min_priority_score: Number(event.target.value),
                         }));
                       }}
                     />
                     <p className="text-xs text-muted-foreground">
-                      Default 0.40 means only medium/high-risk candidates become test recommendations.
+                      Combines model risk, historical detections, sample volume, and weather context.
                     </p>
                   </div>
 
@@ -721,13 +721,15 @@ const Prediction = () => {
                         <p className="text-muted-foreground">{samplingRecommendations.data.returned}</p>
                       </div>
                       <div>
-                        <p className="font-medium text-foreground">Below threshold</p>
+                        <p className="font-medium text-foreground">Below priority</p>
                         <p className="text-muted-foreground">
-                          {samplingRecommendations.data.belowThresholdCount}
+                          {samplingRecommendations.data.belowPriorityThresholdCount
+                            ?? samplingRecommendations.data.belowThresholdCount}
                           {' '}
                           under
                           {' '}
-                          {(samplingRecommendations.data.minRiskThreshold * 100).toFixed(0)}
+                          {((samplingRecommendations.data.minPriorityScore
+                            ?? samplingRecommendations.data.minRiskThreshold) * 100).toFixed(0)}
                           %
                         </p>
                       </div>
@@ -747,17 +749,19 @@ const Prediction = () => {
 
                     {samplingRecommendations.data.recommendations.length > 0 ? (
                       <div className="overflow-x-auto rounded-md border">
-                        <table className="w-full min-w-[980px] text-left text-sm">
+                        <table className="w-full min-w-[1100px] text-left text-sm">
                           <thead className="border-b bg-muted/40 text-xs uppercase text-muted-foreground">
                             <tr>
                               <th className="px-4 py-3">Rank</th>
                               <th className="px-4 py-3">Test target</th>
                               <th className="px-4 py-3">Area</th>
                               <th className="px-4 py-3">Toxin</th>
+                              <th className="px-4 py-3 text-right">Priority</th>
                               <th className="px-4 py-3 text-right">Expected detection</th>
-                              <th className="px-4 py-3">Risk</th>
+                              <th className="px-4 py-3">Priority band</th>
                               <th className="px-4 py-3 text-right">Historical samples</th>
                               <th className="px-4 py-3 text-right">Historical detected</th>
+                              <th className="px-4 py-3 text-right">Historical rate</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -769,17 +773,28 @@ const Prediction = () => {
                                   <div className="text-xs uppercase text-muted-foreground">{item.foodFeedType}</div>
                                 </td>
                                 <td className="px-4 py-3">
-                                  {item.district ? `${item.district}, ${item.province}` : item.province}
+                                  <div>{item.district ? `${item.district}, ${item.province}` : item.province}</div>
+                                  {!item.areaSpecific && (
+                                    <div className="text-xs text-warning">
+                                      Historical area is missing; use as national surveillance signal
+                                    </div>
+                                  )}
                                 </td>
                                 <td className="px-4 py-3 font-medium">{item.recommendedToxin}</td>
+                                <td className="px-4 py-3 text-right font-medium">
+                                  {(item.priorityScore * 100).toFixed(1)}%
+                                </td>
                                 <td className="px-4 py-3 text-right">
                                   {(item.detectionProbability * 100).toFixed(1)}%
                                 </td>
                                 <td className="px-4 py-3">
-                                  <Badge variant={riskBadgeVariant[item.riskBand]}>{item.riskBand}</Badge>
+                                  <Badge variant={riskBadgeVariant[item.priorityBand]}>{item.priorityBand}</Badge>
                                 </td>
                                 <td className="px-4 py-3 text-right">{item.historicalSampleCount}</td>
                                 <td className="px-4 py-3 text-right">{item.historicalDetectedCount}</td>
+                                <td className="px-4 py-3 text-right">
+                                  {(item.historicalDetectionRate * 100).toFixed(1)}%
+                                </td>
                               </tr>
                             ))}
                           </tbody>

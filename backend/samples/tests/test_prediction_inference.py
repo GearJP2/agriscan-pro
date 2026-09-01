@@ -13,7 +13,7 @@ from rest_framework import status
 from rest_framework.test import APIClient
 from io import StringIO
 
-from ..models import PredictionContext, PredictionEstimate, Sample
+from ..models import MycotoxinResult, PredictionContext, PredictionEstimate, Sample
 from ..services.prediction_inference_service import (
     PredictionInferenceService,
     PredictionModelUnavailable,
@@ -713,8 +713,73 @@ class PredictionEstimateEndpointTests(TestCase):
         self.assertGreaterEqual(response.data['scoredCandidateCount'], 1)
         self.assertEqual(response.data['returned'], 0)
         self.assertEqual(response.data['belowThresholdCount'], response.data['scoredCandidateCount'])
+        self.assertEqual(response.data['belowPriorityThresholdCount'], response.data['scoredCandidateCount'])
         self.assertEqual(response.data['minRiskThreshold'], 0.4)
-        self.assertIn('No elevated-risk testing targets found', response.data['message'])
+        self.assertEqual(response.data['minPriorityScore'], 0.4)
+        self.assertIn('No priority testing targets found', response.data['message'])
+
+    def test_prediction_recommendations_surface_historical_priority_signal(self):
+        self.client.force_authenticate(user=self.researcher)
+        for index in range(10):
+            sample = Sample.objects.create(
+                sample_id=f'RIC-2026-H{index:03d}',
+                region='Central',
+                province='Nakhon Pathom',
+                district='',
+                vegetation_variety='Rice crackers',
+                food_feed_type='food',
+                sub_type='Rice crackers',
+                collection_date='2026-05-13',
+                status='completed',
+            )
+            MycotoxinResult.objects.create(
+                sample=sample,
+                toxin_type='TRY',
+                value=8.5,
+                unit='ug_kg',
+            )
+        expected = {
+            'modelVersion': 'v-test',
+            'modelFamily': 'baseline',
+            'usesWeatherFeatures': True,
+            'featureSummary': {
+                'weatherLocationLabel': 'Nakhon Pathom',
+                'weatherDaysObserved90d': 90,
+            },
+            'predictions': [
+                {
+                    'toxinType': 'TRY',
+                    'detectionProbability': 0.05,
+                    'riskBand': 'low',
+                    'estimatedConcentrationUgKg': 13.5,
+                },
+            ],
+            'warning': 'Research area-risk estimate only.',
+        }
+
+        with patch('samples.views.PredictionInferenceService.estimate', return_value=expected):
+            response = self.client.post(
+                reverse('sample-prediction-recommendations'),
+                {
+                    'target_date': '2026-08-31',
+                    'limit': 5,
+                    'max_candidates': 10,
+                    'sub_types': ['Rice crackers'],
+                },
+                format='json',
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['returned'], 1)
+        recommendation = response.data['recommendations'][0]
+        self.assertEqual(recommendation['subType'], 'Rice crackers')
+        self.assertEqual(recommendation['recommendedToxin'], 'TRY')
+        self.assertEqual(recommendation['actionBasis'], 'historical_signal')
+        self.assertGreaterEqual(recommendation['priorityScore'], 0.4)
+        self.assertEqual(recommendation['historicalDetectedCount'], 10)
+        self.assertEqual(recommendation['historicalMeasuredCount'], 10)
+        self.assertEqual(recommendation['historicalDetectionRate'], 1.0)
+        self.assertIn('historical-detections', recommendation['priorityDrivers'])
 
     def test_sampling_candidate_builder_cleans_unknown_district_and_location_case(self):
         Sample.objects.create(
