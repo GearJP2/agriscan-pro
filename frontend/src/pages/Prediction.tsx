@@ -63,7 +63,7 @@ function SamplingRecommendationTable({
             <th className="px-4 py-3">Area</th>
             <th className="px-4 py-3">Toxin</th>
             <th className="px-4 py-3 text-right">Priority</th>
-            <th className="px-4 py-3 text-right">Expected detection</th>
+            <th className="px-4 py-3 text-right">Model detection estimate</th>
             <th className="px-4 py-3">Priority band</th>
             <th className="px-4 py-3 text-right">Historical samples</th>
             <th className="px-4 py-3 text-right">Historical detected</th>
@@ -276,7 +276,7 @@ const Prediction = () => {
   const sampleHistory = useQuery({
     queryKey: ['prediction-history', historySampleId],
     queryFn: () => sampleAPI.getPredictionHistory(historySampleId),
-    enabled: canView && Boolean(historySampleId),
+    enabled: canViewDiagnostics && Boolean(historySampleId),
   });
   const contextLoad = useMutation({
     mutationFn: sampleAPI.getPredictionContext,
@@ -294,7 +294,7 @@ const Prediction = () => {
   });
 
   useEffect(() => {
-    if (!canView) return;
+    if (!canViewDiagnostics) return;
 
     const querySampleId = searchParams.get('sample_id')?.trim();
     if (!querySampleId || handledQuerySampleRef.current === querySampleId) return;
@@ -304,7 +304,7 @@ const Prediction = () => {
     setHistorySampleId(querySampleId);
     setContextSampleId(querySampleId);
     contextLoad.mutate(querySampleId);
-  }, [canView, contextLoad, searchParams]);
+  }, [canViewDiagnostics, contextLoad, searchParams]);
 
   const activeEstimate = sampleEstimate.data ?? estimate.data;
   const activeError = sampleEstimate.error ?? estimate.error ?? batchEstimate.error;
@@ -453,9 +453,10 @@ const Prediction = () => {
         <div className="mb-8 flex items-start gap-3">
           <TrendingUp className="mt-1 h-7 w-7 text-primary" />
           <div>
-            <h1 className="text-3xl font-bold text-foreground">Area Risk Prediction</h1>
+            <h1 className="text-3xl font-bold text-foreground">Sampling Recommendation</h1>
             <p className="mt-1 text-muted-foreground">
-              Prioritize surveillance and lab follow-up using reviewed published models and historical sample data.
+              Prioritize where and what to sample next using reviewed published models, historical detections,
+              sample volume, and weather context.
             </p>
           </div>
         </div>
@@ -786,7 +787,7 @@ const Prediction = () => {
                       }}
                     />
                     <p className="text-xs text-muted-foreground">
-                      Combines model risk, historical detections, sample volume, and weather context.
+                      Combines published model signal, historical detections, sample volume, and weather context.
                     </p>
                   </div>
 
@@ -1022,7 +1023,7 @@ const Prediction = () => {
             {batchEstimate.data && (
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-lg">Batch area risk results</CardTitle>
+                  <CardTitle className="text-lg">Batch registered estimate results</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid gap-3 text-sm md:grid-cols-3">
@@ -1374,16 +1375,19 @@ const Prediction = () => {
               </>
             )}
 
+            {canViewDiagnostics && (
+              <>
             <Card className="border-primary/20" style={{ order: -1 }}>
               <CardHeader>
-                <CardTitle className="text-lg">Estimate area risk</CardTitle>
+                <CardTitle className="text-lg">Advanced area estimate</CardTitle>
               </CardHeader>
               <CardContent className="space-y-5">
                 <div className="rounded-md border border-primary/15 bg-primary/[0.03] p-4 text-sm text-muted-foreground">
                   <p className="font-medium text-foreground">Published model estimate</p>
                   <p className="mt-1">
-                    Estimate risk using only reviewed published toxin models. This does not screen every possible
-                    mycotoxin, and missing results do not mean the sample is safe.
+                    Technical check against reviewed published toxin models. Use sampling recommendations for the
+                    primary researcher workflow; this estimate does not screen every possible mycotoxin, and missing
+                    results do not mean the sample is safe.
                   </p>
                 </div>
                 <form className="grid gap-4 md:grid-cols-2 lg:grid-cols-4" onSubmit={submitEstimate}>
@@ -1685,7 +1689,7 @@ const Prediction = () => {
                   <div className="flex items-end md:col-span-2 lg:col-span-4">
                     <Button type="submit" disabled={isEstimating}>
                       {estimate.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <TrendingUp />}
-                      Estimate area risk
+                      Run advanced estimate
                     </Button>
                   </div>
                 </form>
@@ -1719,7 +1723,7 @@ const Prediction = () => {
                 <CardContent className="flex gap-3 p-5 text-sm">
                   <AlertTriangle className="h-5 w-5 shrink-0 text-warning" />
                   <div>
-                    <p className="font-medium text-foreground">Area risk model unavailable</p>
+                    <p className="font-medium text-foreground">Advanced estimate unavailable</p>
                     <p className="mt-1 text-muted-foreground">{errorMessage(activeError)}</p>
                   </div>
                 </CardContent>
@@ -1731,7 +1735,7 @@ const Prediction = () => {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-lg">
                     <CheckCircle2 className="h-5 w-5 text-primary" />
-                    Area risk summary
+                    Advanced estimate summary
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -1780,8 +1784,8 @@ const Prediction = () => {
                       <thead className="border-b bg-muted/40 text-xs uppercase text-muted-foreground">
                         <tr>
                           <th className="px-4 py-3">Toxin</th>
-                          <th className="px-4 py-3 text-right">Expected detection</th>
-                          <th className="px-4 py-3">Area risk band</th>
+                          <th className="px-4 py-3 text-right">Model detection estimate</th>
+                          <th className="px-4 py-3">Estimate band</th>
                           <th className="px-4 py-3 text-right">Estimated concentration ug/kg</th>
                           <th className="px-4 py-3 text-right">F1</th>
                           <th className="px-4 py-3 text-right">Training rows</th>
@@ -1813,6 +1817,8 @@ const Prediction = () => {
                   </div>
                 </CardContent>
               </Card>
+            )}
+              </>
             )}
 
             {canViewDiagnostics && (readiness.isLoading ? (
