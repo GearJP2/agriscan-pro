@@ -11,7 +11,7 @@ from rest_framework.response import Response
 
 from core.exceptions import SampleAlreadyExists
 from core.models import AuditLog
-from core.permissions import IsAdmin, IsAdminOrResearchRole, IsOwnerOrAdmin
+from core.permissions import IsAdmin, IsAdminOrHeadResearcher, IsAdminOrResearchRole, IsOwnerOrAdmin
 
 from .filters import apply_sample_filters
 from .models import PredictionEstimate, ProcessLog, Sample
@@ -81,16 +81,19 @@ class SampleViewSet(viewsets.ModelViewSet):
         if self.action == 'prediction_publish':
             return [IsAuthenticated(), IsAdmin()]
         if self.action in [
-            'analytics_dashboard_simulate',
-            'analytics_threshold_simulation',
             'prediction_estimate',
             'prediction_batch_estimate',
             'prediction_estimate_sample',
             'prediction_context',
             'prediction_history',
             'prediction_readiness',
-            'prediction_recommendations',
             'prediction_status',
+        ]:
+            return [IsAuthenticated(), IsAdminOrHeadResearcher()]
+        if self.action in [
+            'analytics_dashboard_simulate',
+            'analytics_threshold_simulation',
+            'prediction_recommendations',
         ]:
             return [IsAuthenticated(), IsAdminOrResearchRole()]
         if self.action in ['destroy', 'bulk_delete', 'generate_test_data', 'delete_test_data']:

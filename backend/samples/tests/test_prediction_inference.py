@@ -421,6 +421,12 @@ class PredictionEstimateEndpointTests(TestCase):
             password='Password123',
             role='admin',
         )
+        self.head_researcher = User.objects.create_user(
+            username='prediction_head',
+            email='prediction_head@example.com',
+            password='Password123',
+            role='head_researcher',
+        )
         self.assistant = User.objects.create_user(
             username='prediction_assistant',
             email='prediction_assistant@example.com',
@@ -453,8 +459,18 @@ class PredictionEstimateEndpointTests(TestCase):
             processing_type='milled',
         )
 
-    def test_prediction_estimate_requires_research_role(self):
+    def test_prediction_estimate_requires_head_or_admin_role(self):
         self.client.force_authenticate(user=self.assistant)
+
+        response = self.client.post(
+            reverse('sample-prediction-estimate'),
+            self.payload,
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+        self.client.force_authenticate(user=self.researcher)
 
         response = self.client.post(
             reverse('sample-prediction-estimate'),
@@ -466,7 +482,7 @@ class PredictionEstimateEndpointTests(TestCase):
 
     @override_settings(BASE_DIR=Path('/tmp/agriscan-no-prediction-artifacts'))
     def test_prediction_estimate_returns_503_without_artifacts(self):
-        self.client.force_authenticate(user=self.researcher)
+        self.client.force_authenticate(user=self.head_researcher)
 
         response = self.client.post(
             reverse('sample-prediction-estimate'),
@@ -478,7 +494,7 @@ class PredictionEstimateEndpointTests(TestCase):
         self.assertIn('detail', response.data)
 
     def test_prediction_estimate_sample_uses_registered_sample(self):
-        self.client.force_authenticate(user=self.researcher)
+        self.client.force_authenticate(user=self.head_researcher)
         expected = {
             'modelVersion': 'v-test',
             'modelFamily': 'baseline',
@@ -501,11 +517,11 @@ class PredictionEstimateEndpointTests(TestCase):
         self.assertEqual(payload['province'], 'Bangkok')
         estimate_record = PredictionEstimate.objects.get(sample=self.sample)
         self.assertEqual(estimate_record.model_version, 'v-test')
-        self.assertEqual(estimate_record.requested_by, self.researcher)
+        self.assertEqual(estimate_record.requested_by, self.head_researcher)
         self.assertEqual(estimate_record.input_payload['collection_date'], '2026-07-02')
 
     def test_prediction_history_returns_recent_sample_estimates(self):
-        self.client.force_authenticate(user=self.researcher)
+        self.client.force_authenticate(user=self.head_researcher)
         PredictionEstimate.objects.create(
             sample=self.sample,
             requested_by=self.researcher,
@@ -526,7 +542,7 @@ class PredictionEstimateEndpointTests(TestCase):
         self.assertEqual(response.data[0]['sample_id'], self.sample.sample_id)
 
     def test_prediction_batch_estimate_scores_registered_samples_and_reports_missing_ids(self):
-        self.client.force_authenticate(user=self.researcher)
+        self.client.force_authenticate(user=self.head_researcher)
         expected = {
             'modelVersion': 'v-test',
             'modelFamily': 'baseline',
@@ -553,7 +569,7 @@ class PredictionEstimateEndpointTests(TestCase):
         self.assertEqual(PredictionEstimate.objects.filter(sample=self.sample).count(), 1)
 
     def test_prediction_batch_estimate_deduplicates_sample_ids(self):
-        self.client.force_authenticate(user=self.researcher)
+        self.client.force_authenticate(user=self.head_researcher)
         expected = {
             'modelVersion': 'v-test',
             'modelFamily': 'baseline',
@@ -949,7 +965,7 @@ class PredictionEstimateEndpointTests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_prediction_estimate_rejects_out_of_range_coordinates(self):
-        self.client.force_authenticate(user=self.researcher)
+        self.client.force_authenticate(user=self.head_researcher)
         payload = {
             **self.payload,
             'latitude': 13.7563,
@@ -965,8 +981,14 @@ class PredictionEstimateEndpointTests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('longitude', response.data['error']['details'])
 
-    def test_prediction_status_requires_research_role(self):
+    def test_prediction_status_requires_head_or_admin_role(self):
         self.client.force_authenticate(user=self.assistant)
+
+        response = self.client.get(reverse('sample-prediction-status'))
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+        self.client.force_authenticate(user=self.researcher)
 
         response = self.client.get(reverse('sample-prediction-status'))
 
@@ -974,7 +996,7 @@ class PredictionEstimateEndpointTests(TestCase):
 
     @override_settings(BASE_DIR=Path('/tmp/agriscan-no-prediction-artifacts'))
     def test_prediction_status_returns_not_trained_without_artifacts(self):
-        self.client.force_authenticate(user=self.researcher)
+        self.client.force_authenticate(user=self.head_researcher)
 
         response = self.client.get(reverse('sample-prediction-status'))
 
@@ -1067,7 +1089,7 @@ class PredictionEstimateEndpointTests(TestCase):
         self.assertIn('Metric guardrails failed', response.data['detail'])
 
     def test_prediction_context_can_be_saved_and_read(self):
-        self.client.force_authenticate(user=self.researcher)
+        self.client.force_authenticate(user=self.head_researcher)
         url = reverse('sample-prediction-context', kwargs={'sample_id': self.sample.sample_id})
 
         response = self.client.put(url, {
@@ -1088,7 +1110,7 @@ class PredictionEstimateEndpointTests(TestCase):
         self.assertEqual(read_response.data['crop_variety'], 'RD43')
 
     def test_prediction_context_rejects_out_of_range_coordinates(self):
-        self.client.force_authenticate(user=self.researcher)
+        self.client.force_authenticate(user=self.head_researcher)
         url = reverse('sample-prediction-context', kwargs={'sample_id': self.sample.sample_id})
 
         response = self.client.patch(url, {
@@ -1100,7 +1122,7 @@ class PredictionEstimateEndpointTests(TestCase):
         self.assertIn('latitude', response.data['error']['details'])
 
     def test_prediction_estimate_accepts_extended_context_fields(self):
-        self.client.force_authenticate(user=self.researcher)
+        self.client.force_authenticate(user=self.head_researcher)
         payload = {
             **self.payload,
             'latitude': 13.7563,

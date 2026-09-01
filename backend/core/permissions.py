@@ -1,6 +1,7 @@
 from rest_framework import permissions
 
 ADMIN_ROLES = {"admin"}
+ADMIN_OR_HEAD_RESEARCHER_ROLES = {"admin", "head_researcher"}
 ADMIN_OR_RESEARCH_ROLES = {"admin", "head_researcher", "researcher"}
 SAMPLE_ACCESS_ROLES = {"admin", "head_researcher", "researcher", "research_assistant"}
 
@@ -32,6 +33,15 @@ class IsAdminOrResearchRole(permissions.BasePermission):
 
     def has_permission(self, request, _view):
         return _is_authenticated_with_role(request.user, ADMIN_OR_RESEARCH_ROLES)
+
+
+class IsAdminOrHeadResearcher(permissions.BasePermission):
+    """Allow access only to admin and head_researcher roles."""
+
+    message = "Only admin and head researcher users can perform this action."
+
+    def has_permission(self, request, _view):
+        return _is_authenticated_with_role(request.user, ADMIN_OR_HEAD_RESEARCHER_ROLES)
 
 
 class IsOwnerOrAdmin(permissions.BasePermission):
