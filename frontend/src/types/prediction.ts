@@ -135,6 +135,7 @@ export interface PredictionSamplingRecommendationItem {
   areaConfidence: 'low' | 'high';
   targetDate: string;
   recommendedToxin: string;
+  recommendedToxinLabel?: string;
   priorityScore: number;
   priorityBand: 'low' | 'medium' | 'high';
   priorityDrivers: string[];

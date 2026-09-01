@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
+import { MYCOTOXIN_REGISTRY } from '@/constants/mycotoxins';
 import { useAuth } from '@/contexts/AuthContext';
 import { analyticsAPI, sampleAPI } from '@/lib/api';
 import type {
@@ -33,6 +34,12 @@ import type {
 import type { PredictionContext } from '@/types/sample';
 
 const researchRoles = ['admin', 'head_researcher', 'researcher'];
+
+function toxinDisplayName(code: string, label?: string) {
+  const registryLabel = MYCOTOXIN_REGISTRY[code]?.name;
+  const toxinLabel = label || registryLabel;
+  return toxinLabel && toxinLabel !== code ? `${toxinLabel} (${code})` : code;
+}
 
 const initialForm: PredictionEstimateRequest = {
   food_feed_type: 'food',
@@ -780,7 +787,9 @@ const Prediction = () => {
                                     </div>
                                   )}
                                 </td>
-                                <td className="px-4 py-3 font-medium">{item.recommendedToxin}</td>
+                                <td className="px-4 py-3 font-medium">
+                                  {toxinDisplayName(item.recommendedToxin, item.recommendedToxinLabel)}
+                                </td>
                                 <td className="px-4 py-3 text-right font-medium">
                                   {(item.priorityScore * 100).toFixed(1)}%
                                 </td>

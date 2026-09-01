@@ -8,6 +8,7 @@ from pathlib import Path
 from django.conf import settings
 from django.db.models import Count, Max, Q
 
+from ..constants.mycotoxin_constants import TOXIN_LABELS
 from ..models import MycotoxinResult, Sample
 from .prediction_dataset_service import PredictionDatasetService
 from .prediction_training_service import PredictionTrainingService
@@ -133,6 +134,7 @@ class PredictionInferenceService:
                 'areaConfidence': candidate.get('areaConfidence', 'high'),
                 'targetDate': target_date.isoformat(),
                 'recommendedToxin': top_prediction['toxinType'],
+                'recommendedToxinLabel': TOXIN_LABELS.get(top_prediction['toxinType'], top_prediction['toxinType']),
                 'priorityScore': priority['score'],
                 'priorityBand': priority['band'],
                 'priorityDrivers': priority['drivers'],

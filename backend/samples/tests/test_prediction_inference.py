@@ -625,6 +625,7 @@ class PredictionEstimateEndpointTests(TestCase):
         self.assertEqual(recommendation['rank'], 1)
         self.assertEqual(recommendation['subType'], 'Oats')
         self.assertEqual(recommendation['recommendedToxin'], 'TRY')
+        self.assertEqual(recommendation['recommendedToxinLabel'], 'Tryptophol')
         self.assertEqual(recommendation['riskBand'], 'high')
         self.assertEqual(recommendation['targetDate'], '2026-08-31')
         self.assertEqual(estimate.call_args.args[0]['collection_date'], date(2026, 8, 31))
