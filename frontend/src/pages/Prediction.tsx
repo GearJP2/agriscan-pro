@@ -224,6 +224,7 @@ const Prediction = () => {
   const queryClient = useQueryClient();
   const handledQuerySampleRef = useRef<string | null>(null);
   const canView = isAuthenticated && researchRoles.includes(role);
+  const canViewDiagnostics = isAuthenticated && (role === 'admin' || role === 'head_researcher');
   const canPublishModels = isAuthenticated && role === 'admin';
   const [form, setForm] = useState<PredictionEstimateRequest>(initialForm);
   const [sampleId, setSampleId] = useState('');
@@ -241,12 +242,12 @@ const Prediction = () => {
   const readiness = useQuery({
     queryKey: ['prediction-readiness'],
     queryFn: analyticsAPI.getPredictionReadiness,
-    enabled: canView,
+    enabled: canViewDiagnostics,
   });
   const modelStatus = useQuery({
     queryKey: ['prediction-model-status'],
     queryFn: analyticsAPI.getPredictionStatus,
-    enabled: canView,
+    enabled: canViewDiagnostics,
   });
   const estimate = useMutation({
     mutationFn: analyticsAPI.estimatePrediction,
@@ -454,7 +455,7 @@ const Prediction = () => {
           <div>
             <h1 className="text-3xl font-bold text-foreground">Area Risk Prediction</h1>
             <p className="mt-1 text-muted-foreground">
-              Estimate likely mycotoxin risk for a food/feed type in a specific area before lab testing.
+              Prioritize surveillance and lab follow-up using reviewed published models and historical sample data.
             </p>
           </div>
         </div>
@@ -465,13 +466,13 @@ const Prediction = () => {
               <Database className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
               <h2 className="text-xl font-semibold">Researcher access required</h2>
               <p className="mx-auto mt-2 max-w-xl text-sm text-muted-foreground">
-                Sign in with a researcher account to check area risk, stored sample context, and model readiness.
+                Sign in with a researcher account to use prediction and surveillance workflows.
               </p>
             </CardContent>
           </Card>
         ) : (
           <div className="flex flex-col gap-6">
-            {modelStatus.data && (
+            {canViewDiagnostics && modelStatus.data && (
               <Card className={modelStatus.data.status === 'published' ? 'border-primary/20' : 'border-warning/40'}>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-lg">
@@ -669,8 +670,8 @@ const Prediction = () => {
                 <div className="rounded-md border border-primary/15 bg-primary/[0.03] p-4 text-sm text-muted-foreground">
                   <p className="font-medium text-foreground">What should researchers test next?</p>
                   <p className="mt-1">
-                    The system builds candidate food/feed and area combinations from historical samples, runs the
-                    published risk model for each candidate, then ranks which areas should be prioritized for testing.
+                    The system ranks area-specific test targets separately from national signals where imported
+                    records do not contain usable location data.
                   </p>
                 </div>
 
@@ -1374,10 +1375,10 @@ const Prediction = () => {
               </CardHeader>
               <CardContent className="space-y-5">
                 <div className="rounded-md border border-primary/15 bg-primary/[0.03] p-4 text-sm text-muted-foreground">
-                  <p className="font-medium text-foreground">Primary researcher workflow</p>
+                  <p className="font-medium text-foreground">Published model estimate</p>
                   <p className="mt-1">
-                    Enter the food/feed type and the area to check which published mycotoxin models show elevated
-                    risk. Use this to decide what toxins to prioritize for laboratory analysis or surveillance.
+                    Estimate risk using only reviewed published toxin models. This does not screen every possible
+                    mycotoxin, and missing results do not mean the sample is safe.
                   </p>
                 </div>
                 <form className="grid gap-4 md:grid-cols-2 lg:grid-cols-4" onSubmit={submitEstimate}>
@@ -1809,7 +1810,7 @@ const Prediction = () => {
               </Card>
             )}
 
-            {readiness.isLoading ? (
+            {canViewDiagnostics && (readiness.isLoading ? (
               <Card className="glass-card">
                 <CardContent className="flex items-center justify-center gap-3 p-10 text-muted-foreground">
                   <Loader2 className="h-5 w-5 animate-spin" />
@@ -1877,7 +1878,7 @@ const Prediction = () => {
                   </div>
                 </CardContent>
               </Card>
-            )}
+            ))}
           </div>
         )}
       </main>
