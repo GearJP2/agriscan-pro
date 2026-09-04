@@ -14,6 +14,7 @@ explain what the dataset can support and where the current limitations are.
 - What is the positive concentration distribution for each mycotoxin?
 - Which food/feed commodities appear most often?
 - Which commodities have the highest historical detection rate?
+- How many historical samples occur in each Thai province?
 - Which provinces show contamination concentration signals for each toxin?
 - How much usable area/location context exists?
 - How much weather context is available?
@@ -110,6 +111,8 @@ The matplotlib workflow creates PNG graphs that are easier to use in slides:
 - `06_commodity_detection_percentage.png` — commodity-level detection percentage.
 - `07_monthly_detection_trend.png` — monthly detection trend.
 - `08_data_coverage_overview.png` — detected, below-LOD, context, and weather coverage.
+- `09_thailand_sample_count_by_province_map.png` — Thailand centroid bubble map showing unique sample count by province.
+- `thailand_province_sample_counts.csv` — audit table behind the Thailand province-count map, including unmapped/non-Thai location values.
 - `individual_toxin_concentration/*.png` — individual mycotoxin concentration histograms.
 - `individual_toxin_spatial_concentration/*.png` — individual mycotoxin province concentration charts.
 

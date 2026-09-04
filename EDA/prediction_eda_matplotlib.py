@@ -32,6 +32,65 @@ GFS_CHARCOAL = "#2A3142"
 GFS_MUTED = "#6B6B6B"
 GFS_BG_ALT = "#FAF5EC"
 
+THAILAND_OUTLINE_LON_LAT = [
+    (98.0, 20.4),
+    (99.5, 19.8),
+    (100.8, 20.4),
+    (101.7, 19.0),
+    (102.6, 18.0),
+    (104.0, 17.4),
+    (105.2, 15.8),
+    (105.6, 14.7),
+    (104.4, 14.2),
+    (103.0, 14.4),
+    (102.4, 13.2),
+    (101.5, 12.4),
+    (100.6, 12.1),
+    (100.2, 10.8),
+    (99.6, 9.6),
+    (99.2, 8.2),
+    (99.6, 7.0),
+    (100.3, 6.5),
+    (101.0, 6.1),
+    (101.7, 6.4),
+    (101.1, 7.5),
+    (100.4, 8.5),
+    (99.8, 9.7),
+    (99.2, 11.0),
+    (98.7, 12.4),
+    (98.4, 14.0),
+    (98.7, 15.7),
+    (98.2, 17.1),
+    (97.7, 18.6),
+    (98.0, 20.4),
+]
+
+THAILAND_PROVINCE_CENTROIDS = {
+    "amnart charoen": ("Amnart Charoen", 15.8585, 104.6288),
+    "bangkok": ("Bangkok", 13.7563, 100.5018),
+    "chaiyaphum": ("Chaiyaphum", 15.8068, 102.0315),
+    "chiang mai": ("Chiang Mai", 18.7883, 98.9853),
+    "chiang rai": ("Chiang Rai", 19.9105, 99.8406),
+    "kalasin": ("Kalasin", 16.4385, 103.5061),
+    "lampang": ("Lampang", 18.2888, 99.4909),
+    "mahasarakham": ("Maha Sarakham", 16.1851, 103.3026),
+    "mukdahan": ("Mukdahan", 16.5453, 104.7235),
+    "nakhon pathom": ("Nakhon Pathom", 13.8199, 100.0622),
+    "narathiwat": ("Narathiwat", 6.4255, 101.8253),
+    "pathum thani": ("Pathum Thani", 14.0208, 100.5250),
+    "pha yao": ("Phayao", 19.1665, 99.9019),
+    "phayao": ("Phayao", 19.1665, 99.9019),
+    "phichit": ("Phichit", 16.4429, 100.3488),
+    "roi et": ("Roi Et", 16.0538, 103.6520),
+    "si sa ket": ("Si Sa Ket", 15.1186, 104.3220),
+    "songkhla": ("Songkhla", 7.1898, 100.5951),
+    "suphan buri": ("Suphan Buri", 14.4745, 100.1177),
+    "surin": ("Surin", 14.8829, 103.4937),
+    "ubon ratchathani": ("Ubon Ratchathani", 15.2287, 104.8564),
+    "yala": ("Yala", 6.5411, 101.2804),
+    "yasothon": ("Yasothon", 15.7926, 104.1453),
+}
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -413,6 +472,132 @@ def plot_spatial_concentration(df: pd.DataFrame, toxins: list[str], output_dir: 
         )
 
 
+def normalize_province_key(value: str) -> str:
+    return " ".join(str(value).strip().lower().replace(".", "").split())
+
+
+def plot_thailand_sample_count_map(df: pd.DataFrame, output_dir: Path) -> pd.DataFrame:
+    province_counts = (
+        df.copy()
+        .assign(province_key=lambda frame: frame["province"].map(normalize_province_key))
+        .groupby("province_key")
+        .agg(
+            province=("province", "first"),
+            unique_samples=("sample_id", "nunique"),
+            toxin_result_rows=("sample_id", "size"),
+            detected_rows=("detected", "sum"),
+        )
+        .reset_index()
+    )
+    province_counts = province_counts[
+        ~province_counts["province_key"].isin(["", "unknown", "unspecified area"])
+    ].copy()
+    if province_counts.empty:
+        return pd.DataFrame()
+
+    province_counts["mapped_province"] = province_counts["province_key"].map(
+        lambda key: THAILAND_PROVINCE_CENTROIDS.get(key, ("", np.nan, np.nan))[0]
+    )
+    province_counts["latitude"] = province_counts["province_key"].map(
+        lambda key: THAILAND_PROVINCE_CENTROIDS.get(key, ("", np.nan, np.nan))[1]
+    )
+    province_counts["longitude"] = province_counts["province_key"].map(
+        lambda key: THAILAND_PROVINCE_CENTROIDS.get(key, ("", np.nan, np.nan))[2]
+    )
+    province_counts["mapped_on_thailand_map"] = province_counts["mapped_province"].astype(bool)
+    mapped_raw = province_counts[province_counts["mapped_on_thailand_map"]].copy()
+    unmapped_raw = province_counts[~province_counts["mapped_on_thailand_map"]].copy()
+    if not mapped_raw.empty:
+        mapped_raw = (
+            mapped_raw.groupby("mapped_province", as_index=False)
+            .agg(
+                province=("mapped_province", "first"),
+                province_key=("mapped_province", "first"),
+                unique_samples=("unique_samples", "sum"),
+                toxin_result_rows=("toxin_result_rows", "sum"),
+                detected_rows=("detected_rows", "sum"),
+                latitude=("latitude", "first"),
+                longitude=("longitude", "first"),
+                mapped_on_thailand_map=("mapped_on_thailand_map", "first"),
+            )
+        )
+        mapped_raw["province_key"] = mapped_raw["province_key"].map(normalize_province_key)
+    province_counts = pd.concat([mapped_raw, unmapped_raw], ignore_index=True).sort_values(
+        "unique_samples",
+        ascending=False,
+    )
+    province_counts.to_csv(output_dir / "thailand_province_sample_counts.csv", index=False)
+
+    mapped = province_counts[province_counts["mapped_on_thailand_map"]].copy()
+    if mapped.empty:
+        return province_counts
+
+    fig, ax = plt.subplots(figsize=(8.5, 10))
+    outline = np.array(THAILAND_OUTLINE_LON_LAT)
+    ax.fill(
+        outline[:, 0],
+        outline[:, 1],
+        color=GFS_BG_ALT,
+        edgecolor=GFS_MAROON_DARK,
+        linewidth=1.6,
+        alpha=0.92,
+        zorder=1,
+    )
+    ax.plot(outline[:, 0], outline[:, 1], color=GFS_MAROON_DARK, linewidth=1.2, zorder=2)
+
+    max_samples = max(int(mapped["unique_samples"].max()), 1)
+    sizes = 95 + (mapped["unique_samples"] / max_samples) * 850
+    scatter = ax.scatter(
+        mapped["longitude"],
+        mapped["latitude"],
+        s=sizes,
+        c=mapped["unique_samples"],
+        cmap="YlOrRd",
+        edgecolors=GFS_MAROON_DARK,
+        linewidths=0.9,
+        alpha=0.88,
+        zorder=4,
+    )
+
+    top_labels = mapped.head(10)
+    for _, row in top_labels.iterrows():
+        ax.annotate(
+            f"{row['mapped_province']}\n{int(row['unique_samples'])}",
+            xy=(row["longitude"], row["latitude"]),
+            xytext=(4, 4),
+            textcoords="offset points",
+            fontsize=8,
+            color=GFS_CHARCOAL,
+            zorder=5,
+        )
+
+    omitted = province_counts[~province_counts["mapped_on_thailand_map"]]
+    omitted_samples = int(omitted["unique_samples"].sum()) if not omitted.empty else 0
+    ax.text(
+        97.7,
+        5.7,
+        f"Mapped Thai provinces: {mapped.shape[0]}\n"
+        f"Mapped samples: {int(mapped['unique_samples'].sum()):,}\n"
+        f"Unmapped/non-Thai samples: {omitted_samples:,}",
+        fontsize=9,
+        color=GFS_CHARCOAL,
+        bbox={"boxstyle": "round,pad=0.45", "facecolor": "white", "edgecolor": "#E5DFD2", "alpha": 0.92},
+        zorder=6,
+    )
+    ax.set_title("Thailand sample count by province", loc="left", pad=16)
+    ax.set_xlabel("Longitude")
+    ax.set_ylabel("Latitude")
+    ax.set_xlim(97.2, 106.0)
+    ax.set_ylim(5.4, 21.0)
+    ax.set_aspect("equal", adjustable="box")
+    ax.grid(alpha=0.25)
+    ax.spines[["top", "right"]].set_visible(False)
+    colorbar = fig.colorbar(scatter, ax=ax, shrink=0.72, pad=0.03)
+    colorbar.set_label("Unique samples")
+    save_current(output_dir / "09_thailand_sample_count_by_province_map.png")
+    return province_counts
+
+
 def plot_context_coverage(df: pd.DataFrame, output_dir: Path) -> None:
     coverage = pd.DataFrame([
         {
@@ -451,12 +636,18 @@ def write_graph_summary(
     df: pd.DataFrame,
     toxin_stats: pd.DataFrame,
     concentration_stats: pd.DataFrame,
+    province_map_stats: pd.DataFrame,
 ) -> None:
     detected_rows = int(df["detected"].sum())
     below_rows = int(df["below_lod_or_zero_or_imported_empty"].sum())
     weather_rows = int((df["weather_days_observed_90d"] > 0).sum())
     top_toxins = toxin_stats.head(8)
     top_concentrations = concentration_stats.head(8) if not concentration_stats.empty else pd.DataFrame()
+    mapped_province_stats = (
+        province_map_stats[province_map_stats["mapped_on_thailand_map"]]
+        if not province_map_stats.empty
+        else pd.DataFrame()
+    )
 
     lines = [
         "# Matplotlib EDA graph summary",
@@ -499,6 +690,23 @@ def write_graph_summary(
 
     lines.extend([
         "",
+        "## Thailand province sample-count map",
+        "",
+        "`09_thailand_sample_count_by_province_map.png` is a centroid bubble map. "
+        "Bubble size and color represent the number of unique historical samples recorded for each Thai province. "
+        "It is intended for EDA and presentation; it is not an administrative-boundary choropleth.",
+        "",
+        "| Province | Unique samples | Toxin-result rows | Detected rows |",
+        "|---|---:|---:|---:|",
+    ])
+    for _, row in mapped_province_stats.head(10).iterrows():
+        lines.append(
+            f"| {row['mapped_province']} | {int(row['unique_samples']):,} | "
+            f"{int(row['toxin_result_rows']):,} | {int(row['detected_rows']):,} |"
+        )
+
+    lines.extend([
+        "",
         "## Graph files",
         "",
         "- `01_toxin_detected_counts.png`",
@@ -509,6 +717,7 @@ def write_graph_summary(
         "- `06_commodity_detection_percentage.png`",
         "- `07_monthly_detection_trend.png`",
         "- `08_data_coverage_overview.png`",
+        "- `09_thailand_sample_count_by_province_map.png`",
         "- `individual_toxin_concentration/*.png`",
         "- `individual_toxin_spatial_concentration/*.png`",
         "",
@@ -543,11 +752,13 @@ def main() -> None:
     plot_commodity_and_month(df, output_dir, args.top_n)
     plot_spatial_concentration(df, toxins, output_dir)
     plot_context_coverage(df, output_dir)
+    province_map_stats = plot_thailand_sample_count_map(df, output_dir)
     write_graph_summary(
         output_dir,
         df=df,
         toxin_stats=toxin_stats,
         concentration_stats=concentration_stats,
+        province_map_stats=province_map_stats,
     )
 
     print(f"Read {len(df):,} rows from {input_path}")

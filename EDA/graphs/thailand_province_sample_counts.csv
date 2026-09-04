@@ -1,0 +1,28 @@
+mapped_province,province,province_key,unique_samples,toxin_result_rows,detected_rows,latitude,longitude,mapped_on_thailand_map
+Chiang Mai,Chiang Mai,chiang mai,86,3354,9,18.7883,98.9853,True
+Roi Et,Roi Et,roi et,53,2067,0,16.0538,103.652,True
+Ubon Ratchathani,Ubon Ratchathani,ubon ratchathani,43,1677,5,15.2287,104.8564,True
+Surin,Surin,surin,37,1443,2,14.8829,103.4937,True
+Nakhon Pathom,Nakhon Pathom,nakhon pathom,32,1248,6,13.8199,100.0622,True
+Si Sa Ket,Si Sa Ket,si sa ket,23,897,0,15.1186,104.322,True
+Phayao,Phayao,phayao,23,897,3,19.1665,99.9019,True
+Chiang Rai,Chiang Rai,chiang rai,21,819,0,19.9105,99.8406,True
+Lampang,Lampang,lampang,21,819,3,18.2888,99.4909,True
+Yasothon,Yasothon,yasothon,20,780,0,15.7926,104.1453,True
+Narathiwat,Narathiwat,narathiwat,18,702,3,6.4255,101.8253,True
+Mukdahan,Mukdahan,mukdahan,15,585,0,16.5453,104.7235,True
+Amnart Charoen,Amnart Charoen,amnart charoen,15,585,0,15.8585,104.6288,True
+Songkhla,Songkhla,songkhla,13,507,3,7.1898,100.5951,True
+Maha Sarakham,Maha Sarakham,maha sarakham,10,390,0,16.1851,103.3026,True
+Pathum Thani,Pathum Thani,pathum thani,6,234,0,14.0208,100.525,True
+,Siem Reap,siem reap,4,156,1,,,False
+Yala,Yala,yala,4,156,5,6.5411,101.2804,True
+Suphan Buri,Suphan Buri,suphan buri,4,156,0,14.4745,100.1177,True
+,Phnom Phen,phnom phen,4,156,0,,,False
+,Takhmao,takhmao,3,117,0,,,False
+Kalasin,Kalasin,kalasin,2,78,1,16.4385,103.5061,True
+Phichit,Phichit,phichit,2,78,0,16.4429,100.3488,True
+,Kampong Thom,kampong thom,2,78,5,,,False
+Chaiyaphum,Chaiyaphum,chaiyaphum,1,39,0,15.8068,102.0315,True
+Bangkok,Bangkok,bangkok,1,39,1,13.7563,100.5018,True
+,Kampot,kampot,1,39,0,,,False
