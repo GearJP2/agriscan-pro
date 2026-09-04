@@ -1,3 +1,0 @@
-toxin_type,published,measured,detected,below_lod_or_zero,usable_context,accuracy,f1,precision,recall,roc_auc,prevalence,classification_test_rows,mae_log1p,rmse_log1p,regression_test_rows
-FB1,False,512,52,460,464,0.835,0.5405,0.3704,1.0,0.9237,0.1016,103,0.6007,0.7299,11
-TRY,True,512,35,477,464,0.9903,0.9333,0.875,1.0,0.9993,0.0684,103,0.3885,0.5671,7

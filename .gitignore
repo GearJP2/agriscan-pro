@@ -49,6 +49,9 @@ agents-orchestrator/
 # Local review/analysis docs (not for repo)
 CODE_REVIEW.md
 task.md
+EDA/
+docs/MODEL_MILESTONE.md
+docs/PROMPT_PRESENTATION.md
 
 # IDE & Editor
 .vscode/
