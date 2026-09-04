@@ -1,0 +1,30 @@
+name,sample_count,measured,detected,detection_rate
+Unknown,48,1872,290,0.154915
+Chiang Mai,86,3354,9,0.002683
+Nakhon Pathom,32,1248,6,0.004808
+Ubon Ratchathani,43,1677,5,0.002982
+Yala,4,156,5,0.032051
+Kampong Thom,2,78,5,0.064103
+Lampang,21,819,3,0.003663
+Narathiwat,18,702,3,0.004274
+Songkhla,13,507,3,0.005917
+Phayao,6,234,3,0.012821
+Surin,37,1443,2,0.001386
+Siem Reap,4,156,1,0.00641
+Kalasin,2,78,1,0.012821
+Bangkok,1,39,1,0.025641
+Roi Et,53,2067,0,0.0
+Si Sa Ket,23,897,0,0.0
+Chiang Rai,21,819,0,0.0
+Yasothon,20,780,0,0.0
+Pha Yao,17,663,0,0.0
+Amnart Charoen,15,585,0,0.0
+Mukdahan,15,585,0,0.0
+Mahasarakham,10,390,0,0.0
+Pathum Thani,6,234,0,0.0
+Phnom Phen,4,156,0,0.0
+Suphan Buri,4,156,0,0.0
+Takhmao,3,117,0,0.0
+Phichit,2,78,0,0.0
+Chaiyaphum,1,39,0,0.0
+Kampot,1,39,0,0.0
