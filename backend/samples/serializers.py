@@ -4,7 +4,7 @@ from .constants.mycotoxin_constants import (
     TOXIN_LABELS,
     resolve_toxin_type,
 )
-from .models import Sample, ProcessLog, MycotoxinResult
+from .models import MycotoxinResult, PredictionContext, PredictionEstimate, ProcessLog, Sample
 from .utils import generate_sequential_sample_id, extract_sequence_from_sample_id
 
 
@@ -28,6 +28,7 @@ class MycotoxinResultSerializer(serializers.ModelSerializer):
             'risk_level',
             'eu_threshold_low',
             'eu_threshold_high',
+            'is_below_lod',
             'is_flagged',
             'timestamp',
             'notes',
@@ -45,6 +46,7 @@ class MycotoxinResultSerializer(serializers.ModelSerializer):
             'risk_level',
             'eu_threshold_low',
             'eu_threshold_high',
+            'is_below_lod',
             'is_flagged',
             'timestamp',
             'name',
@@ -113,9 +115,229 @@ class ProcessLogSerializer(serializers.ModelSerializer):
         fields = ('id', 'timestamp', 'state', 'test_id', 'notes', 'conducted_by')
 
 
+class PredictionEstimateRequestSerializer(serializers.Serializer):
+    food_feed_type = serializers.ChoiceField(choices=['food', 'feed'])
+    sub_type = serializers.CharField(max_length=100, trim_whitespace=True)
+    province = serializers.CharField(max_length=100, trim_whitespace=True)
+    collection_date = serializers.DateField()
+    latitude = serializers.FloatField(required=False, allow_null=True)
+    longitude = serializers.FloatField(required=False, allow_null=True)
+    location_type = serializers.ChoiceField(
+        choices=['farm', 'market', 'storage', 'unknown'],
+        required=False,
+        allow_blank=True,
+    )
+    harvest_date = serializers.DateField(required=False, allow_null=True)
+    sowing_date = serializers.DateField(required=False, allow_null=True)
+    crop_variety = serializers.CharField(max_length=120, required=False, allow_blank=True, trim_whitespace=True)
+    crop_season = serializers.CharField(max_length=80, required=False, allow_blank=True, trim_whitespace=True)
+    storage_duration_days = serializers.IntegerField(required=False, allow_null=True, min_value=0)
+    moisture_pct = serializers.FloatField(required=False, allow_null=True, min_value=0, max_value=100)
+    soil_type = serializers.CharField(max_length=120, required=False, allow_blank=True, trim_whitespace=True)
+    soil_ph = serializers.FloatField(required=False, allow_null=True, min_value=0, max_value=14)
+    crop_rotation = serializers.CharField(required=False, allow_blank=True, trim_whitespace=True)
+    fertiliser_details = serializers.CharField(required=False, allow_blank=True, trim_whitespace=True)
+    fungicide_details = serializers.CharField(required=False, allow_blank=True, trim_whitespace=True)
+    region = serializers.CharField(
+        max_length=100,
+        required=False,
+        allow_blank=True,
+        trim_whitespace=True,
+    )
+    district = serializers.CharField(
+        max_length=100,
+        required=False,
+        allow_blank=True,
+        trim_whitespace=True,
+    )
+    purpose = serializers.ChoiceField(choices=['research', 'customer'], required=False, allow_blank=True)
+    sample_type = serializers.ChoiceField(
+        choices=['field', 'market', 'storage', 'export'],
+        required=False,
+        allow_blank=True,
+    )
+    processing_type = serializers.ChoiceField(
+        choices=['raw', 'dried', 'milled', 'processed', 'fermented'],
+        required=False,
+        allow_blank=True,
+    )
+
+    def validate_sub_type(self, value):
+        if not value.strip():
+            raise serializers.ValidationError('Sub-type is required.')
+        return value.strip()
+
+    def validate_province(self, value):
+        if not value.strip():
+            raise serializers.ValidationError('Province is required.')
+        return value.strip()
+
+    def validate(self, attrs):
+        latitude = attrs.get('latitude')
+        longitude = attrs.get('longitude')
+        if (latitude is None) ^ (longitude is None):
+            raise serializers.ValidationError('Latitude and longitude must be provided together.')
+        if latitude is not None and not -90 <= latitude <= 90:
+            raise serializers.ValidationError({'latitude': 'Latitude must be between -90 and 90.'})
+        if longitude is not None and not -180 <= longitude <= 180:
+            raise serializers.ValidationError({'longitude': 'Longitude must be between -180 and 180.'})
+        return attrs
+
+
+class PredictionBatchEstimateRequestSerializer(serializers.Serializer):
+    sample_ids = serializers.ListField(
+        child=serializers.CharField(max_length=50, trim_whitespace=True),
+        allow_empty=False,
+        max_length=100,
+    )
+
+    def validate_sample_ids(self, value):
+        cleaned = []
+        seen = set()
+        for sample_id in value:
+            sample_id = sample_id.strip()
+            if not sample_id:
+                continue
+            if sample_id in seen:
+                continue
+            seen.add(sample_id)
+            cleaned.append(sample_id)
+        if not cleaned:
+            raise serializers.ValidationError('At least one sample ID is required.')
+        return cleaned
+
+
+class PredictionSamplingRecommendationRequestSerializer(serializers.Serializer):
+    target_date = serializers.DateField(required=False)
+    limit = serializers.IntegerField(required=False, min_value=1, max_value=50, default=10)
+    max_candidates = serializers.IntegerField(required=False, min_value=1, max_value=100, default=25)
+    min_risk_threshold = serializers.FloatField(required=False, min_value=0, max_value=1, default=0.40)
+    min_priority_score = serializers.FloatField(required=False, min_value=0, max_value=1)
+    mode = serializers.ChoiceField(
+        choices=['all', 'area_specific', 'national_signal'],
+        required=False,
+        default='all',
+    )
+    food_feed_type = serializers.ChoiceField(choices=['food', 'feed'], required=False, allow_blank=True)
+    provinces = serializers.ListField(
+        child=serializers.CharField(max_length=100, trim_whitespace=True),
+        required=False,
+        allow_empty=True,
+        max_length=50,
+    )
+    sub_types = serializers.ListField(
+        child=serializers.CharField(max_length=100, trim_whitespace=True),
+        required=False,
+        allow_empty=True,
+        max_length=50,
+    )
+    include_districts = serializers.BooleanField(required=False, default=True)
+
+    @staticmethod
+    def _dedupe_strings(values):
+        cleaned = []
+        seen = set()
+        for value in values or []:
+            text = value.strip()
+            key = text.lower()
+            if not text or key in seen:
+                continue
+            seen.add(key)
+            cleaned.append(text)
+        return cleaned
+
+    def validate_provinces(self, value):
+        return self._dedupe_strings(value)
+
+    def validate_sub_types(self, value):
+        return self._dedupe_strings(value)
+
+
+class PredictionPublishRequestSerializer(serializers.Serializer):
+    version = serializers.CharField(max_length=80, default='latest', trim_whitespace=True)
+    toxins = serializers.ListField(
+        child=serializers.CharField(max_length=40, trim_whitespace=True),
+        allow_empty=False,
+    )
+    min_f1 = serializers.FloatField(required=False, min_value=0, max_value=1, default=0.50)
+    min_roc_auc = serializers.FloatField(required=False, min_value=0, max_value=1, default=0.60)
+    force = serializers.BooleanField(required=False, default=False)
+
+    def validate_toxins(self, value):
+        cleaned = []
+        seen = set()
+        for toxin in value:
+            toxin = toxin.strip().upper()
+            if not toxin or toxin in seen:
+                continue
+            seen.add(toxin)
+            cleaned.append(toxin)
+        if not cleaned:
+            raise serializers.ValidationError('At least one toxin code is required.')
+        return cleaned
+
+
+class PredictionContextSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PredictionContext
+        fields = (
+            'latitude',
+            'longitude',
+            'location_type',
+            'harvest_date',
+            'sowing_date',
+            'crop_variety',
+            'crop_season',
+            'storage_duration_days',
+            'moisture_pct',
+            'soil_type',
+            'soil_ph',
+            'crop_rotation',
+            'fertiliser_details',
+            'fungicide_details',
+            'created_at',
+            'updated_at',
+        )
+        read_only_fields = ('created_at', 'updated_at')
+
+    def validate(self, attrs):
+        latitude = attrs.get('latitude')
+        longitude = attrs.get('longitude')
+        if (latitude is None) ^ (longitude is None):
+            raise serializers.ValidationError('Latitude and longitude must be provided together.')
+        if latitude is not None and not -90 <= latitude <= 90:
+            raise serializers.ValidationError({'latitude': 'Latitude must be between -90 and 90.'})
+        if longitude is not None and not -180 <= longitude <= 180:
+            raise serializers.ValidationError({'longitude': 'Longitude must be between -180 and 180.'})
+        return attrs
+
+
+class PredictionEstimateSerializer(serializers.ModelSerializer):
+    sample_id = serializers.CharField(source='sample.sample_id', read_only=True, allow_null=True)
+    requested_by_username = serializers.CharField(source='requested_by.username', read_only=True, allow_null=True)
+
+    class Meta:
+        model = PredictionEstimate
+        fields = (
+            'id',
+            'sample_id',
+            'requested_by_username',
+            'model_version',
+            'model_family',
+            'uses_weather_features',
+            'input_payload',
+            'predictions_payload',
+            'warning',
+            'created_at',
+        )
+        read_only_fields = fields
+
+
 class SampleSerializer(serializers.ModelSerializer):
     process_logs = ProcessLogSerializer(many=True, read_only=True)
     mycotoxin_results = MycotoxinResultSerializer(many=True, read_only=True)
+    recorded_by = serializers.CharField(source='recorded_by.username', read_only=True)
+    prediction_context = PredictionContextSerializer(read_only=True)
 
     class Meta:
         model = Sample
@@ -125,23 +347,31 @@ class SampleSerializer(serializers.ModelSerializer):
             'region',
             'province',
             'district',
+            'food_feed_type',
+            'sub_type',
+            # Deprecated response alias retained so existing analytics clients
+            # continue working while they migrate to `sub_type`.
             'vegetation_variety',
             'collection_date',
+            'received_at',
             'status',
             'purpose',
             'sample_type',
             'processing_type',
-            'collected_by',
+            'recorded_by',
             'additional_info',
+            'prediction_context',
             'process_logs',
             'mycotoxin_results',
             'created_at',
             'updated_at',
         )
-        read_only_fields = ('id', 'created_at', 'updated_at')
+        read_only_fields = ('id', 'received_at', 'recorded_by', 'created_at', 'updated_at')
 
 
 class SampleCreateUpdateSerializer(serializers.ModelSerializer):
+    recorded_by = serializers.CharField(source='recorded_by.username', read_only=True)
+
     class Meta:
         model = Sample
         fields = (
@@ -149,18 +379,32 @@ class SampleCreateUpdateSerializer(serializers.ModelSerializer):
             'region',
             'province',
             'district',
-            'vegetation_variety',
+            'food_feed_type',
+            'sub_type',
             'collection_date',
+            'received_at',
             'status',
             'purpose',
             'sample_type',
             'processing_type',
-            'collected_by',
             'additional_info',
+            'recorded_by',
         )
         extra_kwargs = {
             'sample_id': {'required': False, 'allow_blank': True},
+            'food_feed_type': {'required': True},
+            'sub_type': {'required': True},
         }
+        read_only_fields = ('received_at', 'recorded_by')
+
+    def to_internal_value(self, data):
+        """Accept legacy import payloads while registering new samples with Food/Feed."""
+        data = data.copy() if hasattr(data, 'copy') else dict(data)
+        if not data.get('sub_type') and data.get('vegetation_variety'):
+            data['sub_type'] = data['vegetation_variety']
+        if not data.get('food_feed_type') and data.get('sub_type'):
+            data['food_feed_type'] = 'food'
+        return super().to_internal_value(data)
 
     def validate_collection_date(self, value):
         """Validate and normalize collection date"""
@@ -202,11 +446,16 @@ class SampleCreateUpdateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("District is required")
         return value.strip()
 
-    def validate_vegetation_variety(self, value):
-        """Validate vegetation variety is not empty"""
+    def validate_sub_type(self, value):
+        """Validate food/feed subtype is not empty."""
         if not value or not isinstance(value, str) or not value.strip():
-            raise serializers.ValidationError("Vegetation variety is required")
+            raise serializers.ValidationError("Sub-type is required")
         return value.strip()
+
+    def validate_food_feed_type(self, value):
+        if value not in {'food', 'feed'}:
+            raise serializers.ValidationError("Type must be either food or feed")
+        return value
 
     def validate_region(self, value):
         """Validate region is not empty"""
@@ -235,7 +484,9 @@ class SampleCreateUpdateSerializer(serializers.ModelSerializer):
             sample_id = (validated_data.get('sample_id') or '').strip()
             collection_date = validated_data.get('collection_date')
             if not sample_id:
-                generated_id, sequence_number = generate_sequential_sample_id(collection_date)
+                generated_id, sequence_number = generate_sequential_sample_id(
+                    collection_date, validated_data['sub_type']
+                )
                 validated_data['sample_id'] = generated_id
                 validated_data['sequence_number'] = sequence_number
             else:
@@ -245,19 +496,20 @@ class SampleCreateUpdateSerializer(serializers.ModelSerializer):
                 if parsed_seq > 0:
                     validated_data['sequence_number'] = parsed_seq
 
-            # Set defaults for empty/null fields
-            if not validated_data.get('purpose'):
-                validated_data['purpose'] = 'routine'
-            if not validated_data.get('sample_type'):
-                validated_data['sample_type'] = 'field'
-            if not validated_data.get('processing_type'):
-                validated_data['processing_type'] = 'raw'
-            if not validated_data.get('collected_by'):
-                validated_data['collected_by'] = 'Imported'
+            # Keep the legacy analytics field in sync until reporting is
+            # migrated to use sub_type directly.
+            validated_data['vegetation_variety'] = validated_data['sub_type']
             if not validated_data.get('additional_info'):
                 validated_data['additional_info'] = ''
 
             return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        # Keep historical reporting that still reads vegetation_variety in sync
+        # when an editor changes the new sub-type field.
+        if 'sub_type' in validated_data:
+            validated_data['vegetation_variety'] = validated_data['sub_type']
+        return super().update(instance, validated_data)
 
 
 class SampleListSerializer(serializers.ModelSerializer):
@@ -266,6 +518,7 @@ class SampleListSerializer(serializers.ModelSerializer):
     process_logs = ProcessLogSerializer(many=True, read_only=True)
     mycotoxin_results = MycotoxinResultSerializer(many=True, read_only=True)
     results_count = serializers.SerializerMethodField()
+    recorded_by = serializers.CharField(source='recorded_by.username', read_only=True)
 
     class Meta:
         model = Sample
@@ -275,8 +528,12 @@ class SampleListSerializer(serializers.ModelSerializer):
             'region',
             'province',
             'district',
+            'food_feed_type',
+            'sub_type',
             'vegetation_variety',
             'collection_date',
+            'received_at',
+            'recorded_by',
             'status',
             'risk_level',
             'results_count',

@@ -1,22 +1,52 @@
+import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
+import { ChevronDown, Menu, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import ThemeToggle from "./ThemeToggle";
 import UserDropdown from "./UserDropdown";
 import LoginModal from "./LoginModal";
 import RoleSwitcher from "./RoleSwitcher";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { USER_ROLE_WEIGHT } from "@/types/user";
+import { isPublicSitePath } from "@/lib/siteRoutes";
 
-const Header = () => {
+type NavLinkItem = {
+    href: string;
+    label: string;
+    minWeight?: number;
+    isExternal?: boolean;
+};
+
+function useIsFilterStuck() {
+    const location = useLocation();
+    const [isFilterStuck, setIsFilterStuck] = useState(false);
+
+    useEffect(() => {
+        const handler = (e: Event) => {
+            const customEvent = e as CustomEvent<{ isStuck: boolean }>;
+            setIsFilterStuck(Boolean(customEvent.detail?.isStuck));
+        };
+        window.addEventListener('filter-stuck-change', handler);
+        return () => {
+            window.removeEventListener('filter-stuck-change', handler);
+        };
+    }, []);
+
+    return isFilterStuck && location.pathname === '/dashboard';
+}
+
+const AppHeader = () => {
     const { isAuthenticated, isInitializing, user, role, canAccessMonitor } = useAuth();
     const location = useLocation();
 
-    const canSwitchRole =
-        !!user &&
-        USER_ROLE_WEIGHT[user.role as keyof typeof USER_ROLE_WEIGHT] >=
-        USER_ROLE_WEIGHT.research_assistant;
+    const canPreviewRoles = user?.role === "admin";
 
-    const links = [
+    const currentWeight = isAuthenticated
+        ? (USER_ROLE_WEIGHT[role as keyof typeof USER_ROLE_WEIGHT] ?? 0)
+        : 0;
+
+    const links: NavLinkItem[] = [
         { href: "/", label: "Homepage", minWeight: 0 },
         { href: "/dashboard", label: "Dashboard", minWeight: 0 },
         {
@@ -31,26 +61,20 @@ const Header = () => {
             label: "Users",
             minWeight: USER_ROLE_WEIGHT.researcher,
         },
-    ].filter((link) => {
-        const currentWeight = isAuthenticated
-            ? (USER_ROLE_WEIGHT[role as keyof typeof USER_ROLE_WEIGHT] ?? 0)
-            : 0;
-
-        return currentWeight >= link.minWeight;
-    });
+    ].filter((link) => currentWeight >= (link.minWeight ?? 0));
 
     // Add external Monitor link if allowed
-    if (canAccessMonitor) {
+    const monitorUrl = import.meta.env.VITE_MONITOR_URL;
+    if (canAccessMonitor && monitorUrl) {
         links.push({
-            href: import.meta.env.VITE_MONITOR_URL,
+            href: monitorUrl,
             label: "Monitor",
             minWeight: 0,
-            isExternal: true
-        } as any);
+            isExternal: true,
+        });
     }
 
     const isDashboard = location.pathname === "/dashboard";
-    const isHomepage = location.pathname === "/";
 
     return (
         <nav className={cn(
@@ -58,13 +82,13 @@ const Header = () => {
             isDashboard ? "max-w-[1920px] px-4 sm:px-6 lg:px-8" : "max-w-container-max px-gutter"
         )}>
             <div className="w-full rounded-2xl border border-white/20 dark:border-slate-800/50 bg-white/70 dark:bg-slate-950/70 backdrop-blur-xl flex justify-between items-center px-8 py-4">
-                <Link to="/" className="text-xl font-bold tracking-tighter text-slate-900 dark:text-white flex items-center gap-2">
-                    <span className="material-symbols-outlined text-primary" style={{ fontVariationSettings: '"FILL" 1' }}>biotech</span>
+                <Link to="/" className="text-xl font-bold tracking-tighter text-gfs-maroon dark:text-white flex items-center gap-2">
+                    <span className="material-symbols-outlined text-gfs-maroon dark:text-gfs-gold" style={{ fontVariationSettings: '"FILL" 1' }}>biotech</span>
                     AgriScan Pro
                 </Link>
 
-                <div className="hidden md:flex items-center gap-6 font-sans text-[13px] font-bold tracking-tight nav-container">
-                    {links.map((link: any) => {
+                <div className="hidden md:flex items-center gap-6 font-sans text-[0.95rem] font-semibold tracking-tight nav-container">
+                    {links.map((link) => {
                         const isActive = location.pathname === link.href;
 
                         if (link.isExternal) {
@@ -104,7 +128,7 @@ const Header = () => {
                     {!isInitializing && (
                         isAuthenticated ? (
                             <div className="flex items-center gap-2">
-                                {canSwitchRole && <RoleSwitcher />}
+                                {canPreviewRoles && <RoleSwitcher />}
                                 <UserDropdown />
                             </div>
                         ) : (
@@ -115,6 +139,250 @@ const Header = () => {
             </div>
         </nav>
     );
+};
+
+const CoeHeader = () => {
+    const location = useLocation();
+    const isStuckOnDashboard = useIsFilterStuck();
+    const { isAuthenticated, isInitializing, user, role, canAccessMonitor } = useAuth();
+    const { language, setLanguage } = useLanguage();
+    const [mobileOpen, setMobileOpen] = useState(false);
+    const [toolsOpen, setToolsOpen] = useState(false);
+
+    const t = language === "th"
+        ? {
+            home: "หน้าแรก", about: "เกี่ยวกับเรา", dashboard: "แดชบอร์ด",
+            projects: "โครงการวิจัย", publications: "ผลงานตีพิมพ์", news: "ข่าวสาร",
+            partners: "พันธมิตรและเครือข่าย", contact: "ติดต่อ", tools: "เครื่องมือวิจัย",
+            predictions: "การคาดการณ์", samples: "รายการตัวอย่าง", users: "ผู้ใช้",
+            manage: "จัดการเนื้อหา", skip: "ข้ามไปยังเนื้อหา",
+        }
+        : {
+            home: "Home", about: "About Us", dashboard: "Dashboard",
+            projects: "Projects", publications: "Publications", news: "News",
+            partners: "Partners & Networks", contact: "Contact", tools: "Research tools",
+            predictions: "Predictions", samples: "Sample List", users: "Users",
+            manage: "Manage content", skip: "Skip to content",
+        };
+
+    const currentWeight = isAuthenticated
+        ? (USER_ROLE_WEIGHT[role as keyof typeof USER_ROLE_WEIGHT] ?? 0)
+        : 0;
+
+    const canPreviewRoles = user?.role === "admin";
+
+    const publicLinks: NavLinkItem[] = [
+        { href: "/", label: t.home },
+        { href: "/about", label: t.about },
+        { href: "/dashboard", label: t.dashboard },
+        { href: "/projects", label: t.projects },
+        { href: "/publications", label: t.publications },
+        { href: "/news", label: t.news },
+        { href: "/partners", label: t.partners },
+        { href: "/contact", label: t.contact },
+    ];
+
+    const toolLinks: NavLinkItem[] = [
+        { href: "/prediction", label: t.predictions, minWeight: USER_ROLE_WEIGHT.research_assistant },
+        { href: "/samples", label: t.samples, minWeight: USER_ROLE_WEIGHT.research_assistant },
+        { href: "/users", label: t.users, minWeight: USER_ROLE_WEIGHT.researcher },
+        { href: "/manage", label: t.manage, minWeight: USER_ROLE_WEIGHT.admin },
+    ].filter((link) => currentWeight >= (link.minWeight ?? 0));
+
+    const monitorUrl = import.meta.env.VITE_MONITOR_URL;
+    if (canAccessMonitor && monitorUrl) {
+        toolLinks.push({
+            href: monitorUrl,
+            label: "Monitor",
+            isExternal: true,
+        });
+    }
+
+    const isActivePath = (href: string) =>
+        href === "/" ? location.pathname === "/" : location.pathname.startsWith(href);
+
+    const closeMobile = () => setMobileOpen(false);
+
+    const renderLink = (link: NavLinkItem, extraClass?: string) => {
+        if (link.isExternal) {
+            return (
+                <a key={link.href} href={link.href} target="_blank" rel="noopener noreferrer" className={extraClass}>
+                    {link.label}
+                </a>
+            );
+        }
+        return (
+            <Link key={link.href} to={link.href} className={extraClass}>
+                {link.label}
+            </Link>
+        );
+    };
+
+    return (
+        <nav className="coe-site-header fixed top-4 left-1/2 -translate-x-1/2 w-full z-[99999] transition-all duration-300 ease-out max-w-[1920px] px-4 sm:px-6 lg:px-8">
+            <a href="#main-content" className="skip-link">{t.skip}</a>
+            <div className={cn(
+                "w-full border border-gfs-maroon/15 dark:border-white/10 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl flex justify-between items-center px-4 py-3 lg:px-6 xl:px-7 lg:py-4 transition-all duration-300 ease-out",
+                isStuckOnDashboard
+                    ? "rounded-t-2xl rounded-b-none border-b-0 shadow-none"
+                    : "rounded-2xl shadow-gfs-header"
+            )}>
+                <Link to="/" onClick={closeMobile} className="flex shrink-0 items-center gap-2.5">
+                    <img
+                        src="/Emblem_of_Thammasat_University.svg.png"
+                        alt="Thammasat University emblem"
+                        className="h-[38px] w-auto"
+                    />
+                    <span className="flex flex-col leading-tight">
+                        <span className="text-lg font-bold tracking-tight text-gfs-maroon dark:text-white">CoE-GFS</span>
+                        <span className="hidden text-[11px] font-semibold text-gfs-text-muted dark:text-slate-400 sm:block">
+                            Thammasat University
+                        </span>
+                    </span>
+                </Link>
+
+                <div className="hidden min-w-0 flex-1 items-center justify-center gap-3 xl:gap-4 min-[1400px]:flex font-sans text-[0.9rem] font-semibold tracking-tight whitespace-nowrap nav-container">
+                    {publicLinks.map((link) =>
+                        link.isExternal ? renderLink(link) : (
+                            <Link
+                                key={link.href}
+                                to={link.href}
+                                className={cn(
+                                    "nav-link whitespace-nowrap transition-all duration-300 relative group",
+                                    isActivePath(link.href) && "nav-link-active"
+                                )}
+                            >
+                                {link.label}
+                                <span className="underline-span" />
+                            </Link>
+                        )
+                    )}
+                    {toolLinks.length > 0 && (
+                        <div
+                            className="relative"
+                            onMouseEnter={() => setToolsOpen(true)}
+                            onMouseLeave={() => setToolsOpen(false)}
+                        >
+                            <button
+                                type="button"
+                                onClick={() => setToolsOpen((open) => !open)}
+                                aria-haspopup="menu"
+                                aria-expanded={toolsOpen}
+                                className={cn(
+                                    "nav-link whitespace-nowrap transition-all duration-300 relative group flex items-center gap-1",
+                                    toolLinks.some((link) => !link.isExternal && isActivePath(link.href)) && "nav-link-active",
+                                )}
+                            >
+                                {t.tools}
+                                <ChevronDown className={cn("h-4 w-4 transition-transform duration-300", toolsOpen && "rotate-180")} />
+                                <span className="underline-span" />
+                            </button>
+                            {toolsOpen && (
+                                <div className="absolute right-0 top-full w-52 rounded-gfs-card border border-gfs-maroon/10 bg-gfs-surface py-2 shadow-gfs-card">
+                                    {toolLinks.map((link) =>
+                                        link.isExternal ? (
+                                            <a
+                                                key={link.href}
+                                                href={link.href}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="block px-4 py-2 text-sm font-semibold text-gfs-maroon transition-colors hover:bg-gfs-maroon/tint"
+                                            >
+                                                {link.label}
+                                            </a>
+                                        ) : (
+                                            <Link
+                                                key={link.href}
+                                                to={link.href}
+                                                onClick={() => setToolsOpen(false)}
+                                                className="block px-4 py-2 text-sm font-semibold text-gfs-maroon transition-colors hover:bg-gfs-maroon/tint"
+                                            >
+                                                {link.label}
+                                            </Link>
+                                        )
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+
+                <div className="flex shrink-0 items-center gap-2 xl:gap-3">
+                    <div className="coe-lang-switch hidden sm:inline-flex">
+                        <button type="button" data-active={language === "th"} onClick={() => setLanguage("th")}>TH</button>
+                        <button type="button" data-active={language === "en"} onClick={() => setLanguage("en")}>EN</button>
+                    </div>
+                    <ThemeToggle />
+                    {!isInitializing && (
+                        isAuthenticated ? (
+                            <div className="hidden items-center gap-2 min-[1400px]:flex">
+                                {canPreviewRoles && <RoleSwitcher />}
+                                <UserDropdown />
+                            </div>
+                        ) : (
+                            <LoginModal />
+                        )
+                    )}
+                    <button
+                        type="button"
+                        aria-label="Toggle menu"
+                        aria-expanded={mobileOpen}
+                        onClick={() => setMobileOpen((open) => !open)}
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-gfs-pill text-gfs-maroon transition-colors hover:bg-gfs-maroon/tint min-[1400px]:hidden"
+                    >
+                        {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+                    </button>
+                </div>
+            </div>
+
+            {mobileOpen && (
+                <div className="mt-2 rounded-2xl border border-gfs-maroon/10 bg-gfs-canvas/95 px-4 pb-6 pt-3 shadow-gfs-card backdrop-blur-xl min-[1400px]:hidden">
+                    <div className="flex flex-col divide-y divide-gfs-maroon/10">
+                        {publicLinks.map((link) => (
+                            <div key={link.href} className="py-2">
+                                {renderLink(
+                                    link,
+                                    cn(
+                                        "block py-1.5 text-base font-semibold text-gfs-maroon",
+                                        isActivePath(link.href) && "text-gfs-maroon-hover underline decoration-gfs-gold decoration-2 underline-offset-4",
+                                    ),
+                                )}
+                            </div>
+                        ))}
+                        {toolLinks.length > 0 && (
+                            <>
+                                <p className="pt-3 text-xs font-bold uppercase tracking-[0.05em] text-gfs-maroon">{t.tools}</p>
+                                {toolLinks.map((link) => (
+                                    <div key={link.href} className="py-2">
+                                        {renderLink(
+                                            link,
+                                            "block py-1.5 text-base font-semibold text-gfs-maroon",
+                                        )}
+                                    </div>
+                                ))}
+                            </>
+                        )}
+                    </div>
+                    <div className="mt-4 flex items-center justify-between gap-3">
+                        <div className="coe-lang-switch">
+                            <button type="button" data-active={language === "th"} onClick={() => setLanguage("th")}>TH</button>
+                            <button type="button" data-active={language === "en"} onClick={() => setLanguage("en")}>EN</button>
+                        </div>
+                        {!isInitializing && isAuthenticated && canPreviewRoles && <RoleSwitcher />}
+                        {!isInitializing && isAuthenticated && <UserDropdown />}
+                        {!isInitializing && !isAuthenticated && <LoginModal />}
+                    </div>
+                </div>
+            )}
+        </nav>
+    );
+};
+
+const Header = () => {
+    const location = useLocation();
+    const useCoeHeader = isPublicSitePath(location.pathname);
+
+    return useCoeHeader ? <CoeHeader /> : <AppHeader />;
 };
 
 export default Header;

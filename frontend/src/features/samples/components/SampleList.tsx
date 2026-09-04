@@ -1,16 +1,12 @@
-import { useState, useMemo } from 'react';
+import { lazy, Suspense, useState, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, Download, ChevronDown, Loader2, ShieldCheck, Wrench, FlaskConical, Trash2, LayoutGrid, CheckCircle2, AlertCircle, Clock, X } from 'lucide-react';
-import ExcelJS from 'exceljs';
 import StatsCard from '@/components/StatsCard';
 import FilterBar from '@/components/FilterBar';
 import SampleTable from './SampleTable';
 import SampleDetailModal from './SampleDetailModal';
-import AddSampleForm from './AddSampleForm';
-import UnifiedImportForm from './UnifiedImportForm';
-import RequestInvestigationForm from './RequestInvestigationForm';
 import { Button } from '@/components/ui/button';
 import {
     DropdownMenu,
@@ -43,6 +39,10 @@ import { useDeferredMount } from '@/hooks/useDeferredMount';
 import SampleTableSkeleton from './SampleTableSkeleton';
 import { Badge } from '@/components/ui/badge';
 import { SAMPLE_TYPE_LABELS, SampleType } from '@/types/sample';
+
+const AddSampleForm = lazy(() => import('./AddSampleForm'));
+const UnifiedImportForm = lazy(() => import('./UnifiedImportForm'));
+const RequestInvestigationForm = lazy(() => import('./RequestInvestigationForm'));
 
 const SampleList = () => {
     const { isAdmin, isAuthenticated, role } = useAuth();
@@ -83,13 +83,14 @@ const SampleList = () => {
                 region: sample.region || 'Unknown',
                 province: sample.province,
                 district: sample.district,
+                food_feed_type: sample.food_feed_type || 'food',
+                sub_type: sample.sub_type || sample.vegetation_variety,
                 vegetation_variety: sample.vegetation_variety,
                 collection_date: sample.collection_date,
                 status: sample.status || 'pending',
                 purpose: sample.purpose || undefined,
                 sample_type: sample.sample_type || undefined,
                 processing_type: sample.processing_type || undefined,
-                collected_by: sample.collected_by || undefined,
                 additional_info: sample.additional_info || '',
             }));
             return sampleAPI.bulkCreateSamples(cleanedSamples);
@@ -267,7 +268,7 @@ const SampleList = () => {
 
     // Get export data
     const getExportData = () => {
-        const headers = ['Sample ID', 'Region', 'Province', 'District', 'Variety', 'Collection Date', 'Status', 'Risk Level', 'Purpose', 'Type', 'Collected By', 'Additional Info', 'Last Updated By'];
+        const headers = ['Sample ID', 'Region', 'Province', 'District', 'Food / Feed', 'Sub-type', 'Collection Date', 'Received At', 'Status', 'Risk Level', 'Purpose', 'Sample Type', 'Recorded By', 'Additional Info', 'Last Updated By'];
 
         const sortedForExport = [...filteredSamples].sort((a, b) =>
             a.sample_id.localeCompare(b.sample_id, undefined, { numeric: true, sensitivity: 'base' })
@@ -281,13 +282,15 @@ const SampleList = () => {
                 sample.region,
                 sample.province,
                 sample.district,
-                sample.vegetation_variety,
+                sample.food_feed_type || 'food',
+                sample.sub_type || sample.vegetation_variety,
                 sample.collection_date,
+                sample.received_at || '-',
                 sample.status,
                 getThresholdRiskLevel(sample),
                 sample.purpose || '-',
                 sample.sample_type || '-',
-                sample.collected_by || '-',
+                sample.recorded_by || '-',
                 sample.additional_info || '-',
                 lastLog?.conducted_by || '',
             ];
@@ -324,6 +327,7 @@ const SampleList = () => {
     // Export filtered samples to XLSX
     const handleExportXLSX = async () => {
         const { headers, rows } = getExportData();
+        const { default: ExcelJS } = await import('exceljs');
 
         const workbook = new ExcelJS.Workbook();
         const worksheet = workbook.addWorksheet('Samples');
@@ -553,27 +557,29 @@ const SampleList = () => {
                                 </DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>
-                        <UnifiedImportForm
-                            sampleIds={filteredSamples.map((sample) => sample.sample_id)}
-                            onSuccess={handleImportResultsSuccess}
-                        />
-                        <RequestInvestigationForm />
-                        {isAuthenticated && USER_ROLE_WEIGHT[role as keyof typeof USER_ROLE_WEIGHT] >= USER_ROLE_WEIGHT['research_assistant'] && (
-                            <div className="flex items-center gap-2">
-                                <AddSampleForm onSuccess={handleImportResultsSuccess} />
-                                <Button
-                                    variant={isSelectionMode ? "destructive" : "outline"}
-                                    className={cn(
-                                        "gap-2 transition-all duration-200",
-                                        !isSelectionMode && "text-danger hover:text-danger hover:bg-danger/5 border-danger/20 hover:border-danger/40"
-                                    )}
-                                    onClick={() => setIsSelectionMode(!isSelectionMode)}
-                                >
-                                    <Trash2 className={cn("h-4 w-4 transition-all duration-300", isSelectionMode && "scale-110")} />
-                                    {isSelectionMode ? 'Cancel' : 'Delete sample'}
-                                </Button>
-                            </div>
-                        )}
+                        <Suspense fallback={<span className="text-sm text-muted-foreground">Loading actions…</span>}>
+                            <UnifiedImportForm
+                                sampleIds={filteredSamples.map((sample) => sample.sample_id)}
+                                onSuccess={handleImportResultsSuccess}
+                            />
+                            <RequestInvestigationForm />
+                            {isAuthenticated && USER_ROLE_WEIGHT[role as keyof typeof USER_ROLE_WEIGHT] >= USER_ROLE_WEIGHT['research_assistant'] && (
+                                <div className="flex items-center gap-2">
+                                    <AddSampleForm onSuccess={handleImportResultsSuccess} />
+                                    <Button
+                                        variant={isSelectionMode ? "destructive" : "outline"}
+                                        className={cn(
+                                            "gap-2 transition-all duration-200",
+                                            !isSelectionMode && "text-danger hover:text-danger hover:bg-danger/5 border-danger/20 hover:border-danger/40"
+                                        )}
+                                        onClick={() => setIsSelectionMode(!isSelectionMode)}
+                                    >
+                                        <Trash2 className={cn("h-4 w-4 transition-all duration-300", isSelectionMode && "scale-110")} />
+                                        {isSelectionMode ? 'Cancel' : 'Delete sample'}
+                                    </Button>
+                                </div>
+                            )}
+                        </Suspense>
                         
                     </div>
                 </div>

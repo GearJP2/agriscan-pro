@@ -26,6 +26,7 @@ import {
   Microscope,
   ArrowRight,
   Info,
+  Database,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -505,20 +506,39 @@ const Doc = () => {
               <Divider />
 
               <div className="space-y-4">
-                <Card className="glass-card border-dashed">
+                <Card className="glass-card">
                   <CardContent className="p-6 space-y-4">
                     <div className="flex items-center gap-2">
-                      <Badge variant="secondary">Coming Soon</Badge>
-                      <span className="text-xs text-muted-foreground">{t('Under development', 'กำลังพัฒนา')}</span>
+                      <Badge variant="default">Research role</Badge>
+                      <span className="text-xs text-muted-foreground">
+                        {t('Available for Admin, Head Researcher, and Researcher accounts', 'ใช้งานได้สำหรับ Admin, Head Researcher และ Researcher')}
+                      </span>
                     </div>
                     <Txt
                       lang={lang}
-                      en="The Prediction module will provide AI-powered mycotoxin risk forecasting based on historical sample data, regional patterns, weather correlations, and vegetation variety profiles."
-                      th="โมดูล Prediction จะให้การพยากรณ์ความเสี่ยงไมโคทอกซินด้วย AI โดยอิงจากข้อมูลตัวอย่างในอดีต รูปแบบตามภูมิภาค ความสัมพันธ์กับสภาพอากาศ และโปรไฟล์ตามพันธุ์พืช"
+                      en="The Prediction module estimates sample-level mycotoxin detection risk from registered sample metadata, optional prediction context, historical sample results, and optional 90-day NASA POWER weather features. Predictions are research estimates only and must not be treated as laboratory-confirmed results."
+                      th="โมดูล Prediction ประเมินความเสี่ยงการตรวจพบไมโคทอกซินระดับตัวอย่างจากข้อมูลตัวอย่างที่ลงทะเบียนไว้ ข้อมูลบริบทเพิ่มเติม ผลตัวอย่างย้อนหลัง และข้อมูลสภาพอากาศย้อนหลัง 90 วันจาก NASA POWER (ถ้าเปิดใช้) ผลลัพธ์เป็นค่าประมาณเพื่อการวิจัยเท่านั้น ไม่ใช่ผลยืนยันจากห้องปฏิบัติการ"
                     />
                     <div className="grid gap-3 sm:grid-cols-2">
-                      <FeatureCard lang={lang} icon={<TrendingUp className="h-4 w-4" />} en="Risk Forecast by Region" th="พยากรณ์ความเสี่ยงตามพื้นที่" badge="Planned" badgeTh="วางแผนไว้" />
-                      <FeatureCard lang={lang} icon={<FlaskConical className="h-4 w-4" />} en="Contamination Trend Analysis" th="วิเคราะห์แนวโน้มการปนเปื้อน" badge="Planned" badgeTh="วางแผนไว้" />
+                      <FeatureCard lang={lang} icon={<Database className="h-4 w-4" />} en="Training readiness checks" th="ตรวจความพร้อมข้อมูลฝึกโมเดล" badge="Live" badgeTh="ใช้งานได้" />
+                      <FeatureCard lang={lang} icon={<TrendingUp className="h-4 w-4" />} en="Estimate from registered sample" th="ประเมินจากตัวอย่างที่ลงทะเบียน" badge="Live" badgeTh="ใช้งานได้" />
+                      <FeatureCard lang={lang} icon={<MapPin className="h-4 w-4" />} en="Prediction context editor" th="แก้ไขข้อมูลบริบทสำหรับการทำนาย" badge="Live" badgeTh="ใช้งานได้" />
+                      <FeatureCard lang={lang} icon={<FlaskConical className="h-4 w-4" />} en="Admin published-model gate" th="Admin เปิดใช้เฉพาะโมเดลที่ผ่านการเผยแพร่" badge="Live" badgeTh="ใช้งานได้" />
+                    </div>
+                    <div className="rounded-lg border border-warning/30 bg-warning/5 p-4 text-sm text-muted-foreground">
+                      <p className="font-medium text-foreground">{t('Operational flow', 'ขั้นตอนการใช้งาน')}</p>
+                      <p className="mt-1">
+                        {t(
+                          'Import lab results, check readiness, optionally warm weather cache, train models, inspect model metrics, publish approved toxin models, then run single-sample or batch estimates.',
+                          'นำเข้าผลแล็บ ตรวจความพร้อมของข้อมูล อุ่นแคชสภาพอากาศถ้าต้องใช้ ฝึกโมเดล ตรวจ metric เผยแพร่โมเดล toxin ที่อนุมัติแล้ว จากนั้นจึงประเมินผลแบบตัวอย่างเดียวหรือหลายตัวอย่าง',
+                        )}
+                      </p>
+                      <p className="mt-2">
+                        {t(
+                          'Admins can publish reviewed models from the Prediction page. The publish action blocks low-metric models by default; use force publish only when a researcher intentionally approves that risk.',
+                          'Admin สามารถเผยแพร่โมเดลที่ตรวจแล้วจากหน้า Prediction การ publish จะกันโมเดลที่ metric ต่ำโดยค่าเริ่มต้น ใช้ force publish เฉพาะเมื่อนักวิจัยอนุมัติความเสี่ยงนั้นโดยตั้งใจ',
+                        )}
+                      </p>
                     </div>
                   </CardContent>
                 </Card>
@@ -995,6 +1015,14 @@ const Doc = () => {
                       { method: 'GET', path: '/api/samples/recent_alerts/', en: 'Recent risk alerts', th: 'การแจ้งเตือนความเสี่ยงล่าสุด' },
                       { method: 'POST', path: '/api/samples/{id}/add_process_log/', en: 'Add process log', th: 'เพิ่ม log กระบวนการ' },
                       { method: 'POST', path: '/api/samples/{id}/add_mycotoxin_result/', en: 'Add mycotoxin result', th: 'เพิ่มผลไมโคทอกซิน' },
+                      { method: 'GET', path: '/api/samples/prediction/readiness/', en: 'Prediction training-data readiness', th: 'ตรวจความพร้อมข้อมูลสำหรับฝึกโมเดล Prediction' },
+                      { method: 'GET', path: '/api/samples/prediction/status/', en: 'Prediction model status and metrics', th: 'สถานะและ metric ของโมเดล Prediction' },
+                      { method: 'POST', path: '/api/samples/prediction/publish/', en: 'Admin-only publish reviewed toxin models', th: 'Admin เผยแพร่โมเดล toxin ที่ตรวจแล้ว' },
+                      { method: 'POST', path: '/api/samples/prediction/estimate/', en: 'Estimate from manual sample context', th: 'ประเมินจากข้อมูลตัวอย่างที่กรอกเอง' },
+                      { method: 'POST', path: '/api/samples/prediction/batch-estimate/', en: 'Batch estimate registered samples', th: 'ประเมินตัวอย่างที่ลงทะเบียนหลายรายการ' },
+                      { method: 'POST', path: '/api/samples/{id}/prediction/estimate/', en: 'Estimate from registered sample', th: 'ประเมินจากตัวอย่างที่ลงทะเบียนแล้ว' },
+                      { method: 'GET', path: '/api/samples/{id}/prediction/history/', en: 'Recent saved prediction estimates', th: 'ประวัติการประเมิน Prediction ล่าสุด' },
+                      { method: 'GET/PATCH', path: '/api/samples/{id}/prediction/context/', en: 'Read or update optional prediction context', th: 'อ่านหรือแก้ไขข้อมูลบริบทสำหรับ Prediction' },
                     ].map((e) => (
                       <div key={`${e.method}-${e.path}`} className="flex items-start gap-3 text-xs">
                         <Badge

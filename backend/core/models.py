@@ -2,6 +2,24 @@ from django.conf import settings
 from django.db import models
 
 
+class HomepageContent(models.Model):
+    """Single editable content record used by the public landing page."""
+
+    key = models.CharField(max_length=40, unique=True, default="homepage")
+    content = models.JSONField(default=dict)
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="homepage_content_updates",
+    )
+
+    def __str__(self):
+        return f"Homepage content ({self.updated_at:%Y-%m-%d})"
+
+
 class AuditLog(models.Model):
     """
     Centralized audit log for tracking critical changes across all models
