@@ -305,7 +305,15 @@ class PredictionInferenceService:
         return candidates
 
     @staticmethod
-    def count_historical_detected(*, toxin_type, food_feed_type, sub_type, province, district='', include_districts=True) -> int:
+    def count_historical_detected(
+        *,
+        toxin_type,
+        food_feed_type,
+        sub_type,
+        province,
+        district='',
+        include_districts=True,
+    ) -> int:
         return PredictionInferenceService.historical_signal(
             toxin_type=toxin_type,
             food_feed_type=food_feed_type,
@@ -316,14 +324,25 @@ class PredictionInferenceService:
         )['detected_count']
 
     @staticmethod
-    def historical_signal(*, toxin_type, food_feed_type, sub_type, province, district='', include_districts=True) -> dict:
+    def historical_signal(
+        *,
+        toxin_type,
+        food_feed_type,
+        sub_type,
+        province,
+        district='',
+        include_districts=True,
+    ) -> dict:
         queryset = MycotoxinResult.objects.filter(toxin_type=toxin_type)
         if province:
             queryset = queryset.filter(sample__province__iexact=province)
         if food_feed_type:
             queryset = queryset.filter(sample__food_feed_type=food_feed_type)
         if sub_type:
-            queryset = queryset.filter(Q(sample__sub_type__iexact=sub_type) | Q(sample__vegetation_variety__iexact=sub_type))
+            queryset = queryset.filter(
+                Q(sample__sub_type__iexact=sub_type)
+                | Q(sample__vegetation_variety__iexact=sub_type)
+            )
         if include_districts and district:
             queryset = queryset.filter(sample__district__iexact=district)
         measured_count = queryset.count()

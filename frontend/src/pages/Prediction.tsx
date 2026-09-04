@@ -136,7 +136,7 @@ function SamplingRecommendationTable({
                           </dd>
                         </dl>
                         <p className="mt-2 text-xs">
-                          Drivers: {item.priorityDrivers.join(', ')} · Basis: {item.actionBasis.replaceAll('_', ' ')}
+                          Drivers: {item.priorityDrivers.join(', ')} · Basis: {item.actionBasis.replace(/_/g, ' ')}
                         </p>
                       </div>
                     </div>

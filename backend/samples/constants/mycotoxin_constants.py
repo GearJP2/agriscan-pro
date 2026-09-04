@@ -49,8 +49,15 @@ TOXIN_LABELS = dict(TOXIN_CHOICES)
 
 TOXIN_GROUPS = {
     "Aflatoxins": ["AFB1", "AFB2", "AFG1", "AFG2", "AFM1", "STC"],
-    "Fusarium": ["DON", "15ADON", "3ADON", "D3G", "FB1", "FB2", "ZEA", "HT2", "DAS", "NIV", "NEOS", "MON", "FUSA", "BEA", "ENNA", "ENNA1", "ENNB", "ENNB1"],
-    "Others": ["OTA", "OTB", "T-2", "ALT", "AME", "CIT", "CPA", "EMO", "MPA", "PAT", "PAX", "PEN", "TEN", "TEA", "TMP", "TRY"],
+    "Fusarium": [
+        "DON", "15ADON", "3ADON", "D3G", "FB1", "FB2", "ZEA", "HT2",
+        "DAS", "NIV", "NEOS", "MON", "FUSA", "BEA", "ENNA", "ENNA1",
+        "ENNB", "ENNB1",
+    ],
+    "Others": [
+        "OTA", "OTB", "T-2", "ALT", "AME", "CIT", "CPA", "EMO", "MPA",
+        "PAT", "PAX", "PEN", "TEN", "TEA", "TMP", "TRY",
+    ],
     "Unknown": ["UNKNOWN"],
 }
 

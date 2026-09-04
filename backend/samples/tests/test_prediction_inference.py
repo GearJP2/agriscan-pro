@@ -681,7 +681,8 @@ class PredictionEstimateEndpointTests(TestCase):
             'warning': 'Research area-risk estimate only.',
         }
 
-        with patch('samples.services.prediction_inference_service.PredictionInferenceService.estimate', return_value=expected):
+        estimate_path = 'samples.services.prediction_inference_service.PredictionInferenceService.estimate'
+        with patch(estimate_path, return_value=expected):
             result = PredictionInferenceService.recommend_sampling({
                 'target_date': '2026-08-31',
                 'limit': 1,

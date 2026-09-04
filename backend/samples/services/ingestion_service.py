@@ -207,7 +207,8 @@ class SampleIngestionService:
 
     @staticmethod
     def is_below_lod_value(value) -> bool:
-        return str(value or '').strip().lower() in {'', 'nd', 'bdl', '<lod', 'lod'} or str(value or '').strip().startswith('<')
+        normalized_value = str(value or '').strip()
+        return normalized_value.lower() in {'', 'nd', 'bdl', '<lod', 'lod'} or normalized_value.startswith('<')
 
     @staticmethod
     def iter_csv_rows(uploaded_file) -> Iterator[dict[str, str]]:
