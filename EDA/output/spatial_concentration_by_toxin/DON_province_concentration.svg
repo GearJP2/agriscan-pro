@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="158" viewBox="0 0 1100 158" role="img">
+<style>
+  .title { font: 700 22px system-ui, -apple-system, Segoe UI, sans-serif; fill: #1f1f1f; }
+  .label { font: 500 13px system-ui, -apple-system, Segoe UI, sans-serif; fill: #2a3142; }
+  .value { font: 600 13px system-ui, -apple-system, Segoe UI, sans-serif; fill: #7A1517; }
+  .axis { font: 12px system-ui, -apple-system, Segoe UI, sans-serif; fill: #6b6b6b; }
+  .bar { fill: #9F1D20; }
+  .line { fill: none; stroke: #9F1D20; stroke-width: 3; }
+  .point { fill: #F4B41A; stroke: #7A1517; stroke-width: 1.5; }
+  .axis-line { stroke: #e5dfd2; stroke-width: 1; }
+</style>
+<rect width="100%" height="100%" fill="#ffffff" />
+
+<text x="24" y="34" class="title">DON mean positive concentration by province</text>
+<text x="220" y="146" class="axis">Mean positive concentration (ug/kg)</text>
+<text x="24" y="82" class="label">Kampong Thom</text>
+<rect x="220" y="64" width="760" height="22" rx="5" class="bar" />
+<text x="988" y="80" class="value">mean 156.95 ug/kg; max 156.95; 1/2 detected</text>
+<text x="24" y="116" class="label">Ubon Ratchathani</text>
+<rect x="220" y="98" width="337" height="22" rx="5" class="bar" />
+<text x="565" y="114" class="value">mean 69.79 ug/kg; max 69.79; 1/43 detected</text>
+<line x1="220" y1="122" x2="980" y2="122" class="axis-line" />
+</svg>

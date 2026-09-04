@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="770" viewBox="0 0 1100 770" role="img">
+<style>
+  .title { font: 700 22px system-ui, -apple-system, Segoe UI, sans-serif; fill: #1f1f1f; }
+  .label { font: 500 13px system-ui, -apple-system, Segoe UI, sans-serif; fill: #2a3142; }
+  .value { font: 600 13px system-ui, -apple-system, Segoe UI, sans-serif; fill: #7A1517; }
+  .axis { font: 12px system-ui, -apple-system, Segoe UI, sans-serif; fill: #6b6b6b; }
+  .bar { fill: #9F1D20; }
+  .line { fill: none; stroke: #9F1D20; stroke-width: 3; }
+  .point { fill: #F4B41A; stroke: #7A1517; stroke-width: 1.5; }
+  .axis-line { stroke: #e5dfd2; stroke-width: 1; }
+</style>
+<rect width="100%" height="100%" fill="#ffffff" />
+
+<text x="24" y="34" class="title">Top below LOD / zero / imported-empty rates by toxin</text>
+<text x="260" y="758" class="axis">Below LOD / zero / imported-empty rate</text>
+<text x="24" y="82" class="label">15ADON — 15-Acetyl-Deoxynivalenol</text>
+<rect x="260" y="64" width="720" height="22" rx="5" class="bar" />
+<text x="988" y="80" class="value">100.0% (512/512)</text>
+<text x="24" y="116" class="label">3ADON — 3-Acetyl-Deoxynivalenol</text>
+<rect x="260" y="98" width="720" height="22" rx="5" class="bar" />
+<text x="988" y="114" class="value">100.0% (512/512)</text>
+<text x="24" y="150" class="label">D3G — Deoxynivalenol-3-glucoside</text>
+<rect x="260" y="132" width="720" height="22" rx="5" class="bar" />
+<text x="988" y="148" class="value">100.0% (512/512)</text>
+<text x="24" y="184" class="label">NEOS — Neosolaniol</text>
+<rect x="260" y="166" width="720" height="22" rx="5" class="bar" />
+<text x="988" y="182" class="value">100.0% (512/512)</text>
+<text x="24" y="218" class="label">NIV — Nivalenol</text>
+<rect x="260" y="200" width="720" height="22" rx="5" class="bar" />
+<text x="988" y="216" class="value">100.0% (512/512)</text>
+<text x="24" y="252" class="label">OTB — Ochratoxin B</text>
+<rect x="260" y="234" width="720" height="22" rx="5" class="bar" />
+<text x="988" y="250" class="value">100.0% (512/512)</text>
+<text x="24" y="286" class="label">PAT — Patulin</text>
+<rect x="260" y="268" width="720" height="22" rx="5" class="bar" />
+<text x="988" y="284" class="value">100.0% (512/512)</text>
+<text x="24" y="320" class="label">PAX — Paxiline</text>
+<rect x="260" y="302" width="720" height="22" rx="5" class="bar" />
+<text x="988" y="318" class="value">100.0% (512/512)</text>
+<text x="24" y="354" class="label">PEN — Penitrem A</text>
+<rect x="260" y="336" width="720" height="22" rx="5" class="bar" />
+<text x="988" y="352" class="value">100.0% (512/512)</text>
+<text x="24" y="388" class="label">TMP — Trimethoprim</text>
+<rect x="260" y="370" width="720" height="22" rx="5" class="bar" />
+<text x="988" y="386" class="value">100.0% (512/512)</text>
+<text x="24" y="422" class="label">AFB2 — Aflatoxin B2</text>
+<rect x="260" y="404" width="718" height="22" rx="5" class="bar" />
+<text x="986" y="420" class="value">99.8% (511/512)</text>
+<text x="24" y="456" class="label">AFG2 — Aflatoxin G2</text>
+<rect x="260" y="438" width="718" height="22" rx="5" class="bar" />
+<text x="986" y="454" class="value">99.8% (511/512)</text>
+<text x="24" y="490" class="label">CPA — Cyclopiazonic acid</text>
+<rect x="260" y="472" width="718" height="22" rx="5" class="bar" />
+<text x="986" y="488" class="value">99.8% (511/512)</text>
+<text x="24" y="524" class="label">ENNA — Enniatin A</text>
+<rect x="260" y="506" width="718" height="22" rx="5" class="bar" />
+<text x="986" y="522" class="value">99.8% (511/512)</text>
+<text x="24" y="558" class="label">AFG1 — Aflatoxin G1</text>
+<rect x="260" y="540" width="717" height="22" rx="5" class="bar" />
+<text x="985" y="556" class="value">99.6% (510/512)</text>
+<text x="24" y="592" class="label">T-2 — T-2 Toxin</text>
+<rect x="260" y="574" width="717" height="22" rx="5" class="bar" />
+<text x="985" y="590" class="value">99.6% (510/512)</text>
+<text x="24" y="626" class="label">ENNA1 — Enniatin A1</text>
+<rect x="260" y="608" width="714" height="22" rx="5" class="bar" />
+<text x="982" y="624" class="value">99.2% (508/512)</text>
+<text x="24" y="660" class="label">MPA — Mycophenolic acid</text>
+<rect x="260" y="642" width="714" height="22" rx="5" class="bar" />
+<text x="982" y="658" class="value">99.2% (508/512)</text>
+<text x="24" y="694" class="label">STC — Sterigmatocystin</text>
+<rect x="260" y="676" width="712" height="22" rx="5" class="bar" />
+<text x="980" y="692" class="value">99.0% (507/512)</text>
+<text x="24" y="728" class="label">ALT — Alternariol</text>
+<rect x="260" y="710" width="711" height="22" rx="5" class="bar" />
+<text x="979" y="726" class="value">98.8% (506/512)</text>
+<line x1="260" y1="734" x2="980" y2="734" class="axis-line" />
+</svg>

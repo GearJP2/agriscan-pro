@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="498" viewBox="0 0 1100 498" role="img">
+<style>
+  .title { font: 700 22px system-ui, -apple-system, Segoe UI, sans-serif; fill: #1f1f1f; }
+  .label { font: 500 13px system-ui, -apple-system, Segoe UI, sans-serif; fill: #2a3142; }
+  .value { font: 600 13px system-ui, -apple-system, Segoe UI, sans-serif; fill: #7A1517; }
+  .axis { font: 12px system-ui, -apple-system, Segoe UI, sans-serif; fill: #6b6b6b; }
+  .bar { fill: #9F1D20; }
+  .line { fill: none; stroke: #9F1D20; stroke-width: 3; }
+  .point { fill: #F4B41A; stroke: #7A1517; stroke-width: 1.5; }
+  .axis-line { stroke: #e5dfd2; stroke-width: 1; }
+</style>
+<rect width="100%" height="100%" fill="#ffffff" />
+
+<text x="24" y="34" class="title">FB1 mean positive concentration by province</text>
+<text x="220" y="486" class="axis">Mean positive concentration (ug/kg)</text>
+<text x="24" y="82" class="label">Chiang Mai</text>
+<rect x="220" y="64" width="369" height="22" rx="5" class="bar" />
+<text x="597" y="80" class="value">mean 34.84 ug/kg; max 64.9; 9/86 detected</text>
+<text x="24" y="116" class="label">Nakhon Pathom</text>
+<rect x="220" y="98" width="411" height="22" rx="5" class="bar" />
+<text x="639" y="114" class="value">mean 38.81 ug/kg; max 74.94; 6/32 detected</text>
+<text x="24" y="150" class="label">Yala</text>
+<rect x="220" y="132" width="527" height="22" rx="5" class="bar" />
+<text x="755" y="148" class="value">mean 49.72 ug/kg; max 63.2; 3/4 detected</text>
+<text x="24" y="184" class="label">Lampang</text>
+<rect x="220" y="166" width="361" height="22" rx="5" class="bar" />
+<text x="589" y="182" class="value">mean 34.0467 ug/kg; max 46.21; 3/21 detected</text>
+<text x="24" y="218" class="label">Phayao</text>
+<rect x="220" y="200" width="302" height="22" rx="5" class="bar" />
+<text x="530" y="216" class="value">mean 28.47 ug/kg; max 40.79; 3/6 detected</text>
+<text x="24" y="252" class="label">Songkhla</text>
+<rect x="220" y="234" width="182" height="22" rx="5" class="bar" />
+<text x="410" y="250" class="value">mean 17.2033 ug/kg; max 38.77; 3/13 detected</text>
+<text x="24" y="286" class="label">Narathiwat</text>
+<rect x="220" y="268" width="144" height="22" rx="5" class="bar" />
+<text x="372" y="284" class="value">mean 13.6433 ug/kg; max 18.14; 3/18 detected</text>
+<text x="24" y="320" class="label">Surin</text>
+<rect x="220" y="302" width="449" height="22" rx="5" class="bar" />
+<text x="677" y="318" class="value">mean 42.32 ug/kg; max 45.11; 2/37 detected</text>
+<text x="24" y="354" class="label">Ubon Ratchathani</text>
+<rect x="220" y="336" width="760" height="22" rx="5" class="bar" />
+<text x="988" y="352" class="value">mean 71.6 ug/kg; max 71.6; 1/43 detected</text>
+<text x="24" y="388" class="label">Kalasin</text>
+<rect x="220" y="370" width="639" height="22" rx="5" class="bar" />
+<text x="867" y="386" class="value">mean 60.28 ug/kg; max 60.28; 1/2 detected</text>
+<text x="24" y="422" class="label">Kampong Thom</text>
+<rect x="220" y="404" width="569" height="22" rx="5" class="bar" />
+<text x="797" y="420" class="value">mean 53.68 ug/kg; max 53.68; 1/2 detected</text>
+<text x="24" y="456" class="label">Bangkok</text>
+<rect x="220" y="438" width="79" height="22" rx="5" class="bar" />
+<text x="307" y="454" class="value">mean 7.48 ug/kg; max 7.48; 1/1 detected</text>
+<line x1="220" y1="462" x2="980" y2="462" class="axis-line" />
+</svg>

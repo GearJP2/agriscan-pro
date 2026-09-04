@@ -1,0 +1,51 @@
+toxin_type,toxin_label,province,measured,detected,detection_rate,mean_positive_concentration_ug_kg,max_positive_concentration_ug_kg
+AFB1,Aflatoxin B1,Ubon Ratchathani,43,1,0.023256,62.55,62.55
+AFB1,Aflatoxin B1,Kampong Thom,2,1,0.5,57.41,57.41
+AFB1,Aflatoxin B1,Yala,4,2,0.5,12.41,24.32
+AFB1,Aflatoxin B1,Siem Reap,4,1,0.25,4.79,4.79
+AFB1,Aflatoxin B1,Unspecified area,48,5,0.104167,0.954,2.17
+AFB2,Aflatoxin B2,Unspecified area,48,1,0.020833,1.09,1.09
+AFG1,Aflatoxin G1,Unspecified area,48,2,0.041667,0.18,0.21
+AFG2,Aflatoxin G2,Unspecified area,48,1,0.020833,0.56,0.56
+ALT,Alternariol,Unspecified area,48,6,0.125,2.256667,4.33
+AME,Alternariol monomethyl ether,Unspecified area,48,15,0.3125,1.418,4.11
+BEA,Beauvericin,Unspecified area,48,22,0.458333,4.638182,25.04
+CIT,Citrinin,Unspecified area,48,8,0.166667,3.79375,17.04
+CPA,Cyclopiazonic acid,Unspecified area,48,1,0.020833,1.61,1.61
+DAS,Diacetoxyscirpenol,Unspecified area,48,9,0.1875,2.938889,9.55
+DON,Deoxynivalenol,Kampong Thom,2,1,0.5,156.95,156.95
+DON,Deoxynivalenol,Ubon Ratchathani,43,1,0.023256,69.79,69.79
+DON,Deoxynivalenol,Unspecified area,48,4,0.083333,28.7525,49.7
+EMO,Emodin,Unspecified area,48,15,0.3125,1.264,5.45
+ENNA,Enniatin A,Unspecified area,48,1,0.020833,0.05,0.05
+ENNA1,Enniatin A1,Unspecified area,48,4,0.083333,0.57,1.76
+ENNB,Enniatin B,Unspecified area,48,7,0.145833,1.192857,3.18
+ENNB1,Enniatin B1,Unspecified area,48,9,0.1875,0.45,2.47
+FB1,Fumonisin B1,Unspecified area,48,16,0.333333,240.106875,802.22
+FB1,Fumonisin B1,Ubon Ratchathani,43,1,0.023256,71.6,71.6
+FB1,Fumonisin B1,Kalasin,2,1,0.5,60.28,60.28
+FB1,Fumonisin B1,Kampong Thom,2,1,0.5,53.68,53.68
+FB1,Fumonisin B1,Yala,4,3,0.75,49.72,63.2
+FB1,Fumonisin B1,Surin,37,2,0.054054,42.32,45.11
+FB1,Fumonisin B1,Nakhon Pathom,32,6,0.1875,38.81,74.94
+FB1,Fumonisin B1,Chiang Mai,86,9,0.104651,34.84,64.9
+FB1,Fumonisin B1,Lampang,21,3,0.142857,34.046667,46.21
+FB1,Fumonisin B1,Phayao,6,3,0.5,28.47,40.79
+FB1,Fumonisin B1,Songkhla,13,3,0.230769,17.203333,38.77
+FB1,Fumonisin B1,Narathiwat,18,3,0.166667,13.643333,18.14
+FB1,Fumonisin B1,Bangkok,1,1,1.0,7.48,7.48
+FB2,Fumonisin B2,Unspecified area,48,13,0.270833,52.55,133.02
+FUSA,Fusaric acid,Unspecified area,48,24,0.5,13.28875,49.35
+HT2,HT-2 toxin,Unspecified area,48,23,0.479167,2.325217,7.46
+MON,Moniliformin,Unspecified area,48,15,0.3125,21.092,250.03
+MPA,Mycophenolic acid,Unspecified area,48,4,0.083333,3.6975,4.64
+OTA,Ochratoxin A,Kampong Thom,2,1,0.5,13.27,13.27
+OTA,Ochratoxin A,Ubon Ratchathani,43,1,0.023256,7.55,7.55
+OTA,Ochratoxin A,Unspecified area,48,5,0.104167,0.952,2.62
+STC,Sterigmatocystin,Unspecified area,48,5,0.104167,0.128,0.32
+T-2,T-2 Toxin,Ubon Ratchathani,43,1,0.023256,51.44,51.44
+T-2,T-2 Toxin,Kampong Thom,2,1,0.5,48.68,48.68
+TEA,Tenuazonic acid,Unspecified area,48,8,0.166667,2.48875,4.17
+TEN,Tentoxin,Unspecified area,48,16,0.333333,1.07,3.11
+TRY,Tryptophol,Unspecified area,48,35,0.729167,90.718571,447.78
+ZEA,Zearalenone,Unspecified area,48,16,0.333333,43.96375,325.33

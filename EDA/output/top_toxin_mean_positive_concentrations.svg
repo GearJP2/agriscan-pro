@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="770" viewBox="0 0 1100 770" role="img">
+<style>
+  .title { font: 700 22px system-ui, -apple-system, Segoe UI, sans-serif; fill: #1f1f1f; }
+  .label { font: 500 13px system-ui, -apple-system, Segoe UI, sans-serif; fill: #2a3142; }
+  .value { font: 600 13px system-ui, -apple-system, Segoe UI, sans-serif; fill: #7A1517; }
+  .axis { font: 12px system-ui, -apple-system, Segoe UI, sans-serif; fill: #6b6b6b; }
+  .bar { fill: #9F1D20; }
+  .line { fill: none; stroke: #9F1D20; stroke-width: 3; }
+  .point { fill: #F4B41A; stroke: #7A1517; stroke-width: 1.5; }
+  .axis-line { stroke: #e5dfd2; stroke-width: 1; }
+</style>
+<rect width="100%" height="100%" fill="#ffffff" />
+
+<text x="24" y="34" class="title">Top mean positive concentrations by toxin</text>
+<text x="260" y="758" class="axis">Mean positive concentration (ug/kg)</text>
+<text x="24" y="82" class="label">FB1 — Fumonisin B1</text>
+<rect x="260" y="64" width="720" height="22" rx="5" class="bar" />
+<text x="988" y="80" class="value">mean 97.9819 ug/kg; median 39.22</text>
+<text x="24" y="116" class="label">TRY — Tryptophol</text>
+<rect x="260" y="98" width="666" height="22" rx="5" class="bar" />
+<text x="934" y="114" class="value">mean 90.7186 ug/kg; median 15.06</text>
+<text x="24" y="150" class="label">DON — Deoxynivalenol</text>
+<rect x="260" y="132" width="418" height="22" rx="5" class="bar" />
+<text x="686" y="148" class="value">mean 56.9583 ug/kg; median 41.545</text>
+<text x="24" y="184" class="label">FB2 — Fumonisin B2</text>
+<rect x="260" y="166" width="386" height="22" rx="5" class="bar" />
+<text x="654" y="182" class="value">mean 52.55 ug/kg; median 41.18</text>
+<text x="24" y="218" class="label">ZEA — Zearalenone</text>
+<rect x="260" y="200" width="323" height="22" rx="5" class="bar" />
+<text x="591" y="216" class="value">mean 43.9637 ug/kg; median 10.5</text>
+<text x="24" y="252" class="label">MON — Moniliformin</text>
+<rect x="260" y="234" width="154" height="22" rx="5" class="bar" />
+<text x="422" y="250" class="value">mean 21.092 ug/kg; median 1.71</text>
+<text x="24" y="286" class="label">AFB1 — Aflatoxin B1</text>
+<rect x="260" y="268" width="113" height="22" rx="5" class="bar" />
+<text x="381" y="284" class="value">mean 15.434 ug/kg; median 1.485</text>
+<text x="24" y="320" class="label">FUSA — Fusaric acid</text>
+<rect x="260" y="302" width="97" height="22" rx="5" class="bar" />
+<text x="365" y="318" class="value">mean 13.2888 ug/kg; median 10.335</text>
+<text x="24" y="354" class="label">BEA — Beauvericin</text>
+<rect x="260" y="336" width="34" height="22" rx="5" class="bar" />
+<text x="302" y="352" class="value">mean 4.63818 ug/kg; median 3.015</text>
+<text x="24" y="388" class="label">CIT — Citrinin</text>
+<rect x="260" y="370" width="27" height="22" rx="5" class="bar" />
+<text x="295" y="386" class="value">mean 3.79375 ug/kg; median 0.775</text>
+<text x="24" y="422" class="label">OTA — Ochratoxin A</text>
+<rect x="260" y="404" width="26" height="22" rx="5" class="bar" />
+<text x="294" y="420" class="value">mean 3.65429 ug/kg; median 0.72</text>
+<text x="24" y="456" class="label">DAS — Diacetoxyscirpenol</text>
+<rect x="260" y="438" width="21" height="22" rx="5" class="bar" />
+<text x="289" y="454" class="value">mean 2.93889 ug/kg; median 1.29</text>
+<text x="24" y="490" class="label">TEA — Tenuazonic acid</text>
+<rect x="260" y="472" width="18" height="22" rx="5" class="bar" />
+<text x="286" y="488" class="value">mean 2.48875 ug/kg; median 2.745</text>
+<text x="24" y="524" class="label">HT2 — HT-2 toxin</text>
+<rect x="260" y="506" width="17" height="22" rx="5" class="bar" />
+<text x="285" y="522" class="value">mean 2.32522 ug/kg; median 1.37</text>
+<text x="24" y="558" class="label">ALT — Alternariol</text>
+<rect x="260" y="540" width="16" height="22" rx="5" class="bar" />
+<text x="284" y="556" class="value">mean 2.25667 ug/kg; median 1.92</text>
+<text x="24" y="592" class="label">AME — Alternariol monomethyl ether</text>
+<rect x="260" y="574" width="10" height="22" rx="5" class="bar" />
+<text x="278" y="590" class="value">mean 1.418 ug/kg; median 1.05</text>
+<text x="24" y="626" class="label">EMO — Emodin</text>
+<rect x="260" y="608" width="9" height="22" rx="5" class="bar" />
+<text x="277" y="624" class="value">mean 1.264 ug/kg; median 1.04</text>
+<text x="24" y="660" class="label">ENNB — Enniatin B</text>
+<rect x="260" y="642" width="8" height="22" rx="5" class="bar" />
+<text x="276" y="658" class="value">mean 1.19286 ug/kg; median 0.75</text>
+<text x="24" y="694" class="label">TEN — Tentoxin</text>
+<rect x="260" y="676" width="7" height="22" rx="5" class="bar" />
+<text x="275" y="692" class="value">mean 1.07 ug/kg; median 0.65</text>
+<text x="24" y="728" class="label">ENNB1 — Enniatin B1</text>
+<rect x="260" y="710" width="3" height="22" rx="5" class="bar" />
+<text x="271" y="726" class="value">mean 0.45 ug/kg; median 0.17</text>
+<line x1="260" y1="734" x2="980" y2="734" class="axis-line" />
+</svg>

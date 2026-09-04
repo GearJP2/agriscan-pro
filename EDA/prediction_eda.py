@@ -22,6 +22,8 @@ from typing import Iterable
 DEFAULT_INPUT = Path("backend/prediction_dataset.csv")
 DEFAULT_OUTPUT = Path("EDA/output")
 MIN_ROWS_FOR_RATE_CHART = 10
+SPATIAL_TOP_N = 15
+HISTOGRAM_BINS = 12
 
 
 @dataclass
@@ -48,6 +50,44 @@ class GroupSummary:
     measured: int
     detected: int
     sample_count: int
+
+    @property
+    def detection_rate(self) -> float:
+        return safe_divide(self.detected, self.measured)
+
+
+@dataclass
+class ConcentrationSummary:
+    toxin_type: str
+    toxin_label: str
+    measured: int
+    detected: int
+    below_lod_or_zero: int
+    min_positive: float
+    p25_positive: float
+    median_positive: float
+    p75_positive: float
+    max_positive: float
+    mean_positive: float
+
+    @property
+    def below_lod_or_zero_rate(self) -> float:
+        return safe_divide(self.below_lod_or_zero, self.measured)
+
+    @property
+    def detection_rate(self) -> float:
+        return safe_divide(self.detected, self.measured)
+
+
+@dataclass
+class SpatialSummary:
+    toxin_type: str
+    toxin_label: str
+    province: str
+    measured: int
+    detected: int
+    mean_positive_concentration: float
+    max_positive_concentration: float
 
     @property
     def detection_rate(self) -> float:
@@ -184,6 +224,117 @@ def summarize_group(rows: list[dict[str, str]], field: str) -> list[GroupSummary
     return sorted(summaries, key=lambda item: (-item.detected, -item.measured, item.name))
 
 
+def percentile(sorted_values: list[float], pct: float) -> float:
+    if not sorted_values:
+        return 0.0
+    if len(sorted_values) == 1:
+        return sorted_values[0]
+    position = (len(sorted_values) - 1) * pct
+    lower = math.floor(position)
+    upper = math.ceil(position)
+    if lower == upper:
+        return sorted_values[int(position)]
+    weight = position - lower
+    return sorted_values[lower] * (1 - weight) + sorted_values[upper] * weight
+
+
+def summarize_concentrations(rows: list[dict[str, str]]) -> list[ConcentrationSummary]:
+    grouped: dict[str, dict[str, object]] = {}
+    for row in rows:
+        toxin = clean_label(row.get("toxin_type"))
+        if toxin not in grouped:
+            grouped[toxin] = {
+                "toxin_label": clean_label(row.get("toxin_label"), toxin),
+                "measured": 0,
+                "detected": 0,
+                "below_lod_or_zero": 0,
+                "positive_values": [],
+            }
+
+        value = safe_float(row.get("concentration_ug_kg"))
+        grouped[toxin]["measured"] = int(grouped[toxin]["measured"]) + 1
+        if value > 0:
+            grouped[toxin]["detected"] = int(grouped[toxin]["detected"]) + 1
+            positive_values = grouped[toxin]["positive_values"]
+            assert isinstance(positive_values, list)
+            positive_values.append(value)
+        else:
+            grouped[toxin]["below_lod_or_zero"] = int(grouped[toxin]["below_lod_or_zero"]) + 1
+
+    summaries = []
+    for toxin, values in grouped.items():
+        positive_values = values["positive_values"]
+        assert isinstance(positive_values, list)
+        sorted_values = sorted(float(value) for value in positive_values)
+        mean_positive = safe_divide(sum(sorted_values), len(sorted_values))
+        summaries.append(
+            ConcentrationSummary(
+                toxin_type=toxin,
+                toxin_label=str(values["toxin_label"]),
+                measured=int(values["measured"]),
+                detected=int(values["detected"]),
+                below_lod_or_zero=int(values["below_lod_or_zero"]),
+                min_positive=round(sorted_values[0], 6) if sorted_values else 0.0,
+                p25_positive=round(percentile(sorted_values, 0.25), 6),
+                median_positive=round(percentile(sorted_values, 0.50), 6),
+                p75_positive=round(percentile(sorted_values, 0.75), 6),
+                max_positive=round(sorted_values[-1], 6) if sorted_values else 0.0,
+                mean_positive=round(mean_positive, 6),
+            )
+        )
+
+    return sorted(summaries, key=lambda item: (-item.detected, item.toxin_type))
+
+
+def summarize_spatial_concentration(rows: list[dict[str, str]]) -> list[SpatialSummary]:
+    grouped: dict[tuple[str, str], dict[str, object]] = {}
+    for row in rows:
+        toxin = clean_label(row.get("toxin_type"))
+        province = clean_label(row.get("province"), "Unspecified area")
+        key = (toxin, province)
+        if key not in grouped:
+            grouped[key] = {
+                "toxin_label": clean_label(row.get("toxin_label"), toxin),
+                "measured": 0,
+                "detected": 0,
+                "positive_values": [],
+            }
+
+        value = safe_float(row.get("concentration_ug_kg"))
+        grouped[key]["measured"] = int(grouped[key]["measured"]) + 1
+        if value > 0:
+            grouped[key]["detected"] = int(grouped[key]["detected"]) + 1
+            positive_values = grouped[key]["positive_values"]
+            assert isinstance(positive_values, list)
+            positive_values.append(value)
+
+    summaries = []
+    for (toxin, province), values in grouped.items():
+        positive_values = values["positive_values"]
+        assert isinstance(positive_values, list)
+        numeric_values = [float(value) for value in positive_values]
+        summaries.append(
+            SpatialSummary(
+                toxin_type=toxin,
+                toxin_label=str(values["toxin_label"]),
+                province=province,
+                measured=int(values["measured"]),
+                detected=int(values["detected"]),
+                mean_positive_concentration=round(safe_divide(sum(numeric_values), len(numeric_values)), 6),
+                max_positive_concentration=round(max(numeric_values), 6) if numeric_values else 0.0,
+            )
+        )
+    return sorted(
+        summaries,
+        key=lambda item: (
+            item.toxin_type,
+            -item.detected,
+            -item.mean_positive_concentration,
+            item.province,
+        ),
+    )
+
+
 def summarize_months(rows: list[dict[str, str]]) -> list[dict[str, str | int | float]]:
     measured = Counter()
     detected = Counter()
@@ -217,7 +368,7 @@ def summarize_months(rows: list[dict[str, str]]) -> list[dict[str, str | int | f
 
 def write_csv(path: Path, fieldnames: list[str], rows: Iterable[dict[str, object]]) -> None:
     with path.open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer = csv.DictWriter(handle, fieldnames=fieldnames, lineterminator="\n")
         writer.writeheader()
         for row in rows:
             writer.writerow(row)
@@ -232,6 +383,7 @@ def write_toxin_summary(path: Path, summaries: list[ToxinSummary]) -> None:
             "measured",
             "detected",
             "below_lod_or_zero",
+            "below_lod_or_zero_rate",
             "detection_rate",
             "usable_context",
             "usable_context_rate",
@@ -243,11 +395,95 @@ def write_toxin_summary(path: Path, summaries: list[ToxinSummary]) -> None:
                 "measured": item.measured,
                 "detected": item.detected,
                 "below_lod_or_zero": item.below_lod_or_zero,
+                "below_lod_or_zero_rate": round(safe_divide(item.below_lod_or_zero, item.measured), 6),
                 "detection_rate": round(item.detection_rate, 6),
                 "usable_context": item.usable_context,
                 "usable_context_rate": round(item.usable_context_rate, 6),
             }
             for item in summaries
+        ),
+    )
+
+
+def write_concentration_summary(path: Path, summaries: list[ConcentrationSummary]) -> None:
+    write_csv(
+        path,
+        [
+            "toxin_type",
+            "toxin_label",
+            "measured",
+            "detected",
+            "below_lod_or_zero",
+            "below_lod_or_zero_rate",
+            "detection_rate",
+            "min_positive_ug_kg",
+            "p25_positive_ug_kg",
+            "median_positive_ug_kg",
+            "p75_positive_ug_kg",
+            "max_positive_ug_kg",
+            "mean_positive_ug_kg",
+        ],
+        (
+            {
+                "toxin_type": item.toxin_type,
+                "toxin_label": item.toxin_label,
+                "measured": item.measured,
+                "detected": item.detected,
+                "below_lod_or_zero": item.below_lod_or_zero,
+                "below_lod_or_zero_rate": round(item.below_lod_or_zero_rate, 6),
+                "detection_rate": round(item.detection_rate, 6),
+                "min_positive_ug_kg": item.min_positive,
+                "p25_positive_ug_kg": item.p25_positive,
+                "median_positive_ug_kg": item.median_positive,
+                "p75_positive_ug_kg": item.p75_positive,
+                "max_positive_ug_kg": item.max_positive,
+                "mean_positive_ug_kg": item.mean_positive,
+            }
+            for item in summaries
+        ),
+    )
+
+
+def write_spatial_summary(path: Path, summaries: list[SpatialSummary]) -> None:
+    write_csv(
+        path,
+        [
+            "toxin_type",
+            "toxin_label",
+            "province",
+            "measured",
+            "detected",
+            "detection_rate",
+            "mean_positive_concentration_ug_kg",
+            "max_positive_concentration_ug_kg",
+        ],
+        (
+            {
+                "toxin_type": item.toxin_type,
+                "toxin_label": item.toxin_label,
+                "province": item.province,
+                "measured": item.measured,
+                "detected": item.detected,
+                "detection_rate": round(item.detection_rate, 6),
+                "mean_positive_concentration_ug_kg": item.mean_positive_concentration,
+                "max_positive_concentration_ug_kg": item.max_positive_concentration,
+            }
+            for item in summaries
+        ),
+    )
+
+
+def write_detected_spatial_summary(path: Path, summaries: list[SpatialSummary]) -> None:
+    write_spatial_summary(
+        path,
+        sorted(
+            [item for item in summaries if item.detected > 0],
+            key=lambda item: (
+                item.toxin_type,
+                -item.mean_positive_concentration,
+                -item.detected,
+                item.province,
+            ),
         ),
     )
 
@@ -393,6 +629,118 @@ def svg_line_chart(
     path.write_text("\n".join(parts), encoding="utf-8")
 
 
+def concentration_values_by_toxin(rows: list[dict[str, str]]) -> dict[str, dict[str, object]]:
+    grouped: dict[str, dict[str, object]] = {}
+    for row in rows:
+        toxin = clean_label(row.get("toxin_type"))
+        if toxin not in grouped:
+            grouped[toxin] = {
+                "toxin_label": clean_label(row.get("toxin_label"), toxin),
+                "values": [],
+            }
+        value = safe_float(row.get("concentration_ug_kg"))
+        if value > 0:
+            values = grouped[toxin]["values"]
+            assert isinstance(values, list)
+            values.append(value)
+    return grouped
+
+
+def histogram_bins(values: list[float], bin_count: int = HISTOGRAM_BINS) -> list[tuple[str, int]]:
+    if not values:
+        return []
+    minimum = min(values)
+    maximum = max(values)
+    if minimum == maximum:
+        return [(f"{minimum:g}", len(values))]
+
+    span = maximum - minimum
+    bins = [0 for _ in range(bin_count)]
+    for value in values:
+        index = min(bin_count - 1, int(((value - minimum) / span) * bin_count))
+        bins[index] += 1
+
+    labels = []
+    for index, count in enumerate(bins):
+        start = minimum + span * index / bin_count
+        end = minimum + span * (index + 1) / bin_count
+        labels.append((f"{start:.2g}–{end:.2g}", count))
+    return labels
+
+
+def write_concentration_distribution_plots(
+    output_dir: Path,
+    rows: list[dict[str, str]],
+    toxins: list[ToxinSummary],
+) -> None:
+    distribution_dir = output_dir / "concentration_distribution_by_toxin"
+    distribution_dir.mkdir(parents=True, exist_ok=True)
+    values_by_toxin = concentration_values_by_toxin(rows)
+
+    for toxin in toxins:
+        payload = values_by_toxin.get(toxin.toxin_type, {})
+        values = payload.get("values", [])
+        assert isinstance(values, list)
+        bins = histogram_bins([float(value) for value in values])
+        svg_bar_chart(
+            distribution_dir / f"{safe_filename(toxin.toxin_type)}_concentration_distribution.svg",
+            f"{toxin.toxin_type} concentration distribution",
+            [
+                (
+                    label,
+                    float(count),
+                    f"{count:,} positive row(s)",
+                )
+                for label, count in bins
+            ],
+            x_label="Positive rows per concentration bin (ug/kg)",
+            width=1000,
+            margin_left=160,
+        )
+
+
+def write_spatial_plots(
+    output_dir: Path,
+    spatial: list[SpatialSummary],
+    toxins: list[ToxinSummary],
+) -> None:
+    spatial_dir = output_dir / "spatial_concentration_by_toxin"
+    spatial_dir.mkdir(parents=True, exist_ok=True)
+    by_toxin: dict[str, list[SpatialSummary]] = defaultdict(list)
+    for item in spatial:
+        by_toxin[item.toxin_type].append(item)
+
+    for toxin in toxins:
+        province_rows = [
+            item for item in by_toxin.get(toxin.toxin_type, [])
+            if item.detected > 0 and item.province.lower() not in {"unknown", "unspecified area"}
+        ][:SPATIAL_TOP_N]
+        svg_bar_chart(
+            spatial_dir / f"{safe_filename(toxin.toxin_type)}_province_concentration.svg",
+            f"{toxin.toxin_type} mean positive concentration by province",
+            [
+                (
+                    item.province,
+                    item.mean_positive_concentration,
+                    (
+                        f"mean {item.mean_positive_concentration:g} ug/kg; "
+                        f"max {item.max_positive_concentration:g}; "
+                        f"{item.detected}/{item.measured} detected"
+                    ),
+                )
+                for item in province_rows
+            ],
+            x_label="Mean positive concentration (ug/kg)",
+            width=1100,
+            margin_left=220,
+        )
+
+
+def safe_filename(value: str) -> str:
+    safe = "".join(character if character.isalnum() or character in {"-", "_"} else "_" for character in value)
+    return safe.strip("_") or "unknown"
+
+
 def svg_header(width: int, height: int) -> str:
     return f'''<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}" role="img">
 <style>
@@ -424,6 +772,8 @@ def write_summary_markdown(
     input_path: Path,
     rows: list[dict[str, str]],
     toxins: list[ToxinSummary],
+    concentrations: list[ConcentrationSummary],
+    spatial: list[SpatialSummary],
     commodities: list[GroupSummary],
     provinces: list[GroupSummary],
     months: list[dict[str, str | int | float]],
@@ -433,10 +783,21 @@ def write_summary_markdown(
     usable_context_rows = sum(safe_int(row.get("usable_context")) for row in rows)
     weather_rows = sum(1 for row in rows if safe_int(row.get("weather_days_observed_90d")) > 0)
     detected_toxins = [item for item in toxins if item.detected > 0]
+    high_missing_toxins = sorted(
+        concentrations,
+        key=lambda item: (-item.below_lod_or_zero_rate, item.toxin_type),
+    )
     eligible_like = [
         item for item in toxins
         if item.detected >= 30 and item.below_lod_or_zero >= 30 and item.usable_context >= 60
     ]
+    detected_spatial = sorted(
+        [
+            item for item in spatial
+            if item.detected > 0 and item.province.lower() not in {"unknown", "unspecified area"}
+        ],
+        key=lambda item: (-item.mean_positive_concentration, -item.detected, item.toxin_type, item.province),
+    )
 
     lines = [
         "# Prediction dataset EDA summary",
@@ -449,6 +810,10 @@ def write_summary_markdown(
         f"- Sample/toxin rows: {len(rows):,}",
         f"- Mycotoxin targets: {len(toxins):,}",
         f"- Rows with detected toxin value: {detected_rows:,} ({format_pct(safe_divide(detected_rows, len(rows)))})",
+        (
+            "- Rows recorded as below LOD / zero / imported empty: "
+            f"{len(rows) - detected_rows:,} ({format_pct(safe_divide(len(rows) - detected_rows, len(rows)))})"
+        ),
         f"- Rows with usable area/date context: {usable_context_rows:,} ({format_pct(safe_divide(usable_context_rows, len(rows)))})",
         f"- Rows with weather observations: {weather_rows:,} ({format_pct(safe_divide(weather_rows, len(rows)))})",
         "",
@@ -476,6 +841,57 @@ def write_summary_markdown(
             f"| {item.toxin_type} | {item.toxin_label} | {item.measured:,} | "
             f"{item.detected:,} | {format_pct(item.detection_rate)} | "
             f"{format_pct(item.usable_context_rate)} |"
+        )
+
+    lines.extend([
+        "",
+        "## Highest below-LOD / zero / imported-empty percentages",
+        "",
+        "For the provided historical CSV, empty mycotoxin cells were imported as below LOD / zero-equivalent values.",
+        "",
+        "| Toxin | Label | Measured | Below LOD / zero / imported empty | Percentage | Detected |",
+        "|---|---|---:|---:|---:|---:|",
+    ])
+
+    for item in high_missing_toxins[:15]:
+        lines.append(
+            f"| {item.toxin_type} | {item.toxin_label} | {item.measured:,} | "
+            f"{item.below_lod_or_zero:,} | {format_pct(item.below_lod_or_zero_rate)} | "
+            f"{item.detected:,} |"
+        )
+
+    lines.extend([
+        "",
+        "## Positive concentration distribution summary",
+        "",
+        "These statistics use detected positive concentration values only.",
+        "",
+        "| Toxin | Label | Positive rows | Median ug/kg | P75 ug/kg | Max ug/kg | Mean ug/kg |",
+        "|---|---|---:|---:|---:|---:|---:|",
+    ])
+
+    for item in concentrations[:15]:
+        lines.append(
+            f"| {item.toxin_type} | {item.toxin_label} | {item.detected:,} | "
+            f"{item.median_positive:g} | {item.p75_positive:g} | "
+            f"{item.max_positive:g} | {item.mean_positive:g} |"
+        )
+
+    lines.extend([
+        "",
+        "## Spatial concentration highlights",
+        "",
+        "These rows show detected province-level concentration signals only. Unknown or unspecified locations are excluded from this table.",
+        "",
+        "| Toxin | Province | Measured | Detected | Detection rate | Mean positive ug/kg | Max positive ug/kg |",
+        "|---|---|---:|---:|---:|---:|---:|",
+    ])
+
+    for item in detected_spatial[:20]:
+        lines.append(
+            f"| {item.toxin_type} | {item.province} | {item.measured:,} | "
+            f"{item.detected:,} | {format_pct(item.detection_rate)} | "
+            f"{item.mean_positive_concentration:g} | {item.max_positive_concentration:g} |"
         )
 
     lines.extend([
@@ -539,11 +955,16 @@ def main() -> None:
 
     rows = read_rows(input_path)
     toxins = summarize_toxins(rows)
+    concentrations = summarize_concentrations(rows)
+    spatial = summarize_spatial_concentration(rows)
     commodities = summarize_group(rows, "commodity")
     provinces = summarize_group(rows, "province")
     months = summarize_months(rows)
 
     write_toxin_summary(output_dir / "toxin_detection_summary.csv", toxins)
+    write_concentration_summary(output_dir / "toxin_concentration_summary.csv", concentrations)
+    write_spatial_summary(output_dir / "toxin_spatial_concentration_summary.csv", spatial)
+    write_detected_spatial_summary(output_dir / "toxin_spatial_detected_only_summary.csv", spatial)
     write_group_summary(output_dir / "commodity_detection_summary.csv", commodities)
     write_group_summary(output_dir / "province_detection_summary.csv", provinces)
     write_month_summary(output_dir / "monthly_detection_summary.csv", months)
@@ -578,6 +999,45 @@ def main() -> None:
             for item in toxins[:args.top_n]
         ],
         x_label="Detected rows",
+    )
+
+    top_toxins_by_below_lod = sorted(
+        toxins,
+        key=lambda item: (-safe_divide(item.below_lod_or_zero, item.measured), item.toxin_type),
+    )[:args.top_n]
+    svg_bar_chart(
+        output_dir / "top_toxin_below_lod_or_empty_rates.svg",
+        "Top below LOD / zero / imported-empty rates by toxin",
+        [
+            (
+                f"{item.toxin_type} — {item.toxin_label}",
+                safe_divide(item.below_lod_or_zero, item.measured),
+                f"{format_pct(safe_divide(item.below_lod_or_zero, item.measured))} ({item.below_lod_or_zero}/{item.measured})",
+            )
+            for item in top_toxins_by_below_lod
+        ],
+        x_label="Below LOD / zero / imported-empty rate",
+    )
+
+    top_concentration_toxins = [
+        item for item in concentrations
+        if item.detected > 0
+    ][:args.top_n]
+    svg_bar_chart(
+        output_dir / "top_toxin_mean_positive_concentrations.svg",
+        "Top mean positive concentrations by toxin",
+        [
+            (
+                f"{item.toxin_type} — {item.toxin_label}",
+                item.mean_positive,
+                f"mean {item.mean_positive:g} ug/kg; median {item.median_positive:g}",
+            )
+            for item in sorted(
+                top_concentration_toxins,
+                key=lambda item: (-item.mean_positive, item.toxin_type),
+            )
+        ],
+        x_label="Mean positive concentration (ug/kg)",
     )
 
     top_commodities_by_rate = sorted(
@@ -628,12 +1088,16 @@ def main() -> None:
         x_label="Share of sample/toxin rows",
         margin_left=260,
     )
+    write_concentration_distribution_plots(output_dir, rows, toxins)
+    write_spatial_plots(output_dir, spatial, toxins)
 
     write_summary_markdown(
         output_dir / "eda_summary.md",
         input_path=input_path,
         rows=rows,
         toxins=toxins,
+        concentrations=concentrations,
+        spatial=spatial,
         commodities=commodities,
         provinces=provinces,
         months=months,
