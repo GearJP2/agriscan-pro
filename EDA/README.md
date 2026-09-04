@@ -76,6 +76,25 @@ Matplotlib outputs are written to:
 EDA/graphs/
 ```
 
+Prediction model evaluation graphs:
+
+```bash
+python EDA/model_evaluation_graphs.py
+```
+
+By default, this reads the latest saved model metadata under
+`backend/prediction_artifacts/`. To graph a specific model version:
+
+```bash
+python EDA/model_evaluation_graphs.py --metadata backend/prediction_artifacts/v20260831170003/metadata.json
+```
+
+Model-evaluation outputs are written to:
+
+```text
+EDA/model_evaluation_graphs/
+```
+
 ## Output files
 
 - `eda_summary.md` — professor-readable summary.
@@ -115,6 +134,20 @@ The matplotlib workflow creates PNG graphs that are easier to use in slides:
 - `thailand_province_sample_counts.csv` — audit table behind the Thailand province-count map, including unmapped/non-Thai location values.
 - `individual_toxin_concentration/*.png` — individual mycotoxin concentration histograms.
 - `individual_toxin_spatial_concentration/*.png` — individual mycotoxin province concentration charts.
+
+## Model evaluation graph files
+
+The model-evaluation workflow creates test/evaluation visuals from saved
+prediction artifact metadata:
+
+- `model_evaluation_summary.md` — professor-readable evaluation summary.
+- `model_classification_regression_metrics.csv` — audit table for trained-model metrics.
+- `model_skipped_target_metrics.csv` — audit table for skipped-target data balance.
+- `01_classification_test_metrics.png` — accuracy, F1, precision, recall, and ROC-AUC by trained toxin model.
+- `02_training_label_balance.png` — detected vs below-LOD/zero rows for trained toxins.
+- `03_concentration_regression_error.png` — MAE/RMSE on log1p concentration for regression models.
+- `04_model_target_readiness.png` — published, trained-unpublished, and skipped target counts.
+- `05_skipped_target_data_balance.png` — skipped toxins with the highest detected counts.
 
 ## How to explain this to professor
 
