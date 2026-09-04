@@ -48,6 +48,8 @@ python EDA/prediction_eda.py --input path/to/prediction_dataset.csv
 
 ## Run
 
+Dependency-free SVG/CSV EDA:
+
 From the repository root:
 
 ```bash
@@ -58,6 +60,19 @@ Outputs are written to:
 
 ```text
 EDA/output/
+```
+
+Presentation-grade pandas/numpy/matplotlib EDA:
+
+```bash
+python -m pip install -r EDA/requirements.txt
+python EDA/prediction_eda_matplotlib.py
+```
+
+Matplotlib outputs are written to:
+
+```text
+EDA/graphs/
 ```
 
 ## Output files
@@ -79,6 +94,24 @@ EDA/output/
 - `context_coverage.svg` — usable-context/weather coverage plot.
 - `concentration_distribution_by_toxin/*.svg` — individual mycotoxin positive-concentration histograms.
 - `spatial_concentration_by_toxin/*.svg` — individual mycotoxin province-level concentration plots.
+
+## Matplotlib graph files
+
+The matplotlib workflow creates PNG graphs that are easier to use in slides:
+
+- `graph_summary.md` — short graph-focused summary.
+- `toxin_detection_missingness_summary.csv` — pandas summary of detection and below-LOD/imported-empty percentages.
+- `toxin_positive_concentration_summary.csv` — pandas/numpy concentration statistics.
+- `01_toxin_detected_counts.png` — detected rows by mycotoxin.
+- `02_toxin_detection_percentage.png` — detection percentage by mycotoxin.
+- `03_toxin_below_lod_zero_imported_empty_percentage.png` — missing/below-LOD percentage by mycotoxin.
+- `04_toxin_mean_positive_concentration.png` — mean positive concentration by mycotoxin.
+- `05_toxin_positive_concentration_boxplot.png` — positive concentration distribution by toxin.
+- `06_commodity_detection_percentage.png` — commodity-level detection percentage.
+- `07_monthly_detection_trend.png` — monthly detection trend.
+- `08_data_coverage_overview.png` — detected, below-LOD, context, and weather coverage.
+- `individual_toxin_concentration/*.png` — individual mycotoxin concentration histograms.
+- `individual_toxin_spatial_concentration/*.png` — individual mycotoxin province concentration charts.
 
 ## How to explain this to professor
 
