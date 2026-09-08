@@ -14,9 +14,32 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+        sans: ['Inter', 'Sarabun', '"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
       },
       colors: {
+        gfs: {
+          maroon: {
+            DEFAULT: '#7a1f1f',
+            dark: '#a51931',
+            hover: '#a52a2a',
+            active: '#b71c1c',
+            tint: 'rgba(122, 31, 31, 0.08)',
+          },
+          gold: {
+            DEFAULT: '#FFC72C',
+            light: '#ffe17d',
+          },
+          canvas: '#fdf7ef',
+          surface: '#ffffff',
+          thumb: '#f0e8dc',
+          overlay: 'rgba(0, 0, 0, 0.78)',
+          text: {
+            brand: '#7a1f1f',
+            primary: '#313131',
+            secondary: '#444444',
+            muted: '#666666',
+          },
+        },
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
@@ -118,6 +141,14 @@ export default {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+        "gfs-card": "14px",
+        "gfs-pill": "9999px",
+      },
+      boxShadow: {
+        "gfs-header": "0 2px 12px rgba(0, 0, 0, 0.08)",
+        "gfs-card": "0 4px 14px rgba(0, 0, 0, 0.08)",
+        "gfs-card-hover": "0 8px 24px rgba(0, 0, 0, 0.12)",
+        "gfs-modal": "0 12px 50px rgba(0, 0, 0, 0.45)",
       },
       keyframes: {
         "accordion-down": {

@@ -2,12 +2,14 @@ import csv
 import logging
 import math
 import re
+from datetime import date, datetime
 from io import StringIO, TextIOWrapper
 from typing import Iterator
 
 from django.db import transaction
+from django.utils import timezone
 
-from ..constants.mycotoxin_constants import resolve_toxin_type
+from ..constants.mycotoxin_constants import EU_THRESHOLDS, get_risk_level, resolve_toxin_type
 from ..models import MycotoxinResult, ProcessLog, Sample
 
 logger = logging.getLogger("agriscan.samples")
@@ -204,6 +206,11 @@ class SampleIngestionService:
         return None
 
     @staticmethod
+    def is_below_lod_value(value) -> bool:
+        normalized_value = str(value or '').strip()
+        return normalized_value.lower() in {'', 'nd', 'bdl', '<lod', 'lod'} or normalized_value.startswith('<')
+
+    @staticmethod
     def iter_csv_rows(uploaded_file) -> Iterator[dict[str, str]]:
         """
         Iterate CSV rows without materializing the entire file in memory.
@@ -215,8 +222,9 @@ class SampleIngestionService:
         so that csv.DictReader does not silently overwrite earlier column
         values with later ones (e.g. two columns both named "Sample").
         """
-        uploaded_file.file.seek(0)
-        wrapped = TextIOWrapper(uploaded_file.file, encoding="utf-8-sig", newline="")
+        file_obj = getattr(uploaded_file, 'file', uploaded_file)
+        file_obj.seek(0)
+        wrapped = TextIOWrapper(file_obj, encoding="utf-8-sig", newline="")
         try:
             reader = csv.reader(wrapped)
             raw_headers = next(reader, None)
@@ -283,7 +291,11 @@ class SampleIngestionService:
 
             intensity = cls.parse_numeric(raw_value)
             if intensity is None:
-                continue
+                if not cls.is_below_lod_value(raw_value):
+                    continue
+                intensity = 0.0
+
+            is_below_lod = cls.is_below_lod_value(raw_value)
 
             # Deduplicate by toxin_type, keeping the highest value
             if canonical not in results or intensity > results[canonical]["value"]:
@@ -291,7 +303,11 @@ class SampleIngestionService:
                     "toxin_type": canonical,
                     "value": intensity,
                     "unit": "ug_kg",
-                    "notes": f"Imported CSV column: {header_text}",
+                    "is_below_lod": is_below_lod,
+                    "notes": (
+                        f"Imported CSV column: {header_text} (below LOD)"
+                        if is_below_lod else f"Imported CSV column: {header_text}"
+                    ),
                 }
 
         return list(results.values())
@@ -331,10 +347,62 @@ class SampleIngestionService:
         return sample_map
 
     @classmethod
+    def _dashboard_collection_date(cls, row: dict, sample_id: str) -> date:
+        raw_date = str(cls.get_row_value(row, ['date of collection', 'collection_date']) or '').strip()
+        for pattern in ('%Y-%m-%d', '%d/%m/%Y', '%Y', '%B %Y', '%b %Y'):
+            try:
+                parsed = datetime.strptime(raw_date, pattern).date()
+                return parsed.replace(month=1, day=1) if pattern == '%Y' else parsed
+            except ValueError:
+                continue
+
+        # Lab IDs in the supplied dashboard export start with DDMMYYYY.
+        match = re.match(r'^(\d{2})(\d{2})(\d{4})', sample_id)
+        if match:
+            day, month, year = (int(part) for part in match.groups())
+            try:
+                return date(year, month, day)
+            except ValueError:
+                pass
+        return timezone.localdate()
+
+    @classmethod
+    def _create_sample_from_dashboard_row(cls, row: dict, sample_id: str, user) -> Sample:
+        raw_type = str(cls.get_row_value(row, ['type']) or 'food').strip().lower()
+        food_feed_type = raw_type if raw_type in {'food', 'feed'} else 'food'
+        sub_type = str(cls.get_row_value(row, ['sub-type', 'sub_type']) or '').strip() or 'Unknown'
+        location = str(cls.get_row_value(row, ['location']) or '').strip() or 'Unknown'
+        result_status = str(cls.get_row_value(row, ['result (positive/negative)', 'result']) or '').strip().lower()
+        sample = Sample.objects.create(
+            sample_id=sample_id,
+            region='Unknown',
+            province=location,
+            district='Unknown',
+            food_feed_type=food_feed_type,
+            sub_type=sub_type,
+            vegetation_variety=sub_type,
+            collection_date=cls._dashboard_collection_date(row, sample_id),
+            status='completed' if result_status in {'positive', 'negative'} else 'pending',
+            purpose='research',
+            collected_by=user.username if user else None,
+            recorded_by=user,
+            updated_by=user,
+            additional_info='Imported from Dashboard - Results.csv',
+        )
+        ProcessLog.objects.create(
+            sample=sample,
+            state='registered',
+            conducted_by=user.username if user else 'System',
+            notes='Sample record imported from dashboard CSV.',
+        )
+        return sample
+
+    @classmethod
     def _apply_results_to_sample(
         cls, sample: Sample, results: list[dict], user, analyzed_at
     ) -> tuple[int, int]:
         """Persist results for one sample inside its atomic block."""
+        recorded_by = user.username if user else 'System'
         sample.status = "completed"
         sample.updated_by = user
         sample.save()
@@ -346,31 +414,47 @@ class SampleIngestionService:
             ProcessLog._default_manager.create(
                 sample=sample,
                 state="completed",
-                conducted_by=user.username,
+                conducted_by=recorded_by,
                 notes=notes,
             )
 
-        created_for_row, updated_for_row = 0, 0
+        existing_results = {
+            result.toxin_type: result for result in sample.mycotoxin_results.all()
+        }
+        created_results = []
+        updated_results = []
         for payload in results:
-            existing = sample.mycotoxin_results.filter(
-                toxin_type=payload["toxin_type"]
-            ).first()
+            existing = existing_results.get(payload["toxin_type"])
             if existing:
                 existing.value = payload["value"]
                 existing.unit = payload["unit"]
                 existing.notes = payload["notes"]
-                existing.save()
-                updated_for_row += 1
+                existing.is_below_lod = payload.get("is_below_lod", False)
+                existing.risk_level = get_risk_level(existing.toxin_type, existing.value)
+                updated_results.append(existing)
             else:
-                MycotoxinResult._default_manager.create(
+                threshold = EU_THRESHOLDS.get(payload["toxin_type"], {})
+                created_results.append(MycotoxinResult(
                     sample=sample,
                     toxin_type=payload["toxin_type"],
                     value=payload["value"],
                     unit=payload["unit"],
                     notes=payload["notes"],
-                )
-                created_for_row += 1
-        return created_for_row, updated_for_row
+                    is_below_lod=payload.get("is_below_lod", False),
+                    eu_threshold_low=threshold.get("low"),
+                    eu_threshold_high=threshold.get("high"),
+                    risk_level=get_risk_level(payload["toxin_type"], payload["value"]),
+                ))
+
+        if created_results:
+            MycotoxinResult._default_manager.bulk_create(created_results, batch_size=1000)
+        if updated_results:
+            MycotoxinResult._default_manager.bulk_update(
+                updated_results,
+                ['value', 'unit', 'notes', 'is_below_lod', 'risk_level'],
+                batch_size=1000,
+            )
+        return len(created_results), len(updated_results)
 
     @classmethod
     def _process_row(
@@ -452,8 +536,8 @@ class SampleIngestionService:
         return outcome
 
     @classmethod
-    def process_csv_results(cls, uploaded_file, user) -> dict:
-        """Two-pass CSV import: discover IDs, then apply results row by row."""
+    def process_csv_results(cls, uploaded_file, user, *, create_missing_samples=False) -> dict:
+        """Two-pass CSV import that can optionally create missing dashboard samples."""
         display_ids, normalized_ids, rows_processed = cls._discover_csv_sample_ids(
             uploaded_file
         )
@@ -465,8 +549,15 @@ class SampleIngestionService:
         touched_samples: set[str] = set()
         unmatched: set[str] = set()
         failed_rows: list[dict] = []
+        created_samples = 0
 
         for row_number, row in enumerate(cls.iter_csv_rows(uploaded_file), start=1):
+            if create_missing_samples:
+                display_id, normalized_id = cls.extract_row_sample_id(row)
+                if display_id and normalized_id not in sample_map:
+                    sample = cls._create_sample_from_dashboard_row(row, display_id.strip(), user)
+                    sample_map[normalized_id] = sample
+                    created_samples += 1
             outcome = cls._process_row(row, row_number, sample_map, user)
             created += outcome["created"]
             updated += outcome["updated"]
@@ -487,6 +578,7 @@ class SampleIngestionService:
             "skipped_rows": skipped,
             "unmatched_sample_ids": sorted(unmatched),
             "failed_rows": failed_rows,
+            "created_samples": created_samples,
         }
 
     @staticmethod

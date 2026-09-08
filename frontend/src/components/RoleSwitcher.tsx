@@ -7,26 +7,24 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Shield, User, ChevronDown, Check } from "lucide-react";
+import { Shield, User, ChevronDown, Check, FlaskConical, Microscope } from "lucide-react";
 
 const RoleSwitcher = () => {
   const { user, role, switchRole } = useAuth();
 
   if (!user) return null;
-
-  const originalRole = user.role;
-  const originalLabel =
-    USER_ROLE_LABELS[originalRole as keyof typeof USER_ROLE_LABELS] || "Admin";
+  if (user.role !== "admin") return null;
 
   const roles = [
-    { value: originalRole, label: originalLabel, icon: Shield },
+    { value: "admin" as UserRole, label: USER_ROLE_LABELS.admin, icon: Shield },
+    { value: "head_researcher" as UserRole, label: USER_ROLE_LABELS.head_researcher, icon: Microscope },
+    { value: "researcher" as UserRole, label: USER_ROLE_LABELS.researcher, icon: FlaskConical },
+    { value: "research_assistant" as UserRole, label: USER_ROLE_LABELS.research_assistant, icon: User },
     { value: "user" as UserRole, label: "Viewer", icon: User },
   ];
 
-  const uniqueRoles = originalRole === "user" ? [roles[1]] : roles;
-
   const currentRole =
-    uniqueRoles.find((r) => r.value === role) || uniqueRoles[0];
+    roles.find((r) => r.value === role) || roles[0];
   const CurrentIcon = currentRole.icon;
 
   return (
@@ -34,7 +32,7 @@ const RoleSwitcher = () => {
       <DropdownMenuTrigger asChild>
         <Button variant="outline" className="gap-2">
           <CurrentIcon className="h-4 w-4" />
-          {currentRole.label}
+          View as {currentRole.label}
           <ChevronDown className="h-4 w-4" />
         </Button>
       </DropdownMenuTrigger>
@@ -48,7 +46,7 @@ const RoleSwitcher = () => {
               className="gap-2"
             >
               <Icon className="h-4 w-4" />
-              {r.label}
+              View as {r.label}
               {role === r.value && <Check className="h-4 w-4 ml-auto" />}
             </DropdownMenuItem>
           );

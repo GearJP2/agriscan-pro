@@ -2,7 +2,9 @@ import { lazy, Suspense, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { ThemeProvider } from "next-themes";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Route, Routes, useLocation } from "react-router-dom";
+import { cn } from "@/lib/utils";
+import { isPublicSitePath } from "@/lib/siteRoutes";
 
 import Footer from "@/components/Footer";
 import Header from "@/components/Header";
@@ -12,6 +14,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { LanguageProvider } from "@/contexts/LanguageContext";
 import { WatchlistProvider } from "@/contexts/WatchlistContext";
 
 const queryClient = new QueryClient();
@@ -20,6 +23,7 @@ const Dashboard = lazy(
   () => import("@/components/surveillance/SurveillanceDashboard"),
 );
 const Homepage = lazy(() => import("./pages/Homepage"));
+const CoEGfsPage = lazy(() => import("./pages/CoEGfsPage"));
 const Doc = lazy(() => import("./pages/Doc"));
 const Prediction = lazy(() => import("./pages/Prediction"));
 const SampleList = lazy(
@@ -50,31 +54,43 @@ export const RouteLoadingFallback = () => (
 
 export const AppProviders = ({ children }: { children: ReactNode }) => (
   <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <WatchlistProvider>
-          <TooltipProvider>
-            <Toaster />
-            <Sonner />
-            {children}
-          </TooltipProvider>
-        </WatchlistProvider>
-      </AuthProvider>
-    </QueryClientProvider>
+    <LanguageProvider>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <WatchlistProvider>
+            <TooltipProvider>
+              <Toaster />
+              <Sonner />
+              {children}
+            </TooltipProvider>
+          </WatchlistProvider>
+        </AuthProvider>
+      </QueryClientProvider>
+    </LanguageProvider>
   </ThemeProvider>
 );
 
 export const AppRoutes = () => (
   <Routes>
     <Route path="/" element={<Homepage />} />
+    <Route path="/about" element={<CoEGfsPage />} />
+    <Route path="/projects" element={<CoEGfsPage />} />
+    <Route path="/publications" element={<CoEGfsPage />} />
+    <Route path="/news" element={<CoEGfsPage />} />
+    <Route path="/partners" element={<CoEGfsPage />} />
+    <Route path="/contact" element={<CoEGfsPage />} />
     <Route path="/doc" element={<Doc />} />
     <Route path="/dashboard" element={<Dashboard />} />
     <Route path="/auth/google/callback" element={<GoogleAuthCallback />} />
-    <Route path="/prediction" element={<Prediction />} />
     <Route path="/verify-email" element={<VerifyEmail />} />
 
     <Route element={<ProtectedRoute minRole="research_assistant" />}>
+      <Route path="/prediction" element={<Prediction />} />
       <Route path="/samples" element={<SampleList />} />
+    </Route>
+
+    <Route element={<ProtectedRoute allowedRoles={["admin"]} />}>
+      <Route path="/manage" element={<Homepage />} />
     </Route>
 
     <Route element={<ProtectedRoute minRole="researcher" />}>
@@ -92,19 +108,29 @@ export const AppRoutes = () => (
   </Routes>
 );
 
-export const AppLayout = () => (
-  <div className="flex min-h-screen flex-col">
-    <Header />
-    <div className="flex flex-1 flex-col pt-24 md:pt-28">
-      <RouteErrorBoundary>
-        <Suspense fallback={<RouteLoadingFallback />}>
-          <AppRoutes />
-        </Suspense>
-      </RouteErrorBoundary>
-    </div>
-    <Footer />
-  </div>
-);
+export const AppLayout = () => {
+    const location = useLocation();
+    const isCoePage = isPublicSitePath(location.pathname);
+
+    return (
+        <div className={cn(
+            "flex min-h-screen flex-col transition-colors duration-300",
+            isCoePage
+                ? "bg-gfs-canvas coe-gfs text-gfs-text-primary"
+                : "bg-background text-foreground",
+        )}>
+            <Header />
+            <div className="flex flex-1 flex-col pt-24 md:pt-28">
+                <RouteErrorBoundary>
+                    <Suspense fallback={<RouteLoadingFallback />}>
+                        <AppRoutes />
+                    </Suspense>
+                </RouteErrorBoundary>
+            </div>
+            <Footer />
+        </div>
+    );
+};
 
 const AppRouter = () => (
   <BrowserRouter

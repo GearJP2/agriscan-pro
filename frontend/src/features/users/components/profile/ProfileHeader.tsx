@@ -41,7 +41,6 @@ export const ProfileHeader = ({
         <div className="absolute top-0 right-0 opacity-10 blur-2xl pointer-events-none">
           <FlaskConical className="w-96 h-96 text-primary translate-x-1/4 -translate-y-1/4" />
         </div>
-        <div className="absolute inset-0 bg-[url('/noise.png')] opacity-[0.03] mix-blend-overlay" />
       </div>
 
       {/* Overlapping Avatar & Header Info */}

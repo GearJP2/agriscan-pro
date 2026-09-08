@@ -19,10 +19,6 @@ logger = logging.getLogger("agriscan.samples")
 
 # Default field values applied when bulk-importing samples that lack them.
 _BULK_DEFAULTS: dict[str, str] = {
-    "purpose": "routine",
-    "sample_type": "field",
-    "processing_type": "raw",
-    "collected_by": "Imported",
     "additional_info": "",
 }
 
@@ -51,9 +47,17 @@ class SampleService:
                     sample_id = (item.get("sample_id") or "").strip()
                     collection_date = item.get("collection_date")
 
+                    # Backward-compatible imports may only provide the old
+                    # vegetation column. Treat it as the requested subtype.
+                    item.setdefault("food_feed_type", "food")
+                    item.setdefault("sub_type", item.get("vegetation_variety"))
+                    item["vegetation_variety"] = item["sub_type"]
+
                     # --- auto-generate sample_id when not provided ---
                     if not sample_id:
-                        generated_id, seq = generate_sequential_sample_id(collection_date)
+                        generated_id, seq = generate_sequential_sample_id(
+                            collection_date, item["sub_type"]
+                        )
                         item["sample_id"] = generated_id
                         item["sequence_number"] = seq
                     else:
@@ -71,7 +75,12 @@ class SampleService:
 
                     # --- persist sample ---
                     try:
-                        sample = Sample.objects.create(**item, updated_by=user)
+                        sample = Sample.objects.create(
+                            **item,
+                            updated_by=user,
+                            recorded_by=user,
+                            collected_by=user.username,
+                        )
                     except IntegrityError:
                         raise SampleAlreadyExists(
                             detail=f"Sample ID '{item.get('sample_id')}' already exists."

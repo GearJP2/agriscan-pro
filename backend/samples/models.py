@@ -19,9 +19,8 @@ class Sample(models.Model):
     )
 
     PURPOSE_CHOICES = (
-        ('routine', 'Routine'),
-        ('complaint driven', 'Complaint Driven'),
-        ('target surveillance', 'Target Surveillance'),
+        ('research', 'Research'),
+        ('customer', 'Customer'),
     )
 
     SAMPLE_TYPE_CHOICES = (
@@ -39,18 +38,31 @@ class Sample(models.Model):
         ('fermented', 'Fermented'),
     )
 
+    FOOD_FEED_TYPE_CHOICES = (
+        ('food', 'Food'),
+        ('feed', 'Feed'),
+    )
+
     sample_id = models.CharField(max_length=50, unique=True, db_index=True)
     sequence_number = models.IntegerField(default=0, db_index=True)
     region = models.CharField(max_length=100)
     province = models.CharField(max_length=100)
     district = models.CharField(max_length=100)
     vegetation_variety = models.CharField(max_length=100)
+    # New public taxonomy. vegetation_variety is retained temporarily so
+    # historical analytics and imports continue to work during migration.
+    food_feed_type = models.CharField(max_length=10, choices=FOOD_FEED_TYPE_CHOICES, null=True, blank=True)
+    sub_type = models.CharField(max_length=100, null=True, blank=True)
     collection_date = models.DateField()
+    received_at = models.DateTimeField(auto_now_add=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     purpose = models.CharField(max_length=50, choices=PURPOSE_CHOICES, null=True, blank=True)
     sample_type = models.CharField(max_length=20, choices=SAMPLE_TYPE_CHOICES, null=True, blank=True)
     processing_type = models.CharField(max_length=20, choices=PROCESSING_TYPE_CHOICES, null=True, blank=True)
     collected_by = models.CharField(max_length=255, null=True, blank=True)
+    recorded_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="samples_recorded"
+    )
     additional_info = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -72,7 +84,87 @@ class Sample(models.Model):
         ]
 
     def __str__(self):
-        return f"{self.sample_id} - {self.vegetation_variety}"
+        return f"{self.sample_id} - {self.sub_type or self.vegetation_variety}"
+
+
+class PredictionContext(models.Model):
+    LOCATION_TYPE_CHOICES = (
+        ('farm', 'Farm'),
+        ('market', 'Market'),
+        ('storage', 'Storage'),
+        ('unknown', 'Unknown'),
+    )
+
+    sample = models.OneToOneField(
+        Sample,
+        on_delete=models.CASCADE,
+        related_name='prediction_context',
+    )
+    latitude = models.FloatField(null=True, blank=True)
+    longitude = models.FloatField(null=True, blank=True)
+    location_type = models.CharField(
+        max_length=20,
+        choices=LOCATION_TYPE_CHOICES,
+        default='unknown',
+    )
+    harvest_date = models.DateField(null=True, blank=True)
+    sowing_date = models.DateField(null=True, blank=True)
+    crop_variety = models.CharField(max_length=120, blank=True)
+    crop_season = models.CharField(max_length=80, blank=True)
+    storage_duration_days = models.PositiveIntegerField(null=True, blank=True)
+    moisture_pct = models.FloatField(null=True, blank=True)
+    soil_type = models.CharField(max_length=120, blank=True)
+    soil_ph = models.FloatField(null=True, blank=True)
+    crop_rotation = models.TextField(blank=True)
+    fertiliser_details = models.TextField(blank=True)
+    fungicide_details = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['location_type'], name='samples_pre_locatio_a83c8e_idx'),
+            models.Index(fields=['harvest_date'], name='samples_pre_harvest_774036_idx'),
+        ]
+
+    def __str__(self):
+        return f"Prediction context for {self.sample.sample_id}"
+
+
+class PredictionEstimate(models.Model):
+    sample = models.ForeignKey(
+        Sample,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='prediction_estimates',
+    )
+    requested_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='prediction_estimates_requested',
+    )
+    model_version = models.CharField(max_length=80)
+    model_family = models.CharField(max_length=80, blank=True)
+    uses_weather_features = models.BooleanField(default=False)
+    input_payload = models.JSONField(default=dict)
+    predictions_payload = models.JSONField(default=list)
+    warning = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['sample', 'created_at'], name='samples_pre_sample__45462b_idx'),
+            models.Index(fields=['model_version'], name='samples_pre_model_v_0b1d29_idx'),
+            models.Index(fields=['requested_by', 'created_at'], name='samples_pre_request_6d88ac_idx'),
+        ]
+
+    def __str__(self):
+        sample_id = self.sample.sample_id if self.sample else 'manual'
+        return f"Prediction estimate {sample_id} @ {self.model_version}"
 
 
 class ExternalDataCache(models.Model):
@@ -164,6 +256,7 @@ class MycotoxinResult(models.Model):
     )
     eu_threshold_low = models.FloatField(null=True, blank=True)
     eu_threshold_high = models.FloatField(null=True, blank=True)
+    is_below_lod = models.BooleanField(default=False)
     timestamp = models.DateTimeField(auto_now_add=True)
     notes = models.TextField(blank=True)
 

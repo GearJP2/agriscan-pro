@@ -13,6 +13,7 @@ import {
 import { useTheme } from "next-themes";
 
 import { useAuth } from "@/contexts/AuthContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { toast } from "@/hooks/use-toast";
 import {
   beginGoogleOAuthConnect,
@@ -37,6 +38,10 @@ import { Switch } from "@/components/ui/switch";
 const Settings = () => {
   const { theme, setTheme } = useTheme();
   const { user } = useAuth();
+  const { language, setLanguage } = useLanguage();
+  const [notificationsEnabled, setNotificationsEnabled] = useState(() =>
+    typeof window === "undefined" || localStorage.getItem("agriscan.notifications_enabled") !== "false",
+  );
   const [providerSummary, setProviderSummary] = useState<AuthProviderSummary | null>(
     null,
   );
@@ -83,6 +88,10 @@ const Settings = () => {
       sessionStorage.removeItem("google_oauth_flash");
     }
   }, [loadProviderSummary]);
+
+  useEffect(() => {
+    localStorage.setItem("agriscan.notifications_enabled", String(notificationsEnabled));
+  }, [notificationsEnabled]);
 
   const handleConnectGoogle = async () => {
     try {
@@ -334,7 +343,7 @@ const Settings = () => {
                 <Globe className="h-5 w-5 text-muted-foreground" />
                 <Label className="text-sm text-foreground">Language</Label>
               </div>
-              <Select defaultValue="en">
+              <Select value={language} onValueChange={setLanguage}>
                 <SelectTrigger className="w-32">
                   <SelectValue placeholder="Select language" />
                 </SelectTrigger>
@@ -351,7 +360,11 @@ const Settings = () => {
                 <Label className="text-sm text-foreground">Notifications</Label>
               </div>
               <div className="flex items-center gap-2">
-                <Switch id="notifications" defaultChecked />
+                <Switch
+                  id="notifications"
+                  checked={notificationsEnabled}
+                  onCheckedChange={setNotificationsEnabled}
+                />
                 <Label
                   htmlFor="notifications"
                   className="text-sm text-muted-foreground"

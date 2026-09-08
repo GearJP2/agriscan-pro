@@ -89,6 +89,25 @@ export const MYCOTOXIN_REGISTRY: Record<string, ToxinMetadata> = {
     source: 'No threshold data',
     isUncertain: true,
   },
+  ...Object.fromEntries([
+    ['15ADON', '15-Acetyl-Deoxynivalenol'], ['3ADON', '3-Acetyl-Deoxynivalenol'],
+    ['AFB2', 'Aflatoxin B2'], ['ALT', 'Alternariol'], ['AME', 'Alternariol monomethyl ether'],
+    ['BEA', 'Beauvericin'], ['CIT', 'Citrinin'], ['CPA', 'Cyclopiazonic acid'],
+    ['DAS', 'Diacetoxyscirpenol'], ['D3G', 'Deoxynivalenol-3-glucoside'], ['EMO', 'Emodin'],
+    ['ENNA', 'Enniatin A'], ['ENNA1', 'Enniatin A1'], ['ENNB', 'Enniatin B'], ['ENNB1', 'Enniatin B1'],
+    ['FB2', 'Fumonisin B2'], ['FUSA', 'Fusaric acid'], ['HT2', 'HT-2 toxin'], ['MON', 'Moniliformin'],
+    ['MPA', 'Mycophenolic acid'], ['NEOS', 'Neosolaniol'], ['NIV', 'Nivalenol'], ['OTB', 'Ochratoxin B'],
+    ['PAT', 'Patulin'], ['PAX', 'Paxiline'], ['PEN', 'Penitrem A'], ['STC', 'Sterigmatocystin'],
+    ['TEN', 'Tentoxin'], ['TEA', 'Tenuazonic acid'], ['TMP', 'Trimethoprim'], ['TRY', 'Tryptophol'],
+  ].map(([shortName, name]) => [shortName, {
+    name,
+    shortName,
+    defaultThreshold: 0,
+    maxThreshold: 0,
+    unit: 'ug/kg',
+    source: 'No threshold data',
+    isUncertain: true,
+  }])),
 };
 
 // Aliases for data import mapping

@@ -1,6 +1,18 @@
 import axios, { AxiosError, AxiosHeaders } from "axios";
-import type { Sample, ProcessLog, RiskLevel } from "@/types/sample";
+import type { PredictionContext, Sample, ProcessLog, RiskLevel } from "@/types/sample";
 import type { AnalyticsOverviewResponse, CoContaminationResponse, DashboardContractResponse, EnvironmentalCorrelationResponse, HealthSummary } from "@/types/dashboard";
+import type {
+  PredictionEstimateRequest,
+  PredictionEstimateResponse,
+  PredictionEstimateHistoryItem,
+  PredictionBatchEstimateResponse,
+  PredictionModelStatusResponse,
+  PredictionPublishRequest,
+  PredictionPublishResponse,
+  PredictionReadinessResponse,
+  PredictionSamplingRecommendationRequest,
+  PredictionSamplingRecommendationResponse,
+} from "@/types/prediction";
 import {
   clearAccessToken,
   clearSessionHint,
@@ -301,6 +313,28 @@ export const sampleAPI = {
     return response.data;
   },
 
+  async getPredictionContext(sampleId: string) {
+    const response = await apiClient.get(
+      `/samples/${encodeURIComponent(sampleId)}/prediction/context/`,
+    );
+    return response.data as PredictionContext;
+  },
+
+  async getPredictionHistory(sampleId: string) {
+    const response = await apiClient.get(
+      `/samples/${encodeURIComponent(sampleId)}/prediction/history/`,
+    );
+    return response.data as PredictionEstimateHistoryItem[];
+  },
+
+  async updatePredictionContext(sampleId: string, data: Partial<PredictionContext>) {
+    const response = await apiClient.patch(
+      `/samples/${encodeURIComponent(sampleId)}/prediction/context/`,
+      data,
+    );
+    return response.data as PredictionContext;
+  },
+
   async bulkImportResults(file: File) {
     const formData = new FormData();
     formData.append("file", file);
@@ -313,6 +347,16 @@ export const sampleAPI = {
       },
     );
 
+    return response.data;
+  },
+
+  async bulkImportDashboard(file: File) {
+    const formData = new FormData();
+    formData.append("file", file);
+    const response = await apiClient.post("/samples/bulk_import_dashboard/", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+      timeout: 10 * 60 * 1000,
+    });
     return response.data;
   },
 
@@ -461,6 +505,46 @@ export const analyticsAPI = {
     }
     const response = await apiClient.get(`/samples/analytics/environmental-correlation/?${params.toString()}`);
     return response.data as EnvironmentalCorrelationResponse;
+  },
+
+  async getPredictionReadiness() {
+    const response = await apiClient.get('/samples/prediction/readiness/');
+    return response.data as PredictionReadinessResponse;
+  },
+
+  async getPredictionStatus() {
+    const response = await apiClient.get('/samples/prediction/status/');
+    return response.data as PredictionModelStatusResponse;
+  },
+
+  async estimatePrediction(payload: PredictionEstimateRequest) {
+    const response = await apiClient.post('/samples/prediction/estimate/', payload);
+    return response.data as PredictionEstimateResponse;
+  },
+
+  async batchEstimatePrediction(sampleIds: string[]) {
+    const response = await apiClient.post('/samples/prediction/batch-estimate/', {
+      sample_ids: sampleIds,
+    });
+    return response.data as PredictionBatchEstimateResponse;
+  },
+
+  async getPredictionRecommendations(payload: PredictionSamplingRecommendationRequest) {
+    const response = await apiClient.post('/samples/prediction/recommendations/', payload);
+    return response.data as PredictionSamplingRecommendationResponse;
+  },
+
+  async publishPredictionModels(payload: PredictionPublishRequest) {
+    const response = await apiClient.post('/samples/prediction/publish/', payload);
+    return response.data as PredictionPublishResponse;
+  },
+
+  async estimateSamplePrediction(sampleId: string) {
+    const response = await apiClient.post(
+      `/samples/${encodeURIComponent(sampleId)}/prediction/estimate/`,
+      {},
+    );
+    return response.data as PredictionEstimateResponse;
   }
 };
 

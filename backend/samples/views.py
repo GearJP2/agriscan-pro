@@ -1,4 +1,5 @@
 import logging
+import json
 
 from celery.result import AsyncResult
 from django.db import IntegrityError, transaction
@@ -10,16 +11,22 @@ from rest_framework.response import Response
 
 from core.exceptions import SampleAlreadyExists
 from core.models import AuditLog
-from core.permissions import IsAdmin, IsOwnerOrAdmin
+from core.permissions import IsAdmin, IsAdminOrHeadResearcher, IsAdminOrResearchRole, IsOwnerOrAdmin
 
 from .filters import apply_sample_filters
-from .models import ProcessLog, Sample
+from .models import PredictionEstimate, ProcessLog, Sample
 from .services.ingestion_service import SampleIngestionService
 from .services.sample_service import SampleService
 from .services.s3_service import generate_upload_url
 from .services.test_data_service import TestDataService
 from .serializers import (
     MycotoxinResultSerializer,
+    PredictionBatchEstimateRequestSerializer,
+    PredictionContextSerializer,
+    PredictionEstimateSerializer,
+    PredictionEstimateRequestSerializer,
+    PredictionPublishRequestSerializer,
+    PredictionSamplingRecommendationRequestSerializer,
     ProcessLogSerializer,
     SampleCreateUpdateSerializer,
     SampleListSerializer,
@@ -35,6 +42,15 @@ from .services.llm_summary_service import (
     LLMSummaryServiceError,
 )
 from .services.nasa_power_service import NasaPowerService, NasaPowerServiceError
+from .services.prediction_inference_service import (
+    PredictionInferenceService,
+    PredictionModelUnavailable,
+)
+from .services.prediction_model_publish_service import (
+    PredictionModelPublishError,
+    PredictionModelPublishService,
+)
+from .services.prediction_readiness_service import PredictionReadinessService
 
 logger = logging.getLogger('agriscan.samples')
 
@@ -50,18 +66,36 @@ class SampleViewSet(viewsets.ModelViewSet):
     """
     queryset = (
         Sample.objects
-        .select_related('updated_by')
-        .prefetch_related('process_logs', 'mycotoxin_results')
+        .select_related('updated_by', 'recorded_by')
+        .prefetch_related('process_logs', 'mycotoxin_results', 'prediction_estimates')
         .all()
     )
     permission_classes = [IsAuthenticated, IsOwnerOrAdmin]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ['sample_id', 'region', 'vegetation_variety']
+    search_fields = ['sample_id', 'region', 'food_feed_type', 'sub_type']
     ordering_fields = ['collection_date', 'created_at', 'status']
     ordering = ['-collection_date']
     lookup_field = 'sample_id'
 
     def get_permissions(self):
+        if self.action == 'prediction_publish':
+            return [IsAuthenticated(), IsAdmin()]
+        if self.action in [
+            'prediction_estimate',
+            'prediction_batch_estimate',
+            'prediction_estimate_sample',
+            'prediction_context',
+            'prediction_history',
+            'prediction_readiness',
+            'prediction_status',
+        ]:
+            return [IsAuthenticated(), IsAdminOrHeadResearcher()]
+        if self.action in [
+            'analytics_dashboard_simulate',
+            'analytics_threshold_simulation',
+            'prediction_recommendations',
+        ]:
+            return [IsAuthenticated(), IsAdminOrResearchRole()]
         if self.action in ['destroy', 'bulk_delete', 'generate_test_data', 'delete_test_data']:
             return [IsAuthenticated(), IsAdmin()]
         return [permission() for permission in self.permission_classes]
@@ -77,7 +111,12 @@ class SampleViewSet(viewsets.ModelViewSet):
         return apply_sample_filters(super().get_queryset(), self.request.query_params)
 
     def perform_create(self, serializer):
-        sample = serializer.save(updated_by=self.request.user)
+        sample = serializer.save(
+            updated_by=self.request.user,
+            recorded_by=self.request.user,
+            # Kept for ownership compatibility while old records exist.
+            collected_by=self.request.user.username,
+        )
         logger.info(
             'sample.created',
             extra={'sample_id': sample.sample_id, 'user': self.request.user.username},
@@ -345,6 +384,36 @@ class SampleViewSet(viewsets.ModelViewSet):
         return Response(payload, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=['post'])
+    def bulk_import_dashboard(self, request):
+        """Import the supplied dashboard CSV, creating samples then upserting results by ID."""
+        uploaded_file = request.FILES.get('file')
+        if not uploaded_file:
+            return Response({'detail': 'file is required (CSV).'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            results = SampleIngestionService.process_csv_results(
+                uploaded_file, request.user, create_missing_samples=True,
+            )
+        except (ValueError, IntegrityError) as exc:
+            return Response({'detail': f'Import failed: {exc}'}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception:
+            logger.exception('sample.bulk_import_dashboard.unexpected_error')
+            return Response(
+                {'detail': 'An unexpected error occurred during dashboard import.'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        return Response({
+            'rows_processed': results.get('rows_processed', 0),
+            'samples_created': results.get('created_samples', 0),
+            'matched_samples': results.get('samples', 0),
+            'results_created': results.get('created', 0),
+            'results_updated': results.get('updated', 0),
+            'skipped_rows': results.get('skipped_rows', 0),
+            'failed_rows': results.get('failed_rows', []),
+        }, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['post'])
     def export_failed_rows(self, request):
         """
         Accepts a list of failed_rows (including row_data) and returns a CSV file response.
@@ -607,6 +676,186 @@ class SampleViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_502_BAD_GATEWAY,
             )
         return Response(data, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['get'], url_path='prediction/readiness')
+    def prediction_readiness(self, request):
+        """Return the labelled-data checks required before training a model."""
+        return Response(PredictionReadinessService.get_readiness(), status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['get'], url_path='prediction/status')
+    def prediction_status(self, request):
+        """Return prediction model versions, publish state, and metrics."""
+        return Response(PredictionInferenceService.get_model_status(), status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['post'], url_path='prediction/publish')
+    def prediction_publish(self, request):
+        """Publish reviewed prediction toxin models. Admin-only."""
+        serializer = PredictionPublishRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            publish_result = PredictionModelPublishService.publish(
+                version=serializer.validated_data['version'],
+                toxins=serializer.validated_data['toxins'],
+                min_f1=serializer.validated_data['min_f1'],
+                min_roc_auc=serializer.validated_data['min_roc_auc'],
+                force=serializer.validated_data['force'],
+            )
+        except PredictionModelPublishError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(
+            {
+                **publish_result,
+                'status': PredictionInferenceService.get_model_status(),
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    @action(detail=False, methods=['post'], url_path='prediction/estimate')
+    def prediction_estimate(self, request):
+        """Estimate toxin detection risk from the latest trained baseline artifacts."""
+        serializer = PredictionEstimateRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            data = PredictionInferenceService.estimate(serializer.validated_data)
+        except PredictionModelUnavailable as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        self.record_prediction_estimate(
+            sample=None,
+            user=request.user,
+            payload=serializer.validated_data,
+            result=data,
+        )
+        return Response(data, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['post'], url_path='prediction/batch-estimate')
+    def prediction_batch_estimate(self, request):
+        """Estimate toxin detection risk for multiple registered samples."""
+        serializer = PredictionBatchEstimateRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        sample_ids = serializer.validated_data['sample_ids']
+        samples = (
+            Sample.objects
+            .select_related('recorded_by', 'updated_by', 'prediction_context')
+            .filter(sample_id__in=sample_ids)
+        )
+        sample_map = {sample.sample_id: sample for sample in samples}
+        results = []
+        errors = []
+
+        for sample_id in sample_ids:
+            sample = sample_map.get(sample_id)
+            if sample is None:
+                errors.append({'sampleId': sample_id, 'detail': 'Sample not found.'})
+                continue
+
+            payload = PredictionInferenceService.sample_to_payload(sample)
+            try:
+                estimate = PredictionInferenceService.estimate(payload)
+            except PredictionModelUnavailable as exc:
+                if not results:
+                    return Response({'detail': str(exc)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+                errors.append({'sampleId': sample_id, 'detail': str(exc)})
+                continue
+
+            self.record_prediction_estimate(
+                sample=sample,
+                user=request.user,
+                payload=payload,
+                result=estimate,
+            )
+            results.append({'sampleId': sample_id, 'estimate': estimate})
+
+        return Response(
+            {
+                'requested': len(sample_ids),
+                'completed': len(results),
+                'failed': len(errors),
+                'results': results,
+                'errors': errors,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    @action(detail=False, methods=['post'], url_path='prediction/recommendations')
+    def prediction_recommendations(self, request):
+        """Recommend which food/feed and area combinations should be prioritized for testing."""
+        serializer = PredictionSamplingRecommendationRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            data = PredictionInferenceService.recommend_sampling(serializer.validated_data)
+        except PredictionModelUnavailable as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        return Response(data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'], url_path='prediction/estimate')
+    def prediction_estimate_sample(self, request, sample_id=None):
+        """Estimate toxin detection risk using a registered sample's context fields."""
+        sample = self.get_object()
+        try:
+            payload = PredictionInferenceService.sample_to_payload(sample)
+            data = PredictionInferenceService.estimate(payload)
+        except PredictionModelUnavailable as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        self.record_prediction_estimate(
+            sample=sample,
+            user=request.user,
+            payload=payload,
+            result=data,
+        )
+        return Response(data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['get'], url_path='prediction/history')
+    def prediction_history(self, request, sample_id=None):
+        """Return recent prediction estimates for a registered sample."""
+        sample = self.get_object()
+        try:
+            requested_limit = int(request.query_params.get('limit', 10))
+        except (TypeError, ValueError):
+            requested_limit = 10
+        limit = min(max(requested_limit, 1), 50)
+        estimates = (
+            PredictionEstimate.objects
+            .select_related('sample', 'requested_by')
+            .filter(sample=sample)
+            .order_by('-created_at')[:limit]
+        )
+        return Response(PredictionEstimateSerializer(estimates, many=True).data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['get', 'put', 'patch'], url_path='prediction/context')
+    def prediction_context(self, request, sample_id=None):
+        """Read or update optional predictor fields for a registered sample."""
+        sample = self.get_object()
+        context = getattr(sample, 'prediction_context', None)
+        if request.method == 'GET':
+            if context is None:
+                return Response({}, status=status.HTTP_200_OK)
+            return Response(PredictionContextSerializer(context).data, status=status.HTTP_200_OK)
+
+        serializer = PredictionContextSerializer(
+            context,
+            data=request.data,
+            partial=request.method == 'PATCH',
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save(sample=sample)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @staticmethod
+    def record_prediction_estimate(*, sample, user, payload: dict, result: dict) -> PredictionEstimate:
+        def json_safe(value):
+            return json.loads(json.dumps(value, default=str))
+
+        return PredictionEstimate.objects.create(
+            sample=sample,
+            requested_by=user,
+            model_version=result.get('modelVersion', ''),
+            model_family=result.get('modelFamily', ''),
+            uses_weather_features=result.get('usesWeatherFeatures', False),
+            input_payload=json_safe(payload),
+            predictions_payload=json_safe(result.get('predictions', [])),
+            warning=result.get('warning', ''),
+        )
 
     @action(detail=False, methods=['post'], url_path='analytics/public-health-summary')
     def analytics_public_health_summary(self, request):

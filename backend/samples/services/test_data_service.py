@@ -34,7 +34,7 @@ REGIONS_PROVINCES = {
 }
 
 # Canonical choices aligned with Sample model definitions
-PURPOSES = ["routine", "complaint driven", "target surveillance"]
+PURPOSES = ["research", "customer"]
 SAMPLE_TYPES = ["field", "market", "storage", "export"]
 PROCESSING_TYPES = ["raw", "dried", "milled", "processed", "fermented"]
 

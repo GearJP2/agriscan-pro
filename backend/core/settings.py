@@ -94,6 +94,7 @@ LLM_SUMMARY_MAX_OUTPUT_TOKENS = int(os.environ.get("LLM_SUMMARY_MAX_OUTPUT_TOKEN
 NASA_POWER_TIMEOUT_SECONDS = int(os.environ.get("NASA_POWER_TIMEOUT_SECONDS", "20"))
 NASA_POWER_MAX_DAYS = int(os.environ.get("NASA_POWER_MAX_DAYS", "14"))
 NASA_POWER_CACHE_TTL_HOURS = int(os.environ.get("NASA_POWER_CACHE_TTL_HOURS", "24"))
+PREDICTION_WEATHER_WINDOW_DAYS = int(os.environ.get("PREDICTION_WEATHER_WINDOW_DAYS", "90"))
 
 # Public aggregate dashboard snapshots. Publication still requires the explicit
 # management command; enabling this setting does not start a scheduler.

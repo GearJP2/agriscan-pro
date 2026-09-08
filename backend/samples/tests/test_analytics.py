@@ -5,6 +5,8 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 from datetime import timedelta
+from pathlib import Path
+from tempfile import TemporaryDirectory
 import requests
 from rest_framework import status
 from rest_framework.test import APIClient
@@ -28,6 +30,18 @@ class AnalyticsEndpointsTests(TestCase):
             role='research_assistant',
         )
         self.client.force_authenticate(user=self.user)
+        self.researcher = User.objects.create_user(
+            username='analytics_researcher',
+            email='analytics-researcher@example.com',
+            password='Password123',
+            role='researcher',
+        )
+        self.head_researcher = User.objects.create_user(
+            username='analytics_head',
+            email='analytics-head@example.com',
+            password='Password123',
+            role='head_researcher',
+        )
 
         self.sample1 = Sample.objects.create(
             sample_id='A-001', region='Central', province='Bangkok',
@@ -88,7 +102,9 @@ class AnalyticsEndpointsTests(TestCase):
                 "AFB1": {"rice": 1.0},
             },
         }
-        response = self.client.post(url, payload, format='json')
+        researcher_client = APIClient()
+        researcher_client.force_authenticate(user=self.researcher)
+        response = researcher_client.post(url, payload, format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn('kpis', response.data)
         self.assertEqual(response.data['kpis']['total_samples'], 2)
@@ -96,6 +112,32 @@ class AnalyticsEndpointsTests(TestCase):
         self.assertTrue(
             all(province['positiveCount'] == 1 for province in response.data['provinces'])
         )
+
+    def test_threshold_simulation_requires_researcher_role(self):
+        url = reverse('sample-analytics-threshold-simulation')
+        response = self.client.post(url, {'overrides': {}}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_prediction_readiness_requires_head_or_admin_role(self):
+        url = reverse('sample-prediction-readiness')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+        researcher_client = APIClient()
+        researcher_client.force_authenticate(user=self.researcher)
+        response = researcher_client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+        head_client = APIClient()
+        head_client.force_authenticate(user=self.head_researcher)
+        with TemporaryDirectory() as tmp_dir, override_settings(BASE_DIR=Path(tmp_dir)):
+            response = head_client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['modelStatus'], 'not_trained')
+        self.assertIn('trainingGuardrails', response.data)
+        afb1 = next(target for target in response.data['targets'] if target['toxinType'] == 'AFB1')
+        self.assertEqual(afb1['measured'], 2)
+        self.assertEqual(afb1['detected'], 2)
 
     def test_environmental_correlation(self):
         mock_payload = {
@@ -286,7 +328,9 @@ class AnalyticsEndpointsTests(TestCase):
     def test_threshold_simulation_returns_400_for_invalid_overrides(self):
         url = reverse('sample-analytics-threshold-simulation')
 
-        response = self.client.post(url, {'overrides': ['AFB1']}, format='json')
+        researcher_client = APIClient()
+        researcher_client.force_authenticate(user=self.researcher)
+        response = researcher_client.post(url, {'overrides': ['AFB1']}, format='json')
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.data['detail'], 'overrides must be a dictionary')

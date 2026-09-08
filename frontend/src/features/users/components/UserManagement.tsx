@@ -78,7 +78,7 @@ const mapBackendUserToFrontendUser = (user: BackendUser): User => ({
         year: "numeric",
       })
     : "—",
-  online_status: user.online_status || (Math.random() > 0.7 ? "online" : "offline"), // Simulating online status for demo
+  online_status: user.online_status || "offline",
 });
 
 const UserManagement = () => {

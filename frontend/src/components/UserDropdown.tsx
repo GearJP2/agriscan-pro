@@ -76,7 +76,7 @@ const UserDropdown = () => {
             <p className="text-sm font-semibold text-foreground">
               {user?.name || "Your name"}
             </p>
-            <p className="text-xs text-muted-foreground">yourname@gmail.com</p>
+            <p className="text-xs text-muted-foreground">{user?.email || "No email available"}</p>
           </div>
         </div>
 

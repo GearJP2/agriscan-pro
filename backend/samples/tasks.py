@@ -102,9 +102,9 @@ def sync_process_sample_file(key: str, uploaded_by_username: str):
             # Validate choice fields
             from .models import Sample as SampleModel
             status = str(row.get('status', 'pending')).strip() or 'pending'
-            purpose = str(row.get('purpose', 'routine')).strip() or 'routine'
-            sample_type = str(row.get('sample_type', 'field')).strip() or 'field'
-            processing_type = str(row.get('processing_type', 'raw')).strip() or 'raw'
+            purpose = str(row.get('purpose', '')).strip() or None
+            sample_type = str(row.get('sample_type', '')).strip() or None
+            processing_type = str(row.get('processing_type', '')).strip() or None
 
             valid_statuses = [choice[0] for choice in SampleModel.STATUS_CHOICES]
             valid_purposes = [choice[0] for choice in SampleModel.PURPOSE_CHOICES]
@@ -113,11 +113,11 @@ def sync_process_sample_file(key: str, uploaded_by_username: str):
 
             if status not in valid_statuses:
                 raise ValueError(f"Invalid status '{status}'. Must be one of: {', '.join(valid_statuses)}")
-            if purpose not in valid_purposes:
+            if purpose and purpose not in valid_purposes:
                 raise ValueError(f"Invalid purpose '{purpose}'. Must be one of: {', '.join(valid_purposes)}")
-            if sample_type not in valid_sample_types:
+            if sample_type and sample_type not in valid_sample_types:
                 raise ValueError(f"Invalid sample_type '{sample_type}'. Must be one of: {valid_sample_types}")
-            if processing_type not in valid_processing_types:
+            if processing_type and processing_type not in valid_processing_types:
                 raise ValueError(
                     f"Invalid processing_type '{processing_type}'. Valid: {valid_processing_types}"
                 )
@@ -127,13 +127,16 @@ def sync_process_sample_file(key: str, uploaded_by_username: str):
                 region=str(row.get('region', '')).strip(),
                 province=str(row.get('province', '')).strip(),
                 district=str(row.get('district', '')).strip(),
-                vegetation_variety=str(row.get('vegetation_variety', '')).strip(),
+                vegetation_variety=str(row.get('sub_type') or row.get('vegetation_variety', '')).strip(),
+                food_feed_type=str(row.get('food_feed_type', 'food')).strip().lower() or 'food',
+                sub_type=str(row.get('sub_type') or row.get('vegetation_variety', '')).strip(),
                 status=status,
                 collection_date=row.get('collection_date') or None,
                 purpose=purpose,
                 sample_type=sample_type,
                 processing_type=processing_type,
-                collected_by=str(row.get('collected_by', uploaded_by_username)).strip() or uploaded_by_username,
+                collected_by=uploaded_by_username,
+                recorded_by=user,
                 updated_by=user,
             )
             ProcessLog.objects.create(

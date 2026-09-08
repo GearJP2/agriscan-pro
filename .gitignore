@@ -18,6 +18,7 @@ backend/db.sqlite3
 backend/.env
 backend/logs/
 backend/staticfiles/
+backend/prediction_artifacts/
 
 # Elastic Beanstalk (EB CLI writes credentials here — never commit)
 backend/.elasticbeanstalk/credentials
@@ -48,6 +49,9 @@ agents-orchestrator/
 # Local review/analysis docs (not for repo)
 CODE_REVIEW.md
 task.md
+EDA/
+docs/MODEL_MILESTONE.md
+docs/PROMPT_PRESENTATION.md
 
 # IDE & Editor
 .vscode/
