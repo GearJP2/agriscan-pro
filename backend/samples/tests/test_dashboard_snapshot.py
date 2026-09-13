@@ -62,6 +62,21 @@ class DashboardPayloadTests(TestCase):
             )
             MycotoxinResult.objects.create(sample=sample, toxin_type='AFB1', value=10)
 
+    def test_new_and_removed_toxins_and_empty_results_remain_renderable(self):
+        for sample in Sample.objects.all():
+            MycotoxinResult.objects.create(sample=sample, toxin_type='NEW', value=12)
+        with patch('samples.services.dashboard_payload_service.TOXIN_LABELS', {}):
+            sections = DashboardPayloadService.build(filters=DashboardFilters(), include_external=False)
+        distribution = {row['shortName']: row for row in sections['toxins']['distribution']}
+        self.assertEqual(set(distribution), {'AFB1', 'NEW'})
+        self.assertEqual(distribution['NEW']['name'], 'NEW')
+        self.assertEqual(distribution['NEW']['aboveCount'], 0)
+        self.assertEqual({node['id'] for node in sections['co_contamination']['network']['nodes']}, {'AFB1', 'NEW'})
+        MycotoxinResult.objects.all().delete()
+        empty = DashboardPayloadService.build(filters=DashboardFilters(), include_external=False)
+        self.assertEqual(empty['toxins']['distribution'], [])
+        self.assertEqual(empty['co_contamination']['network']['nodes'], [])
+
     def test_payload_is_deterministic_and_suppresses_small_groups(self):
         first = DashboardPayloadService.build(filters=DashboardFilters(), include_external=False)
         second = DashboardPayloadService.build(filters=DashboardFilters(), include_external=False)

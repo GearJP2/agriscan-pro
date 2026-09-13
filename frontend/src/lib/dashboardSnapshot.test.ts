@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { buildSurveillanceAnalyticsFromSections } from './sampleAnalytics';
 import {
   dashboardManifestSchema,
+  dashboardSectionsSchema,
   dashboardSnapshotSchema,
   getSnapshotFreshness,
   loadDashboardSnapshot,
@@ -29,6 +31,19 @@ const emptySections = {
 };
 
 describe('dashboard snapshot schema v1', () => {
+  it('builds dashboard charts for arbitrary toxin codes and for no remaining toxins', () => {
+    const sections = dashboardSectionsSchema.parse(emptySections);
+    sections.toxins.distribution = [
+      { name: 'New analyte', shortName: 'NEW', sampleCount: 6, aboveCount: 0, score: 0 },
+      { name: 'Retired analyte', shortName: 'RETIRED', sampleCount: 6, aboveCount: 6, score: 100 },
+    ];
+    sections.co_contamination.network.nodes = [{ id: 'NEW', frequency: 6 }, { id: 'RETIRED', frequency: 6 }];
+    sections.co_contamination.network.links = [{ source: 'NEW', target: 'RETIRED', value: 6 }];
+    const analytics = buildSurveillanceAnalyticsFromSections(sections);
+    expect(analytics.mycotoxinBarData.map(item => item.shortName)).toEqual(['NEW', 'RETIRED']);
+    expect(analytics.networkData.nodes.every(node => Boolean(node.color))).toBe(true);
+    expect(buildSurveillanceAnalyticsFromSections(dashboardSectionsSchema.parse(emptySections)).mycotoxinBarData).toEqual([]);
+  });
   afterEach(() => {
     vi.useRealTimers();
     vi.unstubAllGlobals();
