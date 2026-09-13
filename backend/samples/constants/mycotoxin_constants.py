@@ -84,8 +84,10 @@ TOXIN_ALIASES = {
     "afg2": "AFG2",
     "aflatoxinm1": "AFM1",
     "afm1": "AFM1",
+    "15acetyldeoxynivalenol": "15ADON",
     "15acetyldon": "15ADON",
     "15adon": "15ADON",
+    "3acetyldeoxynivalenol": "3ADON",
     "3acetyldon": "3ADON",
     "3adon": "3ADON",
     "alternariol": "ALT",
@@ -224,12 +226,22 @@ def resolve_toxin_type(value: str | None) -> str | None:
         return raw
 
     token = normalize_toxin_token(value)
-    if token in TOXIN_ALIASES:
-        return TOXIN_ALIASES[token]
+    if not token:
+        return None
 
-    for alias, toxin_type in TOXIN_ALIASES.items():
+    for code, label in TOXIN_CHOICES:
+        if token in (normalize_toxin_token(code), normalize_toxin_token(label)):
+            return code
+    if token in TOXIN_ALIASES:
+        if TOXIN_ALIASES[token] in VALID_TOXINS:
+            return TOXIN_ALIASES[token]
+        return None
+
+    for alias, toxin_type in sorted(TOXIN_ALIASES.items(), key=lambda item: len(item[0]), reverse=True):
         if alias in token:
-            return toxin_type
+            if toxin_type in VALID_TOXINS:
+                return toxin_type
+            return None
     return None
 
 
@@ -249,14 +261,35 @@ def get_threshold(toxin_type: str) -> dict:
     )
 
 
+def get_toxin_registry() -> dict:
+    """Active input/simulator metadata; historical results keep their own codes."""
+    registry = {}
+    for code, name in TOXIN_CHOICES:
+        if code == 'UNKNOWN':
+            continue
+        threshold = get_threshold(code)
+        registry[code] = {
+            'name': name,
+            'shortName': code,
+            'defaultThreshold': threshold.get('low') if threshold.get('has_data') else None,
+            'maxThreshold': threshold.get('high') if threshold.get('has_data') else None,
+            'unit': threshold.get('unit', 'ug/kg'),
+            'source': threshold.get('source') or 'No threshold data',
+            'isUncertain': not threshold.get('has_data', False),
+        }
+    return registry
+
+
 def get_risk_level(toxin_type: str, value: float | None) -> str:
     """Return safe, detected, high, critical, or unclassified."""
     threshold = EU_THRESHOLDS.get(toxin_type)
-    if not threshold or not threshold["has_data"] or value is None:
+    if not threshold or not threshold.get("has_data") or value is None:
         return "unclassified"
-    if value > threshold["high"]:
+    high = threshold.get("high")
+    low = threshold.get("low")
+    if high is not None and value > high:
         return "critical"
-    if value > threshold["low"]:
+    if low is not None and value > low:
         return "high"
     if value > 0:
         return "detected"

@@ -276,7 +276,9 @@ class DashboardPayloadService:
         elif commodity.lower() in toxin_overrides:
             threshold = float(toxin_overrides[commodity.lower()])
         if threshold is None:
-            threshold = EU_THRESHOLDS.get(result.toxin_type, {}).get('low')
+            threshold_meta = EU_THRESHOLDS.get(result.toxin_type, {})
+            if threshold_meta.get('has_data'):
+                threshold = threshold_meta.get('low')
         return result.value is not None and threshold is not None and result.value > threshold
 
     @classmethod

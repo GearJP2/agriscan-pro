@@ -6,7 +6,7 @@ from django.db import IntegrityError, transaction
 from django.db.models import Count, Q
 from rest_framework.decorators import action
 from rest_framework import filters, status, viewsets
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
 from core.exceptions import SampleAlreadyExists
@@ -14,6 +14,7 @@ from core.models import AuditLog
 from core.permissions import IsAdmin, IsAdminOrHeadResearcher, IsAdminOrResearchRole, IsOwnerOrAdmin
 
 from .filters import apply_sample_filters
+from .constants.mycotoxin_constants import get_toxin_registry
 from .models import PredictionEstimate, ProcessLog, Sample
 from .services.ingestion_service import SampleIngestionService
 from .services.sample_service import SampleService
@@ -78,6 +79,8 @@ class SampleViewSet(viewsets.ModelViewSet):
     lookup_field = 'sample_id'
 
     def get_permissions(self):
+        if self.action == 'mycotoxin_registry':
+            return [AllowAny()]
         if self.action == 'prediction_publish':
             return [IsAuthenticated(), IsAdmin()]
         if self.action in [
@@ -106,6 +109,10 @@ class SampleViewSet(viewsets.ModelViewSet):
         elif self.action in ['create', 'update', 'partial_update']:
             return SampleCreateUpdateSerializer
         return SampleSerializer
+
+    @action(detail=False, methods=['get'], url_path='mycotoxin-registry')
+    def mycotoxin_registry(self, request):
+        return Response(get_toxin_registry())
 
     def get_queryset(self):
         return apply_sample_filters(super().get_queryset(), self.request.query_params)

@@ -289,8 +289,12 @@ class MycotoxinResult(models.Model):
         touched_fields = set()
         if should_snapshot:
             threshold = EU_THRESHOLDS.get(self.toxin_type, {})
-            self.eu_threshold_low = threshold.get('low')
-            self.eu_threshold_high = threshold.get('high')
+            if threshold.get('has_data'):
+                self.eu_threshold_low = threshold.get('low')
+                self.eu_threshold_high = threshold.get('high')
+            else:
+                self.eu_threshold_low = None
+                self.eu_threshold_high = None
             touched_fields.update({'eu_threshold_low', 'eu_threshold_high'})
 
         if should_recalculate:

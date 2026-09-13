@@ -434,6 +434,7 @@ class SampleIngestionService:
                 updated_results.append(existing)
             else:
                 threshold = EU_THRESHOLDS.get(payload["toxin_type"], {})
+                has_data = threshold.get("has_data", False)
                 created_results.append(MycotoxinResult(
                     sample=sample,
                     toxin_type=payload["toxin_type"],
@@ -441,8 +442,8 @@ class SampleIngestionService:
                     unit=payload["unit"],
                     notes=payload["notes"],
                     is_below_lod=payload.get("is_below_lod", False),
-                    eu_threshold_low=threshold.get("low"),
-                    eu_threshold_high=threshold.get("high"),
+                    eu_threshold_low=threshold.get("low") if has_data else None,
+                    eu_threshold_high=threshold.get("high") if has_data else None,
                     risk_level=get_risk_level(payload["toxin_type"], payload["value"]),
                 ))
 

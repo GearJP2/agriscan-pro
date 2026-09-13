@@ -310,7 +310,8 @@ class AnalyticsService:
                 if threshold is None:
                     # Model high/critical risk means value > EU low threshold.
                     eu = EU_THRESHOLDS.get(toxin, {})
-                    threshold = eu.get('low')
+                    if eu.get('has_data'):
+                        threshold = eu.get('low')
 
                 if threshold is not None and val > threshold:
                     is_above = True
