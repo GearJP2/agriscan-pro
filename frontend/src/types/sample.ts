@@ -40,6 +40,7 @@ export interface TestMethod {
 }
 
 export interface MycotoxinResult {
+  value?: number | null;
   toxin_type?: string;
   name: string;
   intensity: number; // Exact measured concentration from lab
@@ -101,6 +102,7 @@ export interface Sample {
   prediction_context?: PredictionContext;
   /** Deprecated compatibility field; new registrations use recorded_by. */
   collected_by?: string;
+  can_record_results?: boolean;
   additional_info?: string;
 }
 

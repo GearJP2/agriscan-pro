@@ -31,6 +31,7 @@ import {
   getThresholdRiskScore,
   hasAboveThresholdResults,
   hasMeasuredResults,
+  hasUnclassifiedResults,
 } from '@/lib/mycotoxinRisk';
 import { cn } from '@/lib/utils';
 import type { Sample } from '@/types/sample';
@@ -155,9 +156,11 @@ const SampleRow = memo(
               <Badge className="bg-danger text-danger-foreground border-danger/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-tight shadow-sm">
                 Positive
               </Badge>
+            ) : hasUnclassifiedResults(sample) ? (
+              <Badge variant="secondary">Unclassified</Badge>
             ) : hasMeasuredResults(sample) ? (
               <Badge className="bg-info text-info-foreground border-info/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-tight shadow-sm">
-                Negative
+                Below Threshold
               </Badge>
             ) : (
               <span className="ml-1 text-[10px] font-medium uppercase tracking-widest text-muted-foreground">

@@ -17,6 +17,7 @@ import type {
 import type { MycotoxinResult, ProcessState, RiskLevel, Sample } from '@/types/sample';
 import {
   getThresholdRiskLevel,
+  getResultName,
   hasAboveThresholdResults,
   hasMeasuredResults,
   isAboveThresholdResult,
@@ -166,13 +167,7 @@ function toPercent(numerator: number, denominator: number) {
 function getShortToxinName(name: string) {
   if (TOXIN_ALIASES[name]) return TOXIN_ALIASES[name];
 
-  const initials = name
-    .split(/\s+/)
-    .map((part) => part[0])
-    .join('')
-    .toUpperCase();
-
-  return initials || name.slice(0, 4).toUpperCase();
+  return name || 'Unknown';
 }
 
 function getToxinColor(shortName: string) {
@@ -313,10 +308,10 @@ function getToxinStats(samples: Sample[], overrides?: Record<string, Record<stri
 
   for (const sample of samples) {
     for (const result of getSampleResults(sample)) {
-      const key = result.name;
+      const key = result.toxin_type || getResultName(result);
       const current = groups.get(key) ?? {
-        name: result.name,
-        shortName: getShortToxinName(result.name),
+        name: getResultName(result),
+        shortName: result.toxin_type || getShortToxinName(getResultName(result)),
         detectedCount: 0,
         dangerousCount: 0,
       };
@@ -365,7 +360,7 @@ function buildProvinceRiskData(samples: Sample[], overrides?: Record<string, Rec
     for (const sample of provinceSamples) {
       commodityCounts.set(sample.vegetation_variety, (commodityCounts.get(sample.vegetation_variety) ?? 0) + 1);
       for (const result of getSampleResults(sample)) {
-        const key = isAboveThresholdResult(result, overrides, sample.vegetation_variety) ? result.name : getShortToxinName(result.name);
+        const key = isAboveThresholdResult(result, overrides, sample.vegetation_variety) ? getResultName(result) : result.toxin_type || getShortToxinName(getResultName(result));
         toxinCounts.set(key, (toxinCounts.get(key) ?? 0) + (isAboveThresholdResult(result, overrides, sample.vegetation_variety) ? 2 : 1));
       }
     }
@@ -449,7 +444,7 @@ function buildPairKey(toxins: string[]) {
 
 function buildCoContamination(samples: Sample[], toxinColors: Record<string, string>) {
   const positiveSamples = samples.filter((sample) => getSampleResults(sample).length > 0);
-  const toxinCounts = positiveSamples.map((sample) => uniqSorted(getSampleResults(sample).map((result) => getShortToxinName(result.name))));
+  const toxinCounts = positiveSamples.map((sample) => uniqSorted(getSampleResults(sample).map((result) => result.toxin_type || getShortToxinName(getResultName(result)))));
   const pairCounts = new Map<string, number>();
   const combinationCounts = new Map<string, { toxins: string[]; count: number }>();
   const toxinFrequency = new Map<string, number>();

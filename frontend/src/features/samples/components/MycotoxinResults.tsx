@@ -2,7 +2,7 @@ import { MycotoxinResult } from '@/types/sample';
 import { AlertTriangle, CheckCircle2, FileText, ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { isAboveThresholdResult } from '@/lib/mycotoxinRisk';
+import { getResultName, getResultValue, isUnclassifiedResult, isAboveThresholdResult } from '@/lib/mycotoxinRisk';
 
 interface MycotoxinResultsProps {
   results?: MycotoxinResult[] | null;
@@ -24,6 +24,7 @@ const MycotoxinResults = ({ results }: MycotoxinResultsProps) => {
         {results.map((result, index) => (
           (() => {
             const isAboveThreshold = isAboveThresholdResult(result);
+            const isUnclassified = isUnclassifiedResult(result);
             return (
           <div
             key={index}
@@ -37,11 +38,15 @@ const MycotoxinResults = ({ results }: MycotoxinResultsProps) => {
             <div className="flex items-start justify-between">
               <div className="flex-1">
                 <div className="flex items-center gap-2">
-                  <h4 className="font-medium text-foreground">{result.name}</h4>
+                  <h4 className="font-medium text-foreground">{getResultName(result)}</h4>
                   {isAboveThreshold ? (
                     <div className="flex items-center gap-1 rounded-full bg-danger/10 px-2 py-0.5 text-xs font-medium text-danger">
                       <AlertTriangle className="h-3 w-3" />
                       Positive
+                    </div>
+                  ) : isUnclassified ? (
+                    <div className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                      {getResultValue(result) === null ? 'Not measured' : 'No threshold data'}
                     </div>
                   ) : (
                     <div className="flex items-center gap-1 rounded-full bg-success/10 px-2 py-0.5 text-xs font-medium text-success">
@@ -77,14 +82,14 @@ const MycotoxinResults = ({ results }: MycotoxinResultsProps) => {
                   'font-semibold',
                   isAboveThreshold ? 'text-danger' : 'text-foreground'
                 )}>
-                  {result.is_below_lod ? `Below LOD (${result.unit})` : `${result.intensity} ${result.unit}`}
+                  {result.is_below_lod ? `Below LOD (${result.unit})` : `${getResultValue(result) ?? '—'} ${result.unit}`}
                 </span>
               </div>
-              {result.threshold !== undefined && result.threshold !== null && (
+              {!isUnclassified && (result.eu_threshold_low ?? result.threshold) != null && (
                 <div className="mt-2 flex items-center justify-between text-xs">
                   <span className="text-muted-foreground">Threshold</span>
                   <span className="font-semibold text-muted-foreground">
-                    {result.threshold} {result.unit}
+                    {result.eu_threshold_low ?? result.threshold} {result.unit}
                   </span>
                 </div>
               )}

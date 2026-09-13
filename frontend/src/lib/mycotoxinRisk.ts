@@ -1,5 +1,5 @@
 import type { MycotoxinResult, RiskLevel, Sample } from '@/types/sample';
-import { MYCOTOXIN_REGISTRY } from '@/constants/mycotoxins';
+import { USER_ROLE_WEIGHT, type UserRole } from '@/types/user';
 
 const ABOVE_THRESHOLD_RISK_LEVELS = new Set(['high', 'critical']);
 const DETECTED_RISK_LEVELS = new Set(['detected', 'high', 'critical']);
@@ -12,25 +12,14 @@ export function isAboveThresholdResult(
   overrides?: Record<string, Record<string, number>>,
   sampleVariety?: string
 ) {
-  // If we have simulation overrides, they take precedence
-  if (overrides) {
-    const toxinCode = result.toxin_type || result.name;
-    const variety = sampleVariety || 'unknown';
-    
-    let threshold = MYCOTOXIN_REGISTRY[toxinCode]?.defaultThreshold;
-    
-    // Check for override
-    if (overrides[toxinCode]) {
-      if (overrides[toxinCode][variety] !== undefined) {
-        threshold = overrides[toxinCode][variety];
-      } else if (overrides[toxinCode][variety.toLowerCase()] !== undefined) {
-        threshold = overrides[toxinCode][variety.toLowerCase()];
-      }
-    }
-
-    if (threshold !== undefined) {
-      return result.intensity > threshold;
-    }
+  const value = getResultValue(result);
+  if (value === null || result.is_below_lod) return false;
+  const toxinCode = result.toxin_type || result.name;
+  const variety = sampleVariety || 'unknown';
+  const threshold = overrides?.[toxinCode]?.[variety]
+    ?? overrides?.[toxinCode]?.[variety.toLowerCase()];
+  if (typeof threshold === 'number' && Number.isFinite(threshold)) {
+    return value > threshold;
   }
 
   // Fallback to existing logic
@@ -42,19 +31,17 @@ export function isAboveThresholdResult(
     return result.dangerous;
   }
 
-  return Boolean(result.threshold && result.threshold > 0 && result.intensity > result.threshold);
+  const storedThreshold = result.eu_threshold_low ?? result.threshold;
+  return storedThreshold != null && value > storedThreshold;
 }
 
 export function isDetectedResult(result: MycotoxinResult) {
-  if (result.risk_level) {
-    return DETECTED_RISK_LEVELS.has(result.risk_level);
-  }
-
-  if (typeof result.is_detected === 'boolean') {
-    return result.is_detected;
-  }
-
-  return result.intensity > 0;
+  if (result.is_below_lod) return false;
+  const value = getResultValue(result);
+  if (value !== null) return value > 0;
+  if (result.value === null) return false;
+  if (typeof result.is_detected === 'boolean') return result.is_detected;
+  return DETECTED_RISK_LEVELS.has(result.risk_level ?? '');
 }
 
 export function hasAboveThresholdResults(
@@ -65,7 +52,9 @@ export function hasAboveThresholdResults(
 }
 
 export function hasMeasuredResults(sample: Sample) {
-  return (sample.mycotoxin_results?.length ?? 0) > 0 || (sample.results_count ?? 0) > 0;
+  return sample.mycotoxin_results != null
+    ? sample.mycotoxin_results.length > 0
+    : (sample.results_count ?? 0) > 0;
 }
 
 export function getThresholdRiskLevel(
@@ -105,7 +94,7 @@ export function getThresholdRiskScore(
   return Math.max(
     ...results.map((result) => {
       const threshold = result.threshold ?? result.eu_threshold_low ?? 0;
-      const ratio = threshold > 0 ? result.intensity / threshold : 0;
+      const ratio = threshold > 0 ? (getResultValue(result) ?? 0) / threshold : 0;
 
       if (isAboveThresholdResult(result, overrides, sample.vegetation_variety)) {
         return 100 + ratio;
@@ -118,4 +107,41 @@ export function getThresholdRiskScore(
       return ratio;
     }),
   );
+}
+
+export function getResultValue(result: MycotoxinResult): number | null {
+  const value = result.value !== undefined ? result.value : result.intensity;
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+export function getResultName(result: MycotoxinResult): string {
+  return result.name || result.toxin_type || 'Unknown toxin';
+}
+
+export function isUnclassifiedResult(result: MycotoxinResult): boolean {
+  if (result.risk_level === 'unclassified' || getResultValue(result) === null) return true;
+  if (result.risk_level) return false;
+  return result.eu_threshold_low == null && result.threshold == null;
+}
+
+export function hasUnclassifiedResults(sample: Sample): boolean {
+  return sample.mycotoxin_results?.some(isUnclassifiedResult) ?? false;
+}
+
+export function canRecordSampleResults(
+  sample: Sample | null,
+  role: UserRole | 'guest',
+  isAdmin: boolean,
+  currentUsername?: string
+): boolean {
+  if (!sample) return false;
+  if (typeof sample.can_record_results === 'boolean') {
+    return sample.can_record_results;
+  }
+  if (isAdmin) return true;
+  if ((USER_ROLE_WEIGHT[role as UserRole] ?? 0) >= USER_ROLE_WEIGHT.researcher) return true;
+  if (role === 'research_assistant' && currentUsername) {
+    return sample.recorded_by === currentUsername || sample.collected_by === currentUsername;
+  }
+  return false;
 }

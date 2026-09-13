@@ -1,5 +1,5 @@
 import { ProcessLog, ProcessState } from '@/types/sample';
-import { format } from 'date-fns';
+import { format, isValid } from 'date-fns';
 import { Package, FlaskConical, Beaker, Microscope, FileCheck, CheckCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -22,7 +22,7 @@ const ProcessTimeline = ({ logs }: ProcessTimelineProps) => {
       <h3 className="text-sm font-semibold text-foreground">Process Log</h3>
       <div className="relative space-y-4">
         {logs.map((log, index) => {
-          const config = stateConfig[log.state];
+          const config = stateConfig[log.state] ?? { icon: FileCheck, label: log.state || 'Unknown step', color: 'text-muted-foreground bg-muted' };
           const Icon = config.icon;
           const isLast = index === logs.length - 1;
           
@@ -38,7 +38,7 @@ const ProcessTimeline = ({ logs }: ProcessTimelineProps) => {
                 <div className="flex items-center justify-between">
                   <p className="font-medium text-foreground">{config.label}</p>
                   <time className="text-xs text-muted-foreground">
-                    {format(new Date(log.timestamp), 'MMM dd, HH:mm')}
+                    {isValid(new Date(log.timestamp)) ? format(new Date(log.timestamp), 'MMM dd, HH:mm') : '—'}
                   </time>
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">
