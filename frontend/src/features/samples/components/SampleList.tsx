@@ -26,19 +26,19 @@ import {
     AlertDialogTitle,
     AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { Sample, FilterState, ProcessLog } from '@/types/sample';
+import { Sample, FilterState, ProcessLog, SampleType, SAMPLE_TYPE_LABELS } from '@/types/sample';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useWatchlist } from '@/hooks/useWatchlist';
 import { USER_ROLE_WEIGHT } from '@/types/user';
-import { sampleAPI } from '@/lib/api';
+import { sampleAPI, invalidateSampleQueries } from '@/lib/api';
 import { getThresholdRiskLevel } from '@/lib/mycotoxinRisk';
-import { AxiosError } from 'axios';
+import type { AxiosError } from 'axios';
 
 import { useDeferredMount } from '@/hooks/useDeferredMount';
 import SampleTableSkeleton from './SampleTableSkeleton';
 import { Badge } from '@/components/ui/badge';
-import { SAMPLE_TYPE_LABELS, SampleType } from '@/types/sample';
+import { useSampleDetailCoordinator } from '../hooks/useSampleDetailCoordinator';
 
 const AddSampleForm = lazy(() => import('./AddSampleForm'));
 const UnifiedImportForm = lazy(() => import('./UnifiedImportForm'));
@@ -65,13 +65,15 @@ const SampleList = () => {
     });
 
     const queryClient = useQueryClient();
+    const invalidateSampleData = () => {
+        invalidateSampleQueries(queryClient);
+    };
 
     // mutations for creation - invalidate both list and dashboard queries
     const createSampleMutation = useMutation({
         mutationFn: (data: Partial<Sample>) => sampleAPI.createSample(data),
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['samples-list'] });
-            queryClient.invalidateQueries({ queryKey: ['samples-dashboard'] });
+            invalidateSampleData();
         },
     });
 
@@ -96,18 +98,14 @@ const SampleList = () => {
             return sampleAPI.bulkCreateSamples(cleanedSamples);
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['samples-list'] });
-            queryClient.invalidateQueries({ queryKey: ['dashboard-aggregate'] });
-            queryClient.invalidateQueries({ queryKey: ['dashboard-aggregate-fallback'] });
+            invalidateSampleData();
         },
     });
 
     const bulkDeleteSamplesMutation = useMutation({
         mutationFn: (sampleIds: string[]) => sampleAPI.bulkDeleteSamples(sampleIds),
         onSuccess: (data) => {
-            queryClient.invalidateQueries({ queryKey: ['samples-list'] });
-            queryClient.invalidateQueries({ queryKey: ['dashboard-aggregate'] });
-            queryClient.invalidateQueries({ queryKey: ['dashboard-aggregate-fallback'] });
+            invalidateSampleData();
             const notFoundMsg = data.not_found?.length
                 ? ` (${data.not_found.length} IDs not found)`
                 : '';
@@ -129,9 +127,7 @@ const SampleList = () => {
     const generateTestSamplesMutation = useMutation({
         mutationFn: (seed?: number) => sampleAPI.generateTestSamples(seed),
         onSuccess: (data) => {
-            queryClient.invalidateQueries({ queryKey: ['samples-list'] });
-            queryClient.invalidateQueries({ queryKey: ['dashboard-aggregate'] });
-            queryClient.invalidateQueries({ queryKey: ['dashboard-aggregate-fallback'] });
+            invalidateSampleData();
             toast({
                 title: 'Test Data Generated',
                 description: `Successfully created ${data.created} samples (${data.positive} positive, ${data.negative} negative).`,
@@ -150,9 +146,7 @@ const SampleList = () => {
     const deleteTestSamplesMutation = useMutation({
         mutationFn: () => sampleAPI.deleteTestSamples(),
         onSuccess: (data) => {
-            queryClient.invalidateQueries({ queryKey: ['samples-list'] });
-            queryClient.invalidateQueries({ queryKey: ['dashboard-aggregate'] });
-            queryClient.invalidateQueries({ queryKey: ['dashboard-aggregate-fallback'] });
+            invalidateSampleData();
             toast({
                 title: 'Test Data Purged',
                 description: `Successfully deleted ${data.deleted} test samples.`,
@@ -232,8 +226,16 @@ const SampleList = () => {
     const samples = useMemo<Sample[]>(() => {
         return samplesData?.results || samplesData || [];
     }, [samplesData]);
-    const [selectedSample, setSelectedSample] = useState<Sample | null>(null);
-    const [modalOpen, setModalOpen] = useState(false);
+    const {
+        selectedSample,
+        modalOpen,
+        handleSelectSample,
+        handleMycotoxinResultChange,
+        handleOpenChange,
+    } = useSampleDetailCoordinator({
+        samples,
+        invalidateSampleData,
+    });
 
     const activeFilters = useMemo(() => {
         const chips: { key: keyof FilterState; value: string; label: string }[] = [];
@@ -387,20 +389,6 @@ const SampleList = () => {
         return { total, flagged, completed, inProgress };
     }, [samples]);
 
-    const handleSelectSample = (sample: Sample) => {
-        // Find the latest sample data from the samples list to ensure we show current data
-        const currentSample = samples.find(s => s.sample_id === sample.sample_id) || sample;
-        setSelectedSample(currentSample);
-        setModalOpen(true);
-        
-        // Refetch the individual sample to ensure latest process logs and data
-        sampleAPI.getSampleDetail(currentSample.sample_id).then(updatedSample => {
-            setSelectedSample(updatedSample);
-        }).catch(err => {
-            console.error('Failed to fetch sample details:', err);
-        });
-    };
-
     // Map process state to sample status
     const getStatusFromProcessState = (state: ProcessLog['state']): Sample['status'] => {
         switch (state) {
@@ -420,24 +408,11 @@ const SampleList = () => {
 
     const handleUpdateSample = async (sampleId: string, newLog: ProcessLog) => {
         await sampleAPI.addProcessLog(sampleId, newLog);
-        queryClient.invalidateQueries({ queryKey: ['samples-list'] });
-        queryClient.invalidateQueries({ queryKey: ['samples-dashboard'] });
+        invalidateSampleData();
     };
 
     const handleImportResultsSuccess = () => {
-        queryClient.invalidateQueries({ queryKey: ['samples-list'] });
-        queryClient.invalidateQueries({ queryKey: ['samples-dashboard'] });
-    };
-
-    const handleMycotoxinResultChange = async (sampleId: string) => {
-        queryClient.invalidateQueries({ queryKey: ['samples-list'] });
-        queryClient.invalidateQueries({ queryKey: ['samples-dashboard'] });
-        try {
-            const updated = await sampleAPI.getSampleDetail(sampleId);
-            setSelectedSample(updated);
-        } catch (err) {
-            console.error('Failed to refresh sample after mycotoxin result change:', err);
-        }
+        invalidateSampleData();
     };
 
     return (
@@ -613,12 +588,7 @@ const SampleList = () => {
                     <SampleDetailModal
                         sample={selectedSample}
                         open={modalOpen}
-                        onOpenChange={(open) => {
-                            if (!open) {
-                                setSelectedSample(null);
-                            }
-                            setModalOpen(open);
-                        }}
+                        onOpenChange={handleOpenChange}
                         onUpdateSample={handleUpdateSample}
                         onMycotoxinResultChange={handleMycotoxinResultChange}
                     />

@@ -44,6 +44,28 @@ class IsAdminOrHeadResearcher(permissions.BasePermission):
         return _is_authenticated_with_role(request.user, ADMIN_OR_HEAD_RESEARCHER_ROLES)
 
 
+def check_can_edit_sample(user, obj) -> bool:
+    """Return True if user has permission to write/edit/record results on the sample."""
+    if not user or not getattr(user, "is_authenticated", False):
+        return False
+
+    if getattr(user, "is_superuser", False) or getattr(user, "is_staff", False):
+        return True
+
+    role = getattr(user, "role", None)
+    if role in ["admin", "head_researcher", "researcher"]:
+        return True
+
+    if role == "research_assistant":
+        return (
+            getattr(obj, "updated_by", None) == user
+            or getattr(obj, "collected_by", None) == getattr(user, "username", None)
+            or getattr(obj, "recorded_by", None) == user
+        )
+
+    return False
+
+
 class IsOwnerOrAdmin(permissions.BasePermission):
     """
     View- and object-level permission for sample data.
@@ -57,13 +79,9 @@ class IsOwnerOrAdmin(permissions.BasePermission):
         return _is_authenticated_with_role(request.user, SAMPLE_ACCESS_ROLES)
 
     def has_object_permission(self, request, view, obj):
-        # Admin, Head Researcher, and Researcher have full access to any lab work
-        if request.user.role in ["admin", "head_researcher", "researcher"]:
-            return True
-
         # Read permissions are allowed to any authenticated user
         if request.method in permissions.SAFE_METHODS:
             return True
 
         # Others (Research Assistant, etc.) can only edit if they are the owner/collected_by
-        return obj.updated_by == request.user or obj.collected_by == request.user.username
+        return check_can_edit_sample(request.user, obj)

@@ -42,7 +42,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { sampleAPI } from '@/lib/api';
+import { sampleAPI, invalidateSampleQueries } from '@/lib/api';
 import { getDetectedMycotoxinHeaders, hasAnyMycotoxinColumns, parseResearchDataFile } from '@/lib/dataImport';
 import { Sample, PROCESSING_TYPES, PROCESSING_TYPE_LABELS, ProcessingType } from '@/types/sample';
 import { getAllProvinces, getDistrictsByProvince, getRegionByProvince } from '@/data/thailandLocations';
@@ -1266,11 +1266,7 @@ const AddSampleForm = ({ onSuccess }: AddSampleFormProps) => {
       setFailedRows(failureDetails);
 
       if (successCount > 0) {
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ['samples-list'] }),
-          queryClient.invalidateQueries({ queryKey: ['dashboard-aggregate'] }),
-          queryClient.invalidateQueries({ queryKey: ['dashboard-aggregate-fallback'] }),
-        ]);
+        invalidateSampleQueries(queryClient);
       }
 
       if (successCount > 0) {

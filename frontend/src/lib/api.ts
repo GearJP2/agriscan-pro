@@ -260,8 +260,8 @@ export const sampleAPI = {
     return response.data;
   },
 
-  async getSampleDetail(sampleId: string) {
-    const response = await apiClient.get(`/samples/${sampleId}/`);
+  async getSampleDetail(sampleId: string, signal?: AbortSignal) {
+    const response = await apiClient.get(`/samples/${sampleId}/`, { signal });
     return response.data;
   },
 
@@ -569,5 +569,18 @@ export const notificationAPI = {
     return response.data;
   },
 };
+
+export const SAMPLE_DATA_QUERY_KEYS = [
+  'samples-list',
+  'dashboard-aggregate',
+  'dashboard-aggregate-fallback',
+  'surveillance-environmental-correlation',
+] as const;
+
+export function invalidateSampleQueries(queryClient: { invalidateQueries: (options: { queryKey: readonly unknown[] }) => Promise<unknown> }) {
+  for (const key of SAMPLE_DATA_QUERY_KEYS) {
+    void queryClient.invalidateQueries({ queryKey: [key] });
+  }
+}
 
 export default apiClient;

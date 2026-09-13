@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Sample, ProcessLog, PROCESSING_TYPE_LABELS, ProcessingType } from '@/types/sample';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -14,8 +14,13 @@ import MycotoxinResults from './MycotoxinResults';
 import AdminStatusApproval from './AdminStatusApproval';
 import MycotoxinForm from './MycotoxinForm';
 import { useAuth } from '@/contexts/AuthContext';
-import { hasAboveThresholdResults, hasMeasuredResults } from '@/lib/mycotoxinRisk';
-import { USER_ROLE_WEIGHT } from '@/types/user';
+import {
+  canRecordSampleResults,
+  hasAboveThresholdResults,
+  hasMeasuredResults,
+  hasUnclassifiedResults,
+} from '@/lib/mycotoxinRisk';
+import { USER_ROLE_WEIGHT, UserRole } from '@/types/user';
 
 interface SampleDetailModalProps {
   sample: Sample | null;
@@ -31,7 +36,11 @@ const SampleDetailModal = ({ sample, open, onOpenChange, onUpdateSample, onMycot
   const [showTimeline, setShowTimeline] = useState(false);
   const [showResults, setShowResults] = useState(true);
   const [showMycotoxinForm, setShowMycotoxinForm] = useState(false);
-  const { isAdmin, role } = useAuth();
+  const { isAdmin, role, user } = useAuth();
+
+  useEffect(() => {
+    setShowMycotoxinForm(false);
+  }, [sample?.sample_id]);
 
   if (!sample) return null;
 
@@ -44,7 +53,9 @@ const SampleDetailModal = ({ sample, open, onOpenChange, onUpdateSample, onMycot
 
   const hasPositiveResults = hasAboveThresholdResults(sample);
   const hasResults = hasMeasuredResults(sample);
-  const canUsePredictionTools = USER_ROLE_WEIGHT[role] >= USER_ROLE_WEIGHT.researcher;
+  const hasUnclassified = hasUnclassifiedResults(sample);
+  const canUsePredictionTools = (USER_ROLE_WEIGHT[role as UserRole] ?? 0) >= USER_ROLE_WEIGHT.researcher;
+  const canRecordResults = canRecordSampleResults(sample, role, isAdmin, user?.username);
   const predictionContext = sample.prediction_context;
   const predictionContextCount = [
     predictionContext?.location_type && predictionContext.location_type !== 'unknown',
@@ -100,12 +111,15 @@ const SampleDetailModal = ({ sample, open, onOpenChange, onUpdateSample, onMycot
       )}>
         <div className="flex items-center gap-2">
           <Icon className={cn("h-4 w-4", isDangerous ? "text-danger" : "text-primary")} />
-          <span className="font-medium text-sm">{title}</span>
+          <span className="font-semibold text-foreground text-sm">{title}</span>
           {badge}
         </div>
-        <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        <ChevronDown className={cn(
+          "h-4 w-4 text-muted-foreground transition-transform duration-200",
+          isOpen && "rotate-180"
+        )} />
       </CollapsibleTrigger>
-      <CollapsibleContent className="pt-3">
+      <CollapsibleContent className="pt-2">
         {children}
       </CollapsibleContent>
     </Collapsible>
@@ -113,17 +127,12 @@ const SampleDetailModal = ({ sample, open, onOpenChange, onUpdateSample, onMycot
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto sm:rounded-2xl duration-200 ease-&lsqb;cubic-bezier(0.4,0,0.2,1)&rsqb; border-primary/10">
-        <DialogHeader className="relative overflow-hidden pt-8 pb-4 animate-in fade-in slide-in-from-top-1 duration-200">
-          <div className="absolute top-0 right-0 p-4 opacity-10 pointer-events-none">
-            <Leaf className="h-24 w-24 -rotate-12" />
-          </div>
-          <div className="flex flex-col gap-1 relative z-10">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl">
+        <DialogHeader className="border-b pb-4">
+          <div className="flex flex-col gap-1">
             <div className="flex items-center gap-3">
-              <DialogTitle className="text-3xl font-black tracking-tight text-primary">
-                {sample.sample_id}
-              </DialogTitle>
-              <Badge variant={sample.status} className="rounded-full px-3 py-0.5 font-bold uppercase tracking-wider text-[10px]">
+              <DialogTitle className="text-2xl font-bold tracking-tight text-foreground">{sample.sample_id}</DialogTitle>
+              <Badge variant={sample.status === 'flagged' ? 'destructive' : 'outline'} className="capitalize font-semibold text-xs">
                 {statusLabels[sample.status]}
               </Badge>
             </div>
@@ -188,23 +197,39 @@ const SampleDetailModal = ({ sample, open, onOpenChange, onUpdateSample, onMycot
                 {/* Risk Status */}
                 <div className={cn(
                   "flex flex-col gap-1 p-3 rounded-xl border shadow-sm transition-all",
-                  hasPositiveResults ? "bg-danger/[0.03] border-danger/20" : hasResults ? "bg-success/[0.03] border-success/20" : "bg-background border-border"
+                  hasPositiveResults ? "bg-danger/[0.03] border-danger/20" : !hasUnclassified && hasResults ? "bg-success/[0.03] border-success/20" : "bg-background border-border"
                 )}>
-                  <div className="flex items-center gap-2 mb-1">
-                    {hasPositiveResults ? (
-                      <AlertTriangle className="h-4 w-4 text-danger animate-pulse" />
-                    ) : hasResults ? (
-                      <CheckCircle2 className="h-4 w-4 text-success" />
-                    ) : (
-                      <Beaker className="h-4 w-4 text-muted-foreground opacity-70" />
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <div className="flex items-center gap-2">
+                      {hasPositiveResults ? (
+                        <AlertTriangle className="h-4 w-4 text-danger animate-pulse" />
+                      ) : !hasUnclassified && hasResults ? (
+                        <CheckCircle2 className="h-4 w-4 text-success" />
+                      ) : (
+                        <Beaker className="h-4 w-4 text-muted-foreground opacity-70" />
+                      )}
+                      <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-tighter">Mycotoxin Status</span>
+                    </div>
+                    {canRecordResults && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-6 px-2 text-xs font-semibold text-primary border-primary/30 hover:bg-primary/10 gap-1 -mr-1"
+                        onClick={() => {
+                          setShowResults(true);
+                          setShowMycotoxinForm(true);
+                        }}
+                      >
+                        <Plus className="h-3 w-3" />
+                        บันทึกผลตรวจ
+                      </Button>
                     )}
-                    <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-tighter">Mycotoxin Status</span>
                   </div>
                   <p className={cn(
                     "font-bold text-sm",
-                    hasPositiveResults ? "text-danger" : hasResults ? "text-success" : "text-muted-foreground"
+                    hasPositiveResults ? "text-danger" : !hasUnclassified && hasResults ? "text-success" : "text-muted-foreground"
                   )}>
-                    {hasPositiveResults ? 'Positive (Above Threshold)' : hasResults ? 'Stable (Below Threshold)' : 'Awaiting Test'}
+                    {hasPositiveResults ? 'Positive (Above Threshold)' : hasUnclassified ? 'Threshold data incomplete' : hasResults ? 'Stable (Below Threshold)' : 'Awaiting Test'}
                   </p>
                 </div>
 
@@ -263,7 +288,7 @@ const SampleDetailModal = ({ sample, open, onOpenChange, onUpdateSample, onMycot
             )}
 
             {/* Add Mycotoxin Result Form */}
-            {isAdmin && (
+            {canRecordResults && (
               <div className="space-y-3">
                 {showMycotoxinForm ? (
                   <MycotoxinForm
@@ -277,11 +302,11 @@ const SampleDetailModal = ({ sample, open, onOpenChange, onUpdateSample, onMycot
                 ) : (
                   <Button
                     onClick={() => setShowMycotoxinForm(true)}
-                    variant="outline"
-                    className="w-full gap-2"
+                    variant="default"
+                    className="w-full gap-2 shadow-sm font-semibold"
                   >
                     <Plus className="h-4 w-4" />
-                    Add Test Result
+                    บันทึกผลตรวจ (Record Test Result)
                   </Button>
                 )}
               </div>

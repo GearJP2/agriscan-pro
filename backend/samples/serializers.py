@@ -4,6 +4,7 @@ from .constants.mycotoxin_constants import (
     TOXIN_LABELS,
     resolve_toxin_type,
 )
+from core.permissions import check_can_edit_sample
 from .models import MycotoxinResult, PredictionContext, PredictionEstimate, ProcessLog, Sample
 from .utils import generate_sequential_sample_id, extract_sequence_from_sample_id
 
@@ -338,6 +339,7 @@ class SampleSerializer(serializers.ModelSerializer):
     mycotoxin_results = MycotoxinResultSerializer(many=True, read_only=True)
     recorded_by = serializers.CharField(source='recorded_by.username', read_only=True)
     prediction_context = PredictionContextSerializer(read_only=True)
+    can_record_results = serializers.SerializerMethodField()
 
     class Meta:
         model = Sample
@@ -359,6 +361,8 @@ class SampleSerializer(serializers.ModelSerializer):
             'sample_type',
             'processing_type',
             'recorded_by',
+            'collected_by',
+            'can_record_results',
             'additional_info',
             'prediction_context',
             'process_logs',
@@ -366,7 +370,15 @@ class SampleSerializer(serializers.ModelSerializer):
             'created_at',
             'updated_at',
         )
-        read_only_fields = ('id', 'received_at', 'recorded_by', 'created_at', 'updated_at')
+        read_only_fields = (
+            'id', 'received_at', 'recorded_by', 'collected_by',
+            'can_record_results', 'created_at', 'updated_at',
+        )
+
+    def get_can_record_results(self, obj) -> bool:
+        request = self.context.get('request')
+        user = getattr(request, 'user', None) if request else None
+        return check_can_edit_sample(user, obj)
 
 
 class SampleCreateUpdateSerializer(serializers.ModelSerializer):
@@ -519,6 +531,7 @@ class SampleListSerializer(serializers.ModelSerializer):
     mycotoxin_results = MycotoxinResultSerializer(many=True, read_only=True)
     results_count = serializers.SerializerMethodField()
     recorded_by = serializers.CharField(source='recorded_by.username', read_only=True)
+    can_record_results = serializers.SerializerMethodField()
 
     class Meta:
         model = Sample
@@ -534,12 +547,18 @@ class SampleListSerializer(serializers.ModelSerializer):
             'collection_date',
             'received_at',
             'recorded_by',
+            'can_record_results',
             'status',
             'risk_level',
             'results_count',
             'mycotoxin_results',
             'process_logs',
         )
+
+    def get_can_record_results(self, obj) -> bool:
+        request = self.context.get('request')
+        user = getattr(request, 'user', None) if request else None
+        return check_can_edit_sample(user, obj)
 
     def get_risk_level(self, obj):
         # Optimization: Use pre-fetched data to avoid DB hits per row (Django Expert)
