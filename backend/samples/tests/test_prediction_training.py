@@ -1,5 +1,6 @@
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest import skipUnless
 
 from django.test import SimpleTestCase
 
@@ -7,6 +8,14 @@ from ..services.prediction_training_service import (
     PredictionTrainingConfig,
     PredictionTrainingService,
 )
+
+try:
+    import joblib  # noqa: F401
+    import sklearn  # noqa: F401
+    HAS_SKLEARN = True
+except ImportError:
+    HAS_SKLEARN = False
+
 
 
 class PredictionTrainingServiceTests(SimpleTestCase):
@@ -60,6 +69,7 @@ class PredictionTrainingServiceTests(SimpleTestCase):
         self.assertIn('collection_month_sin', features)
         self.assertIn('collection_month_cos', features)
 
+    @skipUnless(HAS_SKLEARN, 'Requires scikit-learn and joblib')
     def test_train_rows_saves_scaled_detection_pipeline_metadata(self):
         rows = []
         for index in range(80):
