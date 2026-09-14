@@ -15,6 +15,8 @@ import { cn } from '@/lib/utils';
 interface FilterBarProps {
   filters: FilterState;
   onFilterChange: (filters: FilterState) => void;
+  embedded?: boolean;
+  className?: string;
 }
 
 const statusLabels: Record<string, string> = {
@@ -54,36 +56,36 @@ const FilterPill = ({
             variant="outline"
             size="sm"
             className={cn(
-              "w-full rounded-full h-9 px-4 text-[12px] font-semibold transition-all duration-300 border justify-between",
+              "w-full rounded-full h-10 px-4 text-xs font-bold tracking-normal transition-all duration-200 border justify-between font-sans active:scale-[0.98]",
               hasSelected
-                ? "bg-primary/10 border-primary/40 text-primary shadow-sm shadow-primary/10"
-                : "bg-background border-border/60 text-foreground/70 hover:bg-accent hover:text-foreground hover:border-border"
+                ? "bg-gfs-maroon text-white border-gfs-maroon shadow-sm"
+                : "bg-white/80 dark:bg-slate-900/80 border-gfs-maroon/20 text-gfs-text-primary dark:text-slate-200 hover:border-gfs-maroon/50 hover:bg-gfs-maroon/5"
             )}
           >
             <div className="flex items-center">
               {hasSelected && (
-                <span className="relative flex h-1.5 w-1.5 mr-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-primary"></span>
+                <span className="relative flex h-2 w-2 mr-1.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-gfs-gold opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-gfs-gold"></span>
                 </span>
               )}
               {title}
               {hasSelected && (
-                <span className="ml-1.5 font-bold opacity-100">({selectedCount})</span>
+                <span className="ml-1 text-gfs-gold font-bold">({selectedCount})</span>
               )}
             </div>
             <ChevronDown className={cn(
               "h-3.5 w-3.5 transition-transform duration-300",
-              hasSelected ? "text-primary opacity-80" : "text-muted-foreground opacity-60"
+              hasSelected ? "text-gfs-gold" : "text-gfs-text-muted opacity-70"
             )} />
           </Button>
         </PopoverTrigger>
         <PopoverContent 
           side="bottom" 
-          sideOffset={10} 
+          sideOffset={8} 
           align="start" 
           avoidCollisions={false}
-          className="w-64 p-2 bg-white dark:bg-slate-900 border border-border/40 rounded-2xl shadow-2xl z-[110] animate-in fade-in zoom-in-95 duration-200"
+          className="w-64 p-2 bg-white dark:bg-slate-900 border border-gfs-maroon/20 rounded-gfs-card shadow-gfs-modal z-[110] animate-in fade-in zoom-in-95 duration-200 font-sans"
         >
           <div className="max-h-[380px] overflow-y-auto pr-1 custom-scrollbar space-y-1">
             {[...items].sort((a, b) => labelFn(a).localeCompare(labelFn(b))).map((item) => {
@@ -96,16 +98,18 @@ const FilterPill = ({
                     onToggleFilter(filterKey, item);
                   }}
                   className={cn(
-                    "flex items-center gap-2.5 px-3 py-2.5 rounded-xl cursor-pointer text-[12px] font-semibold transition-all",
-                    isChecked ? "bg-primary/10 text-primary" : "hover:bg-accent text-foreground/70 hover:text-foreground"
+                    "flex items-center gap-2.5 px-3 py-2 rounded-xl cursor-pointer text-xs font-medium transition-all",
+                    isChecked
+                      ? "bg-gfs-maroon/10 text-gfs-maroon dark:text-gfs-gold font-bold"
+                      : "hover:bg-gfs-maroon/5 text-gfs-text-primary dark:text-slate-200"
                   )}
                 >
                   <Checkbox
                     checked={isChecked}
                     onCheckedChange={() => {}} // Controlled by div onClick
                     className={cn(
-                      "h-3.5 w-3.5 rounded border-border/40 pointer-events-none",
-                      isChecked && "bg-primary border-primary"
+                      "h-3.5 w-3.5 rounded border-gfs-maroon/30 pointer-events-none data-[state=checked]:bg-gfs-maroon data-[state=checked]:border-gfs-maroon data-[state=checked]:text-white",
+                      isChecked && "bg-gfs-maroon border-gfs-maroon"
                     )}
                   />
                   <span className="flex-1">{labelFn(item)}</span>
@@ -119,7 +123,7 @@ const FilterPill = ({
   );
 };
 
-const FilterBar = ({ filters, onFilterChange }: FilterBarProps) => {
+const FilterBar = ({ filters, onFilterChange, embedded = false, className }: FilterBarProps) => {
   const { watchlistCount } = useWatchlist();
 
   const toggleArrayFilter = (key: FilterKey, value: string) => {
@@ -156,79 +160,91 @@ const FilterBar = ({ filters, onFilterChange }: FilterBarProps) => {
     (filters.dateTo ? 1 : 0);
 
   return (
-    <div className="space-y-4 rounded-2xl border border-border/40 bg-card p-4 shadow-sm">
+    <div
+      className={cn(
+        "space-y-4 font-sans",
+        !embedded
+          ? "rounded-gfs-card border border-gfs-maroon/15 dark:border-white/10 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl p-5 shadow-gfs-card"
+          : "",
+        className
+      )}
+    >
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-2 text-xs font-black text-foreground/80 uppercase tracking-widest">
-          <Filter className="h-3.5 w-3.5 text-primary" />
-          <span>Surveillance Filters</span>
-          {activeFilterCount > 0 && (
-            <Badge className="h-5 px-1.5 text-[10px] font-black bg-primary text-primary-foreground">
-              {activeFilterCount}
-            </Badge>
-          )}
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-xl bg-gfs-maroon/10 dark:bg-gfs-gold/15 text-gfs-maroon dark:text-gfs-gold">
+            <Filter className="h-4 w-4" />
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-bold text-gfs-maroon dark:text-white tracking-tight uppercase">Surveillance Filters</span>
+            {activeFilterCount > 0 && (
+              <Badge className="h-5 px-2 text-[10px] font-bold bg-gfs-maroon text-white dark:bg-gfs-gold dark:text-gfs-maroon rounded-full">
+                {activeFilterCount}
+              </Badge>
+            )}
+          </div>
         </div>
         
         <div className="flex items-center gap-2">
-            {activeFilterCount > 0 && (
+          {activeFilterCount > 0 && (
             <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={clearFilters} 
-                className="h-8 text-[10px] font-black uppercase tracking-wider text-muted-foreground hover:text-danger hover:bg-danger/5 transition-all"
+              variant="ghost" 
+              size="sm" 
+              onClick={clearFilters} 
+              className="h-8 rounded-full px-3 text-xs font-bold text-gfs-maroon dark:text-gfs-gold hover:bg-gfs-maroon/5 transition-all"
             >
-                <X className="mr-1.5 h-3 w-3" />
-                Clear All
+              <X className="mr-1.5 h-3.5 w-3.5" />
+              Clear All
             </Button>
-            )}
+          )}
         </div>
       </div>
 
       {/* Top Row: Search and Dates */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[280px]">
-          <Search className="absolute left-3.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/60" />
+          <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-gfs-maroon/50 dark:text-gfs-gold/60" />
           <Input
             placeholder="Search by Sample ID or Variety..."
             value={filters.search}
             onChange={(e) => onFilterChange({ ...filters, search: e.target.value })}
-            className="h-10 pl-10 pr-4 bg-muted/30 border-border/40 rounded-2xl text-[13px] font-medium placeholder:text-muted-foreground/50 focus:ring-2 focus:ring-primary/20 transition-all"
+            className="h-11 pl-11 pr-4 bg-gfs-canvas/50 dark:bg-slate-800/60 border border-gfs-maroon/20 dark:border-white/10 rounded-full text-xs font-medium placeholder:text-gfs-text-muted/60 text-gfs-text-primary dark:text-white focus-visible:ring-2 focus-visible:ring-gfs-gold/40 focus-visible:border-gfs-maroon transition-all"
           />
         </div>
 
         <div className="flex items-center gap-2">
-            <Popover>
-                <PopoverTrigger asChild>
-                    <Button variant="outline" className="h-10 gap-2 rounded-2xl border-border/40 bg-muted/30 px-4 text-[12px] font-bold text-muted-foreground hover:bg-accent hover:text-foreground transition-all">
-                    <CalendarIcon className="h-3.5 w-3.5 opacity-60" />
-                    {filters.dateFrom ? format(new Date(filters.dateFrom), 'MMM dd, yyyy') : 'Start Date'}
-                    </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0 rounded-2xl border-border/40 shadow-2xl" align="end">
-                    <Calendar
-                    mode="single"
-                    selected={filters.dateFrom ? new Date(filters.dateFrom) : undefined}
-                    onSelect={(date) => onFilterChange({ ...filters, dateFrom: date ? format(date, 'yyyy-MM-dd') : null })}
-                    initialFocus
-                    />
-                </PopoverContent>
-            </Popover>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className="h-11 gap-2 rounded-full border border-gfs-maroon/20 dark:border-white/10 bg-white/80 dark:bg-slate-900/80 px-5 text-xs font-bold text-gfs-text-primary dark:text-slate-200 hover:border-gfs-maroon/50 hover:bg-gfs-maroon/5 transition-all">
+                <CalendarIcon className="h-3.5 w-3.5 text-gfs-maroon dark:text-gfs-gold" />
+                {filters.dateFrom ? format(new Date(filters.dateFrom), 'MMM dd, yyyy') : 'Start Date'}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0 rounded-gfs-card border border-gfs-maroon/20 shadow-gfs-modal overflow-hidden bg-white dark:bg-slate-900" align="end">
+              <Calendar
+                mode="single"
+                selected={filters.dateFrom ? new Date(filters.dateFrom) : undefined}
+                onSelect={(date) => onFilterChange({ ...filters, dateFrom: date ? format(date, 'yyyy-MM-dd') : null })}
+                initialFocus
+              />
+            </PopoverContent>
+          </Popover>
 
-            <Popover>
-                <PopoverTrigger asChild>
-                    <Button variant="outline" className="h-10 gap-2 rounded-2xl border-border/40 bg-muted/30 px-4 text-[12px] font-bold text-muted-foreground hover:bg-accent hover:text-foreground transition-all">
-                    <CalendarIcon className="h-3.5 w-3.5 opacity-60" />
-                    {filters.dateTo ? format(new Date(filters.dateTo), 'MMM dd, yyyy') : 'End Date'}
-                    </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0 rounded-2xl border-border/40 shadow-2xl" align="end">
-                    <Calendar
-                    mode="single"
-                    selected={filters.dateTo ? new Date(filters.dateTo) : undefined}
-                    onSelect={(date) => onFilterChange({ ...filters, dateTo: date ? format(date, 'yyyy-MM-dd') : null })}
-                    initialFocus
-                    />
-                </PopoverContent>
-            </Popover>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className="h-11 gap-2 rounded-full border border-gfs-maroon/20 dark:border-white/10 bg-white/80 dark:bg-slate-900/80 px-5 text-xs font-bold text-gfs-text-primary dark:text-slate-200 hover:border-gfs-maroon/50 hover:bg-gfs-maroon/5 transition-all">
+                <CalendarIcon className="h-3.5 w-3.5 text-gfs-maroon dark:text-gfs-gold" />
+                {filters.dateTo ? format(new Date(filters.dateTo), 'MMM dd, yyyy') : 'End Date'}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0 rounded-gfs-card border border-gfs-maroon/20 shadow-gfs-modal overflow-hidden bg-white dark:bg-slate-900" align="end">
+              <Calendar
+                mode="single"
+                selected={filters.dateTo ? new Date(filters.dateTo) : undefined}
+                onSelect={(date) => onFilterChange({ ...filters, dateTo: date ? format(date, 'yyyy-MM-dd') : null })}
+                initialFocus
+              />
+            </PopoverContent>
+          </Popover>
         </div>
       </div>
 
