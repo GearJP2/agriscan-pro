@@ -1,5 +1,7 @@
+import hashlib
 import re
-from django.db import transaction
+
+from django.db import connection, models, transaction
 from django.utils import timezone
 
 from .models import Sample
@@ -27,17 +29,25 @@ def generate_sequential_sample_id(collection_date=None, sub_type=None):
     prefix = f'{_sub_type_prefix(sub_type)}-{target_year}-'
 
     with transaction.atomic():
-        existing = list(
-            Sample.objects.select_for_update()
-            .filter(sample_id__startswith=prefix)
-            .values_list('sample_id', 'sequence_number')
+        if connection.vendor == 'postgresql':
+            # Lock the namespace even when it has no rows; callers insert in this transaction.
+            lock_key = int.from_bytes(hashlib.sha256(prefix.encode()).digest()[:8], 'big', signed=True)
+            with connection.cursor() as cursor:
+                cursor.execute('SELECT pg_advisory_xact_lock(%s)', [lock_key])
+
+        # Fast aggregate query using database index (O(1) in-memory)
+        max_seq = (
+            Sample.objects.filter(sample_id__startswith=prefix)
+            .aggregate(max_val=models.Max('sequence_number'))['max_val']
+            or 0
         )
 
-        max_seq = 0
-        for sample_id, seq in existing:
-            if seq and int(seq) > max_seq:
-                max_seq = int(seq)
-            parsed = extract_sequence_from_sample_id(sample_id, target_year)
+        # Fallback only for unmigrated legacy rows where sequence_number == 0
+        legacy_zero_seqs = Sample.objects.filter(
+            sample_id__startswith=prefix, sequence_number=0
+        ).values_list('sample_id', flat=True)
+        for sid in legacy_zero_seqs:
+            parsed = extract_sequence_from_sample_id(sid, target_year)
             if parsed > max_seq:
                 max_seq = parsed
 
