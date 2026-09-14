@@ -1,7 +1,9 @@
-from datetime import date
+from datetime import date, timedelta
 from unittest.mock import Mock, patch
 
 from django.test import TestCase
+from django.utils import timezone
+import requests
 
 from ..models import ExternalDataCache
 from ..services.prediction_weather_service import (
@@ -70,3 +72,31 @@ class PredictionWeatherServiceTests(TestCase):
         self.assertEqual(first, second)
         self.assertEqual(get.call_count, 1)
         self.assertTrue(ExternalDataCache.objects.filter(source=PREDICTION_WEATHER_SOURCE).exists())
+
+    def test_get_features_falls_back_to_stale_cache_when_api_fails(self):
+        collection_date = date(2026, 7, 2)
+        params = PredictionWeatherService.build_request_params('Bangkok', collection_date)
+        cache_key = PredictionWeatherService.cache_key(params)
+        stale_features = {
+            'weather_temperature_c_mean_90d': 29.5,
+            'weather_humidity_pct_mean_90d': 72.0,
+            'weather_precipitation_mm_total_90d': 120.0,
+            'weather_soil_temperature_c_mean_90d': 28.0,
+            'weather_days_observed_90d': 90,
+            'weather_location_label': 'Bangkok',
+        }
+        ExternalDataCache.objects.create(
+            source=PREDICTION_WEATHER_SOURCE,
+            cache_key=cache_key,
+            payload=stale_features,
+            expires_at=timezone.now() - timedelta(days=1),
+        )
+
+        with patch(
+            'samples.services.prediction_weather_service.requests.get',
+            side_effect=requests.RequestException('NASA POWER down'),
+        ):
+            result = PredictionWeatherService.get_features('Bangkok', collection_date)
+
+        self.assertEqual(result, stale_features)
+

@@ -198,9 +198,9 @@ class NasaPowerService:
     def _store_cached_payload(cache_key: str, payload: dict) -> None:
         now = timezone.now()
         ExternalDataCache.objects.update_or_create(
+            source='NASA_POWER',
             cache_key=cache_key,
             defaults={
-                'source': 'NASA_POWER',
                 'payload': payload,
                 'expires_at': now + timedelta(hours=settings.NASA_POWER_CACHE_TTL_HOURS),
             },
@@ -321,16 +321,32 @@ class NasaPowerService:
             )
             response.raise_for_status()
             payload = response.json()
-        except (requests.RequestException, ValueError) as exc:
+            parameter_data = payload.get('properties', {}).get('parameter')
+            cls._validate_parameter_data(parameter_data)
+            points = cls._daily_points(parameter_data)
+        except (requests.RequestException, ValueError, NasaPowerServiceError) as exc:
             logger.warning(
                 'environmental_correlation.nasa_power_request_failed',
                 extra={'error': str(exc)},
             )
+            stale_cache = ExternalDataCache.objects.filter(
+                source='NASA_POWER',
+                cache_key=cache_key,
+            ).first()
+            if stale_cache and stale_cache.payload:
+                logger.info(
+                    'environmental_correlation.fallback_to_stale_cache',
+                    extra={'cache_key': cache_key},
+                )
+                return {
+                    **stale_cache.payload,
+                    'cache': {
+                        'status': 'stale_fallback',
+                        'ttlHours': settings.NASA_POWER_CACHE_TTL_HOURS,
+                        'warning': 'Data served from stale cache due to provider unavailability.',
+                    },
+                }
             raise NasaPowerServiceError('NASA POWER request failed.') from exc
-
-        parameter_data = payload.get('properties', {}).get('parameter')
-        cls._validate_parameter_data(parameter_data)
-        points = cls._daily_points(parameter_data)
 
         result = {
             'source': 'NASA POWER',

@@ -282,6 +282,35 @@ class AnalyticsEndpointsTests(TestCase):
                 self.assertEqual(mock_get.call_count, 2)
                 self.assertFalse(ExternalDataCache.objects.filter(source='NASA_POWER').exists())
 
+    def test_environmental_correlation_falls_back_to_stale_cache_when_api_fails(self):
+        url = reverse('sample-analytics-environmental-correlation')
+        params = NasaPowerService._build_request_params({'province': 'Bangkok'})
+        cache_key = NasaPowerService._cache_key(params)
+        stale_payload = {
+            'source': 'NASA POWER',
+            'location': {'label': 'Bangkok', 'latitude': 13.7563, 'longitude': 100.5018},
+            'parameters': {'T2M': {'label': 'Air Temperature', 'unit': 'C'}},
+            'request': {'parameters': ['T2M'], 'format': 'JSON'},
+            'points': [{'date': '2026-06-01', 'T2M': 28.5}],
+        }
+        ExternalDataCache.objects.create(
+            source='NASA_POWER',
+            cache_key=cache_key,
+            payload=stale_payload,
+            expires_at=timezone.now() - timedelta(minutes=5),
+        )
+
+        with patch(
+            'samples.services.nasa_power_service.requests.get',
+            side_effect=requests.RequestException('NASA API outage'),
+        ):
+            response = self.client.get(url, {'province': 'Bangkok'})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['points'], stale_payload['points'])
+        self.assertEqual(response.data['cache']['status'], 'stale_fallback')
+        self.assertIn('warning', response.data['cache'])
+
     def test_nasa_cache_read_ignores_but_does_not_delete_expired_payload(self):
         cache = ExternalDataCache.objects.create(
             source='NASA_POWER',

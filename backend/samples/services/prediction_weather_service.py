@@ -58,6 +58,7 @@ class PredictionWeatherService:
         cached = ExternalDataCache.objects.filter(
             source=PREDICTION_WEATHER_SOURCE,
             cache_key=cache_key,
+            expires_at__gt=timezone.now(),
         ).first()
         if cached:
             return cached.payload
@@ -73,15 +74,22 @@ class PredictionWeatherService:
             )
             response.raise_for_status()
             payload = response.json()
-        except (requests.RequestException, ValueError) as exc:
+            parameter_data = payload.get('properties', {}).get('parameter')
+            features = cls.summarize_parameter_data(
+                parameter_data,
+                cls.select_location(province, latitude=latitude, longitude=longitude),
+            )
+        except (requests.RequestException, ValueError, PredictionWeatherServiceError) as exc:
             logger.warning('prediction_weather.nasa_power_request_failed', extra={'error': str(exc)})
+            stale_cached = ExternalDataCache.objects.filter(
+                source=PREDICTION_WEATHER_SOURCE,
+                cache_key=cache_key,
+            ).first()
+            if stale_cached and stale_cached.payload:
+                logger.info('prediction_weather.fallback_to_stale_cache', extra={'cache_key': cache_key})
+                return stale_cached.payload
             raise PredictionWeatherServiceError('NASA POWER prediction weather request failed.') from exc
 
-        parameter_data = payload.get('properties', {}).get('parameter')
-        features = cls.summarize_parameter_data(
-            parameter_data,
-            cls.select_location(province, latitude=latitude, longitude=longitude),
-        )
         cls.store_cached_features(cache_key, features)
         return features
 
