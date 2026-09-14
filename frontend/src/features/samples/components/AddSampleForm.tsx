@@ -65,6 +65,7 @@ type FormValues = z.infer<typeof formSchema>;
 
 interface AddSampleFormProps {
   onSuccess?: () => void;
+  triggerClassName?: string;
 }
 
 type ImportStage = 'idle' | 'parsing' | 'reviewing' | 'importing' | 'success' | 'error';
@@ -266,7 +267,7 @@ const groupImportErrors = (errors: string[]) => {
     .sort((a, b) => b.count - a.count);
 };
 
-const AddSampleForm = ({ onSuccess }: AddSampleFormProps) => {
+const AddSampleForm = ({ onSuccess, triggerClassName }: AddSampleFormProps) => {
   const { isAuthenticated } = useAuth();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -1475,8 +1476,14 @@ const AddSampleForm = ({ onSuccess }: AddSampleFormProps) => {
       setOpen(newOpen);
     }}>
       <DialogTrigger asChild>
-        <Button variant="outline" className="gap-2 border-primary/20 hover:border-primary/50 transition-colors">
-          <Plus className="h-4 w-4 text-primary" />
+        <Button
+          variant="outline"
+          className={cn(
+            "h-10 rounded-md border border-gfs-maroon/20 dark:border-white/10 bg-white/80 dark:bg-slate-900/80 px-4 text-xs font-bold text-gfs-text-primary dark:text-slate-200 hover:border-gfs-maroon/50 hover:bg-gfs-maroon/5 gap-2 transition-all",
+            triggerClassName
+          )}
+        >
+          <Plus className="h-4 w-4 text-gfs-maroon dark:text-gfs-gold" />
           Add New Samples
         </Button>
       </DialogTrigger>

@@ -25,12 +25,15 @@ import { parseResearchDataFile } from '@/lib/dataImport';
 import ExcelJS from 'exceljs';
 import Papa from 'papaparse';
 
+import { cn } from '@/lib/utils';
+
 interface UnifiedImportFormProps {
   sampleIds?: string[];
   onSuccess?: () => void;
+  triggerClassName?: string;
 }
 
-const UnifiedImportForm = ({ sampleIds = [], onSuccess }: UnifiedImportFormProps) => {
+const UnifiedImportForm = ({ sampleIds = [], onSuccess, triggerClassName }: UnifiedImportFormProps) => {
   const [open, setOpen] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -204,8 +207,14 @@ const UnifiedImportForm = ({ sampleIds = [], onSuccess }: UnifiedImportFormProps
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" className="gap-2 border-primary/20 hover:border-primary/50 transition-colors">
-          <Upload className="h-4 w-4 text-primary" />
+        <Button
+          variant="outline"
+          className={cn(
+            "h-10 rounded-md border border-gfs-maroon/20 dark:border-white/10 bg-white/80 dark:bg-slate-900/80 px-4 text-xs font-bold text-gfs-text-primary dark:text-slate-200 hover:border-gfs-maroon/50 hover:bg-gfs-maroon/5 gap-2 transition-all",
+            triggerClassName
+          )}
+        >
+          <Upload className="h-4 w-4 text-gfs-maroon dark:text-gfs-gold" />
           Import Data
         </Button>
       </DialogTrigger>

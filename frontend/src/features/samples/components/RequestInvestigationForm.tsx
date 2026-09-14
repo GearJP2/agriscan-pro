@@ -10,6 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/hooks/use-toast';
 import { getAllRegions, getProvincesByRegion, getDistrictsByProvince } from '@/data/thailandLocations';
+import { cn } from '@/lib/utils';
 
 interface InvestigationRequest {
   id: string;
@@ -24,6 +25,7 @@ interface InvestigationRequest {
 
 interface RequestInvestigationFormProps {
   onSubmitRequest?: (request: InvestigationRequest) => void;
+  triggerClassName?: string;
 }
 
 const vegetationTypes = [
@@ -34,7 +36,7 @@ const vegetationTypes = [
   'Other'
 ];
 
-const RequestInvestigationForm = ({ onSubmitRequest }: RequestInvestigationFormProps) => {
+const RequestInvestigationForm = ({ onSubmitRequest, triggerClassName }: RequestInvestigationFormProps) => {
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
@@ -119,9 +121,12 @@ const RequestInvestigationForm = ({ onSubmitRequest }: RequestInvestigationFormP
       <DialogTrigger asChild>
         <Button
           variant="outline"
-          className="gap-2"
+          className={cn(
+            "h-10 rounded-md border border-gfs-maroon/20 dark:border-white/10 bg-white/80 dark:bg-slate-900/80 px-4 text-xs font-bold text-gfs-text-primary dark:text-slate-200 hover:border-gfs-maroon/50 hover:bg-gfs-maroon/5 gap-2 transition-all",
+            triggerClassName
+          )}
         >
-          <Search className="h-4 w-4" />
+          <Search className="h-4 w-4 text-gfs-maroon dark:text-gfs-gold" />
           Request Investigation
         </Button>
       </DialogTrigger>
