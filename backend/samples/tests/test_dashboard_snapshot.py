@@ -217,3 +217,11 @@ class DashboardPayloadTests(TestCase):
         mock_lock.return_value.__enter__.side_effect = RuntimeError('database unavailable')
         with self.assertRaisesMessage(CommandError, 'database unavailable'):
             call_command('generate_dashboard_snapshot', '--dry-run')
+
+    def test_dashboard_generation_lock_acquires_and_releases(self):
+        from samples.management.commands.generate_dashboard_snapshot import dashboard_generation_lock
+        with dashboard_generation_lock() as acquired:
+            self.assertTrue(acquired)
+        with dashboard_generation_lock() as acquired:
+            self.assertTrue(acquired)
+

@@ -4,7 +4,7 @@ from contextlib import contextmanager
 
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
-from django.db import connection
+from django.db import connection, transaction
 from django.db.models import Max
 from django.utils import timezone
 
@@ -19,17 +19,13 @@ ADVISORY_LOCK_ID = 648273901
 
 @contextmanager
 def dashboard_generation_lock():
-    acquired = True
-    if connection.vendor == 'postgresql':
-        with connection.cursor() as cursor:
-            cursor.execute('SELECT pg_try_advisory_lock(%s)', [ADVISORY_LOCK_ID])
-            acquired = cursor.fetchone()[0]
-    try:
-        yield acquired
-    finally:
-        if acquired and connection.vendor == 'postgresql':
+    with transaction.atomic():
+        acquired = True
+        if connection.vendor == 'postgresql':
             with connection.cursor() as cursor:
-                cursor.execute('SELECT pg_advisory_unlock(%s)', [ADVISORY_LOCK_ID])
+                cursor.execute('SELECT pg_try_advisory_xact_lock(%s)', [ADVISORY_LOCK_ID])
+                acquired = cursor.fetchone()[0]
+        yield acquired
 
 
 class Command(BaseCommand):
