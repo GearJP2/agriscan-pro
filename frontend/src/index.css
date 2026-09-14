@@ -893,29 +893,124 @@
 .coe-lang-switch {
     display: inline-flex;
     align-items: center;
-    gap: 2px;
+    gap: 3px;
     padding: 3px;
-    border: 1.5px solid rgba(122, 31, 31, 0.25);
+    border: 1px solid rgba(122, 31, 31, 0.14);
     border-radius: 9999px;
-    background-color: rgba(122, 31, 31, 0.08);
+    background: rgba(255, 255, 255, 0.75);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03), inset 0 1px 1px rgba(255, 255, 255, 0.9);
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.coe-lang-switch:hover {
+    border-color: rgba(122, 31, 31, 0.24);
+    box-shadow: 0 2px 6px rgba(122, 31, 31, 0.06), inset 0 1px 1px rgba(255, 255, 255, 1);
+}
+
+.coe-lang-switch svg {
+    margin-left: 7px;
+    margin-right: 2px;
+    color: var(--gfs-maroon);
+    opacity: 0.55;
+    transition: opacity 0.2s ease, transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    flex-shrink: 0;
+}
+
+.coe-lang-switch:hover svg {
+    opacity: 0.9;
+    transform: rotate(12deg);
 }
 
 .coe-lang-switch button {
-    padding: 4px 12px;
+    position: relative;
+    padding: 3.5px 12px;
     border-radius: 9999px;
-    font-size: 0.78rem;
-    font-weight: 700;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
     color: var(--gfs-maroon);
-    transition: background 0.2s ease, color 0.2s ease;
+    opacity: 0.65;
+    background: transparent;
+    border: 1px solid transparent;
+    cursor: pointer;
+    line-height: 1.25;
+    transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+    user-select: none;
 }
 
 .coe-lang-switch button:hover {
-    background-color: rgba(122, 31, 31, 0.12);
+    opacity: 0.95;
+    background-color: rgba(122, 31, 31, 0.05);
+    color: var(--gfs-maroon);
 }
 
 .coe-lang-switch button[data-active="true"] {
-    background-color: var(--gfs-gold);
-    color: var(--gfs-maroon);
+    opacity: 1;
+    font-weight: 700;
+    color: #ffffff;
+    background: linear-gradient(135deg, #872323 0%, #681818 100%);
+    border-color: rgba(122, 31, 31, 0.12);
+    box-shadow: 0 1.5px 4px rgba(104, 24, 24, 0.25), 0 0.5px 1px rgba(0, 0, 0, 0.1);
+}
+
+.coe-lang-switch button[data-active="true"]:hover {
+    background: linear-gradient(135deg, #912727 0%, #701a1a 100%);
+    color: #ffffff;
+    opacity: 1;
+}
+
+.coe-lang-switch button:active {
+    transform: scale(0.96);
+}
+
+.coe-lang-switch button:focus-visible {
+    outline: 2px solid var(--gfs-gold);
+    outline-offset: 1px;
+}
+
+/* Dark mode styling */
+.dark .coe-lang-switch {
+    border-color: rgba(255, 255, 255, 0.12);
+    background: rgba(23, 30, 36, 0.75);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), inset 0 1px 1px rgba(255, 255, 255, 0.06);
+}
+
+.dark .coe-lang-switch:hover {
+    border-color: rgba(255, 214, 106, 0.35);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+}
+
+.dark .coe-lang-switch svg {
+    color: var(--gfs-gold, #ffd66a);
+    opacity: 0.75;
+}
+
+.dark .coe-lang-switch button {
+    color: #94a3b8;
+    opacity: 0.75;
+}
+
+.dark .coe-lang-switch button:hover {
+    color: #f8fafc;
+    background-color: rgba(255, 255, 255, 0.06);
+    opacity: 1;
+}
+
+.dark .coe-lang-switch button[data-active="true"] {
+    opacity: 1;
+    color: #3b0d11;
+    background: linear-gradient(135deg, #ffd66a 0%, #e6be4e 100%);
+    border-color: rgba(255, 214, 106, 0.4);
+    box-shadow: 0 2px 6px rgba(255, 214, 106, 0.3), 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.dark .coe-lang-switch button[data-active="true"]:hover {
+    background: linear-gradient(135deg, #ffe082 0%, #ecc658 100%);
+    color: #3b0d11;
+    opacity: 1;
 }
 
 /* Public homepage dark theme. Keep the warm institutional palette, but use

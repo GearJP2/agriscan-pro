@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { ChevronDown, Menu, X } from "lucide-react";
+import { ChevronDown, Globe, Menu, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import ThemeToggle from "./ThemeToggle";
 import UserDropdown from "./UserDropdown";
@@ -313,6 +313,7 @@ const CoeHeader = () => {
 
                 <div className="flex shrink-0 items-center gap-2 xl:gap-3">
                     <div className="coe-lang-switch hidden sm:inline-flex">
+                        <Globe className="h-3.5 w-3.5" aria-hidden="true" />
                         <button type="button" data-active={language === "th"} onClick={() => setLanguage("th")}>TH</button>
                         <button type="button" data-active={language === "en"} onClick={() => setLanguage("en")}>EN</button>
                     </div>
@@ -369,6 +370,7 @@ const CoeHeader = () => {
                     </div>
                     <div className="mt-4 flex items-center justify-between gap-3">
                         <div className="coe-lang-switch">
+                            <Globe className="h-3.5 w-3.5" aria-hidden="true" />
                             <button type="button" data-active={language === "th"} onClick={() => setLanguage("th")}>TH</button>
                             <button type="button" data-active={language === "en"} onClick={() => setLanguage("en")}>EN</button>
                         </div>
