@@ -103,6 +103,80 @@ class NotificationSignalTest(APITestCase):
         notifs = Notification.objects.filter(recipient=self.user)
         self.assertEqual(notifs.count(), 0)
 
+    def test_notify_sample_risk_changes_groups_multiple_elevated_toxins(self):
+        """Multiple elevated toxins on one sample emit exactly 1 grouped alert per researcher."""
+        from notifications.services import notify_sample_risk_changes
+
+        res1 = MycotoxinResult(
+            sample=self.sample, toxin_type="AFB1", value=10.0,
+            eu_threshold_low=2.0, eu_threshold_high=4.0, risk_level="critical", unit="ug_kg",
+        )
+        res2 = MycotoxinResult(
+            sample=self.sample, toxin_type="DON", value=1500.0,
+            eu_threshold_low=500.0, eu_threshold_high=1000.0, risk_level="high", unit="ug_kg",
+        )
+        res3 = MycotoxinResult(
+            sample=self.sample, toxin_type="OTA", value=8.0,
+            eu_threshold_low=3.0, eu_threshold_high=5.0, risk_level="critical", unit="ug_kg",
+        )
+
+        Notification.objects.all().delete()
+        created = notify_sample_risk_changes(
+            self.sample,
+            [(res1, None), (res2, None), (res3, None)],
+        )
+
+        self.assertEqual(len(created), 1)
+        notif = Notification.objects.get(recipient=self.user)
+        self.assertEqual(notif.notification_type, "risk_alert")
+        self.assertIn("Critical Mycotoxins Detected (3 Toxins)", notif.title)
+        self.assertIn("tested elevated for 3 toxins", notif.message)
+        self.assertIn("AFB1", notif.message)
+        self.assertIn("DON", notif.message)
+        self.assertIn("OTA", notif.message)
+        self.assertEqual(notif.metadata["toxin_count"], 3)
+        self.assertEqual(notif.metadata["risk_level"], "critical")
+        self.assertEqual(notif.link, f"/samples/{self.sample.id}")
+
+    def test_notify_sample_risk_changes_single_elevated_toxin_matches_single_format(self):
+        """A single elevated toxin emits standard single-toxin notification."""
+        from notifications.services import notify_sample_risk_changes
+
+        res = MycotoxinResult(
+            sample=self.sample, toxin_type="AFB1", value=10.0,
+            eu_threshold_low=2.0, eu_threshold_high=4.0, risk_level="critical", unit="ug_kg",
+        )
+
+        Notification.objects.all().delete()
+        notify_sample_risk_changes(self.sample, [(res, None)])
+
+        notif = Notification.objects.get(recipient=self.user)
+        self.assertEqual(notif.title, "Risk Alert: Critical Mycotoxin Detected")
+        self.assertIn("tested critical for AFB1", notif.message)
+        self.assertEqual(notif.metadata["toxin_type"], "AFB1")
+
+    def test_notify_sample_risk_changes_ignores_safe_and_test_samples(self):
+        """Safe results and test samples never generate notifications."""
+        from notifications.services import notify_sample_risk_changes
+
+        safe_res = MycotoxinResult(
+            sample=self.sample, toxin_type="DON", value=0.5,
+            risk_level="low", unit="ug_kg",
+        )
+        Notification.objects.all().delete()
+        notify_sample_risk_changes(self.sample, [(safe_res, None)])
+        self.assertFalse(Notification.objects.exists())
+
+        test_sample = Sample.objects.create(
+            sample_id="TEST-SMP-99", region="North", vegetation_variety="Corn", collection_date="2026-01-01",
+        )
+        crit_res = MycotoxinResult(
+            sample=test_sample, toxin_type="AFB1", value=50.0,
+            risk_level="critical", unit="ug_kg",
+        )
+        notify_sample_risk_changes(test_sample, [(crit_res, None)])
+        self.assertFalse(Notification.objects.exists())
+
 
 class NotificationViewSetTest(APITestCase):
     def setUp(self):

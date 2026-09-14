@@ -7,10 +7,15 @@ from io import StringIO, TextIOWrapper
 from typing import Iterator
 
 from django.db import transaction
+from django.core.exceptions import PermissionDenied
 from django.utils import timezone
+from core.permissions import check_can_edit_sample
+from core.audit import audit_result_change, row_snapshot
+from notifications.services import NotificationService, notify_sample_risk_changes
 
-from ..constants.mycotoxin_constants import EU_THRESHOLDS, get_risk_level, resolve_toxin_type
+from ..constants.mycotoxin_constants import resolve_toxin_type
 from ..models import MycotoxinResult, ProcessLog, Sample
+from .sample_service import SampleService
 
 logger = logging.getLogger("agriscan.samples")
 
@@ -469,53 +474,49 @@ class SampleIngestionService:
 
     @classmethod
     def _apply_results_to_sample(
-        cls, sample: Sample, results: list[dict], user, analyzed_at
+        cls,
+        sample: Sample,
+        results: list[dict],
+        user,
+        analyzed_at,
+        *,
+        recipient_users=None,
     ) -> tuple[int, int]:
         """Persist results for one sample inside its atomic block."""
-        recorded_by = user.username if user else 'System'
-        sample.status = "completed"
-        sample.updated_by = user
-        sample.save()
-
-        if not sample.process_logs.filter(state="completed").exists():
-            notes = "Mycotoxin results imported from CSV."
-            if analyzed_at:
-                notes = f"{notes} Analyzed at: {analyzed_at}"
-            ProcessLog._default_manager.create(
-                sample=sample,
-                state="completed",
-                conducted_by=recorded_by,
-                notes=notes,
-            )
+        notes = 'Mycotoxin results imported from CSV.'
+        if analyzed_at:
+            notes += f' Analyzed at: {analyzed_at}'
+        SampleService.finalize_results(sample, user, notes=notes)
 
         existing_results = {
             result.toxin_type: result for result in sample.mycotoxin_results.all()
         }
         created_results = []
         updated_results = []
+        previous_risks = {}
+        previous_rows = {}
         for payload in results:
             existing = existing_results.get(payload["toxin_type"])
             if existing:
+                previous_rows[existing.toxin_type] = row_snapshot(existing)
+                previous_risks[existing.toxin_type] = existing.risk_level
                 existing.value = payload["value"]
                 existing.unit = payload["unit"]
                 existing.notes = payload["notes"]
                 existing.is_below_lod = payload.get("is_below_lod", False)
-                existing.risk_level = get_risk_level(existing.toxin_type, existing.value)
+                existing.prepare_risk()
                 updated_results.append(existing)
             else:
-                threshold = EU_THRESHOLDS.get(payload["toxin_type"], {})
-                has_data = threshold.get("has_data", False)
-                created_results.append(MycotoxinResult(
+                result = MycotoxinResult(
                     sample=sample,
                     toxin_type=payload["toxin_type"],
                     value=payload["value"],
                     unit=payload["unit"],
                     notes=payload["notes"],
                     is_below_lod=payload.get("is_below_lod", False),
-                    eu_threshold_low=threshold.get("low") if has_data else None,
-                    eu_threshold_high=threshold.get("high") if has_data else None,
-                    risk_level=get_risk_level(payload["toxin_type"], payload["value"]),
-                ))
+                )
+                result.prepare_risk()
+                created_results.append(result)
 
         if created_results:
             MycotoxinResult._default_manager.bulk_create(created_results, batch_size=1000)
@@ -525,11 +526,22 @@ class SampleIngestionService:
                 ['value', 'unit', 'notes', 'is_below_lod', 'risk_level'],
                 batch_size=1000,
             )
+        all_results = [*created_results, *updated_results]
+        results_with_previous = [(r, previous_risks.get(r.toxin_type)) for r in all_results]
+        notify_sample_risk_changes(sample, results_with_previous, recipient_users=recipient_users)
+        for result in all_results:
+            audit_result_change(result, user, previous_rows.get(result.toxin_type, {}))
         return len(created_results), len(updated_results)
 
     @classmethod
     def _process_row(
-        cls, row: dict, row_number: int, sample_map: dict[str, Sample], user
+        cls,
+        row: dict,
+        row_number: int,
+        sample_map: dict[str, Sample],
+        user,
+        *,
+        recipient_users=None,
     ) -> dict:
         """Apply a single CSV row, returning per-row counters and any failure."""
         outcome = {
@@ -579,9 +591,11 @@ class SampleIngestionService:
                 # Per-row savepoint isolates failures so partial imports survive.
                 # See docs/V1/SAMPLE_IMPORT_FORMAT.md for the response contract.
                 locked = Sample.objects.select_for_update().get(pk=sample.pk)
+                if user is not None and not check_can_edit_sample(user, locked):
+                    raise PermissionDenied('You do not have permission to record results for this sample.')
                 analyzed_at = cls.extract_analyzed_datetime(row)
                 created_for_row, updated_for_row = cls._apply_results_to_sample(
-                    locked, results, user, analyzed_at,
+                    locked, results, user, analyzed_at, recipient_users=recipient_users,
                 )
         except Exception as exc:
             outcome["skipped"] = True
@@ -621,6 +635,7 @@ class SampleIngestionService:
         unmatched: set[str] = set()
         failed_rows: list[dict] = []
         created_samples = 0
+        recipient_users = NotificationService.get_eligible_users('researcher')
 
         for row_number, row in enumerate(cls.iter_csv_rows(uploaded_file), start=1):
             if create_missing_samples:
@@ -629,7 +644,9 @@ class SampleIngestionService:
                     sample = cls._create_sample_from_dashboard_row(row, display_id.strip(), user)
                     sample_map[normalized_id] = sample
                     created_samples += 1
-            outcome = cls._process_row(row, row_number, sample_map, user)
+            outcome = cls._process_row(
+                row, row_number, sample_map, user, recipient_users=recipient_users,
+            )
             created += outcome["created"]
             updated += outcome["updated"]
             if outcome["skipped"]:

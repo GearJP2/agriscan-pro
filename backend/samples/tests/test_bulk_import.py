@@ -385,3 +385,43 @@ class BulkImportResultsTests(SampleTestMixin, TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['matched_samples'], 0)
         self.assertIn('NON-EXISTENT-ID', response.data['unmatched_sample_ids'])
+
+    def test_bulk_import_multiple_elevated_toxins_emits_single_grouped_notification(self):
+        """Importing a sample with multiple elevated toxins must emit exactly 1 grouped notification, not separate ones."""
+        from notifications.models import Notification
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+
+        # Ensure a researcher user exists
+        researcher = User.objects.filter(role="researcher", is_active=True).first()
+        if not researcher:
+            researcher = User.objects.create_user(
+                username="researcher_test_notif",
+                email="researcher_test_notif@example.com",
+                password="password123",
+                role="researcher",
+            )
+
+        Notification.objects.all().delete()
+
+        # CSV with 1 sample having 3 elevated toxins: AFB1, DON, OTA
+        url = reverse('sample-bulk-import-results')
+        csv_content = f'Sample ID,AFB1,DON,OTA\n{self.sample.sample_id},25.0,2000.0,300.0\n'
+        upload = SimpleUploadedFile('results_multi_elevated.csv', csv_content.encode('utf-8'), content_type='text/csv')
+
+        response = self.client.post(url, {'file': upload}, format='multipart')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Before fix, this would have been 3 notifications per researcher.
+        # With grouping, exactly 1 notification is created for the researcher!
+        user_notifs = Notification.objects.filter(recipient=researcher)
+        self.assertEqual(user_notifs.count(), 1)
+        notif = user_notifs.first()
+        self.assertEqual(notif.notification_type, 'risk_alert')
+        self.assertIn('Mycotoxins Detected', notif.title)
+        self.assertIn('tested elevated for 3 toxins', notif.message)
+        self.assertIn('AFB1', notif.message)
+        self.assertIn('DON', notif.message)
+        self.assertIn('OTA', notif.message)
+        self.assertEqual(notif.metadata['toxin_count'], 3)
+        self.assertEqual(notif.link, f'/samples/{self.sample.id}')
