@@ -126,7 +126,7 @@ class SampleFilteringTests(SampleTestMixin, TestCase):
         self.assertIn('FILTER-001', sample_ids)
 
     def test_list_endpoint_avoids_n_plus_one_queries(self):
-        """Sample list should stay bounded thanks to select_related/prefetch_related."""
+        """Sample list should stay strictly O(1) query bounded thanks to select_related/prefetch_related."""
         for index in range(3, 8):
             sample = Sample.objects.create(
                 sample_id=f'FILTER-00{index}',
@@ -152,14 +152,43 @@ class SampleFilteringTests(SampleTestMixin, TestCase):
             )
 
         url = reverse('sample-list')
-        with CaptureQueriesContext(connection) as queries:
+        with CaptureQueriesContext(connection) as queries_5_samples:
             response = self.client.get(url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertLessEqual(
-            len(queries),
+            len(queries_5_samples),
             6,
-            msg=f"Expected bounded query count, saw {len(queries)} queries.",
+            msg=f"Expected bounded query count, saw {len(queries_5_samples)} queries.",
+        )
+
+        # Add 5 more samples to verify query count is strictly constant O(1) with respect to sample count N
+        for index in range(8, 13):
+            sample = Sample.objects.create(
+                sample_id=f'FILTER-0{index}',
+                region='Central',
+                province='Bangkok',
+                district='Chatuchak',
+                vegetation_variety='Rice',
+                collection_date='2026-02-01',
+                status='completed',
+                updated_by=self.user,
+            )
+            MycotoxinResult.objects.create(
+                sample=sample,
+                toxin_type='OTA',
+                value=15,
+                unit='ug_kg',
+            )
+
+        with CaptureQueriesContext(connection) as queries_10_samples:
+            response_more = self.client.get(url)
+
+        self.assertEqual(response_more.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            len(queries_5_samples),
+            len(queries_10_samples),
+            msg=f"N+1 query detected: {len(queries_5_samples)} queries for 5 samples vs {len(queries_10_samples)} for 10 samples",
         )
 
     def test_ordering_by_collection_date_desc(self):
