@@ -63,7 +63,7 @@ const UserDropdown = () => {
           </Avatar>
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-64" align="end" forceMount>
+      <DropdownMenuContent className="w-64 z-[100000] rounded-gfs-card border border-gfs-maroon/20 dark:border-white/10 shadow-gfs-modal bg-white dark:bg-slate-900 font-sans" align="end" forceMount>
         {/* User Info Header */}
         <div className="flex items-center gap-3 p-4 border-b border-border">
           <Avatar className="h-12 w-12 border-2 border-primary/20">

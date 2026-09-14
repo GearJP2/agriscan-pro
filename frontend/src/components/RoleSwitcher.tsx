@@ -30,24 +30,30 @@ const RoleSwitcher = () => {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" className="gap-2">
-          <CurrentIcon className="h-4 w-4" />
-          View as {currentRole.label}
-          <ChevronDown className="h-4 w-4" />
+        <Button
+          variant="outline"
+          className="h-9 rounded-full border border-gfs-maroon/20 dark:border-white/10 bg-white/80 dark:bg-slate-900/80 px-3.5 text-xs font-bold text-gfs-text-primary dark:text-slate-200 hover:border-gfs-maroon/50 hover:bg-gfs-maroon/5 gap-2 transition-all"
+        >
+          <CurrentIcon className="h-3.5 w-3.5 text-gfs-maroon dark:text-gfs-gold" />
+          <span>View as {currentRole.label}</span>
+          <ChevronDown className="h-3.5 w-3.5 opacity-60" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
+      <DropdownMenuContent
+        align="end"
+        className="z-[100000] min-w-[200px] rounded-gfs-card border border-gfs-maroon/20 dark:border-white/10 shadow-gfs-modal bg-white dark:bg-slate-900 font-sans p-1.5"
+      >
         {roles.map((r) => {
           const Icon = r.icon;
           return (
             <DropdownMenuItem
               key={r.value}
               onClick={() => switchRole(r.value)}
-              className="gap-2"
+              className="gap-2.5 rounded-lg text-xs font-bold text-gfs-text-primary dark:text-slate-200 hover:bg-gfs-maroon/10 dark:hover:bg-white/10 cursor-pointer transition-colors py-2 px-3"
             >
-              <Icon className="h-4 w-4" />
-              View as {r.label}
-              {role === r.value && <Check className="h-4 w-4 ml-auto" />}
+              <Icon className="h-4 w-4 text-gfs-maroon dark:text-gfs-gold" />
+              <span>View as {r.label}</span>
+              {role === r.value && <Check className="h-4 w-4 ml-auto text-gfs-maroon dark:text-gfs-gold" />}
             </DropdownMenuItem>
           );
         })}
