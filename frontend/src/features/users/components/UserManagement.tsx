@@ -282,7 +282,7 @@ const UserManagement = () => {
               </div>
             </div>
           </TableCell>
-          <TableCell><Skeleton className="h-4 w-48 bg-gfs-maroon/10 dark:bg-slate-800" /></TableCell>
+          <TableCell className="hidden lg:table-cell"><Skeleton className="h-4 w-28 bg-gfs-maroon/10 dark:bg-slate-800" /></TableCell>
           <TableCell><Skeleton className="h-6 w-20 rounded-full bg-gfs-maroon/10 dark:bg-slate-800" /></TableCell>
           <TableCell><Skeleton className="h-9 w-32 rounded-full bg-gfs-maroon/10 dark:bg-slate-800" /></TableCell>
           <TableCell><Skeleton className="h-4 w-24 bg-gfs-maroon/10 dark:bg-slate-800" /></TableCell>
@@ -418,65 +418,76 @@ const UserManagement = () => {
         </Card>
 
         <Card className="rounded-gfs-card border border-gfs-maroon/15 dark:border-white/10 bg-white/90 dark:bg-slate-900/90 shadow-gfs-card overflow-hidden font-sans">
-          <CardContent className="p-6">
-            <div className="mb-6 flex flex-col gap-4 md:flex-row items-end">
-              <div className="flex-1 w-full">
-                <p className="text-xs font-bold uppercase tracking-wider text-gfs-maroon dark:text-gfs-gold mb-2 ml-1">Search Directory</p>
-                <div className="relative group">
-                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-gfs-maroon/50 dark:text-gfs-gold/60 transition-colors group-focus-within:text-gfs-maroon" />
-                  <Input
-                    placeholder="Search users by name or email..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="h-11 pl-11 pr-4 bg-gfs-canvas/50 dark:bg-slate-800/60 border border-gfs-maroon/20 dark:border-white/10 rounded-full text-xs font-medium placeholder:text-gfs-text-muted/60 text-gfs-text-primary dark:text-white focus-visible:ring-2 focus-visible:ring-gfs-gold/40 focus-visible:border-gfs-maroon transition-all"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:w-[380px]">
-                <div className="w-full">
-                  <p className="text-xs font-bold uppercase tracking-wider text-gfs-maroon dark:text-gfs-gold mb-2 ml-1">Role Type</p>
-                  <Select value={roleFilter} onValueChange={setRoleFilter}>
-                    <SelectTrigger className="h-11 rounded-full border border-gfs-maroon/20 dark:border-white/10 bg-white/80 dark:bg-slate-900/80 px-4 text-xs font-bold text-gfs-text-primary dark:text-slate-200 hover:border-gfs-maroon/50 hover:bg-gfs-maroon/5 transition-all">
-                      <SelectValue placeholder="Filter by role" />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-gfs-card border border-gfs-maroon/20 shadow-gfs-modal p-1 bg-white dark:bg-slate-900 font-sans">
-                      <SelectItem value="all" className="rounded-lg text-xs font-bold cursor-pointer hover:bg-gfs-maroon/5">All Roles</SelectItem>
-                      {availableRoles.map((role) => (
-                        <SelectItem key={role} value={role} className="rounded-lg text-xs font-bold cursor-pointer hover:bg-gfs-maroon/5">
-                          {USER_ROLE_LABELS[role]}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+          <CardContent className="p-0">
+            {/* Search Directory & Filters Header Bar */}
+            <div className="border-b border-gfs-maroon/10 dark:border-white/10 bg-white/95 dark:bg-slate-900/95 p-4 sm:px-6">
+              <div className="flex flex-col gap-4 md:flex-row items-end">
+                <div className="flex-1 w-full">
+                  <p className="text-xs font-bold uppercase tracking-wider text-gfs-maroon dark:text-gfs-gold mb-2 ml-1">Search Directory</p>
+                  <div className="relative group">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-gfs-maroon/50 dark:text-gfs-gold/60 transition-colors group-focus-within:text-gfs-maroon" />
+                    <Input
+                      placeholder="Search users by name or email..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="h-11 pl-11 pr-4 bg-gfs-canvas/50 dark:bg-slate-800/60 border border-gfs-maroon/20 dark:border-white/10 rounded-full text-xs font-medium placeholder:text-gfs-text-muted/60 text-gfs-text-primary dark:text-white focus-visible:ring-2 focus-visible:ring-gfs-gold/40 focus-visible:border-gfs-maroon transition-all"
+                    />
+                  </div>
                 </div>
 
-                <div className="w-full">
-                  <p className="text-xs font-bold uppercase tracking-wider text-gfs-maroon dark:text-gfs-gold mb-2 ml-1">Account Status</p>
-                  <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="h-11 rounded-full border border-gfs-maroon/20 dark:border-white/10 bg-white/80 dark:bg-slate-900/80 px-4 text-xs font-bold text-gfs-text-primary dark:text-slate-200 hover:border-gfs-maroon/50 hover:bg-gfs-maroon/5 transition-all">
-                      <SelectValue placeholder="Filter by status" />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-gfs-card border border-gfs-maroon/20 shadow-gfs-modal p-1 bg-white dark:bg-slate-900 font-sans">
-                      <SelectItem value="all" className="rounded-lg text-xs font-bold cursor-pointer hover:bg-gfs-maroon/5">All Statuses</SelectItem>
-                      <SelectItem value="active" className="rounded-lg text-xs font-bold cursor-pointer hover:bg-gfs-maroon/5">Active</SelectItem>
-                      <SelectItem value="inactive" className="rounded-lg text-xs font-bold cursor-pointer hover:bg-gfs-maroon/5">Inactive</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:w-[380px]">
+                  <div className="w-full">
+                    <p className="text-xs font-bold uppercase tracking-wider text-gfs-maroon dark:text-gfs-gold mb-2 ml-1">Role Type</p>
+                    <Select value={roleFilter} onValueChange={setRoleFilter}>
+                      <SelectTrigger className="h-11 rounded-full border border-gfs-maroon/20 dark:border-white/10 bg-white/80 dark:bg-slate-900/80 px-4 text-xs font-bold text-gfs-text-primary dark:text-slate-200 hover:border-gfs-maroon/50 hover:bg-gfs-maroon/5 transition-all">
+                        <SelectValue placeholder="Filter by role" />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-gfs-card border border-gfs-maroon/20 shadow-gfs-modal p-1 bg-white dark:bg-slate-900 font-sans">
+                        <SelectItem value="all" className="rounded-lg text-xs font-bold cursor-pointer hover:bg-gfs-maroon/5">All Roles</SelectItem>
+                        {availableRoles.map((role) => (
+                          <SelectItem key={role} value={role} className="rounded-lg text-xs font-bold cursor-pointer hover:bg-gfs-maroon/5">
+                            {USER_ROLE_LABELS[role]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="w-full">
+                    <p className="text-xs font-bold uppercase tracking-wider text-gfs-maroon dark:text-gfs-gold mb-2 ml-1">Account Status</p>
+                    <Select value={statusFilter} onValueChange={setStatusFilter}>
+                      <SelectTrigger className="h-11 rounded-full border border-gfs-maroon/20 dark:border-white/10 bg-white/80 dark:bg-slate-900/80 px-4 text-xs font-bold text-gfs-text-primary dark:text-slate-200 hover:border-gfs-maroon/50 hover:bg-gfs-maroon/5 transition-all">
+                        <SelectValue placeholder="Filter by status" />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-gfs-card border border-gfs-maroon/20 shadow-gfs-modal p-1 bg-white dark:bg-slate-900 font-sans">
+                        <SelectItem value="all" className="rounded-lg text-xs font-bold cursor-pointer hover:bg-gfs-maroon/5">All Statuses</SelectItem>
+                        <SelectItem value="active" className="rounded-lg text-xs font-bold cursor-pointer hover:bg-gfs-maroon/5">Active</SelectItem>
+                        <SelectItem value="inactive" className="rounded-lg text-xs font-bold cursor-pointer hover:bg-gfs-maroon/5">Inactive</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div className="rounded-gfs-card border border-gfs-maroon/15 dark:border-white/10 overflow-hidden shadow-sm">
+            {/* Table Directory Info */}
+            <div className="border-b border-gfs-maroon/10 dark:border-white/10 bg-white/95 dark:bg-slate-900/95 px-4 sm:px-6 py-3 flex items-center justify-between">
+              <p className="text-xs font-medium text-gfs-text-muted dark:text-slate-400">
+                Showing <span className="font-bold text-gfs-maroon dark:text-white">{filteredUsers.length}</span> of{' '}
+                <span className="font-bold text-gfs-maroon dark:text-white">{users.length}</span> accounts
+              </p>
+            </div>
+
+            <div className="overflow-x-auto">
               <Table>
-                <TableHeader className="bg-card shadow-[0_1px_0_0_hsl(var(--border)/0.5)]">
-                  <TableRow className="h-12 bg-muted hover:bg-muted">
-                    <TableHead className="font-semibold">Name</TableHead>
-                    <TableHead className="font-semibold">Email</TableHead>
-                    <TableHead className="font-semibold">Role</TableHead>
-                    <TableHead className="font-semibold">Status</TableHead>
-                    <TableHead className="font-semibold">Member Since</TableHead>
-                    <TableHead className="text-right font-semibold">Promote</TableHead>
+                <TableHeader className="sticky top-0 z-20 bg-card shadow-[0_1px_0_0_hsl(var(--border)/0.5)]">
+                  <TableRow className="h-12 border-b border-gfs-maroon/10 dark:border-white/10 bg-white/95 dark:bg-slate-900/95 hover:bg-white/95 dark:hover:bg-slate-900/95">
+                    <TableHead className="font-bold text-xs uppercase tracking-wider text-gfs-maroon dark:text-gfs-gold">User Account</TableHead>
+                    <TableHead className="font-bold text-xs uppercase tracking-wider text-gfs-maroon dark:text-gfs-gold hidden lg:table-cell">Identifier</TableHead>
+                    <TableHead className="font-bold text-xs uppercase tracking-wider text-gfs-maroon dark:text-gfs-gold">Security Role</TableHead>
+                    <TableHead className="font-bold text-xs uppercase tracking-wider text-gfs-maroon dark:text-gfs-gold">Status</TableHead>
+                    <TableHead className="font-bold text-xs uppercase tracking-wider text-gfs-maroon dark:text-gfs-gold">Member Since</TableHead>
+                    <TableHead className="text-right font-bold text-xs uppercase tracking-wider text-gfs-maroon dark:text-gfs-gold">Promote / Demote</TableHead>
                   </TableRow>
                 </TableHeader>
 
