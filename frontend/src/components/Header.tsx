@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { ChevronDown, Globe, Menu, X } from "lucide-react";
+import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import ThemeToggle from "./ThemeToggle";
 import UserDropdown from "./UserDropdown";
@@ -314,8 +315,34 @@ const CoeHeader = () => {
                 <div className="flex shrink-0 items-center gap-2 xl:gap-3">
                     <div className="coe-lang-switch hidden sm:inline-flex">
                         <Globe className="h-3.5 w-3.5" aria-hidden="true" />
-                        <button type="button" data-active={language === "th"} onClick={() => setLanguage("th")}>TH</button>
-                        <button type="button" data-active={language === "en"} onClick={() => setLanguage("en")}>EN</button>
+                        <button
+                            type="button"
+                            data-active={language === "th"}
+                            onClick={() => setLanguage("th")}
+                        >
+                            {language === "th" && (
+                                <motion.span
+                                    layoutId="active-lang-desktop"
+                                    className="coe-lang-active-pill"
+                                    transition={{ type: "spring", stiffness: 450, damping: 32 }}
+                                />
+                            )}
+                            <span className="relative z-10">TH</span>
+                        </button>
+                        <button
+                            type="button"
+                            data-active={language === "en"}
+                            onClick={() => setLanguage("en")}
+                        >
+                            {language === "en" && (
+                                <motion.span
+                                    layoutId="active-lang-desktop"
+                                    className="coe-lang-active-pill"
+                                    transition={{ type: "spring", stiffness: 450, damping: 32 }}
+                                />
+                            )}
+                            <span className="relative z-10">EN</span>
+                        </button>
                     </div>
                     <ThemeToggle />
                     {!isInitializing && (
@@ -371,8 +398,34 @@ const CoeHeader = () => {
                     <div className="mt-4 flex items-center justify-between gap-3">
                         <div className="coe-lang-switch">
                             <Globe className="h-3.5 w-3.5" aria-hidden="true" />
-                            <button type="button" data-active={language === "th"} onClick={() => setLanguage("th")}>TH</button>
-                            <button type="button" data-active={language === "en"} onClick={() => setLanguage("en")}>EN</button>
+                            <button
+                                type="button"
+                                data-active={language === "th"}
+                                onClick={() => setLanguage("th")}
+                            >
+                                {language === "th" && (
+                                    <motion.span
+                                        layoutId="active-lang-mobile"
+                                        className="coe-lang-active-pill"
+                                        transition={{ type: "spring", stiffness: 450, damping: 32 }}
+                                    />
+                                )}
+                                <span className="relative z-10">TH</span>
+                            </button>
+                            <button
+                                type="button"
+                                data-active={language === "en"}
+                                onClick={() => setLanguage("en")}
+                            >
+                                {language === "en" && (
+                                    <motion.span
+                                        layoutId="active-lang-mobile"
+                                        className="coe-lang-active-pill"
+                                        transition={{ type: "spring", stiffness: 450, damping: 32 }}
+                                    />
+                                )}
+                                <span className="relative z-10">EN</span>
+                            </button>
                         </div>
                         {!isInitializing && isAuthenticated && canPreviewRoles && <RoleSwitcher />}
                         {!isInitializing && isAuthenticated && <UserDropdown />}
