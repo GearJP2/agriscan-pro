@@ -44,6 +44,7 @@ interface SampleTableProps {
   onBulkDeleteSamples?: (sampleIds: string[]) => void;
   watchlistOnly?: boolean;
   onToggleWatchlistOnly?: () => void;
+  toolbar?: ReactNode;
 }
 
 type SortField =
@@ -103,11 +104,11 @@ const SampleRow = memo(
     return (
       <TableRow
         className={cn(
-          'group relative h-16 cursor-pointer border-l-4 border-l-transparent transition-all duration-300',
-          'hover:bg-primary/[0.03] hover:border-l-primary hover:shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] dark:hover:shadow-[0_4px_20px_-4px_rgba(0,0,0,0.5)]',
-          isWatching && 'bg-info/[0.04] border-l-info/60',
-          isSelected && 'bg-primary/[0.08] border-l-primary z-10 shadow-md',
-          isSelectionMode && 'hover:ring-1 hover:ring-primary/20',
+          'group relative h-16 cursor-pointer border-b border-gfs-maroon/10 dark:border-white/5 border-l-4 border-l-transparent transition-all duration-200',
+          'hover:bg-gfs-canvas/70 dark:hover:bg-white/[0.02] hover:border-l-gfs-maroon',
+          isWatching && 'bg-amber-500/[0.04] border-l-gfs-gold',
+          isSelected && 'bg-gfs-maroon/[0.08] border-l-gfs-maroon z-10',
+          isSelectionMode && 'hover:ring-1 hover:ring-gfs-maroon/20',
         )}
         onClick={handleRowClick}
       >
@@ -117,8 +118,8 @@ const SampleRow = memo(
               className={cn(
                 'flex h-5 w-5 items-center justify-center rounded-full border transition-all duration-100',
                 isSelected
-                  ? 'bg-primary border-primary shadow-sm ring-2 ring-primary/20'
-                  : 'border-muted-foreground/30 bg-background',
+                  ? 'bg-gfs-maroon border-gfs-maroon shadow-sm ring-2 ring-gfs-maroon/20'
+                  : 'border-gfs-maroon/30 bg-background',
               )}
             >
               {isSelected && (
@@ -128,42 +129,49 @@ const SampleRow = memo(
           </TableCell>
         )}
         <TableCell>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
             <div className={cn(
               "h-2 w-2 rounded-full",
-              hasAboveThresholdResults(sample) ? "bg-danger animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.5)]" :
-                hasMeasuredResults(sample) ? "bg-info" : "bg-muted"
+              hasAboveThresholdResults(sample) ? "bg-rose-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.5)]" :
+                hasMeasuredResults(sample) ? "bg-blue-500" : "bg-muted-foreground/30"
             )} />
-            <span className="font-semibold text-foreground tracking-tight">{sample.sample_id}</span>
+            <span className="font-bold text-gfs-maroon dark:text-gfs-gold tracking-tight">{sample.sample_id}</span>
           </div>
         </TableCell>
-        <TableCell>{sample.region}</TableCell>
-        <TableCell>{sample.province}</TableCell>
-        <TableCell>{sample.district}</TableCell>
+        <TableCell className="text-xs font-medium text-gfs-text-primary dark:text-slate-200">{sample.region}</TableCell>
+        <TableCell className="text-xs font-medium text-gfs-text-primary dark:text-slate-200">{sample.province}</TableCell>
+        <TableCell className="text-xs font-medium text-gfs-text-primary dark:text-slate-200">{sample.district}</TableCell>
         <TableCell>
-          <div className="flex flex-wrap gap-1"><Badge variant="secondary" className="capitalize">{sample.food_feed_type || 'Legacy'}</Badge><span className="text-sm">{sample.sub_type || sample.vegetation_variety || '—'}</span></div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Badge variant="secondary" className="capitalize text-[10px] font-bold rounded-full bg-gfs-maroon/10 text-gfs-maroon dark:text-gfs-gold border border-gfs-maroon/20">
+              {sample.food_feed_type || 'Legacy'}
+            </Badge>
+            <span className="text-xs font-semibold text-gfs-text-primary dark:text-slate-200">
+              {sample.sub_type || sample.vegetation_variety || '—'}
+            </span>
+          </div>
         </TableCell>
-        <TableCell className="text-muted-foreground">
+        <TableCell className="text-xs font-medium text-gfs-text-muted dark:text-slate-400">
           {format(new Date(sample.collection_date), 'MMM dd, yyyy')}
         </TableCell>
-        <TableCell className="text-muted-foreground">
+        <TableCell className="text-xs font-medium text-gfs-text-muted dark:text-slate-400">
           {sample.received_at ? format(new Date(sample.received_at), 'MMM dd, yyyy') : '—'}
         </TableCell>
         <TableCell>{getStatusBadge(sample)}</TableCell>
-        <TableCell>
+        <TableCell className="whitespace-nowrap">
           <div className="flex items-center gap-2">
             {hasAboveThresholdResults(sample) ? (
-              <Badge className="bg-danger text-danger-foreground border-danger/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-tight shadow-sm">
+              <Badge className="bg-rose-600 hover:bg-rose-700 text-white border-none px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-tight rounded-full shadow-sm">
                 Positive
               </Badge>
             ) : hasUnclassifiedResults(sample) ? (
-              <Badge variant="secondary">Unclassified</Badge>
+              <Badge variant="secondary" className="rounded-full text-[10px] font-bold">Unclassified</Badge>
             ) : hasMeasuredResults(sample) ? (
-              <Badge className="bg-info text-info-foreground border-info/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-tight shadow-sm">
+              <Badge className="bg-blue-600 hover:bg-blue-700 text-white border-none px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-tight rounded-full shadow-sm">
                 Below Threshold
               </Badge>
             ) : (
-              <span className="ml-1 text-[10px] font-medium uppercase tracking-widest text-muted-foreground">
+              <span className="ml-1 text-[10px] font-bold uppercase tracking-widest text-gfs-text-muted">
                 Pending
               </span>
             )}
@@ -176,10 +184,10 @@ const SampleRow = memo(
                 <TooltipTrigger asChild>
                   <button
                     className={cn(
-                      'rounded-md p-1.5 transform transition-all duration-300',
+                      'rounded-full p-2 transform transition-all duration-300',
                       isWatching
-                        ? 'bg-info/10 text-info ring-1 ring-info/20 opacity-100'
-                        : 'text-muted-foreground hover:bg-muted opacity-0 group-hover:opacity-100',
+                        ? 'bg-amber-500/15 text-gfs-gold ring-1 ring-gfs-gold/30 opacity-100'
+                        : 'text-gfs-text-muted hover:text-gfs-maroon hover:bg-gfs-maroon/5 opacity-0 group-hover:opacity-100',
                     )}
                     onClick={(event) => {
                       event.stopPropagation();
@@ -194,14 +202,14 @@ const SampleRow = memo(
                       whileTap={{ scale: 0.9 }}
                     >
                       {isWatching ? (
-                        <Bell className="h-4 w-4 fill-current" />
+                        <Bell className="h-4 w-4 fill-gfs-gold text-gfs-gold" />
                       ) : (
                         <BellOff className="h-4 w-4 opacity-60" />
                       )}
                     </motion.div>
                   </button>
                 </TooltipTrigger>
-                <TooltipContent>
+                <TooltipContent className="rounded-xl font-sans text-xs">
                   {isWatching ? 'Remove from watchlist' : 'Add to watchlist'}
                 </TooltipContent>
               </Tooltip>
@@ -223,6 +231,7 @@ const SampleTable = ({
   onBulkDeleteSamples,
   watchlistOnly = false,
   onToggleWatchlistOnly,
+  toolbar,
 }: SampleTableProps) => {
   console.log('SampleTable: current watchlistOnly prop is', watchlistOnly);
   const [sortField, setSortField] = useState<SortField | null>(null);
@@ -443,7 +452,7 @@ const SampleTable = ({
   }) => (
     <TableHead className={`sticky top-0 z-30 bg-card font-semibold ${className}`}>
       <button
-        className="flex w-full select-none items-center hover:text-foreground"
+        className="flex w-full select-none items-center hover:text-foreground transition-colors"
         onClick={() => handleSort(field)}
         type="button"
       >
@@ -455,27 +464,32 @@ const SampleTable = ({
 
   return (
     <TooltipProvider>
-      <div className="overflow-hidden rounded-xl border border-border bg-card">
+      <div className="overflow-hidden rounded-gfs-card border border-gfs-maroon/15 dark:border-white/10 bg-white dark:bg-slate-900/90 shadow-gfs-card font-sans">
+        {toolbar && (
+          <div className="border-b border-gfs-maroon/10 dark:border-white/10 bg-white/95 dark:bg-slate-900/95 p-4 sm:px-6">
+            {toolbar}
+          </div>
+        )}
         {isAdmin && selectedIds.size > 0 && (
-          <div className="relative z-40 flex items-center justify-between border-b border-destructive/20 bg-destructive/10 px-4 py-2 animate-in fade-in duration-300">
-            <span className="text-sm font-medium text-destructive">
+          <div className="relative z-40 flex items-center justify-between border-b border-rose-200 dark:border-rose-900/40 bg-rose-50 dark:bg-rose-950/30 px-6 py-3 animate-in fade-in duration-300">
+            <span className="text-xs font-bold text-rose-700 dark:text-rose-300 uppercase tracking-wide">
               {selectedIds.size} sample{selectedIds.size !== 1 ? 's' : ''} selected
             </span>
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button className="h-8 gap-1.5" size="sm" variant="destructive">
-                  <Trash2 className="h-4 w-4" />
+                <Button className="h-8 rounded-md gap-1.5 px-4 text-xs font-bold" size="sm" variant="destructive">
+                  <Trash2 className="h-3.5 w-3.5" />
                   Delete {selectedIds.size} Selected
                 </Button>
               </AlertDialogTrigger>
-              <AlertDialogContent>
+              <AlertDialogContent className="rounded-gfs-card border border-gfs-maroon/20 shadow-gfs-modal bg-white dark:bg-slate-900 font-sans">
                 <AlertDialogHeader>
-                  <AlertDialogTitle>
+                  <AlertDialogTitle className="text-xl font-bold text-rose-600">
                     Delete {selectedIds.size} Samples
                   </AlertDialogTitle>
-                  <AlertDialogDescription>
+                  <AlertDialogDescription className="text-xs text-gfs-text-muted">
                     Are you sure you want to permanently delete{' '}
-                    <span className="font-semibold text-foreground">
+                    <span className="font-bold text-rose-600">
                       {selectedIds.size} sample
                       {selectedIds.size !== 1 ? 's' : ''}
                     </span>
@@ -484,9 +498,9 @@ const SampleTable = ({
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogCancel className="rounded-md text-xs font-bold">Cancel</AlertDialogCancel>
                   <AlertDialogAction
-                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    className="bg-rose-600 text-white hover:bg-rose-700 rounded-md text-xs font-bold"
                     onClick={handleBulkDelete}
                   >
                     Delete All Selected
@@ -497,12 +511,12 @@ const SampleTable = ({
           </div>
         )}
         <div
-          className="relative max-h-[70vh] overflow-auto scrollbar-thin scrollbar-thumb-muted-foreground/20 hover:scrollbar-thumb-muted-foreground/40"
+          className="relative max-h-[70vh] overflow-auto scrollbar-thin scrollbar-thumb-gfs-maroon/20 hover:scrollbar-thumb-gfs-maroon/40"
           onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
           ref={scrollContainerRef}
         >
           <Table className="relative">
-            <TableHeader className="sticky top-0 z-30 bg-card/70 shadow-[0_1px_0_0_hsl(var(--border)/0.5)] backdrop-blur-xl">
+            <TableHeader className="sticky top-0 z-30 bg-card shadow-[0_1px_0_0_hsl(var(--border)/0.5)]">
               <TableRow className="h-12 bg-muted hover:bg-muted">
                 {isSelectionMode && (
                   <TableHead className="w-[40px] px-4">
@@ -554,7 +568,7 @@ const SampleTable = ({
                 <SortableHeader className="w-[140px]" field="status">
                   Status
                 </SortableHeader>
-                <SortableHeader className="w-[100px]" field="risk">
+                <SortableHeader className="min-w-[150px] w-[150px]" field="risk">
                   Risk
                 </SortableHeader>
                 <TableHead className={cn(
