@@ -83,9 +83,8 @@ describe('Dynamic Mycotoxin Catalog and Invalidation', () => {
       />
     );
 
-    expect(html).toContain('ปรับเกณฑ์ Mycotoxin');
-    expect(html).toContain('Threshold Controller');
-    expect(html).toContain('2 สารที่มีเกณฑ์'); // AFB1 and DON have thresholds, AFG1 does not
+    expect(html).toContain('Mycotoxin Threshold Controller');
+    expect(html).toContain('2 regulated toxins'); // AFB1 and DON have thresholds, AFG1 does not
   });
 
   describe('SampleDetailModal ownership permission for Research Assistant', () => {

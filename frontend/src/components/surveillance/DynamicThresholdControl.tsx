@@ -92,16 +92,16 @@ export default function DynamicThresholdControl({ onOverridesChange, commodityOp
           <div>
             <div className="flex items-center gap-2">
               <span className="text-lg font-bold text-gfs-maroon dark:text-white tracking-tight font-sans">
-                ปรับเกณฑ์ Mycotoxin (Threshold Controller)
+                Mycotoxin Threshold Controller
               </span>
               {isSimulating && (
                 <Badge variant="secondary" className="bg-amber-100 text-amber-900 dark:bg-amber-950/60 dark:text-amber-300 font-bold text-xs border border-amber-300 dark:border-amber-800">
-                  ปรับแล้ว {overriddenCount} ค่า
+                  {overriddenCount} modified
                 </Badge>
               )}
             </div>
             <p className="text-xs text-muted-foreground">
-              จำลองและทดสอบเกณฑ์ความปลอดภัยสำหรับ {targetCommodity} ({activeToxins.length} สารที่มีเกณฑ์)
+              Simulate and test safety thresholds for {targetCommodity} ({activeToxins.length} regulated toxins)
             </p>
           </div>
         </div>
@@ -129,12 +129,12 @@ export default function DynamicThresholdControl({ onOverridesChange, commodityOp
                 </h3>
                 {isSimulating && (
                   <Badge variant="outline" className="bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-700/50 font-bold text-xs">
-                    ปรับแล้ว {overriddenCount} สาร
+                    {overriddenCount} modified
                   </Badge>
                 )}
               </div>
               <p className="text-xs text-muted-foreground mt-0.5">
-                จำลองเกณฑ์ความปลอดภัยเฉพาะสำหรับพืช <strong>{targetCommodity}</strong>
+                Simulate commodity-specific safety thresholds for <strong>{targetCommodity}</strong>
               </p>
             </div>
 
@@ -149,7 +149,7 @@ export default function DynamicThresholdControl({ onOverridesChange, commodityOp
                   className="h-8 text-xs font-semibold gap-1.5 text-gfs-maroon border-gfs-maroon/30 hover:bg-gfs-maroon hover:text-white dark:text-red-300 dark:border-red-800/50 rounded-lg"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
-                  รีเซ็ตค่าทั้งหมด ({overriddenCount})
+                  Reset All ({overriddenCount})
                 </Button>
               )}
 
@@ -165,10 +165,10 @@ export default function DynamicThresholdControl({ onOverridesChange, commodityOp
                   });
                   setOverrides(zeroOverrides);
                 }}
-                title={`ตั้งค่าเป็น 0 เฉพาะสารที่มีเกณฑ์ควบคุม (${activeToxins.length} ชนิดสำหรับพืช ${targetCommodity})`}
+                title={`Set to 0 only for regulated toxins (${activeToxins.length} toxins for ${targetCommodity})`}
                 className="h-8 text-xs text-muted-foreground hover:text-foreground hover:bg-muted font-normal rounded-lg"
               >
-                ตั้งทั้งหมดเป็น 0 <span className="opacity-70 text-[10px] ml-1">({activeToxins.length} สาร)</span>
+                Set all to 0 <span className="opacity-70 text-[10px] ml-1">({activeToxins.length} toxins)</span>
               </Button>
 
               {/* Minimize Trigger */}
@@ -194,7 +194,7 @@ export default function DynamicThresholdControl({ onOverridesChange, commodityOp
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="ค้นหารหัส หรือชื่อสาร (Search code or name)..."
+                placeholder="Search code or toxin name..."
                 className="pl-9 pr-8 h-8 text-xs bg-white dark:bg-slate-900 border-gfs-maroon/20 rounded-lg"
               />
               {searchQuery && (
@@ -208,7 +208,7 @@ export default function DynamicThresholdControl({ onOverridesChange, commodityOp
               )}
             </div>
             <span className="text-xs text-muted-foreground">
-              แสดง {filteredToxins.length} จาก {activeToxins.length} สารที่มีเกณฑ์
+              Showing {filteredToxins.length} of {activeToxins.length} regulated toxins
             </span>
           </div>
 
@@ -216,7 +216,7 @@ export default function DynamicThresholdControl({ onOverridesChange, commodityOp
             {isPending && (
               <div className="p-6 flex items-center gap-2 text-sm text-muted-foreground" role="status">
                 <RefreshCw className="w-4 h-4 animate-spin text-gfs-maroon dark:text-gfs-gold" />
-                <span>กำลังโหลดเกณฑ์สารพิษจากระบบ (Loading toxin thresholds)...</span>
+                <span>Loading toxin thresholds from system...</span>
               </div>
             )}
 
@@ -224,7 +224,7 @@ export default function DynamicThresholdControl({ onOverridesChange, commodityOp
               <div className="p-6 flex items-center justify-between text-sm text-destructive" role="alert">
                 <div className="flex items-center gap-2">
                   <AlertCircle className="w-4 h-4" />
-                  <span>ไม่สามารถโหลดข้อมูลเกณฑ์สารพิษได้ (Unable to load toxin thresholds)</span>
+                  <span>Unable to load toxin thresholds</span>
                 </div>
                 <Button
                   type="button"
@@ -241,13 +241,13 @@ export default function DynamicThresholdControl({ onOverridesChange, commodityOp
 
             {registry && activeToxins.length === 0 && (
               <p className="p-6 text-sm text-muted-foreground text-center" role="status">
-                ไม่มีสารพิษที่มีเกณฑ์ควบคุมในระบบในขณะนี้ (No toxin thresholds are currently available)
+                No regulated toxin thresholds are currently available in the system
               </p>
             )}
 
             {registry && activeToxins.length > 0 && filteredToxins.length === 0 && (
               <div className="p-8 text-center text-sm text-muted-foreground">
-                ไม่พบสารพิษที่ตรงกับคำค้นหา "{searchQuery}"
+                No toxins found matching "{searchQuery}"
               </div>
             )}
 
@@ -288,7 +288,7 @@ export default function DynamicThresholdControl({ onOverridesChange, commodityOp
                           )}
                           {meta.isUncertain && (
                             <span className="text-[10px] text-gfs-maroon dark:text-red-400 font-bold flex items-center gap-1">
-                              <AlertCircle className="w-2.5 h-2.5" /> ไม่มีเกณฑ์ควบคุม
+                              <AlertCircle className="w-2.5 h-2.5" /> No regulated threshold
                             </span>
                           )}
                         </div>
@@ -315,7 +315,7 @@ export default function DynamicThresholdControl({ onOverridesChange, commodityOp
                         {isOverridden && (
                           <div className="mt-1.5 flex items-center justify-between text-[10px]">
                             <span className="text-amber-600 dark:text-amber-400 font-medium">
-                              เกณฑ์มาตรฐาน: {meta.defaultThreshold} {meta.unit}
+                              Standard: {meta.defaultThreshold} {meta.unit}
                             </span>
                             <button
                               type="button"
@@ -333,7 +333,7 @@ export default function DynamicThresholdControl({ onOverridesChange, commodityOp
                               }}
                               className="text-gfs-maroon hover:underline dark:text-red-300"
                             >
-                              คืนค่าเดิม
+                              Reset
                             </button>
                           </div>
                         )}
@@ -353,7 +353,7 @@ export default function DynamicThresholdControl({ onOverridesChange, commodityOp
                     : "bg-emerald-500"
                 )} />
                 <span className="text-xs font-bold text-gfs-text-primary dark:text-white/80 tracking-normal">
-                  {isSimulating ? `การจำลองเกณฑ์แบบกำหนดเอง (${overriddenCount} สาร)` : 'ใช้เกณฑ์มาตรฐานตามกฎหมาย (Standard Compliance)'}
+                  {isSimulating ? `Custom Simulation Active (${overriddenCount} toxins modified)` : 'Using Regulatory Standard Thresholds (Standard Compliance)'}
                 </span>
               </div>
               <p className="text-[10px] text-gfs-text-muted font-semibold italic tracking-wide">
