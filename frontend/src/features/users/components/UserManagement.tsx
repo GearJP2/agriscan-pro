@@ -3,7 +3,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Users, UserCheck, UserX, Search, Shield, ChevronDown, Activity, Info, LogIn } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
-import StatsCard from "@/components/StatsCard";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -311,32 +310,112 @@ const UserManagement = () => {
           </div>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <StatsCard
-            title="Total Users"
-            value={stats.total}
-            icon={Users}
-            variant="default"
-          />
-          <StatsCard
-            title="Active Users"
-            value={stats.active}
-            icon={UserCheck}
-            variant="success"
-          />
-          <StatsCard
-            title="Inactive Users"
-            value={stats.inactive}
-            icon={UserX}
-            variant="danger"
-          />
-          <StatsCard
-            title="Administrators"
-            value={stats.admins}
-            icon={Shield}
-            variant="warning"
-          />
-        </div>
+        {/* Unified Directory KPI Dashboard */}
+        <Card className="bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border border-gfs-maroon/15 dark:border-white/10 rounded-gfs-card shadow-gfs-card font-sans overflow-hidden">
+          <CardContent className="p-0">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 font-sans">
+              {/* Card 1: Total Users */}
+              <div className="p-6 transition-colors hover:bg-gfs-canvas/40 dark:hover:bg-white/[0.02] flex flex-col justify-between gap-4 border-b sm:border-r lg:border-b-0 border-gfs-maroon/10 dark:border-white/10">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center bg-gfs-maroon/10 text-gfs-maroon dark:bg-gfs-gold/15 dark:text-gfs-gold">
+                      <Users className="h-4 w-4" />
+                    </div>
+                    <p className="text-xs font-bold text-gfs-text-muted uppercase tracking-wider">
+                      Total Users
+                    </p>
+                  </div>
+                  <p className="text-3xl font-extrabold tracking-tight shrink-0 text-gfs-maroon dark:text-white">
+                    {stats.total}
+                  </p>
+                </div>
+                <div className="flex items-center justify-between pt-1">
+                  <p className="text-xs text-gfs-text-muted font-medium">
+                    Total registered accounts
+                  </p>
+                  <span className="inline-flex items-center gap-0.5 rounded-full px-2.5 py-0.5 text-xs font-bold border bg-gfs-thumb/40 text-gfs-text-muted border-gfs-maroon/10 dark:bg-slate-800 dark:text-slate-300">
+                    Total
+                  </span>
+                </div>
+              </div>
+
+              {/* Card 2: Active Users */}
+              <div className="p-6 transition-colors hover:bg-gfs-canvas/40 dark:hover:bg-white/[0.02] flex flex-col justify-between gap-4 border-b lg:border-r lg:border-b-0 border-gfs-maroon/10 dark:border-white/10">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center bg-emerald-500/15 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400">
+                      <UserCheck className="h-4 w-4" />
+                    </div>
+                    <p className="text-xs font-bold text-gfs-text-muted uppercase tracking-wider">
+                      Active Users
+                    </p>
+                  </div>
+                  <p className="text-3xl font-extrabold tracking-tight shrink-0 text-gfs-maroon dark:text-white">
+                    {stats.active}
+                  </p>
+                </div>
+                <div className="flex items-center justify-between pt-1">
+                  <p className="text-xs text-gfs-text-muted font-medium">
+                    {stats.total > 0 ? Math.round((stats.active / stats.total) * 100) : 0}% operational directory
+                  </p>
+                  <span className="inline-flex items-center gap-0.5 rounded-full px-2.5 py-0.5 text-xs font-bold border bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300">
+                    Active
+                  </span>
+                </div>
+              </div>
+
+              {/* Card 3: Inactive Users */}
+              <div className="p-6 transition-colors hover:bg-gfs-canvas/40 dark:hover:bg-white/[0.02] flex flex-col justify-between gap-4 border-b sm:border-b-0 sm:border-r lg:border-r border-gfs-maroon/10 dark:border-white/10">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center bg-rose-500/15 text-rose-600 dark:bg-rose-500/20 dark:text-rose-400">
+                      <UserX className="h-4 w-4" />
+                    </div>
+                    <p className="text-xs font-bold text-gfs-text-muted uppercase tracking-wider">
+                      Inactive Users
+                    </p>
+                  </div>
+                  <p className="text-3xl font-extrabold tracking-tight shrink-0 text-gfs-maroon dark:text-white">
+                    {stats.inactive}
+                  </p>
+                </div>
+                <div className="flex items-center justify-between pt-1">
+                  <p className="text-xs text-gfs-text-muted font-medium">
+                    {stats.total > 0 ? Math.round((stats.inactive / stats.total) * 100) : 0}% deactivated / locked
+                  </p>
+                  <span className="inline-flex items-center gap-0.5 rounded-full px-2.5 py-0.5 text-xs font-bold border bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300">
+                    Inactive
+                  </span>
+                </div>
+              </div>
+
+              {/* Card 4: Administrators */}
+              <div className="p-6 transition-colors hover:bg-gfs-canvas/40 dark:hover:bg-white/[0.02] flex flex-col justify-between gap-4 bg-amber-50/25 dark:bg-amber-950/15">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center bg-amber-500/15 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400">
+                      <Shield className="h-4 w-4" />
+                    </div>
+                    <p className="text-xs font-bold text-gfs-text-muted uppercase tracking-wider">
+                      Administrators
+                    </p>
+                  </div>
+                  <p className="text-3xl font-extrabold tracking-tight shrink-0 text-amber-700 dark:text-amber-400">
+                    {stats.admins}
+                  </p>
+                </div>
+                <div className="flex items-center justify-between pt-1">
+                  <p className="text-xs text-gfs-text-muted font-medium">
+                    {stats.total > 0 ? Math.round((stats.admins / stats.total) * 100) : 0}% privileged security
+                  </p>
+                  <span className="inline-flex items-center gap-0.5 rounded-full px-2.5 py-0.5 text-xs font-bold border bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300">
+                    Admin
+                  </span>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         <Card className="rounded-gfs-card border border-gfs-maroon/15 dark:border-white/10 bg-white/90 dark:bg-slate-900/90 shadow-gfs-card overflow-hidden font-sans">
           <CardContent className="p-6">
