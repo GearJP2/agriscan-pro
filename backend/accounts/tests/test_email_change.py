@@ -35,19 +35,38 @@ class EmailChangeSecurityTests(TestCase):
 
     def test_profile_email_change_creates_verification_request(self):
         """Profile email changes should create a verification request instead of updating immediately."""
-        response = self.client.patch(
-            self.profile_url,
-            {
-                "email": "pending@example.com",
-                "current_password": "StrongPass123!",
-            },
-            format="json",
-        )
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.patch(
+                self.profile_url,
+                {
+                    "email": "pending@example.com",
+                    "current_password": "StrongPass123!",
+                },
+                format="json",
+            )
 
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
         self.user.refresh_from_db()
         self.assertEqual(self.user.email, "emailuser@example.com")
         self.assertEqual(len(mail.outbox), 1)
+
+    def test_profile_email_change_not_sent_on_transaction_rollback(self):
+        """If email change request creation rolls back, verification email is never sent."""
+        from unittest.mock import patch
+        with patch.object(EmailChangeRequest.objects, "create", side_effect=RuntimeError("db fail")):
+            with self.captureOnCommitCallbacks(execute=True):
+                try:
+                    self.client.patch(
+                        self.profile_url,
+                        {
+                            "email": "pending_rollback@example.com",
+                            "current_password": "StrongPass123!",
+                        },
+                        format="json",
+                    )
+                except RuntimeError:
+                    pass
+        self.assertEqual(len(mail.outbox), 0)
 
     def test_email_change_confirmation_rejects_duplicate_email(self):
         """Confirming an email change should fail cleanly when the target email is already taken."""

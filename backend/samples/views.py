@@ -11,6 +11,7 @@ from rest_framework.response import Response
 
 from core.exceptions import SampleAlreadyExists
 from core.models import AuditLog
+from core.audit import archive_sample_for_deletion, audit_result_change, row_snapshot
 from core.permissions import IsAdmin, IsAdminOrHeadResearcher, IsAdminOrResearchRole, IsOwnerOrAdmin
 
 from .filters import apply_sample_filters
@@ -34,7 +35,7 @@ from .serializers import (
     SampleSerializer,
 )
 from core.task_dispatcher import dispatch_task
-from .tasks import process_sample_file
+from .tasks import process_sample_file, sync_process_sample_file
 from .services.analytics_service import AnalyticsService
 from .services.dashboard_payload_service import DashboardFilters, DashboardPayloadService
 from .services.llm_summary_service import (
@@ -115,7 +116,12 @@ class SampleViewSet(viewsets.ModelViewSet):
         return Response(get_toxin_registry())
 
     def get_queryset(self):
-        return apply_sample_filters(super().get_queryset(), self.request.query_params)
+        queryset = super().get_queryset().prefetch_related(None)
+        if self.action in {'list', 'retrieve'}:
+            queryset = queryset.prefetch_related('process_logs', 'mycotoxin_results')
+        if self.action == 'retrieve':
+            queryset = queryset.select_related('prediction_context')
+        return apply_sample_filters(queryset, self.request.query_params)
 
     def perform_create(self, serializer):
         sample = serializer.save(
@@ -144,8 +150,11 @@ class SampleViewSet(viewsets.ModelViewSet):
             extra={'sample_id': sample.sample_id, 'user': self.request.user.username},
         )
 
+    @transaction.atomic
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
+        instance = Sample.objects.select_for_update().get(pk=instance.pk)
+        archive_sample_for_deletion(instance, request.user)
         # Collect audit data before CASCADE deletion removes related records
         process_log_count = instance.process_logs.count()
         mycotoxin_count = instance.mycotoxin_results.count()
@@ -186,13 +195,12 @@ class SampleViewSet(viewsets.ModelViewSet):
         queryset = Sample.objects.all()
 
         # Apply role-based filtering
-        if request.user.role not in ["admin", "head_researcher", "researcher"]:
+        if not (request.user.is_staff or request.user.is_superuser) and request.user.role not in [
+            "admin", "head_researcher", "researcher"
+        ]:
             # research_assistant and other roles see only their own samples
-            queryset = queryset.filter(
-                updated_by=request.user
-            ) | queryset.filter(
-                collected_by=request.user.username
-            )
+            from core.permissions import sample_ownership_filter
+            queryset = queryset.filter(sample_ownership_filter(request.user))
 
         stats = queryset.aggregate(
             total_samples=Count('id'),
@@ -279,7 +287,12 @@ class SampleViewSet(viewsets.ModelViewSet):
             extra={'count': len(samples), 'user': request.user.username},
         )
         return Response(
-            SampleSerializer(samples, many=True).data,
+            SampleSerializer(
+                Sample.objects.filter(pk__in=[sample.pk for sample in samples])
+                .select_related('recorded_by', 'updated_by', 'prediction_context')
+                .prefetch_related('process_logs', 'mycotoxin_results'),
+                many=True, context=self.get_serializer_context(),
+            ).data,
             status=status.HTTP_201_CREATED,
         )
 
@@ -291,6 +304,8 @@ class SampleViewSet(viewsets.ModelViewSet):
         if serializer.is_valid():
             response_status = status.HTTP_201_CREATED
             with transaction.atomic():
+                sample = Sample.objects.select_for_update().get(pk=sample.pk)
+                self.check_object_permissions(request, sample)
                 toxin_type = serializer.validated_data['toxin_type']
                 existing = (
                     sample.mycotoxin_results
@@ -298,6 +313,7 @@ class SampleViewSet(viewsets.ModelViewSet):
                     .filter(toxin_type=toxin_type)
                     .first()
                 )
+                before = row_snapshot(existing) if existing else {}
                 if existing:
                     serializer = MycotoxinResultSerializer(
                         existing,
@@ -310,21 +326,8 @@ class SampleViewSet(viewsets.ModelViewSet):
                 else:
                     result = serializer.save(sample=sample)
 
-                # If results are recorded, mark the sample workflow as completed if pending/in_progress.
-                # Preserve 'flagged' status so active risk investigations remain flagged.
-                if sample.status in ('pending', 'in_progress'):
-                    sample.status = 'completed'
-                    sample.updated_by = request.user
-                    sample.save(update_fields=['status', 'updated_by', 'updated_at'])
-
-                latest_log = sample.process_logs.order_by('-timestamp').first()
-                if sample.status == 'completed' and (not latest_log or latest_log.state != 'completed'):
-                    ProcessLog.objects.create(
-                        sample=sample,
-                        state='completed',
-                        notes='Mycotoxin result(s) recorded and finalized.',
-                        conducted_by=request.user.username or 'System',
-                    )
+                SampleService.finalize_results(sample, request.user)
+                audit_result_change(result, request.user, before)
 
             logger.info(
                 'sample.mycotoxin_result.saved',
@@ -471,7 +474,12 @@ class SampleViewSet(viewsets.ModelViewSet):
         if not key:
             return Response({'detail': 'key is required'}, status=status.HTTP_400_BAD_REQUEST)
 
-        task = dispatch_task(process_sample_file, kwargs={'key': key, 'uploaded_by_username': request.user.username})
+        task = dispatch_task(
+            process_sample_file,
+            sync_process_sample_file,
+            key=key,
+            uploaded_by_username=request.user.username,
+        )
         logger.info('sample.upload.confirmed', extra={'key': key, 'task_id': task.id, 'user': request.user.username})
 
         # If the task completed synchronously, we can adjust the response status.
@@ -512,6 +520,7 @@ class SampleViewSet(viewsets.ModelViewSet):
         return Response(response)
 
     @action(detail=False, methods=['post'])
+    @transaction.atomic
     def bulk_delete(self, request):
         """Bulk delete samples - admin only"""
         sample_ids = request.data.get('sample_ids', [])
@@ -525,12 +534,13 @@ class SampleViewSet(viewsets.ModelViewSet):
                 {'detail': f'Cannot delete more than {BULK_DELETE_LIMIT} samples at once.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        samples_qs = Sample.objects.filter(sample_id__in=sample_ids)
+        samples_qs = Sample.objects.select_for_update().filter(sample_id__in=sample_ids)
         found_ids = list(samples_qs.values_list('sample_id', flat=True))
         not_found = [sid for sid in sample_ids if sid not in found_ids]
         count = samples_qs.count()
 
-        # Delete first so the operation succeeds even if audit logging fails
+        for sample in samples_qs:
+            archive_sample_for_deletion(sample, request.user)
         samples_qs.delete()
 
         logger.warning(

@@ -34,21 +34,38 @@ class PasswordResetSecurityTests(TestCase):
     @patch("accounts.views.send_mail")
     def test_request_returns_same_response_for_existing_and_unknown_email(self, mock_send_mail):
         """Password-reset request should not reveal whether an email exists."""
-        known = self.client.post(
-            self.request_url,
-            {"email": self.user.email},
-            format="json",
-        )
-        unknown = self.client.post(
-            self.request_url,
-            {"email": "unknown@example.com"},
-            format="json",
-        )
+        with self.captureOnCommitCallbacks(execute=True):
+            known = self.client.post(
+                self.request_url,
+                {"email": self.user.email},
+                format="json",
+            )
+        with self.captureOnCommitCallbacks(execute=True):
+            unknown = self.client.post(
+                self.request_url,
+                {"email": "unknown@example.com"},
+                format="json",
+            )
 
         self.assertEqual(known.status_code, status.HTTP_200_OK)
         self.assertEqual(unknown.status_code, status.HTTP_200_OK)
         self.assertEqual(known.data.get("detail"), unknown.data.get("detail"))
         self.assertEqual(mock_send_mail.call_count, 1)
+
+    @patch("accounts.views.send_mail")
+    def test_request_otp_email_not_sent_on_transaction_rollback(self, mock_send_mail):
+        """If OTP generation transaction rolls back, send_mail must not be called."""
+        with patch.object(PasswordResetOTP.objects, "create", side_effect=RuntimeError("db error")):
+            with self.captureOnCommitCallbacks(execute=True):
+                try:
+                    self.client.post(
+                        self.request_url,
+                        {"email": self.user.email},
+                        format="json",
+                    )
+                except RuntimeError:
+                    pass
+        mock_send_mail.assert_not_called()
 
     @patch("accounts.views.send_mail")
     @patch("accounts.views.generate_otp", return_value="111111")

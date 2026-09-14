@@ -27,6 +27,7 @@ import logging
 from typing import Any, Callable
 
 from django.conf import settings
+from django.db import transaction
 
 logger = logging.getLogger("agriscan.tasks")
 
@@ -38,9 +39,10 @@ def async_tasks_enabled() -> bool:
 
 def dispatch_task(
     task: Any,
-    sync_func: Callable[..., Any],
+    sync_func: Callable[..., Any] | None = None,
     /,
     *args: Any,
+    on_commit: bool = True,
     **kwargs: Any,
 ) -> Any:
     """Dispatch a task either asynchronously (Celery) or synchronously.
@@ -48,23 +50,40 @@ def dispatch_task(
     Args:
         task:      The Celery ``@shared_task`` object.
         sync_func: Plain callable that carries the same logic, called when
-                   async tasks are disabled.
+                   async tasks are disabled. Defaults to ``task.run`` or ``task`` if omitted.
         *args:     Positional arguments forwarded to whichever path is chosen.
+        on_commit: If True (default) and called within an active atomic database
+                   transaction, defer task execution until the transaction commits.
         **kwargs:  Keyword arguments forwarded to whichever path is chosen.
 
     Returns:
-        * An ``AsyncResult`` when async tasks are enabled.
-        * The return value of ``sync_func`` when running synchronously.
+        * None when deferred via ``transaction.on_commit``.
+        * An ``AsyncResult`` when async tasks are enabled and executed immediately.
+        * The return value of ``sync_func`` when running synchronously and immediately.
     """
-    if async_tasks_enabled():
-        logger.info(
-            "task.dispatched.async",
-            extra={"task": getattr(task, "name", repr(task))},
-        )
-        return task.delay(*args, **kwargs)
+    def _execute() -> Any:
+        if async_tasks_enabled():
+            logger.info(
+                "task.dispatched.async",
+                extra={"task": getattr(task, "name", repr(task))},
+            )
+            return task.delay(*args, **kwargs)
 
-    logger.info(
-        "task.dispatched.sync",
-        extra={"task": getattr(sync_func, "__name__", repr(sync_func))},
-    )
-    return sync_func(*args, **kwargs)
+        target_sync = sync_func if sync_func is not None else getattr(task, "run", task)
+        logger.info(
+            "task.dispatched.sync",
+            extra={"task": getattr(target_sync, "__name__", repr(target_sync))},
+        )
+        return target_sync(*args, **kwargs)
+
+    if on_commit:
+        connection = transaction.get_connection()
+        if connection.in_atomic_block:
+            logger.debug(
+                "task.dispatched.deferred_on_commit",
+                extra={"task": getattr(task, "name", repr(task))},
+            )
+            transaction.on_commit(_execute)
+            return None
+
+    return _execute()

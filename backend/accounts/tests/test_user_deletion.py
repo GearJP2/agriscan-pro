@@ -4,6 +4,8 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from core.models import AuditLog
+
 from ..models import User
 
 
@@ -41,6 +43,9 @@ class UserDeletionTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
         self.assertFalse(User.objects.filter(pk=self.target_user.pk).exists())
+        snapshot = AuditLog.objects.get(action='delete_snapshot', model_name='User')
+        self.assertEqual(snapshot.changes['username'], 'target_user')
+        self.assertEqual(snapshot.changes['email'], 'target@test.com')
         mock_dispatch.assert_called_once_with(
             remove_user_from_monitor_task, remove_user_from_monitor, self.target_user.email
         )
@@ -68,3 +73,31 @@ class UserDeletionTests(APITestCase):
         response = self.client.delete(self.url)
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    @patch("accounts.tasks.MonitorSyncService.remove_email_from_monitor")
+    def test_delete_user_monitor_sync_deferred_and_skipped_on_rollback(self, mock_remove):
+        """Verify real dispatch_task defers monitor sync until commit and aborts on rollback."""
+        self.target_user.is_active = False
+        self.target_user.save()
+
+        self.client.force_authenticate(user=self.admin_user)
+
+        # Simulate a database failure during audit log or destroy
+        with patch.object(AuditLog.objects, "create", side_effect=RuntimeError("audit failure")):
+            with self.captureOnCommitCallbacks(execute=True):
+                try:
+                    self.client.delete(self.url)
+                except RuntimeError:
+                    pass
+
+        # Since transaction rolled back, remove_email_from_monitor must NOT have been called!
+        mock_remove.assert_not_called()
+        self.assertTrue(User.objects.filter(pk=self.target_user.pk).exists())
+
+        # Now test successful commit
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.delete(self.url)
+            self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+
+        # After commit, remove_email_from_monitor was called
+        mock_remove.assert_called_once_with(self.target_user.email)

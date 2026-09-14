@@ -20,6 +20,8 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 
 from core.permissions import IsAdmin, IsAdminOrResearchRole
+from core.models import AuditLog
+from core.audit import row_snapshot
 
 from .auth_helpers import (
     blacklist_all_user_tokens,
@@ -267,6 +269,7 @@ class UserDetailView(generics.RetrieveUpdateDestroyAPIView):
                 details=f"{status_text} user account",
             )
 
+    @transaction.atomic
     def destroy(self, request, *args, **kwargs):
         """
         Enforce deactivation before deletion and sync with Monitor infrastructure.
@@ -299,6 +302,16 @@ class UserDetailView(generics.RetrieveUpdateDestroyAPIView):
         from core.task_dispatcher import dispatch_task
         dispatch_task(remove_user_from_monitor_task, remove_user_from_monitor, instance.email)
 
+        AuditLog.objects.create(
+            actor=request.user, action='delete_snapshot', model_name='User', object_id=str(instance.pk),
+            changes={'username': instance.username, 'email': instance.email,
+                     'account_actions_received': [
+                         row_snapshot(action) for action in instance.actions_received.all()
+                     ],
+                     'account_actions_performed': [
+                         row_snapshot(action) for action in instance.actions_performed.all()
+                     ]},
+        )
         return super().destroy(request, *args, **kwargs)
 
 
@@ -337,23 +350,28 @@ class RequestOTPView(generics.GenericAPIView):
         user = UserRepository.get_user_by_email(email)
         if user:
             otp_code = generate_otp()
-            PasswordResetOTP.objects.filter(user=user, used=False).update(used=True)
-            PasswordResetOTP.objects.create(
-                user=user,
-                otp_hash=PasswordResetOTP.hash_otp(otp_code),
-                expiry=timezone.now() + datetime.timedelta(minutes=OTP_EXPIRY_MINUTES),
-            )
-
-            try:
-                send_mail(
-                    "Your AgriScan Pro OTP",
-                    f"Your OTP for password reset is: {otp_code}. It will expire in {OTP_EXPIRY_MINUTES} minutes.",
-                    settings.DEFAULT_FROM_EMAIL,
-                    [user.email],
-                    fail_silently=False,
+            with transaction.atomic():
+                user = type(user).objects.select_for_update().get(pk=user.pk)
+                PasswordResetOTP.objects.filter(user=user, used=False).update(used=True)
+                PasswordResetOTP.objects.create(
+                    user=user,
+                    otp_hash=PasswordResetOTP.hash_otp(otp_code),
+                    expiry=timezone.now() + datetime.timedelta(minutes=OTP_EXPIRY_MINUTES),
                 )
-            except Exception:
-                logger.error("email_send_failed", exc_info=True)
+
+                def _send_otp_email() -> None:
+                    try:
+                        send_mail(
+                            "Your AgriScan Pro OTP",
+                            f"Your OTP for password reset is: {otp_code}. It will expire in {OTP_EXPIRY_MINUTES} minutes.",
+                            settings.DEFAULT_FROM_EMAIL,
+                            [user.email],
+                            fail_silently=False,
+                        )
+                    except Exception:
+                        logger.error("email_send_failed", exc_info=True)
+
+                transaction.on_commit(_send_otp_email)
 
             logger.info("user.password_reset_otp_sent", extra={"email": email})
 
@@ -447,13 +465,14 @@ class ResetPasswordOTPView(generics.GenericAPIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        otp_obj = self._resolve_valid_otp(user, otp_code)
-        if isinstance(otp_obj, Response):
-            return otp_obj
-
-        blacklisted_count = self._apply_password_change(
-            user, new_password, otp_obj, verify_key,
-        )
+        with transaction.atomic():
+            user = type(user).objects.select_for_update().get(pk=user.pk)
+            otp_obj = self._resolve_valid_otp(user, otp_code)
+            if isinstance(otp_obj, Response):
+                return otp_obj
+            blacklisted_count = self._apply_password_change(
+                user, new_password, otp_obj, verify_key,
+            )
 
         logger.info(
             "user.password_reset_success",
@@ -489,28 +508,35 @@ class ProfileUpdateView(generics.UpdateAPIView):
 
         new_email = serializer.validated_data.get("email")
         if new_email and new_email.lower() != instance.email.lower():
-            EmailChangeRequest.objects.filter(user=instance).delete()
-
-            req = EmailChangeRequest.objects.create(
-                user=instance,
-                new_email=new_email,
-                expiry=timezone.now() + datetime.timedelta(hours=EMAIL_CHANGE_EXPIRY_HOURS),
-            )
-
             frontend_url = os.environ.get("FRONTEND_URL", "http://localhost:5173")
-            verification_url = f"{frontend_url}/verify-email?token={req.token}"
+            with transaction.atomic():
+                EmailChangeRequest.objects.filter(user=instance).delete()
 
-            send_mail(
-                "Verify your new email - AgriScan Pro",
-                f"Click the link to verify your new email: {verification_url}",
-                settings.DEFAULT_FROM_EMAIL,
-                [new_email],
-                fail_silently=False,
-            )
+                req = EmailChangeRequest.objects.create(
+                    user=instance,
+                    new_email=new_email,
+                    expiry=timezone.now() + datetime.timedelta(hours=EMAIL_CHANGE_EXPIRY_HOURS),
+                )
 
-            if "name" in serializer.validated_data:
-                instance.name = serializer.validated_data["name"]
-                instance.save(update_fields=["name"])
+                if "name" in serializer.validated_data:
+                    instance.name = serializer.validated_data["name"]
+                    instance.save(update_fields=["name"])
+
+                verification_url = f"{frontend_url}/verify-email?token={req.token}"
+
+                def _send_verification_email() -> None:
+                    try:
+                        send_mail(
+                            "Verify your new email - AgriScan Pro",
+                            f"Click the link to verify your new email: {verification_url}",
+                            settings.DEFAULT_FROM_EMAIL,
+                            [new_email],
+                            fail_silently=False,
+                        )
+                    except Exception:
+                        logger.error("email_send_failed", exc_info=True)
+
+                transaction.on_commit(_send_verification_email)
 
             logger.info(
                 "user.email_change_requested",
