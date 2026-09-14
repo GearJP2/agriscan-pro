@@ -327,23 +327,93 @@ class SampleIngestionService:
         return display_ids, normalized_ids, rows_processed
 
     @classmethod
+    def _generate_sample_id_candidates(cls, raw_id: str) -> set[str]:
+        """
+        Generate possible stored sample_id variants for an input identifier.
+
+        Covers:
+        - Exact, uppercase, and lowercase variants
+        - Hyphen normalization (Unicode hyphens -> ASCII hyphen)
+        - Numeric sequence padding variations (1 to 8 digits, e.g. 73 -> 073, 0073)
+        """
+        if not raw_id:
+            return set()
+
+        text = str(raw_id).strip()
+        text = (
+            text.replace("\u2010", "-")
+            .replace("\u2011", "-")
+            .replace("\u2012", "-")
+            .replace("\u2013", "-")
+            .replace("\u2014", "-")
+        )
+        text = re.sub(r"\s+", "", text)
+        if not text:
+            return set()
+
+        candidates = {text, text.upper(), text.lower()}
+        parts = text.split("-")
+
+        # Handle hyphenated identifiers with trailing numeric sequence (e.g. SAM-2026-73)
+        if len(parts) > 1 and parts[-1].isdigit():
+            prefix = "-".join(parts[:-1])
+            seq_num = int(parts[-1])
+            for width in range(1, 9):
+                cand = f"{prefix}-{seq_num:0{width}d}"
+                candidates.add(cand)
+                candidates.add(cand.upper())
+                candidates.add(cand.lower())
+
+        # Handle standalone numeric identifiers (e.g. 73)
+        elif len(parts) == 1 and parts[0].isdigit():
+            seq_num = int(parts[0])
+            for width in range(1, 9):
+                candidates.add(f"{seq_num:0{width}d}")
+
+        return candidates
+
+    @classmethod
     def _build_sample_map(
         cls, display_ids: set[str], normalized_ids: set[str]
     ) -> dict[str, Sample]:
-        """Resolve CSV IDs to Sample rows, falling back to a normalized scan."""
-        sample_map = {
-            cls.normalize_sample_id(s.sample_id): s
-            for s in Sample._default_manager.filter(sample_id__in=display_ids)
-        }
+        """
+        Resolve CSV IDs to Sample rows using batched indexed lookups.
 
+        Phase 1: Direct match on display IDs using indexed IN lookup.
+        Phase 2: Candidate expansion for missing normalized IDs (padding/case variants).
+        Eliminates unbounded full table scans (O(N) -> O(1)).
+        """
+        sample_map: dict[str, Sample] = {}
+        batch_size = 1000
+
+        # Phase 1: Direct matches on raw display IDs
+        display_list = [sid for sid in display_ids if sid]
+        for i in range(0, len(display_list), batch_size):
+            batch = display_list[i : i + batch_size]
+            for sample in Sample._default_manager.filter(sample_id__in=batch):
+                norm = cls.normalize_sample_id(sample.sample_id)
+                if norm in normalized_ids:
+                    sample_map[norm] = sample
+
+        # Check if all normalized IDs have been resolved
         missing_norm = normalized_ids - set(sample_map.keys())
         if not missing_norm:
             return sample_map
 
-        for sample in Sample._default_manager.all():
-            norm = cls.normalize_sample_id(sample.sample_id)
-            if norm in missing_norm and norm not in sample_map:
-                sample_map[norm] = sample
+        # Phase 2: Generate candidate variants only for missing normalized IDs
+        candidates: set[str] = set()
+        for norm_id in missing_norm:
+            candidates.update(cls._generate_sample_id_candidates(norm_id))
+
+        if candidates:
+            candidate_list = list(candidates)
+            for i in range(0, len(candidate_list), batch_size):
+                batch = candidate_list[i : i + batch_size]
+                for sample in Sample._default_manager.filter(sample_id__in=batch):
+                    norm = cls.normalize_sample_id(sample.sample_id)
+                    if norm in missing_norm and norm not in sample_map:
+                        sample_map[norm] = sample
+
         return sample_map
 
     @classmethod

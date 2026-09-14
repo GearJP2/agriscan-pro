@@ -7,6 +7,7 @@ from django.urls import reverse
 from rest_framework import status
 
 from ..models import MycotoxinResult, ProcessLog, Sample
+from ..services.ingestion_service import SampleIngestionService
 from ._mixins import SampleTestMixin
 
 
@@ -336,3 +337,51 @@ class BulkImportResultsTests(SampleTestMixin, TestCase):
         )
         self.assertEqual(response.data['matched_samples'], 1)
         self.assertGreaterEqual(response.data['results_created'], 2)
+
+    def test_generate_sample_id_candidates_covers_variations(self):
+        """Candidate generator must produce unpadded and padded variants, case variations, and normalize dashes."""
+        candidates = SampleIngestionService._generate_sample_id_candidates('sam-2026-73')
+        self.assertIn('SAM-2026-73', candidates)
+        self.assertIn('SAM-2026-073', candidates)
+        self.assertIn('SAM-2026-0073', candidates)
+        self.assertIn('sam-2026-73', candidates)
+        self.assertIn('sam-2026-073', candidates)
+
+        # Unicode hyphens
+        unicode_candidates = SampleIngestionService._generate_sample_id_candidates('SAM\u20102026\u2010073')
+        self.assertIn('SAM-2026-073', unicode_candidates)
+        self.assertIn('SAM-2026-73', unicode_candidates)
+
+    def test_build_sample_map_candidate_expansion_resolves_padded_and_unpadded(self):
+        """_build_sample_map resolves unpadded input to padded DB record via candidate expansion."""
+        self.sample.sample_id = 'SAM-2026-073'
+        self.sample.save(update_fields=['sample_id'])
+
+        display_ids = {'SAM-2026-73'}
+        normalized_ids = {'SAM-2026-73'}
+        sample_map = SampleIngestionService._build_sample_map(display_ids, normalized_ids)
+
+        self.assertIn('SAM-2026-73', sample_map)
+        self.assertEqual(sample_map['SAM-2026-73'].pk, self.sample.pk)
+
+    def test_build_sample_map_never_calls_sample_all(self):
+        """When an ID is not found, _build_sample_map must NEVER scan Sample.objects.all()."""
+        display_ids = {'NOT-FOUND-999'}
+        normalized_ids = {'NOT-FOUND-999'}
+
+        with patch.object(Sample._default_manager, 'all', side_effect=AssertionError("Full table scan triggered!")):
+            sample_map = SampleIngestionService._build_sample_map(display_ids, normalized_ids)
+            self.assertEqual(sample_map, {})
+
+    def test_bulk_import_api_with_unmatched_id_does_not_trigger_full_scan(self):
+        """End-to-end API upload with unmatched ID should never trigger full table scan."""
+        url = reverse('sample-bulk-import-results')
+        csv_content = 'sample_id,AFB1\nNON-EXISTENT-ID,10\n'
+        upload = SimpleUploadedFile('unmatched.csv', csv_content.encode('utf-8'), content_type='text/csv')
+
+        with patch.object(Sample._default_manager, 'all', side_effect=AssertionError("Full table scan triggered!")):
+            response = self.client.post(url, {'file': upload}, format='multipart')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['matched_samples'], 0)
+        self.assertIn('NON-EXISTENT-ID', response.data['unmatched_sample_ids'])
