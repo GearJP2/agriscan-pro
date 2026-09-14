@@ -273,39 +273,45 @@ const UserManagement = () => {
   const UserSkeleton = () => (
     <>
       {[1, 2, 3, 4, 5].map((i) => (
-        <TableRow key={i}>
+        <TableRow key={i} className="border-b border-gfs-maroon/10 dark:border-white/5">
           <TableCell>
             <div className="flex items-center gap-3">
-              <Skeleton className="h-10 w-10 rounded-full" />
+              <Skeleton className="h-10 w-10 rounded-full bg-gfs-maroon/10 dark:bg-slate-800" />
               <div className="space-y-1.5">
-                <Skeleton className="h-4 w-32" />
-                <Skeleton className="h-3 w-40" />
+                <Skeleton className="h-4 w-32 bg-gfs-maroon/10 dark:bg-slate-800" />
+                <Skeleton className="h-3 w-40 bg-gfs-maroon/10 dark:bg-slate-800" />
               </div>
             </div>
           </TableCell>
-          <TableCell><Skeleton className="h-4 w-48" /></TableCell>
-          <TableCell><Skeleton className="h-6 w-20 rounded-full" /></TableCell>
-          <TableCell><Skeleton className="h-9 w-32 rounded-lg" /></TableCell>
-          <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-          <TableCell className="text-right"><Skeleton className="h-9 w-40 ml-auto rounded-md" /></TableCell>
+          <TableCell><Skeleton className="h-4 w-48 bg-gfs-maroon/10 dark:bg-slate-800" /></TableCell>
+          <TableCell><Skeleton className="h-6 w-20 rounded-full bg-gfs-maroon/10 dark:bg-slate-800" /></TableCell>
+          <TableCell><Skeleton className="h-9 w-32 rounded-full bg-gfs-maroon/10 dark:bg-slate-800" /></TableCell>
+          <TableCell><Skeleton className="h-4 w-24 bg-gfs-maroon/10 dark:bg-slate-800" /></TableCell>
+          <TableCell className="text-right"><Skeleton className="h-9 w-32 ml-auto rounded-full bg-gfs-maroon/10 dark:bg-slate-800" /></TableCell>
         </TableRow>
       ))}
     </>
   );
 
   return (
-    <div className="min-h-screen bg-background">
-      <main className="container py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-foreground">
-            User Management
-          </h1>
-          <p className="mt-2 text-muted-foreground">
-            Manage user accounts, roles, and permissions
-          </p>
+    <div className="w-full flex-1 bg-gfs-canvas text-gfs-text-primary coe-gfs transition-colors duration-300 font-sans">
+      <main className="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 pt-2 pb-12 space-y-8">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-gfs-maroon dark:text-gfs-gold mb-2">
+              <Shield className="h-4 w-4" />
+              <span>Access & Security Directory · Thammasat CoE-GFS</span>
+            </div>
+            <h1 className="text-3xl sm:text-4xl font-extrabold text-gfs-maroon dark:text-white tracking-tight">
+              User Management
+            </h1>
+            <p className="mt-1.5 text-sm font-medium text-gfs-text-muted dark:text-slate-400 max-w-3xl">
+              Manage user accounts, institutional privileges, and operational security roles across AgriScan Pro.
+            </p>
+          </div>
         </div>
 
-        <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatsCard
             title="Total Users"
             value={stats.total}
@@ -332,33 +338,33 @@ const UserManagement = () => {
           />
         </div>
 
-        <Card className="glass-card">
+        <Card className="rounded-gfs-card border border-gfs-maroon/15 dark:border-white/10 bg-white/90 dark:bg-slate-900/90 shadow-gfs-card overflow-hidden font-sans">
           <CardContent className="p-6">
-            <div className="mb-8 flex flex-col gap-4 md:flex-row items-end">
+            <div className="mb-6 flex flex-col gap-4 md:flex-row items-end">
               <div className="flex-1 w-full">
-                <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-2 ml-1">Search Directory</p>
+                <p className="text-xs font-bold uppercase tracking-wider text-gfs-maroon dark:text-gfs-gold mb-2 ml-1">Search Directory</p>
                 <div className="relative group">
-                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground transition-colors group-focus-within:text-primary" />
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-gfs-maroon/50 dark:text-gfs-gold/60 transition-colors group-focus-within:text-gfs-maroon" />
                   <Input
                     placeholder="Search users by name or email..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10 h-11 bg-muted/30 border-border/40 focus:bg-background transition-all rounded-xl"
+                    className="h-11 pl-11 pr-4 bg-gfs-canvas/50 dark:bg-slate-800/60 border border-gfs-maroon/20 dark:border-white/10 rounded-full text-xs font-medium placeholder:text-gfs-text-muted/60 text-gfs-text-primary dark:text-white focus-visible:ring-2 focus-visible:ring-gfs-gold/40 focus-visible:border-gfs-maroon transition-all"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:w-[380px]">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:w-[380px]">
                 <div className="w-full">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-2 ml-1">Role Type</p>
+                  <p className="text-xs font-bold uppercase tracking-wider text-gfs-maroon dark:text-gfs-gold mb-2 ml-1">Role Type</p>
                   <Select value={roleFilter} onValueChange={setRoleFilter}>
-                    <SelectTrigger className="h-11 bg-muted/30 border-border/40 rounded-xl">
+                    <SelectTrigger className="h-11 rounded-full border border-gfs-maroon/20 dark:border-white/10 bg-white/80 dark:bg-slate-900/80 px-4 text-xs font-bold text-gfs-text-primary dark:text-slate-200 hover:border-gfs-maroon/50 hover:bg-gfs-maroon/5 transition-all">
                       <SelectValue placeholder="Filter by role" />
                     </SelectTrigger>
-                    <SelectContent className="rounded-xl">
-                      <SelectItem value="all">All Roles</SelectItem>
+                    <SelectContent className="rounded-gfs-card border border-gfs-maroon/20 shadow-gfs-modal p-1 bg-white dark:bg-slate-900 font-sans">
+                      <SelectItem value="all" className="rounded-lg text-xs font-bold cursor-pointer hover:bg-gfs-maroon/5">All Roles</SelectItem>
                       {availableRoles.map((role) => (
-                        <SelectItem key={role} value={role}>
+                        <SelectItem key={role} value={role} className="rounded-lg text-xs font-bold cursor-pointer hover:bg-gfs-maroon/5">
                           {USER_ROLE_LABELS[role]}
                         </SelectItem>
                       ))}
@@ -367,31 +373,31 @@ const UserManagement = () => {
                 </div>
 
                 <div className="w-full">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-2 ml-1">Account Status</p>
+                  <p className="text-xs font-bold uppercase tracking-wider text-gfs-maroon dark:text-gfs-gold mb-2 ml-1">Account Status</p>
                   <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="h-11 bg-muted/30 border-border/40 rounded-xl">
+                    <SelectTrigger className="h-11 rounded-full border border-gfs-maroon/20 dark:border-white/10 bg-white/80 dark:bg-slate-900/80 px-4 text-xs font-bold text-gfs-text-primary dark:text-slate-200 hover:border-gfs-maroon/50 hover:bg-gfs-maroon/5 transition-all">
                       <SelectValue placeholder="Filter by status" />
                     </SelectTrigger>
-                    <SelectContent className="rounded-xl">
-                      <SelectItem value="all">All Statuses</SelectItem>
-                      <SelectItem value="active">Active</SelectItem>
-                      <SelectItem value="inactive">Inactive</SelectItem>
+                    <SelectContent className="rounded-gfs-card border border-gfs-maroon/20 shadow-gfs-modal p-1 bg-white dark:bg-slate-900 font-sans">
+                      <SelectItem value="all" className="rounded-lg text-xs font-bold cursor-pointer hover:bg-gfs-maroon/5">All Statuses</SelectItem>
+                      <SelectItem value="active" className="rounded-lg text-xs font-bold cursor-pointer hover:bg-gfs-maroon/5">Active</SelectItem>
+                      <SelectItem value="inactive" className="rounded-lg text-xs font-bold cursor-pointer hover:bg-gfs-maroon/5">Inactive</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               </div>
             </div>
 
-            <div className="rounded-lg border">
+            <div className="rounded-gfs-card border border-gfs-maroon/15 dark:border-white/10 overflow-hidden shadow-sm">
               <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Role</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Member Since</TableHead>
-                    <TableHead className="text-right">Promote</TableHead>
+                <TableHeader className="bg-card shadow-[0_1px_0_0_hsl(var(--border)/0.5)]">
+                  <TableRow className="h-12 bg-muted hover:bg-muted">
+                    <TableHead className="font-semibold">Name</TableHead>
+                    <TableHead className="font-semibold">Email</TableHead>
+                    <TableHead className="font-semibold">Role</TableHead>
+                    <TableHead className="font-semibold">Status</TableHead>
+                    <TableHead className="font-semibold">Member Since</TableHead>
+                    <TableHead className="text-right font-semibold">Promote</TableHead>
                   </TableRow>
                 </TableHeader>
 
@@ -404,11 +410,11 @@ const UserManagement = () => {
                         colSpan={6}
                         className="py-20 text-center"
                       >
-                        <div className="flex flex-col items-center justify-center space-y-3 opacity-40">
-                          <Search className="h-12 w-12 stroke-[1]" />
+                        <div className="flex flex-col items-center justify-center space-y-3 opacity-50">
+                          <Search className="h-12 w-12 stroke-[1] text-gfs-maroon dark:text-gfs-gold" />
                           <div className="space-y-1">
-                            <p className="text-lg font-black tracking-tight">No Users Found</p>
-                            <p className="text-xs font-medium">Try adjusting your filters or search query</p>
+                            <p className="text-lg font-bold text-gfs-maroon dark:text-white tracking-tight">No Users Found</p>
+                            <p className="text-xs font-medium text-gfs-text-muted">Try adjusting your filters or search query</p>
                           </div>
                         </div>
                       </TableCell>
@@ -423,14 +429,14 @@ const UserManagement = () => {
                       const rolesToShow = Array.from(new Set([...allowedRolesToAssign, user.role as UserRole]));
 
                       return (
-                        <TableRow key={user.id} className="group transition-colors hover:bg-muted/30">
+                        <TableRow key={user.id} className="group transition-colors hover:bg-gfs-canvas/70 dark:hover:bg-white/[0.02] border-b border-gfs-maroon/10 dark:border-white/5">
                           <TableCell className="py-4">
                             <div className="flex items-center gap-3">
                               <div className="relative">
-                                <Avatar className="h-10 w-10 border-2 border-background shadow-sm ring-1 ring-border/50">
+                                <Avatar className="h-10 w-10 border-2 border-white dark:border-slate-800 shadow-sm ring-1 ring-gfs-maroon/20">
                                   <AvatarFallback className={cn(
-                                    "font-black text-xs",
-                                    user.status === "active" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
+                                    "font-bold text-xs",
+                                    user.status === "active" ? "bg-gfs-maroon/10 text-gfs-maroon dark:text-gfs-gold" : "bg-muted text-muted-foreground"
                                   )}>
                                     {getInitials(user.name)}
                                   </AvatarFallback>
@@ -441,16 +447,16 @@ const UserManagement = () => {
                               </div>
                               <div className="flex flex-col min-w-0">
                                 <div className="flex items-center gap-2">
-                                  <span className="font-black text-sm text-slate-900 dark:text-white truncate">
+                                  <span className="font-bold text-sm text-gfs-text-primary dark:text-white truncate">
                                     {user.name}
                                   </span>
                                   {isSelf && (
-                                    <Badge variant="outline" className="text-[9px] h-4 font-black uppercase tracking-tighter bg-primary/5 text-primary border-primary/20">
+                                    <Badge variant="outline" className="text-[9px] h-4 font-bold uppercase tracking-tighter bg-gfs-maroon/5 text-gfs-maroon dark:text-gfs-gold border-gfs-maroon/20 rounded-full px-1.5">
                                       You
                                     </Badge>
                                   )}
                                 </div>
-                                <span className="text-[11px] font-medium text-muted-foreground truncate">
+                                <span className="text-xs font-medium text-gfs-text-muted dark:text-slate-400 truncate">
                                   {user.email}
                                 </span>
                               </div>
@@ -458,18 +464,18 @@ const UserManagement = () => {
                           </TableCell>
                           <TableCell className="hidden lg:table-cell">
                             <div className="flex flex-col gap-0.5">
-                              <span className="text-[11px] font-black uppercase tracking-widest text-muted-foreground opacity-40">Identifier</span>
-                              <code className="text-[10px] font-mono text-muted-foreground">ID-{user.id.toString().padStart(4, '0')}</code>
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-gfs-text-muted opacity-60">Identifier</span>
+                              <code className="text-xs font-mono font-bold text-gfs-maroon dark:text-gfs-gold">ID-{user.id.toString().padStart(4, '0')}</code>
                             </div>
                           </TableCell>
                           <TableCell>
-                            <Badge className={cn("px-2.5 py-0.5 rounded-full font-black text-[10px] uppercase tracking-wider", USER_ROLE_COLORS[user.role])}>
+                            <Badge className={cn("px-2.5 py-0.5 rounded-full font-bold text-[10px] uppercase tracking-wider shadow-sm", USER_ROLE_COLORS[user.role])}>
                               {USER_ROLE_LABELS[user.role]}
                             </Badge>
                           </TableCell>
                           <TableCell>
                             <div className={cn(
-                              "inline-flex items-center p-1 bg-muted/40 rounded-xl border border-border/40 backdrop-blur-sm transition-all duration-300",
+                              "inline-flex items-center p-1 bg-gfs-canvas/60 dark:bg-slate-800/60 rounded-full border border-gfs-maroon/20 dark:border-white/10 transition-all duration-300",
                               preventEdit && "opacity-40 pointer-events-none grayscale"
                             )}>
                               <button
@@ -477,13 +483,13 @@ const UserManagement = () => {
                                 onClick={() => !preventEdit && user.status !== "active" && openStatusDialog(user)}
                                 disabled={preventEdit}
                                 className={cn(
-                                  "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all duration-300",
+                                  "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wider transition-all duration-300",
                                   user.status === "active"
-                                    ? "bg-white dark:bg-slate-950 shadow-sm text-primary ring-1 ring-border/20"
-                                    : "text-muted-foreground hover:text-foreground",
+                                    ? "bg-white dark:bg-slate-950 shadow-sm text-gfs-maroon dark:text-gfs-gold ring-1 ring-border/20"
+                                    : "text-gfs-text-muted hover:text-gfs-text-primary",
                                 )}
                               >
-                                <div className={cn("h-1.5 w-1.5 rounded-full", user.status === "active" ? "bg-primary animate-pulse" : "bg-transparent")} />
+                                <div className={cn("h-1.5 w-1.5 rounded-full", user.status === "active" ? "bg-emerald-500 animate-pulse" : "bg-transparent")} />
                                 Active
                               </button>
                               <button
@@ -491,10 +497,10 @@ const UserManagement = () => {
                                 onClick={() => !preventEdit && user.status !== "inactive" && openStatusDialog(user)}
                                 disabled={preventEdit}
                                 className={cn(
-                                  "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all duration-300",
+                                  "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wider transition-all duration-300",
                                   user.status === "inactive"
-                                    ? "bg-white dark:bg-slate-950 shadow-sm text-rose-500 ring-1 ring-border/20"
-                                    : "text-muted-foreground hover:text-foreground",
+                                    ? "bg-white dark:bg-slate-950 shadow-sm text-rose-600 ring-1 ring-border/20"
+                                    : "text-gfs-text-muted hover:text-gfs-text-primary",
                                 )}
                               >
                                 <div className={cn("h-1.5 w-1.5 rounded-full", user.status === "inactive" ? "bg-rose-500" : "bg-transparent")} />
@@ -504,8 +510,8 @@ const UserManagement = () => {
                           </TableCell>
                           <TableCell>
                             <div className="flex flex-col gap-0.5">
-                              <span className="text-[11px] font-medium text-slate-700 dark:text-slate-300">{user.date_joined}</span>
-                              <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-tighter">Joined Date</span>
+                              <span className="text-xs font-semibold text-gfs-text-primary dark:text-slate-300">{user.date_joined}</span>
+                              <span className="text-[9px] font-bold text-gfs-text-muted uppercase tracking-wider">Joined Date</span>
                             </div>
                           </TableCell>
                           <TableCell className="text-right">
@@ -519,12 +525,12 @@ const UserManagement = () => {
                                   setIsRoleDialogOpen(true);
                                 }}
                               >
-                                <SelectTrigger className="w-[140px] h-9 bg-muted/20 border-border/40 rounded-lg text-[11px] font-bold">
+                                <SelectTrigger className="w-[140px] h-9 bg-white/80 dark:bg-slate-900/80 border-gfs-maroon/20 rounded-full text-xs font-bold text-gfs-text-primary dark:text-slate-200 hover:border-gfs-maroon/50">
                                   <SelectValue />
                                 </SelectTrigger>
-                                <SelectContent align="end" className="rounded-xl">
+                                <SelectContent align="end" className="rounded-gfs-card border border-gfs-maroon/20 shadow-gfs-modal p-1 bg-white dark:bg-slate-900 font-sans">
                                   {rolesToShow.map((role) => (
-                                    <SelectItem key={role} value={role} className="text-[11px] font-bold">
+                                    <SelectItem key={role} value={role} className="rounded-lg text-xs font-bold cursor-pointer hover:bg-gfs-maroon/5">
                                       {USER_ROLE_LABELS[role as UserRole] || role}
                                     </SelectItem>
                                   ))}
@@ -552,14 +558,14 @@ const UserManagement = () => {
             }
           }}
         >
-          <DialogContent>
+          <DialogContent className="rounded-gfs-card border border-gfs-maroon/20 shadow-gfs-modal bg-white dark:bg-slate-900 font-sans">
             <DialogHeader>
-              <DialogTitle>Confirm Role Change</DialogTitle>
-              <DialogDescription>
+              <DialogTitle className="text-xl font-bold text-gfs-maroon dark:text-white">Confirm Role Change</DialogTitle>
+              <DialogDescription className="text-xs text-gfs-text-muted">
                 {selectedUser ? (
                   <>
-                    Change <strong>{selectedUser.name}</strong>
-                    {"'s"} role to <strong>{USER_ROLE_LABELS[newRole]}</strong>?
+                    Change <strong className="text-gfs-text-primary dark:text-white">{selectedUser.name}</strong>
+                    {"'s"} role to <strong className="text-gfs-maroon dark:text-gfs-gold">{USER_ROLE_LABELS[newRole]}</strong>?
                   </>
                 ) : (
                   "Confirm the selected role change."
@@ -567,10 +573,10 @@ const UserManagement = () => {
               </DialogDescription>
             </DialogHeader>
 
-            <DialogFooter>
+            <DialogFooter className="gap-2">
               <button
                 type="button"
-                className="inline-flex items-center justify-center rounded-md border px-4 py-2 text-sm font-medium"
+                className="inline-flex items-center justify-center rounded-full border border-gfs-maroon/20 px-5 py-2 text-xs font-bold hover:bg-gfs-maroon/5 transition-colors"
                 onClick={() => {
                   setIsRoleDialogOpen(false);
                   setSelectedUser(null);
@@ -580,7 +586,7 @@ const UserManagement = () => {
               </button>
               <button
                 type="button"
-                className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
+                className="inline-flex items-center justify-center rounded-full bg-gfs-maroon hover:bg-gfs-maroon-hover px-5 py-2 text-xs font-bold text-white transition-colors"
                 onClick={() => void handleRoleChange()}
               >
                 Confirm
@@ -597,24 +603,24 @@ const UserManagement = () => {
             if (!open) setPendingStatusUser(null);
           }}
         >
-          <DialogContent>
+          <DialogContent className="rounded-gfs-card border border-gfs-maroon/20 shadow-gfs-modal bg-white dark:bg-slate-900 font-sans">
             <DialogHeader>
-              <DialogTitle>
+              <DialogTitle className="text-xl font-bold text-gfs-maroon dark:text-white">
                 {pendingStatusUser?.status === "active"
                   ? "Deactivate Account?"
                   : "Activate Account?"}
               </DialogTitle>
-              <DialogDescription>
+              <DialogDescription className="text-xs text-gfs-text-muted">
                 {pendingStatusUser ? (
                   pendingStatusUser.status === "active" ? (
                     <>
-                      <strong>{pendingStatusUser.name}</strong> will lose access
+                      <strong className="text-gfs-text-primary dark:text-white">{pendingStatusUser.name}</strong> will lose access
                       to the system immediately. You can reactivate their account
                       at any time.
                     </>
                   ) : (
                     <>
-                      <strong>{pendingStatusUser.name}</strong> will regain full
+                      <strong className="text-gfs-text-primary dark:text-white">{pendingStatusUser.name}</strong> will regain full
                       access based on their current role. Make sure this is
                       intentional.
                     </>
@@ -625,10 +631,10 @@ const UserManagement = () => {
               </DialogDescription>
             </DialogHeader>
 
-            <DialogFooter>
+            <DialogFooter className="gap-2">
               <button
                 type="button"
-                className="inline-flex items-center justify-center rounded-md border px-4 py-2 text-sm font-medium"
+                className="inline-flex items-center justify-center rounded-full border border-gfs-maroon/20 px-5 py-2 text-xs font-bold hover:bg-gfs-maroon/5 transition-colors"
                 onClick={() => {
                   setIsStatusDialogOpen(false);
                   setPendingStatusUser(null);
@@ -639,10 +645,10 @@ const UserManagement = () => {
               <button
                 type="button"
                 className={cn(
-                  "inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium text-white",
+                  "inline-flex items-center justify-center rounded-full px-5 py-2 text-xs font-bold text-white transition-colors",
                   pendingStatusUser?.status === "active"
-                    ? "bg-destructive hover:bg-destructive/90"
-                    : "bg-primary hover:bg-primary/90",
+                    ? "bg-rose-600 hover:bg-rose-700"
+                    : "bg-gfs-maroon hover:bg-gfs-maroon-hover",
                 )}
                 onClick={() => void handleStatusConfirm()}
               >

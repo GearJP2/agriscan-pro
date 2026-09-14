@@ -41,11 +41,11 @@ const GoogleAuthCallback = lazy(() => import("./pages/GoogleAuthCallback"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 export const RouteLoadingFallback = () => (
-  <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3 bg-background px-6 text-center">
-    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+  <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3 bg-transparent px-6 text-center">
+    <Loader2 className="h-8 w-8 animate-spin text-gfs-maroon dark:text-gfs-gold" />
     <div className="space-y-1">
-      <p className="text-sm font-medium text-foreground">Loading page</p>
-      <p className="text-sm text-muted-foreground">
+      <p className="text-sm font-bold text-gfs-maroon dark:text-white">Loading page</p>
+      <p className="text-sm text-gfs-text-muted dark:text-slate-400">
         Pulling the next view into place.
       </p>
     </div>

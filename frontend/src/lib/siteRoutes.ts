@@ -11,10 +11,18 @@ export const COE_PUBLIC_PAGES = [
   "/news",
   "/partners",
   "/contact",
+  "/doc",
+  "/samples",
+  "/users",
+  "/prediction",
+  "/manage",
 ] as const;
 
 export type CoePublicPage = (typeof COE_PUBLIC_PAGES)[number];
 
 export function isPublicSitePath(pathname: string): boolean {
-  return (COE_PUBLIC_PAGES as readonly string[]).includes(pathname);
+  const normalized = pathname.replace(/\/+$/, "") || "/";
+  return (COE_PUBLIC_PAGES as readonly string[]).some(
+    (route) => normalized === route || normalized.startsWith(`${route}/`),
+  );
 }

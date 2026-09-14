@@ -125,6 +125,10 @@
         @apply bg-background text-foreground font-sans antialiased;
         font-family: 'Plus Jakarta Sans', sans-serif;
     }
+
+    body:has(.coe-gfs) {
+        background-color: var(--gfs-canvas, #fdf7ef);
+    }
 }
 
 @layer utilities {

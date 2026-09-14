@@ -278,15 +278,16 @@ const CoeHeader = () => {
                                 <span className="underline-span" />
                             </button>
                             {toolsOpen && (
-                                <div className="absolute right-0 top-full w-52 rounded-gfs-card border border-gfs-maroon/10 bg-gfs-surface py-2 shadow-gfs-card">
-                                    {toolLinks.map((link) =>
-                                        link.isExternal ? (
+                                <div className="absolute right-0 top-full w-52 rounded-gfs-card border border-gfs-maroon/10 dark:border-white/10 bg-gfs-surface dark:bg-slate-900 py-2 shadow-gfs-card z-50">
+                                    {toolLinks.map((link) => {
+                                        const isActive = !link.isExternal && isActivePath(link.href);
+                                        return link.isExternal ? (
                                             <a
                                                 key={link.href}
                                                 href={link.href}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
-                                                className="block px-4 py-2 text-sm font-semibold text-gfs-maroon transition-colors hover:bg-gfs-maroon/tint"
+                                                className="block px-4 py-2 text-sm font-semibold text-gfs-maroon dark:text-gfs-gold transition-colors hover:bg-gfs-maroon/tint dark:hover:bg-white/5"
                                             >
                                                 {link.label}
                                             </a>
@@ -295,12 +296,15 @@ const CoeHeader = () => {
                                                 key={link.href}
                                                 to={link.href}
                                                 onClick={() => setToolsOpen(false)}
-                                                className="block px-4 py-2 text-sm font-semibold text-gfs-maroon transition-colors hover:bg-gfs-maroon/tint"
+                                                className={cn(
+                                                    "block px-4 py-2 text-sm font-semibold text-gfs-maroon dark:text-slate-200 transition-colors hover:bg-gfs-maroon/tint dark:hover:bg-white/5",
+                                                    isActive && "bg-gfs-maroon/10 dark:bg-gfs-gold/15 text-gfs-maroon dark:text-gfs-gold font-bold"
+                                                )}
                                             >
                                                 {link.label}
                                             </Link>
-                                        )
-                                    )}
+                                        );
+                                    })}
                                 </div>
                             )}
                         </div>
