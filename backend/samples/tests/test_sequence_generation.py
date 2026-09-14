@@ -3,7 +3,12 @@ from django.test import TestCase
 from django.utils import timezone
 
 from ..models import Sample
-from ..utils import extract_sequence_from_sample_id, generate_sequential_sample_id
+from ..services.sample_service import SampleService
+from ..utils import (
+    extract_sequence_from_sample_id,
+    generate_sequential_sample_id,
+    generate_sequential_sample_ids,
+)
 from ._mixins import SampleTestMixin
 
 
@@ -87,3 +92,30 @@ class SequenceGenerationTests(SampleTestMixin, TestCase):
         self.assertEqual(extract_sequence_from_sample_id('CRN-2025-1000'), 1000)
         self.assertEqual(extract_sequence_from_sample_id('INVALID-ID'), 0)
         self.assertEqual(extract_sequence_from_sample_id(''), 0)
+
+    def test_generate_sequential_sample_ids_batch_allocation(self):
+        """generate_sequential_sample_ids allocates contiguous IDs in a single call."""
+        allocated = generate_sequential_sample_ids(count=4, collection_date=date(2026, 1, 1), sub_type='Rice')
+        expected = [
+            ('RIC-2026-001', 1),
+            ('RIC-2026-002', 2),
+            ('RIC-2026-003', 3),
+            ('RIC-2026-004', 4),
+        ]
+        self.assertEqual(allocated, expected)
+
+    def test_bulk_create_samples_batch_allocation(self):
+        """SampleService.bulk_create_samples auto-assigns batch sequence numbers."""
+        items = [
+            {**self.sample_data, 'sample_id': '', 'sub_type': 'Rice', 'collection_date': date(2026, 1, 1)},
+            {**self.sample_data, 'sample_id': '', 'sub_type': 'Rice', 'collection_date': date(2026, 1, 1)},
+            {**self.sample_data, 'sample_id': 'PRE-SET-001', 'sub_type': 'Rice', 'collection_date': date(2026, 1, 1)},
+        ]
+        created = SampleService.bulk_create_samples(items, user=self.user, batch_size=len(items))
+        self.assertEqual(len(created), 3)
+        self.assertEqual(created[0].sample_id, 'RIC-2026-001')
+        self.assertEqual(created[0].sequence_number, 1)
+        self.assertEqual(created[1].sample_id, 'RIC-2026-002')
+        self.assertEqual(created[1].sequence_number, 2)
+        self.assertEqual(created[2].sample_id, 'PRE-SET-001')
+

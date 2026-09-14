@@ -6,6 +6,8 @@ bulk-creating samples with auto-generated IDs, default fields, and
 initial process logs.
 """
 
+from collections import defaultdict
+from datetime import date
 import logging
 
 from django.db import IntegrityError, transaction
@@ -13,7 +15,11 @@ from django.db import IntegrityError, transaction
 from core.exceptions import SampleAlreadyExists
 
 from ..models import ProcessLog, Sample
-from ..utils import extract_sequence_from_sample_id, generate_sequential_sample_id
+from ..utils import (
+    extract_sequence_from_sample_id,
+    generate_sequential_sample_id,
+    generate_sequential_sample_ids,
+)
 
 logger = logging.getLogger("agriscan.samples")
 
@@ -25,6 +31,21 @@ _BULK_DEFAULTS: dict[str, str] = {
 
 class SampleService:
     """Encapsulates sample lifecycle operations that go beyond simple CRUD."""
+
+    @staticmethod
+    def finalize_results(sample, user, *, notes='Mycotoxin result(s) recorded and finalized.'):
+        previous_status = sample.status
+        if sample.status in {'pending', 'in_progress'}:
+            sample.status = 'completed'
+        sample.updated_by = user
+        sample.save(update_fields=['status', 'updated_by', 'updated_at'])
+        latest = sample.process_logs.order_by('-timestamp', '-pk').first()
+        if sample.status == 'completed' and (not latest or latest.state != 'completed'):
+            ProcessLog.objects.create(
+                sample=sample, state='completed',
+                notes=f'{notes} Status: {previous_status} -> {sample.status}.',
+                conducted_by=user.username if user else 'System',
+            )
 
     @classmethod
     def bulk_create_samples(cls, validated_items: list[dict], *, user, batch_size: int) -> list[Sample]:
@@ -53,14 +74,30 @@ class SampleService:
                     item.setdefault("sub_type", item.get("vegetation_variety"))
                     item["vegetation_variety"] = item["sub_type"]
 
-                    # --- auto-generate sample_id when not provided ---
-                    if not sample_id:
-                        generated_id, seq = generate_sequential_sample_id(
-                            collection_date, item["sub_type"]
-                        )
+                # --- batch allocate sample_ids for items lacking one ---
+                unassigned_groups: dict[tuple, list[dict]] = defaultdict(list)
+                for item in validated_items:
+                    if not (item.get("sample_id") or "").strip():
+                        c_date = item.get("collection_date")
+                        target_year = c_date.year if c_date else None
+                        unassigned_groups[(target_year, item.get("sub_type"))].append(item)
+
+                for (target_year, sub_type), items_group in unassigned_groups.items():
+                    sample_date = date(target_year, 1, 1) if target_year else None
+                    allocated = generate_sequential_sample_ids(
+                        count=len(items_group),
+                        collection_date=sample_date,
+                        sub_type=sub_type,
+                    )
+                    for item, (generated_id, seq) in zip(items_group, allocated):
                         item["sample_id"] = generated_id
                         item["sequence_number"] = seq
-                    else:
+
+                for item in validated_items:
+                    sample_id = (item.get("sample_id") or "").strip()
+                    collection_date = item.get("collection_date")
+
+                    if "sequence_number" not in item:
                         seq = extract_sequence_from_sample_id(
                             sample_id,
                             collection_date.year if collection_date else None,
