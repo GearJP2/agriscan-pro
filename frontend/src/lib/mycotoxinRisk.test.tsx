@@ -4,7 +4,7 @@ import MycotoxinResults from '@/features/samples/components/MycotoxinResults';
 import ProcessTimeline from '@/features/samples/components/ProcessTimeline';
 import SampleTable from '@/features/samples/components/SampleTable';
 import type { MycotoxinResult, Sample, ProcessLog } from '@/types/sample';
-import { getResultValue, hasMeasuredResults, isAboveThresholdResult, isDetectedResult } from './mycotoxinRisk';
+import { getResultValue, getThresholdRiskLevel, hasMeasuredResults, isAboveThresholdResult, isDetectedResult } from './mycotoxinRisk';
 
 vi.mock('@/hooks/useWatchlist', () => ({
   useWatchlist: () => ({ isWatching: () => false, toggleWatch: vi.fn() }),
@@ -23,6 +23,7 @@ const sample: Sample = {
 describe('dynamic mycotoxin results', () => {
   it('uses canonical measurements and does not treat an unclassified detection as safe', () => {
     expect(getResultValue(result)).toBe(12);
+    expect(getThresholdRiskLevel(sample)).toBe('unclassified');
     expect(isDetectedResult(result)).toBe(true);
     expect(isAboveThresholdResult(result, {})).toBe(false);
     expect(isAboveThresholdResult(result, { NEW: { Rice: 10 } }, 'Rice')).toBe(true);

@@ -67,6 +67,8 @@ export function getThresholdRiskLevel(
     return 'high';
   }
 
+  if (results.some(isUnclassifiedResult)) return 'unclassified';
+
   if (results.some(isDetectedResult)) {
     return 'low';
   }

@@ -125,7 +125,7 @@ export interface PredictionContext {
   updated_at?: string;
 }
 
-export type RiskLevel = 'safe' | 'low' | 'medium' | 'high';
+export type RiskLevel = 'safe' | 'low' | 'medium' | 'high' | 'unclassified';
 
 export interface FilterState {
   region: string[];
