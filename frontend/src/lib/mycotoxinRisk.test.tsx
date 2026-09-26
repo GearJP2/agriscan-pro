@@ -21,17 +21,24 @@ const sample: Sample = {
 };
 
 describe('dynamic mycotoxin results', () => {
-  it('shows reported screening outcomes independently of threshold risk', () => {
+  it('uses the CSV screening outcome without displaying a second assessment', () => {
     const reported: Sample = {
       ...sample, screening_result: 'positive',
       mycotoxin_results: [{ ...result, toxin_type: 'AFB1', value: 1, risk_level: 'safe' }],
     };
     const html = renderToStaticMarkup(<SampleTable samples={[reported]} onSelectSample={() => {}} />);
     expect(html).toContain('Positive');
-    expect(html).toContain('(reported)');
-    expect(html).toContain('Below Threshold');
+    expect(html).not.toContain('(reported)');
+    expect(html).not.toContain('Below Threshold');
+    expect(html).not.toContain('Unclassified');
     const negative: Sample = { ...sample, screening_result: 'negative', mycotoxin_results: [] };
-    expect(renderToStaticMarkup(<SampleTable samples={[negative]} onSelectSample={() => {}} />)).toContain('Negative');
+    const negativeHtml = renderToStaticMarkup(<SampleTable samples={[negative]} onSelectSample={() => {}} />);
+    expect(negativeHtml).toContain('Negative');
+    expect(negativeHtml).not.toContain('Pending');
+    const concentrations = renderToStaticMarkup(<MycotoxinResults results={[result]} showThresholdAssessment={false} />);
+    expect(concentrations).toContain('12 ug/kg');
+    expect(concentrations).not.toContain('No threshold data');
+    expect(concentrations).not.toContain('Below Threshold');
   });
 
   it('uses canonical measurements and does not treat an unclassified detection as safe', () => {

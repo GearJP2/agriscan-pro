@@ -6,9 +6,10 @@ import { getResultName, getResultValue, isUnclassifiedResult, isAboveThresholdRe
 
 interface MycotoxinResultsProps {
   results?: MycotoxinResult[] | null;
+  showThresholdAssessment?: boolean;
 }
 
-const MycotoxinResults = ({ results }: MycotoxinResultsProps) => {
+const MycotoxinResults = ({ results, showThresholdAssessment = true }: MycotoxinResultsProps) => {
   if (!results || results.length === 0) {
     return (
       <div className="rounded-lg border border-dashed border-border bg-muted/30 p-6 text-center">
@@ -23,7 +24,7 @@ const MycotoxinResults = ({ results }: MycotoxinResultsProps) => {
       <div className="space-y-3">
         {results.map((result, index) => (
           (() => {
-            const isAboveThreshold = isAboveThresholdResult(result);
+            const isAboveThreshold = showThresholdAssessment && isAboveThresholdResult(result);
             const isUnclassified = isUnclassifiedResult(result);
             return (
           <div
@@ -39,7 +40,7 @@ const MycotoxinResults = ({ results }: MycotoxinResultsProps) => {
               <div className="flex-1">
                 <div className="flex items-center gap-2">
                   <h4 className="font-medium text-foreground">{getResultName(result)}</h4>
-                  {isAboveThreshold ? (
+                  {showThresholdAssessment && (isAboveThreshold ? (
                     <div className="flex items-center gap-1 rounded-full bg-danger/10 px-2 py-0.5 text-xs font-medium text-danger">
                       <AlertTriangle className="h-3 w-3" />
                       Positive
@@ -53,7 +54,7 @@ const MycotoxinResults = ({ results }: MycotoxinResultsProps) => {
                       <CheckCircle2 className="h-3 w-3" />
                       Below Threshold
                     </div>
-                  )}
+                  ))}
                 </div>
                 {result.method && (
                   <div className="mt-2 flex items-center gap-2">
@@ -85,7 +86,7 @@ const MycotoxinResults = ({ results }: MycotoxinResultsProps) => {
                   {result.is_below_lod ? `Below LOD (${result.unit})` : `${getResultValue(result) ?? '—'} ${result.unit}`}
                 </span>
               </div>
-              {!isUnclassified && (result.eu_threshold_low ?? result.threshold) != null && (
+              {showThresholdAssessment && !isUnclassified && (result.eu_threshold_low ?? result.threshold) != null && (
                 <div className="mt-2 flex items-center justify-between text-xs">
                   <span className="text-muted-foreground">Threshold</span>
                   <span className="font-semibold text-muted-foreground">

@@ -132,8 +132,8 @@ const SampleRow = memo(
           <div className="flex items-center gap-2.5">
             <div className={cn(
               "h-2 w-2 rounded-full",
-              hasAboveThresholdResults(sample) ? "bg-rose-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.5)]" :
-                hasMeasuredResults(sample) ? "bg-blue-500" : "bg-muted-foreground/30"
+              (sample.screening_result ? sample.screening_result === 'positive' : hasAboveThresholdResults(sample)) ? "bg-rose-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.5)]" :
+                (sample.screening_result || hasMeasuredResults(sample)) ? "bg-blue-500" : "bg-muted-foreground/30"
             )} />
             <span className="font-bold text-gfs-maroon dark:text-gfs-gold tracking-tight">{sample.sample_id}</span>
           </div>
@@ -159,28 +159,29 @@ const SampleRow = memo(
         </TableCell>
         <TableCell>{getStatusBadge(sample)}</TableCell>
         <TableCell className="whitespace-nowrap">
-          {sample.screening_result && (
-            <Badge variant={sample.screening_result === 'positive' ? 'destructive' : 'secondary'} className="mb-1">
-              {sample.screening_result === 'positive' ? 'Positive' : 'Negative'} (reported)
+          {sample.screening_result ? (
+            <Badge variant={sample.screening_result === 'positive' ? 'destructive' : 'secondary'} className="rounded-full">
+              {sample.screening_result === 'positive' ? 'Positive' : 'Negative'}
             </Badge>
+          ) : (
+            <div className="flex items-center gap-2">
+              {hasAboveThresholdResults(sample) ? (
+                <Badge className="bg-rose-600 hover:bg-rose-700 text-white border-none px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-tight rounded-full shadow-sm">
+                  Above Threshold
+                </Badge>
+              ) : hasUnclassifiedResults(sample) ? (
+                <Badge variant="secondary" className="rounded-full text-[10px] font-bold">Unclassified</Badge>
+              ) : hasMeasuredResults(sample) ? (
+                <Badge className="bg-blue-600 hover:bg-blue-700 text-white border-none px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-tight rounded-full shadow-sm">
+                  Below Threshold
+                </Badge>
+              ) : (
+                <span className="ml-1 text-[10px] font-bold uppercase tracking-widest text-gfs-text-muted">
+                  Pending
+                </span>
+              )}
+            </div>
           )}
-          <div className="flex items-center gap-2">
-            {hasAboveThresholdResults(sample) ? (
-              <Badge className="bg-rose-600 hover:bg-rose-700 text-white border-none px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-tight rounded-full shadow-sm">
-                Above Threshold
-              </Badge>
-            ) : hasUnclassifiedResults(sample) ? (
-              <Badge variant="secondary" className="rounded-full text-[10px] font-bold">Unclassified</Badge>
-            ) : hasMeasuredResults(sample) ? (
-              <Badge className="bg-blue-600 hover:bg-blue-700 text-white border-none px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-tight rounded-full shadow-sm">
-                Below Threshold
-              </Badge>
-            ) : (
-              <span className="ml-1 text-[10px] font-bold uppercase tracking-widest text-gfs-text-muted">
-                Pending
-              </span>
-            )}
-          </div>
         </TableCell>
         <TableCell className="w-12">
           <div className="flex justify-center">

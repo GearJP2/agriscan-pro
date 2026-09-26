@@ -51,9 +51,11 @@ const SampleDetailModal = ({ sample, open, onOpenChange, onUpdateSample, onMycot
     flagged: 'Flagged',
   };
 
-  const hasPositiveResults = hasAboveThresholdResults(sample);
-  const hasResults = hasMeasuredResults(sample);
-  const hasUnclassified = hasUnclassifiedResults(sample);
+  const hasPositiveResults = sample.screening_result
+    ? sample.screening_result === 'positive'
+    : hasAboveThresholdResults(sample);
+  const hasResults = Boolean(sample.screening_result) || hasMeasuredResults(sample);
+  const hasUnclassified = !sample.screening_result && hasUnclassifiedResults(sample);
   const canUsePredictionTools = (USER_ROLE_WEIGHT[role as UserRole] ?? 0) >= USER_ROLE_WEIGHT.researcher;
   const canRecordResults = canRecordSampleResults(sample, role, isAdmin, user?.username);
   const predictionContext = sample.prediction_context;
@@ -208,7 +210,7 @@ const SampleDetailModal = ({ sample, open, onOpenChange, onUpdateSample, onMycot
                       ) : (
                         <Beaker className="h-4 w-4 text-muted-foreground opacity-70" />
                       )}
-                      <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-tighter">Mycotoxin Threshold Assessment</span>
+                      <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-tighter">Mycotoxin Result</span>
                     </div>
                     {canRecordResults && (
                       <Button
@@ -229,7 +231,7 @@ const SampleDetailModal = ({ sample, open, onOpenChange, onUpdateSample, onMycot
                     "font-bold text-sm",
                     hasPositiveResults ? "text-danger" : !hasUnclassified && hasResults ? "text-success" : "text-muted-foreground"
                   )}>
-                    {hasPositiveResults ? 'Above Threshold' : hasUnclassified ? 'Threshold data incomplete' : hasResults ? 'Below Threshold' : 'Awaiting Test'}
+                    {sample.screening_result ? (sample.screening_result === 'positive' ? 'Positive' : 'Negative') : hasPositiveResults ? 'Above Threshold' : hasUnclassified ? 'Threshold data incomplete' : hasResults ? 'Below Threshold' : 'Awaiting Test'}
                   </p>
                 </div>
 
@@ -278,14 +280,14 @@ const SampleDetailModal = ({ sample, open, onOpenChange, onUpdateSample, onMycot
                 badge={
                   sample.screening_result ? (
                     <Badge variant={sample.screening_result === 'positive' ? 'destructive' : 'secondary'} className="ml-2">
-                      {sample.screening_result === 'positive' ? 'Positive' : 'Negative'} (reported)
+                      {sample.screening_result === 'positive' ? 'Positive' : 'Negative'}
                     </Badge>
                   ) : (
                     <Badge variant="secondary" className="ml-2">Screening result not reported</Badge>
                   )
                 }
               >
-                <MycotoxinResults results={sample.mycotoxin_results} />
+                <MycotoxinResults results={sample.mycotoxin_results} showThresholdAssessment={!sample.screening_result} />
               </CollapsibleSection>
             )}
 
