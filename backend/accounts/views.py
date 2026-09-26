@@ -363,7 +363,10 @@ class RequestOTPView(generics.GenericAPIView):
                     try:
                         send_mail(
                             "Your AgriScan Pro OTP",
-                            f"Your OTP for password reset is: {otp_code}. It will expire in {OTP_EXPIRY_MINUTES} minutes.",
+                            (
+                                f"Your OTP for password reset is: {otp_code}. "
+                                f"It will expire in {OTP_EXPIRY_MINUTES} minutes."
+                            ),
                             settings.DEFAULT_FROM_EMAIL,
                             [user.email],
                             fail_silently=False,

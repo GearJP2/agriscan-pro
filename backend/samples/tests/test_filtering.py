@@ -188,7 +188,10 @@ class SampleFilteringTests(SampleTestMixin, TestCase):
         self.assertEqual(
             len(queries_5_samples),
             len(queries_10_samples),
-            msg=f"N+1 query detected: {len(queries_5_samples)} queries for 5 samples vs {len(queries_10_samples)} for 10 samples",
+            msg=(
+                f"N+1 query detected: {len(queries_5_samples)} queries for 5 samples "
+                f"vs {len(queries_10_samples)} for 10 samples"
+            ),
         )
 
     def test_ordering_by_collection_date_desc(self):

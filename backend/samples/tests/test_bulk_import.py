@@ -462,7 +462,7 @@ class BulkImportResultsTests(SampleTestMixin, TestCase):
         self.assertIn('NON-EXISTENT-ID', response.data['unmatched_sample_ids'])
 
     def test_bulk_import_multiple_elevated_toxins_emits_single_grouped_notification(self):
-        """Importing a sample with multiple elevated toxins must emit exactly 1 grouped notification, not separate ones."""
+        """Multiple elevated toxins should produce one grouped notification."""
         from notifications.models import Notification
         from django.contrib.auth import get_user_model
         User = get_user_model()

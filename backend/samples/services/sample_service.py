@@ -17,7 +17,6 @@ from core.exceptions import SampleAlreadyExists
 from ..models import ProcessLog, Sample
 from ..utils import (
     extract_sequence_from_sample_id,
-    generate_sequential_sample_id,
     generate_sequential_sample_ids,
 )
 

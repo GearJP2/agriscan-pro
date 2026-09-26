@@ -1,6 +1,6 @@
 from datetime import date
+
 from django.test import TestCase
-from django.utils import timezone
 
 from ..models import Sample
 from ..services.sample_service import SampleService
@@ -118,4 +118,3 @@ class SequenceGenerationTests(SampleTestMixin, TestCase):
         self.assertEqual(created[1].sample_id, 'RIC-2026-002')
         self.assertEqual(created[1].sequence_number, 2)
         self.assertEqual(created[2].sample_id, 'PRE-SET-001')
-
