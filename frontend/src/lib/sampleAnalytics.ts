@@ -176,7 +176,7 @@ function getToxinColor(shortName: string) {
   return TOXIN_PALETTE[paletteIndex];
 }
 
-function normalizeDate(dateValue: string) {
+function normalizeDate(dateValue: string | null) {
   return new Date(`${dateValue}T00:00:00`);
 }
 
@@ -229,6 +229,7 @@ function isWithinRange(sample: Sample, filters: DashboardFilters) {
   const from = filters.dateRange.from ? startOfDay(normalizeDate(filters.dateRange.from)) : null;
   const to = filters.dateRange.to ? endOfDay(normalizeDate(filters.dateRange.to)) : null;
 
+  if ((from || to) && !sample.collection_date) return false;
   if (from && date < from) return false;
   if (to && date > to) return false;
   if (filters.commodities.length > 0 && !filters.commodities.includes(sample.vegetation_variety)) return false;
@@ -659,11 +660,11 @@ export function buildFilterOptions(samples: Sample[]): FilterOptions {
 
   const sortedDates = samples
     .map((sample) => sample.collection_date)
-    .filter(Boolean)
+    .filter((value): value is string => Boolean(value))
     .sort((left, right) => left.localeCompare(right));
 
   const quarters = uniqSorted(
-    samples.map((sample) => formatQuarterLabel(normalizeDate(sample.collection_date)))
+    sortedDates.map((value) => formatQuarterLabel(normalizeDate(value)))
   ).sort((left, right) => {
     const leftRange = getQuarterDateRange(left);
     const rightRange = getQuarterDateRange(right);
@@ -676,8 +677,8 @@ export function buildFilterOptions(samples: Sample[]): FilterOptions {
     regions: uniqSorted(samples.map((sample) => sample.region)),
     quarters: [ALL_TIME_QUARTER, ...quarters, CUSTOM_RANGE_QUARTER],
     dateRange: {
-      from: sortedDates[0],
-      to: sortedDates[sortedDates.length - 1],
+      from: sortedDates[0] || '',
+      to: sortedDates[sortedDates.length - 1] || '',
     },
   };
 }

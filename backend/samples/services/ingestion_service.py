@@ -8,7 +8,6 @@ from typing import Iterator
 
 from django.db import transaction
 from django.core.exceptions import PermissionDenied
-from django.utils import timezone
 from core.permissions import check_can_edit_sample
 from core.audit import audit_result_change, row_snapshot
 from notifications.services import NotificationService, notify_sample_risk_changes
@@ -422,7 +421,7 @@ class SampleIngestionService:
         return sample_map
 
     @classmethod
-    def _dashboard_collection_date(cls, row: dict, sample_id: str) -> date:
+    def _dashboard_collection_date(cls, row: dict) -> date | None:
         raw_date = str(cls.get_row_value(row, ['date of collection', 'collection_date']) or '').strip()
         for pattern in ('%Y-%m-%d', '%d/%m/%Y', '%Y', '%B %Y', '%b %Y'):
             try:
@@ -431,15 +430,7 @@ class SampleIngestionService:
             except ValueError:
                 continue
 
-        # Lab IDs in the supplied dashboard export start with DDMMYYYY.
-        match = re.match(r'^(\d{2})(\d{2})(\d{4})', sample_id)
-        if match:
-            day, month, year = (int(part) for part in match.groups())
-            try:
-                return date(year, month, day)
-            except ValueError:
-                pass
-        return timezone.localdate()
+        return None
 
     @classmethod
     def _create_sample_from_dashboard_row(cls, row: dict, sample_id: str, user) -> Sample:
@@ -455,7 +446,7 @@ class SampleIngestionService:
             food_feed_type=food_feed_type,
             sub_type=sub_type,
             vegetation_variety=sub_type,
-            collection_date=cls._dashboard_collection_date(row, sample_id),
+            collection_date=cls._dashboard_collection_date(row),
             status='pending',
             purpose='research',
             collected_by=user.username if user else None,

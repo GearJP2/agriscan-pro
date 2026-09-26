@@ -84,6 +84,33 @@ class BulkImportResultsTests(SampleTestMixin, TestCase):
         self.assertEqual(sample.screening_result, 'negative')
         self.assertEqual(sample.mycotoxin_results.count(), 0)
         self.assertEqual(sample.status, 'completed')
+        self.assertIsNone(sample.collection_date)
+
+    def test_dashboard_missing_dates_are_not_inferred_from_ids_or_today(self):
+        upload = SimpleUploadedFile('dashboard.csv', (
+            'Sample ID,Type,Sub-type,Date of collection,Result (positive/negative),AFB1\n'
+            '13052026_Sample9_Rice_177.d,Food,Rice,,Negative,0\n'
+            'UNDATED-001,Food,Rice,,Positive,7\n'
+            'DATED-001,Food,Rice,2026-05-12,Positive,8\n'
+        ).encode())
+        response = self.client.post(reverse('sample-bulk-import-dashboard'), {'file': upload}, format='multipart')
+        self.assertEqual(response.data['failed_rows'], [])
+        for sample_id in ['13052026_Sample9_Rice_177.d', 'UNDATED-001']:
+            sample = Sample.objects.get(sample_id=sample_id)
+            self.assertIsNone(sample.collection_date)
+            self.assertEqual(sample.mycotoxin_results.count(), 1)
+            from ..serializers import SampleSerializer
+            self.assertIsNone(SampleSerializer(sample).data['collection_date'])
+        self.assertEqual(str(Sample.objects.get(sample_id='DATED-001').collection_date), '2026-05-12')
+
+    def test_bulk_registration_accepts_missing_collection_date(self):
+        for index, fields in enumerate([{}, {'collection_date': None}]):
+            payload = {**self.sample_data, 'sample_id': f'NO-DATE-{index}'}
+            payload.pop('collection_date')
+            payload.update(fields)
+            response = self.client.post(reverse('sample-bulk-create'), [payload], format='json')
+            self.assertEqual(response.status_code, 201, response.data)
+            self.assertIsNone(Sample.objects.get(sample_id=payload['sample_id']).collection_date)
 
     def test_failed_toxin_write_does_not_change_screening_result(self):
         self.sample.screening_result = 'negative'

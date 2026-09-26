@@ -152,7 +152,7 @@ const SampleRow = memo(
           </div>
         </TableCell>
         <TableCell className="text-xs font-medium text-gfs-text-muted dark:text-slate-400">
-          {format(new Date(sample.collection_date), 'MMM dd, yyyy')}
+          {sample.collection_date ? format(new Date(sample.collection_date), 'MMM dd, yyyy') : 'Not provided'}
         </TableCell>
         <TableCell className="text-xs font-medium text-gfs-text-muted dark:text-slate-400">
           {sample.received_at ? format(new Date(sample.received_at), 'MMM dd, yyyy') : '—'}
@@ -366,6 +366,9 @@ const SampleTable = ({
           comparison = a.district.localeCompare(b.district);
           break;
         case 'collection_date':
+          if (!a.collection_date || !b.collection_date) {
+            return !a.collection_date && !b.collection_date ? 0 : !a.collection_date ? 1 : -1;
+          }
           comparison =
             new Date(a.collection_date).getTime() -
             new Date(b.collection_date).getTime();

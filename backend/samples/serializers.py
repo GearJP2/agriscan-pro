@@ -423,7 +423,7 @@ class SampleCreateUpdateSerializer(serializers.ModelSerializer):
     def validate_collection_date(self, value):
         """Validate and normalize collection date"""
         if value is None:
-            raise serializers.ValidationError("Collection date is required")
+            return None
 
         if isinstance(value, str):
             # Try to parse if it's a string

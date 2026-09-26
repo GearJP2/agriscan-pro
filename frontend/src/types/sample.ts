@@ -88,7 +88,7 @@ export interface Sample {
   vegetation_variety: string;
   food_feed_type?: FoodFeedType;
   sub_type?: string;
-  collection_date: string;
+  collection_date: string | null;
   received_at?: string;
   process_logs?: ProcessLog[];
   screening_result?: 'positive' | 'negative' | null;

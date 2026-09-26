@@ -191,7 +191,7 @@ const SampleDetailModal = ({ sample, open, onOpenChange, onUpdateSample, onMycot
                     <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-tighter">Collection Date</span>
                   </div>
                   <p className="font-bold text-foreground text-sm">
-                    {format(new Date(sample.collection_date), 'MMM dd, yyyy')}
+                    {sample.collection_date ? format(new Date(sample.collection_date), 'MMM dd, yyyy') : 'Not provided'}
                   </p>
                   <p className="text-xs text-muted-foreground font-medium italic">Sample collection</p>
                 </div>

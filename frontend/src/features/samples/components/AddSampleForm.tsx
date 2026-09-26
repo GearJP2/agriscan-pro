@@ -93,7 +93,7 @@ interface FailedRowDetail {
   province: string;
   district: string;
   vegetation_variety: string;
-  collection_date: string;
+  collection_date: string | null;
   error: string;
 }
 
@@ -908,7 +908,7 @@ const AddSampleForm = ({ onSuccess, triggerClassName }: AddSampleFormProps) => {
             : getRegionByProvince(province) || 'Unknown';
 
           const rawDate = dateIndex !== -1 ? getRowValue_Current(columnIndexes['collection_date']) : '';
-          let formattedDate = new Date().toISOString().split('T')[0];
+          let formattedDate: string | null = null;
 
           if (rawDate) {
             if (rawDate.match(/^\d{1,2}\/\d{1,2}\/\d{4}$/)) {

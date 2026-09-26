@@ -53,7 +53,7 @@ class Sample(models.Model):
     # historical analytics and imports continue to work during migration.
     food_feed_type = models.CharField(max_length=10, choices=FOOD_FEED_TYPE_CHOICES, null=True, blank=True)
     sub_type = models.CharField(max_length=100, null=True, blank=True)
-    collection_date = models.DateField()
+    collection_date = models.DateField(null=True, blank=True)
     received_at = models.DateTimeField(auto_now_add=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     screening_result = models.CharField(

@@ -18,7 +18,7 @@ class Command(BaseCommand):
         fetched = 0
         failed = 0
         samples = (
-            Sample.objects.exclude(province='')
+            Sample.objects.exclude(province='').exclude(collection_date__isnull=True)
             .exclude(province__iexact='unknown')
             .order_by('province', 'collection_date')
         )

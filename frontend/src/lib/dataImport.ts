@@ -1,3 +1,4 @@
+import { parse, isValid, format } from 'date-fns';
 /**
  * Data import utilities for parsing complex research files
  * Handles mycotoxin data and auto-mapping to system fields\n */
@@ -109,7 +110,7 @@ export interface ParsedSampleWithResults {
     province: string;
     district: string;
     vegetation_variety: string;
-    collection_date: string;
+    collection_date: string | null;
     status?: Sample['status'];
     purpose?: Sample['purpose'];
     sample_type?: Sample['sample_type'];
@@ -308,6 +309,7 @@ export const parseResearchDataFile = (headers: string[], rows: string[][]): Pars
       else if (lowerHeader === 'variety' || lowerHeader === 'varieties' || lowerHeader === 'crop' || lowerHeader === 'crops' || lowerHeader.includes('variet')) {
         columnIndices['vegetation_variety'] = index;
       }
+      else if (['collection_date', 'date of collection', 'collection date'].includes(lowerHeader)) columnIndices['collection_date'] = index;
       else if (lowerHeader === 'processing type' || lowerHeader === 'processing_type') columnIndices['processing_type'] = index;
       else if (lowerHeader === 'sample name' || lowerHeader === 'sample_name' || lowerHeader === 'sample names') columnIndices['sample_name'] = index;
       else if (lowerHeader.includes('positive') || lowerHeader.includes('negative')) columnIndices['status'] = index;
@@ -391,6 +393,17 @@ export const parseResearchDataFile = (headers: string[], rows: string[][]): Pars
     const hasAnyMycotoxinResult = mycotoxins.length > 0;
     const sampleStatus: 'pending' | 'completed' = (hasResultStatus || hasAnyMycotoxinResult) ? 'completed' : 'pending';
     
+    const rawCollectionDate = String(row[columnIndices['collection_date']] ?? '').trim();
+    let collectionDate: string | null = null;
+    for (const pattern of ['yyyy-MM-dd', 'dd/MM/yyyy', 'yyyy', 'MMMM yyyy', 'MMM yyyy']) {
+      if (!rawCollectionDate) break;
+      const parsedDate = parse(rawCollectionDate, pattern, new Date(2000, 0, 1));
+      if (isValid(parsedDate)) {
+        collectionDate = format(parsedDate, 'yyyy-MM-dd');
+        break;
+      }
+    }
+
     // Create sample
     const sample: ParsedSampleWithResults['sample'] = {
       sample_id: generatedSampleId,
@@ -398,7 +411,7 @@ export const parseResearchDataFile = (headers: string[], rows: string[][]): Pars
       province,
       district,
       vegetation_variety: variety,
-      collection_date: new Date().toISOString().split('T')[0],
+      collection_date: collectionDate,
       status: sampleStatus,
       sample_type: 'field',
       processing_type: finalProcessingType,
