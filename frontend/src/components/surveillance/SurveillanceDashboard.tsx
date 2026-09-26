@@ -115,19 +115,19 @@ export default function SurveillanceDashboard() {
     region: filters.regions,
     province: filters.provinces,
     vegetation_variety: filters.commodities,
-    date_from: filters.dateRange.from,
-    date_to: filters.dateRange.to,
+    // All Time must not become a hidden date filter. In particular, it must
+    // retain samples whose collection date was not provided by the source.
+    date_from: filters.quarter === ALL_TIME_QUARTER ? '' : filters.dateRange.from,
+    date_to: filters.quarter === ALL_TIME_QUARTER ? '' : filters.dateRange.to,
   }), [filters]);
-  const hasAdvancedFilters = filters.regions.length > 0
-    || filters.provinces.length > 0
-    || filters.commodities.length > 0
-    || filters.quarter !== ALL_TIME_QUARTER;
   const { data: dynamicData, isError: isDynamicError } = useQuery<DashboardContractResponse>({
     queryKey: ['dashboard-aggregate', apiFilters, isSimulating ? thresholdOverrides : 'baseline'],
     queryFn: () => isSimulating
       ? analyticsAPI.simulateDashboard(thresholdOverrides, apiFilters)
       : analyticsAPI.getDashboard(apiFilters),
-    enabled: isAuthenticated && (hasAdvancedFilters || isSimulating),
+    // Signed-in users need current import data. If the API is unavailable,
+    // activeSections below falls back to the published static snapshot.
+    enabled: isAuthenticated,
     retry: 1,
     refetchOnWindowFocus: false,
   });
@@ -171,11 +171,14 @@ export default function SurveillanceDashboard() {
   const baselineSections = snapshot?.sections ?? fallbackData?.sections;
   const activeSections = dynamicData?.sections ?? baselineSections;
   const filterOptions = useMemo(() => ({
-    commodities: baselineSections?.filter_options.commodities ?? [],
-    regions: baselineSections?.filter_options.regions ?? [],
+    commodities: (isAuthenticated ? dynamicData?.sections : undefined)?.filter_options.commodities
+      ?? baselineSections?.filter_options.commodities ?? [],
+    regions: (isAuthenticated ? dynamicData?.sections : undefined)?.filter_options.regions
+      ?? baselineSections?.filter_options.regions ?? [],
     quarters: [ALL_TIME_QUARTER, CUSTOM_RANGE_QUARTER],
-    dateRange: baselineSections?.filter_options.date_range ?? { from: '', to: '' },
-  }), [baselineSections]);
+    dateRange: (isAuthenticated ? dynamicData?.sections : undefined)?.filter_options.date_range
+      ?? baselineSections?.filter_options.date_range ?? { from: '', to: '' },
+  }), [baselineSections, dynamicData, isAuthenticated]);
 
   useEffect(() => {
     if (!filters.dateRange.from || !filters.dateRange.to) {

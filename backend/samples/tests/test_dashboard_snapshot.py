@@ -144,8 +144,20 @@ class DashboardPayloadTests(TestCase):
         self.assertEqual(response.data['schema_version'], 1)
         self.assertEqual(response.data['sections']['overview']['kpis']['total_samples'], 6)
 
-        expected = DashboardPayloadService.build(filters=DashboardFilters(), include_external=False)
+        expected = DashboardPayloadService.build(
+            filters=DashboardFilters(), include_external=False, enforce_privacy=False,
+        )
         self.assertEqual(response.data['sections'], expected)
+
+    def test_authenticated_dashboard_does_not_apply_public_small_group_suppression(self):
+        Sample.objects.filter(sample_id__in=['PUBLIC-0', 'PUBLIC-1', 'PUBLIC-2', 'PUBLIC-3']).delete()
+        client = APIClient()
+        client.force_authenticate(self.user)
+        response = client.get(reverse('sample-analytics-dashboard'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['sections']['overview']['kpis']['total_samples'], 2)
+        self.assertEqual(len(response.data['sections']['regional']['provinces']), 2)
 
     def test_dataset_below_minimum_is_fully_suppressed(self):
         Sample.objects.filter(sample_id__in=['PUBLIC-4', 'PUBLIC-5']).delete()
@@ -224,4 +236,3 @@ class DashboardPayloadTests(TestCase):
             self.assertTrue(acquired)
         with dashboard_generation_lock() as acquired:
             self.assertTrue(acquired)
-

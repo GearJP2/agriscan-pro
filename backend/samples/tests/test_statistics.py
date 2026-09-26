@@ -44,6 +44,22 @@ class SampleStatisticsTests(SampleTestMixin, TestCase):
         self.assertEqual(response.data['flagged'], 1)
         self.assertEqual(response.data['pending'], 1)
 
+    def test_research_assistant_statistics_exclude_other_users_samples(self):
+        other_user = type(self.user).objects.create_user(
+            username='other-assistant', email='other@example.com', password='StrongPass123!',
+            role='research_assistant',
+        )
+        Sample.objects.create(
+            sample_id='STAT-OTHER', region='Central', province='Bangkok',
+            district='Chatuchak', vegetation_variety='Rice',
+            collection_date='2026-01-04', status='completed', updated_by=other_user,
+        )
+
+        response = self.client.get(reverse('sample-statistics'))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['total_samples'], 3)
+
     def test_statistics_high_risk_count_with_high_result(self):
         """high_risk should count samples that have at least one high/critical result."""
         flagged_sample = Sample.objects.get(sample_id='STAT-002')

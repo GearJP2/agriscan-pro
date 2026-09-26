@@ -631,6 +631,7 @@ class SampleViewSet(viewsets.ModelViewSet):
         sections = DashboardPayloadService.build(
             filters=DashboardFilters.from_mapping(request.query_params),
             include_external=False,
+            enforce_privacy=False,
         )
         return Response({'schema_version': 1, 'sections': sections}, status=status.HTTP_200_OK)
 
@@ -646,6 +647,7 @@ class SampleViewSet(viewsets.ModelViewSet):
                 filters=DashboardFilters.from_mapping(filters_payload),
                 threshold_overrides=overrides,
                 include_external=False,
+                enforce_privacy=False,
             )
         except ValueError as exc:
             return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)

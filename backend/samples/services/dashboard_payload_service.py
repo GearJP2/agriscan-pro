@@ -43,13 +43,14 @@ class DashboardPayloadService:
         threshold_overrides=None,
         include_external=True,
         queryset=None,
+        enforce_privacy=True,
     ) -> dict:
         base_queryset = queryset if queryset is not None else Sample.objects.all()
         filtered = AnalyticsService._apply_filters(base_queryset, filters.as_dict())
         samples = list(filtered.prefetch_related('mycotoxin_results'))
-        minimum = settings.DASHBOARD_SNAPSHOT_MIN_GROUP_SIZE
+        minimum = settings.DASHBOARD_SNAPSHOT_MIN_GROUP_SIZE if enforce_privacy else 1
 
-        if len(samples) < minimum:
+        if enforce_privacy and len(samples) < minimum:
             return cls._empty_sections()
 
         overview = (
@@ -110,7 +111,7 @@ class DashboardPayloadService:
             sum(value['aboveCount'] for value in commodity_stats.values()),
             sum(1 for sample in samples if sample.status == 'flagged'),
         )
-        if any(0 < count < minimum for count in global_sensitive_counts):
+        if enforce_privacy and any(0 < count < minimum for count in global_sensitive_counts):
             return cls._empty_sections()
 
         visible_commodities, suppressed_commodities = cls._visible_stat_keys(

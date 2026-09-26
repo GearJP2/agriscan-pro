@@ -1,3 +1,4 @@
+from django.db.models import Q
 from rest_framework import permissions
 
 ADMIN_ROLES = {"admin"}
@@ -64,6 +65,17 @@ def check_can_edit_sample(user, obj) -> bool:
         )
 
     return False
+
+
+def sample_ownership_filter(user) -> Q:
+    """Return the queryset filter for samples owned by a research assistant."""
+    if not user or not getattr(user, 'is_authenticated', False):
+        return Q(pk__in=[])
+    return (
+        Q(updated_by=user)
+        | Q(recorded_by=user)
+        | Q(collected_by=getattr(user, 'username', ''))
+    )
 
 
 class IsOwnerOrAdmin(permissions.BasePermission):
