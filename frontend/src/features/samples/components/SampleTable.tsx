@@ -159,10 +159,15 @@ const SampleRow = memo(
         </TableCell>
         <TableCell>{getStatusBadge(sample)}</TableCell>
         <TableCell className="whitespace-nowrap">
+          {sample.screening_result && (
+            <Badge variant={sample.screening_result === 'positive' ? 'destructive' : 'secondary'} className="mb-1">
+              {sample.screening_result === 'positive' ? 'Positive' : 'Negative'} (reported)
+            </Badge>
+          )}
           <div className="flex items-center gap-2">
             {hasAboveThresholdResults(sample) ? (
               <Badge className="bg-rose-600 hover:bg-rose-700 text-white border-none px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-tight rounded-full shadow-sm">
-                Positive
+                Above Threshold
               </Badge>
             ) : hasUnclassifiedResults(sample) ? (
               <Badge variant="secondary" className="rounded-full text-[10px] font-bold">Unclassified</Badge>

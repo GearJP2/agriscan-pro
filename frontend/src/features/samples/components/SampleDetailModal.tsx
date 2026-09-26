@@ -208,7 +208,7 @@ const SampleDetailModal = ({ sample, open, onOpenChange, onUpdateSample, onMycot
                       ) : (
                         <Beaker className="h-4 w-4 text-muted-foreground opacity-70" />
                       )}
-                      <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-tighter">Mycotoxin Status</span>
+                      <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-tighter">Mycotoxin Threshold Assessment</span>
                     </div>
                     {canRecordResults && (
                       <Button
@@ -229,7 +229,7 @@ const SampleDetailModal = ({ sample, open, onOpenChange, onUpdateSample, onMycot
                     "font-bold text-sm",
                     hasPositiveResults ? "text-danger" : !hasUnclassified && hasResults ? "text-success" : "text-muted-foreground"
                   )}>
-                    {hasPositiveResults ? 'Positive (Above Threshold)' : hasUnclassified ? 'Threshold data incomplete' : hasResults ? 'Stable (Below Threshold)' : 'Awaiting Test'}
+                    {hasPositiveResults ? 'Above Threshold' : hasUnclassified ? 'Threshold data incomplete' : hasResults ? 'Below Threshold' : 'Awaiting Test'}
                   </p>
                 </div>
 
@@ -268,7 +268,7 @@ const SampleDetailModal = ({ sample, open, onOpenChange, onUpdateSample, onMycot
             )}
 
             {/* Mycotoxin Results - Collapsible but default open if results exist */}
-            {hasResults && (
+            {(hasResults || sample.screening_result) && (
               <CollapsibleSection
                 title="Test Results"
                 icon={Beaker}
@@ -276,10 +276,12 @@ const SampleDetailModal = ({ sample, open, onOpenChange, onUpdateSample, onMycot
                 onToggle={() => setShowResults(!showResults)}
                 isDangerous={hasPositiveResults}
                 badge={
-                  hasPositiveResults ? (
-                    <Badge variant="destructive" className="ml-2">Positive</Badge>
+                  sample.screening_result ? (
+                    <Badge variant={sample.screening_result === 'positive' ? 'destructive' : 'secondary'} className="ml-2">
+                      {sample.screening_result === 'positive' ? 'Positive' : 'Negative'} (reported)
+                    </Badge>
                   ) : (
-                    <Badge variant="secondary" className="ml-2 bg-success/10 text-success">Negative</Badge>
+                    <Badge variant="secondary" className="ml-2">Screening result not reported</Badge>
                   )
                 }
               >

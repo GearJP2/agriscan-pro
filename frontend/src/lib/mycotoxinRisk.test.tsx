@@ -21,6 +21,19 @@ const sample: Sample = {
 };
 
 describe('dynamic mycotoxin results', () => {
+  it('shows reported screening outcomes independently of threshold risk', () => {
+    const reported: Sample = {
+      ...sample, screening_result: 'positive',
+      mycotoxin_results: [{ ...result, toxin_type: 'AFB1', value: 1, risk_level: 'safe' }],
+    };
+    const html = renderToStaticMarkup(<SampleTable samples={[reported]} onSelectSample={() => {}} />);
+    expect(html).toContain('Positive');
+    expect(html).toContain('(reported)');
+    expect(html).toContain('Below Threshold');
+    const negative: Sample = { ...sample, screening_result: 'negative', mycotoxin_results: [] };
+    expect(renderToStaticMarkup(<SampleTable samples={[negative]} onSelectSample={() => {}} />)).toContain('Negative');
+  });
+
   it('uses canonical measurements and does not treat an unclassified detection as safe', () => {
     expect(getResultValue(result)).toBe(12);
     expect(getThresholdRiskLevel(sample)).toBe('unclassified');

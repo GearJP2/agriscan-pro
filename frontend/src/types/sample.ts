@@ -91,6 +91,7 @@ export interface Sample {
   collection_date: string;
   received_at?: string;
   process_logs?: ProcessLog[];
+  screening_result?: 'positive' | 'negative' | null;
   mycotoxin_results?: MycotoxinResult[];
   results_count?: number;
   risk_level?: RiskLevel;

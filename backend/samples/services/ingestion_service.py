@@ -159,7 +159,7 @@ class SampleIngestionService:
 
         # New lab layout keeps analyzed datetime in the second column.
         values = list((row or {}).values())
-        if len(values) > 1 and str(values[1]).strip():
+        if len(values) > 1 and cls.is_datetime_like(values[1]):
             return str(values[1]).strip()
 
         return ""
@@ -447,7 +447,6 @@ class SampleIngestionService:
         food_feed_type = raw_type if raw_type in {'food', 'feed'} else 'food'
         sub_type = str(cls.get_row_value(row, ['sub-type', 'sub_type']) or '').strip() or 'Unknown'
         location = str(cls.get_row_value(row, ['location']) or '').strip() or 'Unknown'
-        result_status = str(cls.get_row_value(row, ['result (positive/negative)', 'result']) or '').strip().lower()
         sample = Sample.objects.create(
             sample_id=sample_id,
             region='Unknown',
@@ -457,7 +456,7 @@ class SampleIngestionService:
             sub_type=sub_type,
             vegetation_variety=sub_type,
             collection_date=cls._dashboard_collection_date(row, sample_id),
-            status='completed' if result_status in {'positive', 'negative'} else 'pending',
+            status='pending',
             purpose='research',
             collected_by=user.username if user else None,
             recorded_by=user,
@@ -523,7 +522,8 @@ class SampleIngestionService:
         if updated_results:
             MycotoxinResult._default_manager.bulk_update(
                 updated_results,
-                ['value', 'unit', 'notes', 'is_below_lod', 'risk_level'],
+                ['value', 'unit', 'notes', 'is_below_lod', 'risk_level',
+                 'eu_threshold_low', 'eu_threshold_high'],
                 batch_size=1000,
             )
         all_results = [*created_results, *updated_results]
@@ -582,7 +582,17 @@ class SampleIngestionService:
             return outcome
 
         results = cls.extract_results_from_row(row)
-        if not results:
+        screening_result = str(cls.get_row_value(
+            row, ['result (positive/negative)', 'screening_result'],
+        ) or '').strip().lower()
+        if screening_result and screening_result not in {'positive', 'negative'}:
+            outcome['skipped'] = True
+            outcome['failed_row'] = {
+                'row_number': row_number, 'sample_id': display_id,
+                'error': 'Screening result must be Positive or Negative.', 'row_data': row,
+            }
+            return outcome
+        if not results and not screening_result:
             outcome["skipped"] = True
             return outcome
 
@@ -597,6 +607,9 @@ class SampleIngestionService:
                 created_for_row, updated_for_row = cls._apply_results_to_sample(
                     locked, results, user, analyzed_at, recipient_users=recipient_users,
                 )
+                if screening_result:
+                    locked.screening_result = screening_result
+                    locked.save(update_fields=['screening_result', 'updated_at'])
         except Exception as exc:
             outcome["skipped"] = True
             outcome["failed_row"] = {
@@ -606,7 +619,7 @@ class SampleIngestionService:
                 "row_data": row,
             }
             logger.warning(
-                "sample.bulk_import_results.row_failed",
+                "sample.bulk_import_results.row_failed: %s", exc,
                 extra={
                     "row": row_number,
                     "sample_id": display_id or sid,

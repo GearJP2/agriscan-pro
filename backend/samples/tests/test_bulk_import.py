@@ -51,6 +51,54 @@ class BulkImportResultsTests(SampleTestMixin, TestCase):
         super().setUp()
         self.sample = Sample.objects.create(**self.sample_data, updated_by=self.user)
 
+    def test_dashboard_preserves_screening_result_and_values_on_reimport(self):
+        url = reverse('sample-bulk-import-dashboard')
+        for label, value in [('Positive', '7.5'), ('Negative', '0')]:
+            upload = SimpleUploadedFile('dashboard.csv', (
+                'Sample ID,Type,Sub-type,Result (positive/negative),Aflatoxin B1,Patulin\n'
+                f'{self.sample.sample_id},Food,Rice,{label},{value},2.5\n'
+                ',Food,Rice,Positive,99,99\n'
+            ).encode())
+            response = self.client.post(url, {'file': upload}, format='multipart')
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.data['failed_rows'], [])
+            self.assertEqual(response.data['skipped_rows'], 1)
+            self.sample.refresh_from_db()
+            self.assertEqual(self.sample.screening_result, label.lower())
+            self.assertEqual(self.sample.mycotoxin_results.count(), 2)
+            result = self.sample.mycotoxin_results.get(toxin_type='AFB1')
+            self.assertEqual(result.value, float(value))
+            self.assertEqual(result.eu_threshold_low, 5)
+            detail = self.client.get(reverse('sample-detail', args=[self.sample.sample_id]))
+            self.assertEqual(detail.data['screening_result'], label.lower())
+            self.assertEqual(len(detail.data['mycotoxin_results']), 2)
+
+    def test_screening_result_without_toxin_columns_is_saved(self):
+        upload = SimpleUploadedFile('dashboard.csv', (
+            'Sample ID,Type,Sub-type,Result (positive/negative)\n'
+            'SCREEN-001,Food,Rice,Negative\n'
+        ).encode())
+        response = self.client.post(reverse('sample-bulk-import-dashboard'), {'file': upload}, format='multipart')
+        self.assertEqual(response.data['failed_rows'], [])
+        sample = Sample.objects.get(sample_id='SCREEN-001')
+        self.assertEqual(sample.screening_result, 'negative')
+        self.assertEqual(sample.mycotoxin_results.count(), 0)
+        self.assertEqual(sample.status, 'completed')
+
+    def test_failed_toxin_write_does_not_change_screening_result(self):
+        self.sample.screening_result = 'negative'
+        self.sample.save()
+        upload = SimpleUploadedFile('dashboard.csv', (
+            'Sample ID,Result (positive/negative),AFB1\n'
+            f'{self.sample.sample_id},Positive,7\n'
+        ).encode())
+        with patch.object(MycotoxinResult._default_manager, 'bulk_create', side_effect=IntegrityError('write failed')):
+            response = self.client.post(reverse('sample-bulk-import-dashboard'), {'file': upload}, format='multipart')
+        self.assertEqual(len(response.data['failed_rows']), 1)
+        self.sample.refresh_from_db()
+        self.assertEqual(self.sample.screening_result, 'negative')
+        self.assertFalse(self.sample.mycotoxin_results.exists())
+
     def test_bulk_import_results_matches_sample_id_and_creates_results(self):
         """CSV rows with matching sample_id should create mycotoxin results and complete the sample."""
         url = reverse('sample-bulk-import-results')

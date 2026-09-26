@@ -56,6 +56,10 @@ class Sample(models.Model):
     collection_date = models.DateField()
     received_at = models.DateTimeField(auto_now_add=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    screening_result = models.CharField(
+        max_length=8, choices=(('positive', 'Positive'), ('negative', 'Negative')),
+        null=True, blank=True,
+    )
     purpose = models.CharField(max_length=50, choices=PURPOSE_CHOICES, null=True, blank=True)
     sample_type = models.CharField(max_length=20, choices=SAMPLE_TYPE_CHOICES, null=True, blank=True)
     processing_type = models.CharField(max_length=20, choices=PROCESSING_TYPE_CHOICES, null=True, blank=True)
@@ -266,6 +270,16 @@ class MycotoxinResult(models.Model):
         indexes = [
             models.Index(fields=['toxin_type', 'risk_level']),
         ]
+
+    def prepare_risk(self):
+        """Prepare risk and threshold snapshots for bulk writes, which bypass save()."""
+        if self._state.adding or self.eu_threshold_low is None or self.eu_threshold_high is None:
+            threshold = EU_THRESHOLDS.get(self.toxin_type, {})
+            self.eu_threshold_low = threshold.get('low') if threshold.get('has_data') else None
+            self.eu_threshold_high = threshold.get('high') if threshold.get('has_data') else None
+        self.risk_level = _calculate_risk_level(
+            self.toxin_type, self.value, self.eu_threshold_low, self.eu_threshold_high,
+        )
 
     def save(self, *args, **kwargs):
         """Calculate risk and snapshot threshold metadata before saving."""

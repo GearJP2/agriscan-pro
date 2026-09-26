@@ -38,6 +38,7 @@ const UnifiedImportForm = ({ sampleIds = [], onSuccess, triggerClassName }: Unif
   const [file, setFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadStage, setUploadStage] = useState('');
+  const [importErrors, setImportErrors] = useState<string[]>([]);
   const [importMode, setImportMode] = useState<'new' | 'update'>('new');
 
   const downloadRegistrationTemplate = () => {
@@ -145,6 +146,7 @@ const UnifiedImportForm = ({ sampleIds = [], onSuccess, triggerClassName }: Unif
   const handleImport = async () => {
     if (!file) return;
     setIsUploading(true);
+    setImportErrors([]);
     setUploadStage('Preparing the file…');
 
     try {
@@ -161,17 +163,31 @@ const UnifiedImportForm = ({ sampleIds = [], onSuccess, triggerClassName }: Unif
         setUploadStage('Importing samples and mycotoxin results… this can take a few minutes for a full screening sheet.');
         const result = await sampleAPI.bulkImportDashboard(uploadFile);
         setUploadStage('Finalizing the import…');
+        const failures = result.failed_rows || [];
         toast({
-          title: 'Dashboard CSV Imported',
-          description: `${result.samples_created || 0} samples added; ${result.results_created || 0} results added and ${result.results_updated || 0} updated.`,
+          title: failures.length ? 'Import completed with errors' : 'Dashboard Imported',
+          description: `${result.samples_created || 0} samples added; ${result.results_created || 0} results added and ${result.results_updated || 0} updated. ${result.skipped_rows || 0} rows skipped; ${failures.length} failed.`,
+          variant: failures.length ? 'destructive' : 'default',
         });
+        if (failures.length) {
+          setImportErrors(failures.map((row: { sample_id: string; error: string }) => `${row.sample_id}: ${row.error}`));
+          onSuccess?.();
+          return;
+        }
       } else if (importMode === 'update') {
         setUploadStage('Updating matched laboratory results…');
         const result = await sampleAPI.bulkImportResults(uploadFile);
+        const failures = result.failed_rows || [];
         toast({
-          title: 'Lab Results Updated',
-          description: `${result.results_updated || 0} results matched and updated.`,
+          title: failures.length ? 'Import completed with errors' : 'Lab Results Updated',
+          description: `${result.results_created || 0} results added; ${result.results_updated || 0} updated; ${failures.length} rows failed.`,
+          variant: failures.length ? 'destructive' : 'default',
         });
+        if (failures.length) {
+          setImportErrors(failures.map((row: { sample_id: string; error: string }) => `${row.sample_id}: ${row.error}`));
+          onSuccess?.();
+          return;
+        }
       } else {
         setUploadStage('Registering new samples…');
         // Standard registration CSV format.
@@ -336,6 +352,12 @@ const UnifiedImportForm = ({ sampleIds = [], onSuccess, triggerClassName }: Unif
                 )}
                 {isUploading ? 'Processing...' : `Confirm ${importMode === 'new' ? 'Registration' : 'Result Update'}`}
               </Button>
+              {importErrors.length > 0 && (
+                <div role="alert" className="max-h-48 overflow-auto rounded-md border border-destructive p-3 text-sm text-destructive">
+                  <p className="font-semibold">Some rows were not saved. Correct the errors and retry.</p>
+                  {importErrors.map((error, index) => <p key={index}>{error}</p>)}
+                </div>
+              )}
               {isUploading && (
                 <div className="flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-sm text-primary">
                   <Loader2 className="h-4 w-4 animate-spin" />
