@@ -110,4 +110,3 @@ class PostgreSQLConcurrencyTests(TransactionTestCase):
         close_old_connections()
         with dashboard_generation_lock() as acquired:
             self.assertTrue(acquired)
-

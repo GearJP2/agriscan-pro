@@ -99,4 +99,3 @@ class PredictionWeatherServiceTests(TestCase):
             result = PredictionWeatherService.get_features('Bangkok', collection_date)
 
         self.assertEqual(result, stale_features)
-

@@ -16,6 +16,7 @@ try:
 except ImportError:
     HAS_SKLEARN = False
 
+
 class PredictionTrainingServiceTests(SimpleTestCase):
     def test_assess_target_requires_balanced_labels_and_context(self):
         rows = (
