@@ -10,6 +10,32 @@ from .constants.mycotoxin_constants import (
 User = get_user_model()
 
 
+class DashboardImport(models.Model):
+    """A dashboard-result file uploaded directly to S3 and processed by a worker."""
+
+    STATUS_CHOICES = (
+        ('awaiting_upload', 'Awaiting upload'),
+        ('queued', 'Queued'),
+        ('processing', 'Processing'),
+        ('completed', 'Completed'),
+        ('failed', 'Failed'),
+    )
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='dashboard_imports')
+    s3_key = models.CharField(max_length=512, unique=True)
+    task_id = models.CharField(max_length=255, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='awaiting_upload')
+    total_rows = models.PositiveIntegerField(default=0)
+    processed_rows = models.PositiveIntegerField(default=0)
+    result = models.JSONField(default=dict, blank=True)
+    error = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+
 class Sample(models.Model):
     STATUS_CHOICES = (
         ('pending', 'Pending'),

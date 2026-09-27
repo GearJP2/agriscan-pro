@@ -160,17 +160,35 @@ const UnifiedImportForm = ({ sampleIds = [], onSuccess, triggerClassName }: Unif
       );
 
       if (isDashboardScreeningCsv) {
-        setUploadStage('Importing samples and mycotoxin results… this can take a few minutes for a full screening sheet.');
-        const result = await sampleAPI.bulkImportDashboard(uploadFile);
+        setUploadStage('Requesting secure upload…');
+        const upload = await sampleAPI.requestDashboardImportUpload(uploadFile);
+        await sampleAPI.uploadDashboardImportFile(upload.upload_url, uploadFile, (percent) => {
+          setUploadStage(`Uploading CSV to secure storage… ${percent}%`);
+        });
+        setUploadStage('Starting the dashboard import…');
+        let job = await sampleAPI.confirmDashboardImport(upload.import_id);
+        while (job.status === 'awaiting_upload' || job.status === 'queued' || job.status === 'processing') {
+          if (job.status === 'processing' && job.total_rows > 0) {
+            setUploadStage(
+              `Importing samples and mycotoxin results… ${job.processed_rows} / ${job.total_rows} rows uploaded`,
+            );
+          } else {
+            setUploadStage('Importing samples and mycotoxin results…');
+          }
+          await new Promise((resolve) => window.setTimeout(resolve, 800));
+          job = await sampleAPI.getDashboardImportStatus(upload.import_id);
+        }
+        if (job.status === 'failed') throw new Error(job.error || 'Dashboard import failed.');
+        const result = job.result || {};
         setUploadStage('Finalizing the import…');
-        const failures = result.failed_rows || [];
+        const failures = (result.failed_rows as Array<{ sample_id: string; error: string }>) || [];
         toast({
           title: failures.length ? 'Import completed with errors' : 'Dashboard Imported',
           description: `${result.samples_created || 0} samples added; ${result.results_created || 0} results added and ${result.results_updated || 0} updated. ${result.skipped_rows || 0} rows skipped; ${failures.length} failed.`,
           variant: failures.length ? 'destructive' : 'default',
         });
         if (failures.length) {
-          setImportErrors(failures.map((row: { sample_id: string; error: string }) => `${row.sample_id}: ${row.error}`));
+          setImportErrors(failures.map((row) => `${row.sample_id}: ${row.error}`));
           onSuccess?.();
           return;
         }

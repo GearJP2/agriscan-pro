@@ -16,10 +16,10 @@ from core.permissions import IsAdmin, IsAdminOrHeadResearcher, IsAdminOrResearch
 
 from .filters import apply_sample_filters
 from .constants.mycotoxin_constants import get_toxin_registry
-from .models import PredictionEstimate, ProcessLog, Sample
+from .models import DashboardImport, PredictionEstimate, ProcessLog, Sample
 from .services.ingestion_service import SampleIngestionService
 from .services.sample_service import SampleService
-from .services.s3_service import generate_upload_url
+from .services.s3_service import generate_dashboard_import_upload_url, generate_upload_url
 from .services.test_data_service import TestDataService
 from .serializers import (
     MycotoxinResultSerializer,
@@ -35,7 +35,10 @@ from .serializers import (
     SampleSerializer,
 )
 from core.task_dispatcher import dispatch_task
-from .tasks import process_sample_file, sync_process_sample_file
+from .tasks import (
+    process_dashboard_import_file, process_sample_file,
+    sync_process_dashboard_import_file, sync_process_sample_file,
+)
 from .services.analytics_service import AnalyticsService
 from .services.dashboard_payload_service import DashboardFilters, DashboardPayloadService
 from .services.llm_summary_service import (
@@ -59,6 +62,18 @@ logger = logging.getLogger('agriscan.samples')
 # ─── Tunable constants ────────────────────────────────────────────────────────
 BULK_DELETE_LIMIT = 500
 RECENT_ALERTS_LIMIT = 10
+
+
+def _dashboard_import_payload(job: DashboardImport) -> dict:
+    """Return only the import data owned by the authenticated requester."""
+    return {
+        'import_id': job.id,
+        'status': job.status,
+        'processed_rows': job.processed_rows,
+        'total_rows': job.total_rows,
+        'result': job.result if job.status == 'completed' else None,
+        'error': job.error if job.status == 'failed' else '',
+    }
 
 
 class SampleViewSet(viewsets.ModelViewSet):
@@ -422,6 +437,52 @@ class SampleViewSet(viewsets.ModelViewSet):
             'skipped_rows': results.get('skipped_rows', 0),
             'failed_rows': results.get('failed_rows', []),
         }, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['post'], url_path='dashboard_import_upload')
+    def dashboard_import_upload(self, request):
+        """Create an S3 destination for a dashboard CSV; no file passes through CloudFront."""
+        filename = request.data.get('filename', '').strip()
+        content_type = request.data.get('content_type', 'text/csv')
+        if not filename:
+            return Response({'detail': 'filename is required'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            upload = generate_dashboard_import_upload_url(request.user.username, filename, content_type)
+        except ValueError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        job = DashboardImport.objects.create(user=request.user, s3_key=upload['key'])
+        return Response({'import_id': job.id, **upload}, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=['post'], url_path='dashboard_import_confirm')
+    def dashboard_import_confirm(self, request):
+        """Queue a dashboard import after the browser has uploaded the CSV to S3."""
+        import_id = request.data.get('import_id')
+        try:
+            job = DashboardImport.objects.get(pk=import_id, user=request.user)
+        except (DashboardImport.DoesNotExist, TypeError, ValueError):
+            return Response({'detail': 'Import was not found.'}, status=status.HTTP_404_NOT_FOUND)
+        if job.status != 'awaiting_upload':
+            return Response({'detail': 'This import has already been started.'}, status=status.HTTP_409_CONFLICT)
+
+        job.status = 'queued'
+        job.save(update_fields=['status', 'updated_at'])
+        dispatched = dispatch_task(
+            process_dashboard_import_file, sync_process_dashboard_import_file, job.id, on_commit=False,
+        )
+        task_id = getattr(dispatched, 'id', None)
+        if isinstance(task_id, str):
+            job.task_id = task_id
+            job.save(update_fields=['task_id', 'updated_at'])
+        job.refresh_from_db()
+        return Response(_dashboard_import_payload(job), status=status.HTTP_202_ACCEPTED)
+
+    @action(detail=False, methods=['get'], url_path='dashboard_import_status/(?P<import_id>[^/.]+)')
+    def dashboard_import_status(self, request, import_id=None):
+        try:
+            job = DashboardImport.objects.get(pk=import_id, user=request.user)
+        except (DashboardImport.DoesNotExist, TypeError, ValueError):
+            return Response({'detail': 'Import was not found.'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(_dashboard_import_payload(job))
 
     @action(detail=False, methods=['post'])
     def export_failed_rows(self, request):

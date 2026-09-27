@@ -1,16 +1,94 @@
 import csv
 import io
 import logging
+import os
 
 import boto3
 import openpyxl
 from celery import shared_task
 from django.conf import settings
+from django.core.files.base import ContentFile
 from django.utils import timezone
 
-from .models import ExternalDataCache, ProcessLog, Sample
+from .models import DashboardImport, ExternalDataCache, ProcessLog, Sample
+from .services.ingestion_service import SampleIngestionService
 
 logger = logging.getLogger('agriscan.samples')
+
+
+def _download_s3_file(key: str) -> bytes:
+    s3 = boto3.client(
+        's3',
+        aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+        aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+        region_name=settings.AWS_S3_REGION_NAME,
+    )
+    obj = s3.get_object(Bucket=settings.AWS_STORAGE_BUCKET_NAME, Key=key)
+    content_length = obj.get('ContentLength', 0)
+    if content_length > 50 * 1024 * 1024:
+        raise ValueError(f"File too large: {content_length} bytes")
+    return obj['Body'].read()
+
+
+@shared_task(bind=True)
+def process_dashboard_import_file(self, import_id: int):
+    try:
+        return sync_process_dashboard_import_file(import_id, celery_task=self)
+    except Exception as exc:
+        DashboardImport.objects.filter(pk=import_id).update(status='failed', error=str(exc))
+        logger.exception('task.dashboard_import.failed', extra={'import_id': import_id})
+        return {'status': 'failed', 'detail': str(exc)}
+
+
+def sync_process_dashboard_import_file(import_id: int, celery_task=None) -> dict:
+    """Import a dashboard CSV after it has been transferred directly to S3."""
+    job = DashboardImport.objects.select_related('user').get(pk=import_id)
+    job.status = 'processing'
+    job.error = ''
+    job.save(update_fields=['status', 'error', 'updated_at'])
+
+    try:
+        file_bytes = _download_s3_file(job.s3_key)
+        uploaded_file = ContentFile(file_bytes, name=os.path.basename(job.s3_key))
+
+        def report_progress(processed: int, total: int) -> None:
+            DashboardImport.objects.filter(pk=job.pk).update(
+                processed_rows=processed,
+                total_rows=total,
+            )
+            if celery_task:
+                celery_task.update_state(
+                    state='PROGRESS', meta={'processed_rows': processed, 'total_rows': total},
+                )
+
+        results = SampleIngestionService.process_csv_results(
+            uploaded_file, job.user, create_missing_samples=True, progress_callback=report_progress,
+        )
+        payload = {
+            'rows_processed': results.get('rows_processed', 0),
+            'samples_created': results.get('created_samples', 0),
+            'matched_samples': results.get('samples', 0),
+            'results_created': results.get('created', 0),
+            'results_updated': results.get('updated', 0),
+            'skipped_rows': results.get('skipped_rows', 0),
+            'failed_rows': results.get('failed_rows', []),
+        }
+        DashboardImport.objects.filter(pk=job.pk).update(
+            status='completed', processed_rows=payload['rows_processed'],
+            total_rows=payload['rows_processed'], result=payload, error='',
+        )
+        return payload
+    except Exception as exc:
+        DashboardImport.objects.filter(pk=job.pk).update(status='failed', error=str(exc))
+        raise
+    finally:
+        # The database holds the import result; retaining raw laboratory files is unnecessary.
+        try:
+            boto3.client('s3', region_name=settings.AWS_S3_REGION_NAME).delete_object(
+                Bucket=settings.AWS_STORAGE_BUCKET_NAME, Key=job.s3_key,
+            )
+        except Exception:
+            logger.warning('task.dashboard_import.cleanup_failed', extra={'key': job.s3_key})
 
 
 @shared_task(name='samples.tasks.prune_expired_nasa_power_cache')

@@ -428,6 +428,14 @@ Resources:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: !Sub ${AppName}-uploads-${AWS::AccountId}
+      CorsConfiguration:
+        CorsRules:
+          # CORS controls browser access only. Every upload still requires a
+          # short-lived, user-specific presigned URL from the Django API.
+          - AllowedHeaders: [Content-Type]
+            AllowedMethods: [PUT]
+            AllowedOrigins: ['*']
+            MaxAge: 300
       VersioningConfiguration:
         Status: Enabled
       PublicAccessBlockConfiguration:

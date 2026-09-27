@@ -6,7 +6,7 @@ from django.test import TestCase
 from django.urls import reverse
 from rest_framework import status
 
-from ..models import MycotoxinResult, ProcessLog, Sample
+from ..models import DashboardImport, MycotoxinResult, ProcessLog, Sample
 from ..services.ingestion_service import SampleIngestionService
 from ._mixins import SampleTestMixin
 
@@ -42,6 +42,56 @@ class SampleBulkImportTests(SampleTestMixin, TestCase):
         response = self.client.post(url, samples, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(ProcessLog.objects.filter(state='registered').count(), 2)
+
+
+class DashboardImportUploadTests(SampleTestMixin, TestCase):
+    @patch('samples.views.generate_dashboard_import_upload_url')
+    def test_dashboard_import_upload_creates_owned_job(self, generate_url):
+        generate_url.return_value = {
+            'upload_url': 'https://uploads.example.test/signed',
+            'key': 'dashboard-imports/tester/unique-dashboard.csv',
+        }
+
+        response = self.client.post(
+            reverse('sample-dashboard-import-upload'),
+            {'filename': 'dashboard.csv', 'content_type': 'text/csv'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        job = DashboardImport.objects.get(pk=response.data['import_id'])
+        self.assertEqual(job.user, self.user)
+        self.assertEqual(job.status, 'awaiting_upload')
+        self.assertEqual(response.data['upload_url'], generate_url.return_value['upload_url'])
+
+    def test_dashboard_import_status_is_private_to_its_owner(self):
+        job = DashboardImport.objects.create(
+            user=self.user,
+            s3_key='dashboard-imports/tester/owned.csv',
+            status='completed',
+            total_rows=2,
+            processed_rows=2,
+            result={'samples_created': 1},
+        )
+        response = self.client.get(reverse('sample-dashboard-import-status', args=[job.id]))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['result'], {'samples_created': 1})
+
+    @patch('samples.views.dispatch_task')
+    def test_dashboard_import_confirm_queues_the_owned_job(self, dispatch_task):
+        job = DashboardImport.objects.create(
+            user=self.user,
+            s3_key='dashboard-imports/tester/queued.csv',
+        )
+
+        response = self.client.post(
+            reverse('sample-dashboard-import-confirm'), {'import_id': job.id}, format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        job.refresh_from_db()
+        self.assertEqual(job.status, 'queued')
+        dispatch_task.assert_called_once()
 
 
 class BulkImportResultsTests(SampleTestMixin, TestCase):

@@ -1,4 +1,5 @@
 import os
+import uuid
 import boto3
 from django.conf import settings
 
@@ -35,6 +36,27 @@ def generate_upload_url(username: str, filename: str, content_type: str) -> dict
             'ContentType': content_type,
         },
         ExpiresIn=300,  # 5 นาที
+    )
+    return {'upload_url': url, 'key': key}
+
+
+def generate_dashboard_import_upload_url(username: str, filename: str, content_type: str) -> dict:
+    """Generate a single-use destination for a dashboard CSV import."""
+    ext = os.path.splitext(filename)[1].lower()
+    if ext != '.csv':
+        raise ValueError("Dashboard imports must be CSV files.")
+
+    safe_filename = os.path.basename(filename)
+    key = f"dashboard-imports/{username}/{uuid.uuid4().hex}-{safe_filename}"
+    s3 = get_s3_client()
+    url = s3.generate_presigned_url(
+        'put_object',
+        Params={
+            'Bucket': settings.AWS_STORAGE_BUCKET_NAME,
+            'Key': key,
+            'ContentType': content_type,
+        },
+        ExpiresIn=300,
     )
     return {'upload_url': url, 'key': key}
 

@@ -46,6 +46,15 @@ type RefreshSessionResponse = {
   access: string;
 };
 
+export type DashboardImportStatus = {
+  import_id: number;
+  status: 'awaiting_upload' | 'queued' | 'processing' | 'completed' | 'failed';
+  processed_rows: number;
+  total_rows: number;
+  result: Record<string, unknown> | null;
+  error: string;
+};
+
 const requestSessionRefresh = async (): Promise<RefreshSessionResponse> => {
   const response = await publicApiClient.post<RefreshSessionResponse>(
     "/accounts/login/refresh/",
@@ -358,6 +367,45 @@ export const sampleAPI = {
       timeout: 10 * 60 * 1000,
     });
     return response.data;
+  },
+
+  async requestDashboardImportUpload(file: File) {
+    const response = await apiClient.post('/samples/dashboard_import_upload/', {
+      filename: file.name,
+      content_type: file.type || 'text/csv',
+    });
+    return response.data as { import_id: number; upload_url: string; key: string };
+  },
+
+  async uploadDashboardImportFile(uploadUrl: string, file: File, onProgress: (percent: number) => void) {
+    await new Promise<void>((resolve, reject) => {
+      const request = new XMLHttpRequest();
+      request.open('PUT', uploadUrl);
+      request.setRequestHeader('Content-Type', file.type || 'text/csv');
+      request.upload.onprogress = (event) => {
+        if (event.lengthComputable) onProgress(Math.round((event.loaded / event.total) * 100));
+      };
+      request.onload = () => {
+        if (request.status >= 200 && request.status < 300) resolve();
+        else reject(new Error(`S3 upload failed (${request.status}).`));
+      };
+      request.onerror = () => reject(new Error('Could not upload the file to secure storage.'));
+      request.send(file);
+    });
+  },
+
+  async confirmDashboardImport(importId: number) {
+    const response = await apiClient.post(
+      '/samples/dashboard_import_confirm/',
+      { import_id: importId },
+      { timeout: 10 * 60 * 1000 },
+    );
+    return response.data as DashboardImportStatus;
+  },
+
+  async getDashboardImportStatus(importId: number) {
+    const response = await apiClient.get(`/samples/dashboard_import_status/${importId}/`);
+    return response.data as DashboardImportStatus;
   },
 
   async bulkCreateSamples(data: Partial<Sample>[]) {

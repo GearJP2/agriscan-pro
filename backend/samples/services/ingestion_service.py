@@ -625,7 +625,9 @@ class SampleIngestionService:
         return outcome
 
     @classmethod
-    def process_csv_results(cls, uploaded_file, user, *, create_missing_samples=False) -> dict:
+    def process_csv_results(
+        cls, uploaded_file, user, *, create_missing_samples=False, progress_callback=None,
+    ) -> dict:
         """Two-pass CSV import that can optionally create missing dashboard samples."""
         display_ids, normalized_ids, rows_processed = cls._discover_csv_sample_ids(
             uploaded_file
@@ -661,6 +663,8 @@ class SampleIngestionService:
                 failed_rows.append(outcome["failed_row"])
             if outcome["sample_id"]:
                 touched_samples.add(outcome["sample_id"])
+            if progress_callback:
+                progress_callback(row_number, rows_processed)
 
         return {
             "created": created,
