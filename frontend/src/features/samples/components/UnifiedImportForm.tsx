@@ -19,6 +19,7 @@ import {
   DialogTrigger 
 } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Progress } from '@/components/ui/progress';
 import { toast } from '@/hooks/use-toast';
 import { sampleAPI } from '@/lib/api';
 import { parseResearchDataFile } from '@/lib/dataImport';
@@ -38,6 +39,7 @@ const UnifiedImportForm = ({ sampleIds = [], onSuccess, triggerClassName }: Unif
   const [file, setFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadStage, setUploadStage] = useState('');
+  const [progressValue, setProgressValue] = useState<number | null>(null);
   const [importErrors, setImportErrors] = useState<string[]>([]);
   const [importMode, setImportMode] = useState<'new' | 'update'>('new');
 
@@ -147,6 +149,7 @@ const UnifiedImportForm = ({ sampleIds = [], onSuccess, triggerClassName }: Unif
     if (!file) return;
     setIsUploading(true);
     setImportErrors([]);
+    setProgressValue(null);
     setUploadStage('Preparing the file…');
 
     try {
@@ -162,15 +165,20 @@ const UnifiedImportForm = ({ sampleIds = [], onSuccess, triggerClassName }: Unif
       if (isDashboardScreeningCsv) {
         setUploadStage('Requesting secure upload…');
         const upload = await sampleAPI.requestDashboardImportUpload(uploadFile);
+        setProgressValue(0);
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
         await sampleAPI.uploadDashboardImportFile(upload.upload_url, uploadFile, (percent) => {
+          setProgressValue(percent);
           setUploadStage(`Uploading CSV to secure storage… ${percent}%`);
         });
+        setProgressValue(100);
         setUploadStage('Starting the dashboard import…');
         let job = await sampleAPI.confirmDashboardImport(upload.import_id);
         while (job.status === 'awaiting_upload' || job.status === 'queued' || job.status === 'processing') {
           if (job.status === 'processing' && job.total_rows > 0) {
+            setProgressValue(Math.round((job.processed_rows / job.total_rows) * 100));
             setUploadStage(
-              `Importing samples and mycotoxin results… ${job.processed_rows} / ${job.total_rows} rows uploaded`,
+              `Importing samples and mycotoxin results… ${job.processed_rows} / ${job.total_rows} rows processed`,
             );
           } else {
             setUploadStage('Importing samples and mycotoxin results…');
@@ -235,6 +243,7 @@ const UnifiedImportForm = ({ sampleIds = [], onSuccess, triggerClassName }: Unif
     } finally {
       setIsUploading(false);
       setUploadStage('');
+      setProgressValue(null);
     }
   };
 
@@ -377,9 +386,17 @@ const UnifiedImportForm = ({ sampleIds = [], onSuccess, triggerClassName }: Unif
                 </div>
               )}
               {isUploading && (
-                <div className="flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-sm text-primary">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  {uploadStage}
+                <div className="space-y-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-sm text-primary">
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    {uploadStage}
+                  </div>
+                  {progressValue !== null && (
+                    <div className="flex items-center gap-3">
+                      <Progress value={progressValue} className="h-2 flex-1" />
+                      <span className="w-9 text-right text-xs font-semibold">{progressValue}%</span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
