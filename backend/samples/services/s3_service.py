@@ -1,13 +1,21 @@
 import os
 import uuid
 import boto3
+from botocore.config import Config
 from django.conf import settings
 
 _ALLOWED_EXTENSIONS = {'.csv', '.xlsx', '.xls'}
 
 
 def get_s3_client():
-    kwargs = {'region_name': settings.AWS_S3_REGION_NAME}
+    region = settings.AWS_S3_REGION_NAME
+    kwargs = {
+        'region_name': region,
+        # Browser uploads must not be redirected from s3.amazonaws.com to the
+        # regional bucket endpoint: redirects break the CORS preflight.
+        'endpoint_url': f'https://s3.{region}.amazonaws.com',
+        'config': Config(signature_version='s3v4', s3={'addressing_style': 'virtual'}),
+    }
     if settings.AWS_ACCESS_KEY_ID and settings.AWS_SECRET_ACCESS_KEY:
         kwargs['aws_access_key_id'] = settings.AWS_ACCESS_KEY_ID
         kwargs['aws_secret_access_key'] = settings.AWS_SECRET_ACCESS_KEY

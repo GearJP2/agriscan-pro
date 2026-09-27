@@ -3,7 +3,6 @@ import io
 import logging
 import os
 
-import boto3
 import openpyxl
 from celery import shared_task
 from django.conf import settings
@@ -12,17 +11,13 @@ from django.utils import timezone
 
 from .models import DashboardImport, ExternalDataCache, ProcessLog, Sample
 from .services.ingestion_service import SampleIngestionService
+from .services.s3_service import get_s3_client
 
 logger = logging.getLogger('agriscan.samples')
 
 
 def _download_s3_file(key: str) -> bytes:
-    s3 = boto3.client(
-        's3',
-        aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
-        aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
-        region_name=settings.AWS_S3_REGION_NAME,
-    )
+    s3 = get_s3_client()
     obj = s3.get_object(Bucket=settings.AWS_STORAGE_BUCKET_NAME, Key=key)
     content_length = obj.get('ContentLength', 0)
     if content_length > 50 * 1024 * 1024:
@@ -84,7 +79,7 @@ def sync_process_dashboard_import_file(import_id: int, celery_task=None) -> dict
     finally:
         # The database holds the import result; retaining raw laboratory files is unnecessary.
         try:
-            boto3.client('s3', region_name=settings.AWS_S3_REGION_NAME).delete_object(
+            get_s3_client().delete_object(
                 Bucket=settings.AWS_STORAGE_BUCKET_NAME, Key=job.s3_key,
             )
         except Exception:
@@ -130,12 +125,7 @@ def sync_process_sample_file(key: str, uploaded_by_username: str):
 
     # Download file from S3
     try:
-        s3 = boto3.client(
-            's3',
-            aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
-            aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
-            region_name=settings.AWS_S3_REGION_NAME,
-        )
+        s3 = get_s3_client()
         obj = s3.get_object(Bucket=settings.AWS_STORAGE_BUCKET_NAME, Key=key)
         # Check file size to prevent memory exhaustion
         content_length = obj.get('ContentLength', 0)
