@@ -26,8 +26,11 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     outputs:
-      backend: ${{ steps.filter.outputs.backend }}
-      frontend: ${{ steps.filter.outputs.frontend }}
+      # An amended commit is delivered as a forced push. Its tree can be
+      # identical to the replaced commit even when the original push contained
+      # backend/frontend changes, so validate the current revision in full.
+      backend: ${{ steps.filter.outputs.backend == 'true' || github.event.forced }}
+      frontend: ${{ steps.filter.outputs.frontend == 'true' || github.event.forced }}
     steps:
       - name: Checkout code
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
