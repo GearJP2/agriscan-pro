@@ -5,14 +5,14 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AnonymousUser
 from django.core.cache import cache
 from django.http import JsonResponse
-from django.test import RequestFactory, SimpleTestCase, TestCase, override_settings
+from django.test import RequestFactory, TestCase, override_settings
 from unittest.mock import patch
 
 from .middleware import RateLimitMiddleware
 from .settings import build_allowed_hosts, validate_refresh_cookie_security_config
 
 
-class RefreshCookieSecurityConfigTests(SimpleTestCase):
+class RefreshCookieSecurityConfigTests(TestCase):
     """Tests for refresh-cookie security validation."""
 
     def test_health_endpoint_returns_200(self):
