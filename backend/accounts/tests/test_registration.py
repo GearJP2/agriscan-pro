@@ -84,8 +84,6 @@ class UserCreationEdgeCaseTests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("email", response.data["error"]["details"])
 
-
-
     def test_register_missing_required_fields_returns_400(self):
         """Submitting an empty payload should return 400."""
         response = self.client.post(self.register_url, {}, format="json")
