@@ -71,6 +71,21 @@ class UserCreationEdgeCaseTests(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_register_duplicate_case_insensitive_email_returns_400(self):
+        """Registering with an existing email in different case should return 400."""
+        payload = {
+            "username": "distinctuser",
+            "email": "EXISTING@EXAMPLE.COM",
+            "name": "Another User",
+            "password": "StrongPass123!",
+            "verify_password": "StrongPass123!",
+        }
+        response = self.client.post(self.register_url, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("email", response.data["error"]["details"])
+
+
+
     def test_register_missing_required_fields_returns_400(self):
         """Submitting an empty payload should return 400."""
         response = self.client.post(self.register_url, {}, format="json")

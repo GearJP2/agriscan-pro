@@ -166,6 +166,8 @@ class RegisterSerializer(serializers.ModelSerializer):
             field_name="name",
         )
         attrs["email"] = normalize_email(attrs.get("email", ""))
+        if User.objects.filter(email__iexact=attrs["email"]).exists():
+            raise serializers.ValidationError({"email": "This email is already in use or invalid."})
         attrs["password"] = _reject_unsafe_secret(
             attrs.get("password", ""),
             field_name="password",

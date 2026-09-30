@@ -6,6 +6,7 @@ from typing import cast
 from django.conf import settings
 from django.contrib.auth.models import AbstractUser, UserManager
 from django.db import models
+from django.db.models.functions import Lower
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
@@ -29,13 +30,16 @@ class CustomUserManager(UserManager):
 class User(AbstractUser):
     ROLE_CHOICES = ROLE_CHOICES
     name = models.CharField(_("Full Name"), max_length=255)
-    email = models.EmailField(_("Email Address"), unique=True)
+    email = models.EmailField(_("Email Address"))
     role = models.CharField(max_length=50, choices=ROLE_CHOICES, default="user")
 
     # We'll use email for logging in as well as username, but username is still required by AbstractUser
     # We can keep the default username field from AbstractUser as unique=True, which is the default.
 
     objects = CustomUserManager()
+
+    class Meta(AbstractUser.Meta):
+        constraints = [models.UniqueConstraint(Lower('email'), name='accounts_user_email_ci_unique')]
 
     USER_ROLE_WEIGHTS = USER_ROLE_WEIGHTS
 
@@ -89,7 +93,6 @@ class UserAuthProvider(models.Model):
             ),
         ]
         indexes = [
-            models.Index(fields=["user", "provider"]),
             models.Index(fields=["provider", "email"]),
         ]
 
