@@ -70,7 +70,7 @@ class Sample(models.Model):
     )
 
     sample_id = models.CharField(max_length=50, unique=True, db_index=True)
-    sequence_number = models.IntegerField(default=0, db_index=True)
+    sequence_number = models.IntegerField(default=0, db_default=0, db_index=True)
     region = models.CharField(max_length=100)
     province = models.CharField(max_length=100)
     district = models.CharField(max_length=100)
@@ -102,6 +102,14 @@ class Sample(models.Model):
 
     class Meta:
         ordering = ['-collection_date']
+        constraints = [models.CheckConstraint(
+            condition=(
+                models.Q(sub_type__isnull=True)
+                | models.Q(sub_type='')
+                | models.Q(vegetation_variety=models.F('sub_type'))
+            ),
+            name='sample_taxonomy_consistent',
+        )]
         indexes = [
             models.Index(fields=['status']),
             models.Index(fields=['region']),
@@ -115,6 +123,15 @@ class Sample(models.Model):
 
     def __str__(self):
         return f"{self.sample_id} - {self.sub_type or self.vegetation_variety}"
+
+    def save(self, *args, **kwargs):
+        fields = kwargs.get('update_fields')
+        if fields is None or 'sub_type' in fields:
+            if self.sub_type:
+                self.vegetation_variety = self.sub_type
+                if fields is not None:
+                    kwargs['update_fields'] = set(fields) | {'vegetation_variety'}
+        super().save(*args, **kwargs)
 
 
 class PredictionContext(models.Model):
@@ -152,6 +169,22 @@ class PredictionContext(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(latitude__isnull=True, longitude__isnull=True) | (
+                    models.Q(latitude__isnull=False, longitude__isnull=False)
+                    & models.Q(latitude__gte=-90, latitude__lte=90, longitude__gte=-180, longitude__lte=180)
+                ), name='prediction_coordinates_valid',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(moisture_pct__isnull=True) | models.Q(moisture_pct__gte=0, moisture_pct__lte=100),
+                name='prediction_moisture_valid',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(soil_ph__isnull=True) | models.Q(soil_ph__gte=0, soil_ph__lte=14),
+                name='prediction_soil_ph_valid',
+            ),
+        ]
         indexes = [
             models.Index(fields=['location_type'], name='samples_pre_locatio_a83c8e_idx'),
             models.Index(fields=['harvest_date'], name='samples_pre_harvest_774036_idx'),
@@ -199,12 +232,13 @@ class PredictionEstimate(models.Model):
 
 class ExternalDataCache(models.Model):
     source = models.CharField(max_length=50, db_index=True)
-    cache_key = models.CharField(max_length=255, unique=True)
+    cache_key = models.CharField(max_length=255)
     payload = models.JSONField()
     created_at = models.DateTimeField(auto_now_add=True)
     expires_at = models.DateTimeField(db_index=True)
 
     class Meta:
+        constraints = [models.UniqueConstraint(fields=['source', 'cache_key'], name='external_cache_source_key_unique')]
         indexes = [
             models.Index(fields=['source', 'expires_at']),
         ]
@@ -253,8 +287,8 @@ UNIT_CHOICES = [
 
 
 def _calculate_risk_level(toxin_type, value, low, high):
-    threshold = EU_THRESHOLDS.get(toxin_type)
-    if not threshold or not threshold.get('has_data') or value is None:
+    # Stored limits are the policy for this measurement, even after catalog edits.
+    if value is None or low is None or high is None:
         return 'unclassified'
     if high is not None and value > high:
         return 'critical'
@@ -297,9 +331,9 @@ class MycotoxinResult(models.Model):
             models.Index(fields=['toxin_type', 'risk_level']),
         ]
 
-    def prepare_risk(self):
-        """Prepare risk and threshold snapshots for bulk writes, which bypass save()."""
-        if self._state.adding or self.eu_threshold_low is None or self.eu_threshold_high is None:
+    def prepare_risk(self, *, toxin_changed=False):
+        """Keep the original policy; a changed compound starts a new snapshot."""
+        if self._state.adding or toxin_changed:
             threshold = EU_THRESHOLDS.get(self.toxin_type, {})
             self.eu_threshold_low = threshold.get('low') if threshold.get('has_data') else None
             self.eu_threshold_high = threshold.get('high') if threshold.get('has_data') else None
@@ -318,33 +352,26 @@ class MycotoxinResult(models.Model):
             or bool(update_field_set.intersection(relevant_fields))
         )
 
-        should_snapshot = self._state.adding
-        if not should_snapshot and self.pk:
-            if self.pk is not None:
-                should_snapshot = (
-                    self.eu_threshold_low is None
-                    or self.eu_threshold_high is None
-                )
-
-        touched_fields = set()
-        if should_snapshot:
-            threshold = EU_THRESHOLDS.get(self.toxin_type, {})
-            if threshold.get('has_data'):
-                self.eu_threshold_low = threshold.get('low')
-                self.eu_threshold_high = threshold.get('high')
-            else:
-                self.eu_threshold_low = None
-                self.eu_threshold_high = None
-            touched_fields.update({'eu_threshold_low', 'eu_threshold_high'})
-
-        if should_recalculate:
-            self.risk_level = _calculate_risk_level(
-                self.toxin_type,
-                self.value,
-                self.eu_threshold_low,
-                self.eu_threshold_high,
+        needs_previous = bool(
+            self.pk
+            and (
+                should_recalculate
+                or (update_field_set is not None and 'risk_level' in update_field_set)
             )
-            touched_fields.add('risk_level')
+        )
+        previous = (
+            type(self).objects.filter(pk=self.pk).values('toxin_type', 'risk_level').first()
+            if needs_previous else None
+        )
+        # ponytail: metadata-only saves skip the previous-row query; add no
+        # cache or extra state until profiling shows this path needs it.
+        self._previous_risk = (
+            previous['risk_level'] if previous else (self.risk_level if self.pk else None)
+        )
+        touched_fields = set()
+        if should_recalculate:
+            self.prepare_risk(toxin_changed=bool(previous and previous['toxin_type'] != self.toxin_type))
+            touched_fields.update({'risk_level', 'eu_threshold_low', 'eu_threshold_high'})
 
         if update_field_set is not None and touched_fields:
             kwargs['update_fields'] = list(update_field_set | touched_fields)

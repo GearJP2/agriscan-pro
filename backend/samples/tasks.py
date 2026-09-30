@@ -90,7 +90,7 @@ def sync_process_dashboard_import_file(import_id: int, celery_task=None) -> dict
 def prune_expired_nasa_power_cache() -> int:
     """Remove expired NASA POWER cache rows outside dashboard requests."""
     deleted_count, _ = ExternalDataCache.objects.filter(
-        source='NASA_POWER',
+        source__in=['NASA_POWER', 'NASA_POWER_PREDICTION'],
         expires_at__lte=timezone.now(),
     ).delete()
     logger.info('task.nasa_power_cache_pruned', extra={'deleted_count': deleted_count})

@@ -279,6 +279,9 @@ class PredictionPublishRequestSerializer(serializers.Serializer):
 
 
 class PredictionContextSerializer(serializers.ModelSerializer):
+    moisture_pct = serializers.FloatField(required=False, allow_null=True, min_value=0, max_value=100)
+    soil_ph = serializers.FloatField(required=False, allow_null=True, min_value=0, max_value=14)
+
     class Meta:
         model = PredictionContext
         fields = (
@@ -302,8 +305,8 @@ class PredictionContextSerializer(serializers.ModelSerializer):
         read_only_fields = ('created_at', 'updated_at')
 
     def validate(self, attrs):
-        latitude = attrs.get('latitude')
-        longitude = attrs.get('longitude')
+        latitude = attrs.get('latitude', getattr(self.instance, 'latitude', None))
+        longitude = attrs.get('longitude', getattr(self.instance, 'longitude', None))
         if (latitude is None) ^ (longitude is None):
             raise serializers.ValidationError('Latitude and longitude must be provided together.')
         if latitude is not None and not -90 <= latitude <= 90:
@@ -572,6 +575,8 @@ class SampleListSerializer(serializers.ModelSerializer):
         risk_levels = {result.risk_level for result in results}
         if risk_levels.intersection({'critical', 'high'}):
             return 'high'
+        if 'unclassified' in risk_levels:
+            return 'unclassified'
         if 'detected' in risk_levels:
             return 'low'
         return 'safe'

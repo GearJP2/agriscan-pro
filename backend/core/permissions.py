@@ -58,23 +58,22 @@ def check_can_edit_sample(user, obj) -> bool:
         return True
 
     if role == "research_assistant":
+        if getattr(obj, 'recorded_by_id', None) is not None:
+            return obj.recorded_by_id == user.pk
         return (
             getattr(obj, "updated_by", None) == user
             or getattr(obj, "collected_by", None) == getattr(user, "username", None)
-            or getattr(obj, "recorded_by", None) == user
         )
 
     return False
 
 
 def sample_ownership_filter(user) -> Q:
-    """Return the queryset filter for samples owned by a research assistant."""
+    """Recorder is stable ownership; legacy rows retain their compatibility path."""
     if not user or not getattr(user, 'is_authenticated', False):
         return Q(pk__in=[])
-    return (
-        Q(updated_by=user)
-        | Q(recorded_by=user)
-        | Q(collected_by=getattr(user, 'username', ''))
+    return Q(recorded_by_id=user.pk) | (
+        Q(recorded_by__isnull=True) & (Q(updated_by_id=user.pk) | Q(collected_by=user.username))
     )
 
 

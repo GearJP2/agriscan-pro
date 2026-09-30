@@ -87,7 +87,9 @@ class MycotoxinResultTests(SampleTestMixin, TestCase):
 
         result.value = 0.0
         result.notes = 'Notes-only edit'
-        result.save(update_fields=['notes'])
+        with patch.object(MycotoxinResult.objects, 'filter', wraps=MycotoxinResult.objects.filter) as filter_query:
+            result.save(update_fields=['notes'])
+        self.assertFalse(filter_query.called)
         result.refresh_from_db()
         self.assertEqual(result.value, 25.0)
         self.assertEqual(result.risk_level, 'critical')
