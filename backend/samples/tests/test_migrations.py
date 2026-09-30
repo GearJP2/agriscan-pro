@@ -15,20 +15,21 @@ class MycotoxinResultMigration0010Tests(TransactionTestCase):
 
     def setUp(self):
         super().setUp()
-        self.migrated_forward = False
         self.executor = MigrationExecutor(connection)
         self.executor.migrate(self.migrate_from)
         self.old_apps = self.executor.loader.project_state(self.migrate_from).apps
 
     def tearDown(self):
-        if not self.migrated_forward:
-            self.executor.migrate(self.migrate_to)
+        # Migration tests temporarily move the shared TransactionTestCase
+        # database to an historical state. Always restore every app to its
+        # current leaf migration so later tests see the production schema.
+        self.executor.loader.build_graph()
+        self.executor.migrate(self.executor.loader.graph.leaf_nodes())
         super().tearDown()
 
     def migrate_forward(self):
         self.executor.loader.build_graph()
         self.executor.migrate(self.migrate_to)
-        self.migrated_forward = True
         return self.executor.loader.project_state(self.migrate_to).apps
 
     def create_legacy_sample(self, sample_id='MIG-001'):
