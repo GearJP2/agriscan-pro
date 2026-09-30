@@ -480,15 +480,15 @@ class PredictionEstimateEndpointTests(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    @override_settings(BASE_DIR=Path('/tmp/agriscan-no-prediction-artifacts'))
     def test_prediction_estimate_returns_503_without_artifacts(self):
         self.client.force_authenticate(user=self.head_researcher)
 
-        response = self.client.post(
-            reverse('sample-prediction-estimate'),
-            self.payload,
-            format='json',
-        )
+        with TemporaryDirectory() as temporary_dir, override_settings(BASE_DIR=Path(temporary_dir)):
+            response = self.client.post(
+                reverse('sample-prediction-estimate'),
+                self.payload,
+                format='json',
+            )
 
         self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
         self.assertIn('detail', response.data)
@@ -995,11 +995,11 @@ class PredictionEstimateEndpointTests(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    @override_settings(BASE_DIR=Path('/tmp/agriscan-no-prediction-artifacts'))
     def test_prediction_status_returns_not_trained_without_artifacts(self):
         self.client.force_authenticate(user=self.head_researcher)
 
-        response = self.client.get(reverse('sample-prediction-status'))
+        with TemporaryDirectory() as temporary_dir, override_settings(BASE_DIR=Path(temporary_dir)):
+            response = self.client.get(reverse('sample-prediction-status'))
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['status'], 'not_trained')
