@@ -24,7 +24,7 @@ def _sub_type_prefix(sub_type):
     return letters[:3] if len(letters) >= 2 else 'SAM'
 
 
-def generate_sequential_sample_ids(count=1, collection_date=None, sub_type=None):
+def generate_sequential_sample_ids(count=1, collection_date=None, sub_type=None, *, reserved_ids=()):
     if count <= 0:
         return []
     target_year = (collection_date.year if collection_date else timezone.now().year)
@@ -52,6 +52,10 @@ def generate_sequential_sample_ids(count=1, collection_date=None, sub_type=None)
             parsed = extract_sequence_from_sample_id(sid, target_year)
             if parsed > max_seq:
                 max_seq = parsed
+
+        for sid in reserved_ids:
+            if sid.startswith(prefix):
+                max_seq = max(max_seq, extract_sequence_from_sample_id(sid, target_year))
 
         results = []
         for i in range(1, count + 1):

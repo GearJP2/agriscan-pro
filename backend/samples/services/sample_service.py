@@ -11,11 +11,13 @@ from datetime import date
 import logging
 
 from django.db import IntegrityError, transaction
+from django.utils import timezone
 
 from core.exceptions import SampleAlreadyExists
 
 from ..models import ProcessLog, Sample
 from ..utils import (
+    _sub_type_prefix,
     extract_sequence_from_sample_id,
     generate_sequential_sample_ids,
 )
@@ -64,9 +66,6 @@ class SampleService:
         try:
             with transaction.atomic():
                 for item in validated_items:
-                    sample_id = (item.get("sample_id") or "").strip()
-                    collection_date = item.get("collection_date")
-
                     # Backward-compatible imports may only provide the old
                     # vegetation column. Treat it as the requested subtype.
                     item.setdefault("food_feed_type", "food")
@@ -75,18 +74,22 @@ class SampleService:
 
                 # --- batch allocate sample_ids for items lacking one ---
                 unassigned_groups: dict[tuple, list[dict]] = defaultdict(list)
+                reserved_ids = {(item.get('sample_id') or '').strip() for item in validated_items}
+                default_year = timezone.now().year
                 for item in validated_items:
                     if not (item.get("sample_id") or "").strip():
                         c_date = item.get("collection_date")
-                        target_year = c_date.year if c_date else None
-                        unassigned_groups[(target_year, item.get("sub_type"))].append(item)
+                        target_year = c_date.year if c_date else default_year
+                        unassigned_groups[(target_year, _sub_type_prefix(item.get("sub_type")))].append(item)
 
-                for (target_year, sub_type), items_group in unassigned_groups.items():
-                    sample_date = date(target_year, 1, 1) if target_year else None
+                # Consistent lock order also avoids cross-namespace batch deadlocks.
+                for (target_year, prefix), items_group in sorted(unassigned_groups.items()):
+                    sample_date = date(target_year, 1, 1)
                     allocated = generate_sequential_sample_ids(
                         count=len(items_group),
                         collection_date=sample_date,
-                        sub_type=sub_type,
+                        sub_type=prefix,
+                        reserved_ids=reserved_ids,
                     )
                     for item, (generated_id, seq) in zip(items_group, allocated):
                         item["sample_id"] = generated_id

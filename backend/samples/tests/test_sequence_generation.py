@@ -118,3 +118,22 @@ class SequenceGenerationTests(SampleTestMixin, TestCase):
         self.assertEqual(created[1].sample_id, 'RIC-2026-002')
         self.assertEqual(created[1].sequence_number, 2)
         self.assertEqual(created[2].sample_id, 'PRE-SET-001')
+
+    def test_batch_subtypes_sharing_a_prefix_get_distinct_ids(self):
+        items = [
+            {**self.sample_data, 'sample_id': '', 'sub_type': subtype, 'collection_date': date(2026, 1, 1)}
+            for subtype in ['Rice', 'Rice bran']
+        ]
+        created = SampleService.bulk_create_samples(items, user=self.user, batch_size=2)
+        self.assertEqual([sample.sample_id for sample in created], ['RIC-2026-001', 'RIC-2026-002'])
+
+    def test_batch_generated_ids_respect_explicit_ids_regardless_of_order(self):
+        for explicit_first in [True, False]:
+            with self.subTest(explicit_first=explicit_first):
+                Sample.objects.all().delete()
+                items = [
+                    {**self.sample_data, 'sample_id': sid, 'sub_type': 'Rice', 'collection_date': date(2026, 1, 1)}
+                    for sid in (['RIC-2026-001', ''] if explicit_first else ['', 'RIC-2026-001'])
+                ]
+                created = SampleService.bulk_create_samples(items, user=self.user, batch_size=2)
+                self.assertEqual({sample.sample_id for sample in created}, {'RIC-2026-001', 'RIC-2026-002'})
