@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { MapContainer, TileLayer, GeoJSON, useMap } from 'react-leaflet';
 import L from 'leaflet';
@@ -31,8 +31,7 @@ const namesMatch = (left: string, right: string) => {
     normalizedLeft
     && normalizedRight
     && (
-      normalizedLeft === normalizedRight
-      || normalizedLeft.includes(normalizedRight)
+      normalizedLeft.includes(normalizedRight)
       || normalizedRight.includes(normalizedLeft)
     ),
   );
@@ -64,7 +63,7 @@ const RISK_COLORS: Record<string, string> = {
 
 // Sequential Blue scale for Sample counts
 const SAMPLE_COLORS = ['#60a5fa', '#3b82f6', '#2563eb', '#1d4ed8', '#172554'];
-const ENVIRONMENT_COLORS = ['#ecfeff', '#a5f3fc', '#22d3ee', '#0891b2', '#164e63'];
+const ENVIRONMENT_COLOR = '#0891b2';
 
 export type MapViewMode = 'risk' | 'samples' | 'temperature' | 'humidity' | 'rainfall' | 'soilTemperature';
 
@@ -307,7 +306,7 @@ export default function RegionalRiskMap({
     }
 
     if (isNasaMode && isSelected && environmentalMetric?.value != null) {
-      fillColor = ENVIRONMENT_COLORS[3];
+      fillColor = ENVIRONMENT_COLOR;
     }
 
     return {
@@ -319,9 +318,22 @@ export default function RegionalRiskMap({
     };
   }, [findProvinceRisk, selectedProvince, isDark, borderColor, viewMode, maxPositiveSamples, isNasaMode, environmentalMetric]);
 
-  const onEachFeature = useCallback((feature: ProvinceFeature, layer: L.Layer) => {
+  const latestMapValues = useRef({
+    findProvinceRisk, environmentalMetric, viewMode, onSelectProvince, selectedProvince, isDark, style,
+  });
+
+  useLayoutEffect(() => {
+    latestMapValues.current = {
+      findProvinceRisk, environmentalMetric, viewMode, onSelectProvince, selectedProvince, isDark, style,
+    };
+  }, [findProvinceRisk, environmentalMetric, viewMode, onSelectProvince, selectedProvince, isDark, style]);
+
+  const updateTooltip = useCallback((feature: ProvinceFeature, layer: L.Layer) => {
+    const { findProvinceRisk, environmentalMetric, viewMode, selectedProvince, isDark } = latestMapValues.current;
+    const isNasaMode = NASA_MODES.includes(viewMode);
     const name = getProvinceName(feature);
     const risk = findProvinceRisk(name);
+    let content: string | null = null;
 
     if (risk) {
       const positiveCount = risk.positiveCount ?? Math.round((risk.sampleCount * risk.aboveThresholdPct) / 100);
@@ -334,28 +346,37 @@ export default function RegionalRiskMap({
           ? `<div class="mt-1 flex justify-between gap-4 text-xs"><span>${escapeHtml(environmentalMetric.label)}:</span> <span class="font-mono text-gfs-maroon dark:text-gfs-gold font-bold">${escapeHtml(environmentalMetric.value)} ${escapeHtml(environmentalMetric.unit)}</span></div>`
           : '<div class="mt-1 text-[10px] text-gfs-text-muted">Click to load NASA statistics</div>'
         : '';
-      layer.bindTooltip(
-        `<div class="text-xs p-1 font-sans">
+      content = `<div class="text-xs p-1 font-sans">
           <div class="font-bold text-gfs-maroon dark:text-gfs-gold border-b border-gfs-maroon/15 pb-1 mb-1 text-sm">${escapeHtml(risk.name)}</div>
           <div class="flex justify-between gap-4 text-gfs-text-secondary"><span>Total Samples:</span> <span class="font-mono font-bold">${escapeHtml(risk.sampleCount)}</span></div>
           <div class="flex justify-between gap-4 text-gfs-text-secondary"><span>${escapeHtml(countLabel)}:</span> <span class="font-mono text-gfs-maroon dark:text-gfs-gold font-bold">${escapeHtml(displayedCount)}</span></div>
           <div class="flex justify-between gap-4 text-gfs-text-secondary"><span>Risk Rate:</span> <span class="font-mono text-gfs-maroon-dark dark:text-red-400 font-bold">${escapeHtml(risk.aboveThresholdPct)}%</span></div>
           <div class="mt-1 text-[10px] text-gfs-text-muted font-medium">Dominant: ${escapeHtml(risk.dominantToxin)}</div>
           ${nasaLine}
-        </div>`,
-        { sticky: true, className: `p-2 rounded-xl border border-gfs-maroon/20 shadow-lg bg-white text-slate-900 ${isDark ? 'leaflet-tooltip-dark' : ''}` }
-      );
+        </div>`;
     } else if (isNasaMode) {
       const selected = Boolean(selectedProvince && namesMatch(name, selectedProvince));
       const metricLine = selected && environmentalMetric?.value != null
         ? `<div class="font-mono font-bold text-gfs-maroon dark:text-gfs-gold">${escapeHtml(environmentalMetric.value)} ${escapeHtml(environmentalMetric.unit)}</div>`
         : '<div class="text-xs text-gfs-text-muted">Click to load NASA statistics</div>';
-      layer.bindTooltip(
-        `<div class="text-xs p-1 font-sans"><div class="font-bold text-gfs-maroon dark:text-gfs-gold text-sm">${escapeHtml(name)}</div>${metricLine}</div>`,
-        { sticky: true, className: `p-2 rounded-xl border border-gfs-maroon/20 shadow-lg bg-white text-slate-900 ${isDark ? 'leaflet-tooltip-dark' : ''}` }
-      );
+      content = `<div class="text-xs p-1 font-sans"><div class="font-bold text-gfs-maroon dark:text-gfs-gold text-sm">${escapeHtml(name)}</div>${metricLine}</div>`;
     }
 
+    if (content === null) {
+      layer.unbindTooltip();
+    } else if (layer.getTooltip()) {
+      layer.setTooltipContent(content);
+    } else {
+      layer.bindTooltip(content, {
+        sticky: true,
+        className: `p-2 rounded-xl border border-gfs-maroon/20 shadow-lg bg-white text-slate-900 ${isDark ? 'leaflet-tooltip-dark' : ''}`,
+      });
+    }
+  }, []);
+
+  const onEachFeature = useCallback((feature: ProvinceFeature, layer: L.Layer) => {
+    const name = getProvinceName(feature);
+    updateTooltip(feature, layer);
     (layer as L.Path).on({
       mouseover: (e) => {
         const path = e.target as L.Path;
@@ -363,14 +384,25 @@ export default function RegionalRiskMap({
         path.bringToFront();
       },
       mouseout: (e) => {
-        (e.target as L.Path).setStyle(style(feature));
+        (e.target as L.Path).setStyle(latestMapValues.current.style(feature));
       },
       click: () => {
-        if (isNasaMode) onSelectProvince(name);
+        const { findProvinceRisk, viewMode, onSelectProvince } = latestMapValues.current;
+        const risk = findProvinceRisk(name);
+        if (NASA_MODES.includes(viewMode)) onSelectProvince(name);
         else if (risk) onSelectProvince(risk.name);
       },
     });
-  }, [findProvinceRisk, onSelectProvince, isDark, isNasaMode, selectedProvince, environmentalMetric, viewMode, style]);
+  }, [updateTooltip]);
+
+  useLayoutEffect(() => {
+    for (const geoJson of [geoJsonRef.current, geoJsonFullscreenRef.current]) {
+      geoJson?.eachLayer((layer) => {
+        const feature = (layer as L.Layer & { feature?: ProvinceFeature }).feature;
+        if (feature) updateTooltip(feature, layer);
+      });
+    }
+  }, [findProvinceRisk, environmentalMetric, viewMode, selectedProvince, isDark, geoData, loading, error, fullscreen, updateTooltip]);
 
   const mapContent = (ref: React.MutableRefObject<L.GeoJSON | null>) => (
     <MapContainer
@@ -405,7 +437,7 @@ export default function RegionalRiskMap({
       {geoData && !loading && !error && (
         <GeoJSON
           ref={(instance) => { ref.current = instance; }}
-          key={`${selectedProvince || 'default'}-${isDark}-${viewMode}`}
+          key={String(isDark)}
           data={geoData}
           style={style}
           onEachFeature={onEachFeature}
@@ -448,7 +480,7 @@ export default function RegionalRiskMap({
     <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
       <div className="text-[10px] font-bold text-gfs-text-muted tracking-normal uppercase">{isNasaMode ? 'Risk severity + selected NASA statistic' : viewMode === 'risk' ? 'Risk Severity' : 'Sample Intensity'}</div>
       <div className="flex items-center gap-4">
-        {isNasaMode ? (
+        {viewMode !== 'samples' ? (
           <>
             {Object.entries(RISK_COLORS).map(([level, color]) => (
               <div key={level} className="flex items-center gap-1.5">
@@ -456,18 +488,13 @@ export default function RegionalRiskMap({
                 <span className="text-[10px] text-gfs-text-secondary capitalize font-bold">{level}</span>
               </div>
             ))}
-            <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full border border-black/10 shadow-sm" style={{ backgroundColor: ENVIRONMENT_COLORS[3] }} />
-              <span className="text-[10px] text-gfs-text-secondary font-bold">Selected NASA value</span>
-            </div>
+            {isNasaMode && (
+              <div className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full border border-black/10 shadow-sm" style={{ backgroundColor: ENVIRONMENT_COLOR }} />
+                <span className="text-[10px] text-gfs-text-secondary font-bold">Selected NASA value</span>
+              </div>
+            )}
           </>
-        ) : viewMode === 'risk' ? (
-          Object.entries(RISK_COLORS).map(([level, color]) => (
-            <div key={level} className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full border border-black/10 shadow-sm" style={{ backgroundColor: color }} />
-              <span className="text-[10px] text-gfs-text-secondary capitalize font-bold">{level}</span>
-            </div>
-          ))
         ) : (
           <div className="flex items-center gap-1">
             <span className="w-2.5 h-2.5 border border-gfs-maroon/20 mr-1" style={{ backgroundColor: isDark ? '#475569' : '#f0e8dc' }} />
