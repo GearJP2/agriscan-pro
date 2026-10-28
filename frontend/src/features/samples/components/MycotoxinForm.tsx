@@ -42,7 +42,7 @@ import { cn } from '@/lib/utils';
 
 const mycotoxinSchema = z.object({
   toxin_type: z.string().min(1, 'Toxin type is required'),
-  value: z.coerce.number().min(0, 'Concentration must be 0 or higher'),
+  value: z.coerce.number<number>().min(0, 'Concentration must be 0 or higher'),
   unit: z.enum(['ug_kg', 'ng_g', 'ppb']),
   notes: z.string().optional(),
 });

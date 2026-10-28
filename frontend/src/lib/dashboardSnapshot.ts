@@ -64,7 +64,7 @@ export const dashboardSectionsSchema = z.object({
     summary: z.object({
       avgToxinsPerSample: z.number(), pctTwoPlus: z.number(), pctThreePlus: z.number(), mostCommonPair: z.string(),
     }),
-    toxins_per_sample: z.record(z.number()),
+    toxins_per_sample: z.record(z.string(), z.number()),
     intersections: z.array(z.object({ toxins: z.array(z.string()), sampleCount: z.number(), pct: z.number() })),
     network: z.object({
       nodes: z.array(z.object({ id: z.string(), frequency: z.number() })),
@@ -76,7 +76,7 @@ export const dashboardSectionsSchema = z.object({
     affectedCommodities: z.array(z.object({ name: z.string(), pct: z.number() })),
     impactedPopulations: z.array(z.object({ group: z.string(), severity: z.enum(['High', 'Medium']) })),
   }),
-  environmental: z.object({ status: z.enum(['fresh', 'stale', 'unavailable']), data: z.record(z.unknown()) }),
+  environmental: z.object({ status: z.enum(['fresh', 'stale', 'unavailable']), data: z.record(z.string(), z.unknown()) }),
 }).strict();
 
 export const dashboardManifestSchema = z.object({

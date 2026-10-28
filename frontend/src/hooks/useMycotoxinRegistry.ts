@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { z } from 'zod';
 import apiClient from '@/lib/api';
 
-const registrySchema = z.record(z.object({
+const registrySchema = z.record(z.string(), z.object({
   name: z.string(),
   shortName: z.string(),
   defaultThreshold: z.number().finite().nonnegative().nullable(),

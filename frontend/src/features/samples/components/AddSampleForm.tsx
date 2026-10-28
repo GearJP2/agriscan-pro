@@ -50,10 +50,10 @@ import { getAllProvinces, getDistrictsByProvince, getRegionByProvince } from '@/
 const formSchema = z.object({
   province: z.string().min(1, 'Province is required'),
   district: z.string().min(1, 'District is required'),
-  food_feed_type: z.enum(['food', 'feed'], { required_error: 'Type is required' }),
+  food_feed_type: z.enum(['food', 'feed'], { error: (issue) => issue.input === undefined ? 'Type is required' : undefined }),
   sub_type: z.string().min(1, 'Sub-type is required'),
   collection_date: z.date({
-    required_error: "Collection date is required",
+    error: (issue) => issue.input === undefined ? "Collection date is required" : undefined,
   }),
   purpose: z.enum(['research', 'customer']).optional(),
   sample_type: z.enum(['field', 'market', 'storage', 'export']).optional(),
